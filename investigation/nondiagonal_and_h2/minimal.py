@@ -3,6 +3,12 @@ import matplotlib.pyplot as plt
 
 from vecdiff.fresnel import FresnelOvoidParax
 from vecdiff.hankel import HankelTransform
+from viz_utils import (
+    apply_style,
+    radial_to_2d_abs,
+    plot_intensity_maps,
+    plot_vector_fields,
+)
 
 
 # ── optical system ────────────────────────────────────────────────────────────
@@ -13,25 +19,25 @@ zi = 6.0
 R = 2.6
 lam = 532e-6
 
-PARAM_STR = f"""n0={n0}, ni={ni},
-z0={z0}, zi={zi},
-R={R} mm
-(paraxial Fresnel)"""
+
+
+PROFILE_N = 0
+EX_INC = 1.0
+EY_INC = 0.0
+
 
 N_R = 1000
 N_Q = 1000
 N_IMG = 512
-VECTOR_PLOT_MODE = "stream"
-DARK_BACKGROUND = True
-PROFILE_N = 2
-EX_INC = 1.0
-EY_INC = 0.0
+
+
+PARAM_STR = f"""n0={n0}, ni={ni},\nz0={z0}, zi={zi},\nR={R} mm\n(paraxial Fresnel)"""
+VECTOR_PLOT_MODE = "quiver"
+DARK_BACKGROUND = False
+
+DISPLAY_MODE = "gamma"
 
 HT = HankelTransform.transform_array
-
-
-def radial_to_2d(profile_q, q, rho):
-    return np.interp(rho, q, np.abs(profile_q), left=float(np.abs(profile_q[0])), right=0.0)
 
 
 def propagate(r, q, tp, ts, E):
@@ -40,22 +46,8 @@ def propagate(r, q, tp, ts, E):
     return h0, h2
 
 
-def compress_intensity(I, mode="gamma", gamma=0.6, k=12.0):
-    I = np.asarray(I, dtype=float)
-    if mode == "linear":
-        return I, "I"
-    if mode == "sqrt":
-        return np.sqrt(I), "sqrt(I)"
-    if mode == "asinh":
-        return np.arcsinh(k * I), f"asinh({k} I)"
-    if mode == "log":
-        return np.log10(I + 1e-12), "log10(I + 1e-12)"
-    return I**gamma, f"I^{gamma}"
-
-
-def main(display_mode="gamma", vector_plot_mode="quiver"):
-    if DARK_BACKGROUND:
-        plt.style.use("dark_background")
+def main(display_mode=DISPLAY_MODE, vector_plot_mode=VECTOR_PLOT_MODE):
+    apply_style(DARK_BACKGROUND)
 
     r = np.linspace(0.0, R, N_R)
     q_max = ni / (lam * zi) * R
@@ -74,40 +66,36 @@ def main(display_mode="gamma", vector_plot_mode="quiver"):
     rho = np.sqrt(xx**2 + yy**2)
     phi = np.arctan2(yy, xx)
 
-    # Scalar reference: same procedure, but ts=tp=1
     ts_scalar = np.ones_like(ts)
     tp_scalar = np.ones_like(tp)
-    h0s, h2s = propagate(r, q, tp_scalar, ts_scalar, Eamp)
-    # h2s should be zero because (tp-ts)=0
-    I_scalar_2d = radial_to_2d(np.abs(2.0 * π * h0s) ** 2, q, rho)
+    h0s, _ = propagate(r, q, tp_scalar, ts_scalar, Eamp)
+    I_scalar_2d = radial_to_2d_abs(np.abs(2.0 * np.pi * h0s) ** 2, q, rho)
 
-    # Hankel terms for basis responses (X and Y use the same radial amplitude)
     h0x, h2x = propagate(r, q, tp, ts, Eamp)
     h0y, h2y = propagate(r, q, tp, ts, Eamp)
 
-    h0x_2d = radial_to_2d(h0x, q, rho)
-    h2x_2d = radial_to_2d(h2x, q, rho)
-    h0y_2d = radial_to_2d(h0y, q, rho)
-    h2y_2d = radial_to_2d(h2y, q, rho)
+    h0x_2d = radial_to_2d_abs(h0x, q, rho)
+    h2x_2d = radial_to_2d_abs(h2x, q, rho)
+    h0y_2d = radial_to_2d_abs(h0y, q, rho)
+    h2y_2d = radial_to_2d_abs(h2y, q, rho)
 
     c2 = np.cos(2.0 * phi)
     s2 = np.sin(2.0 * phi)
 
-    # Matrix M_xy per point (using your matrix form)
     M11 = h0x_2d - c2 * h2x_2d
     M12 = -s2 * h2y_2d
     M21 = -s2 * h2x_2d
     M22 = h0y_2d + c2 * h2y_2d
 
-    # Incident field vector E_inc = [Ex_inc, Ey_inc]^T
     Ex_inc = float(EX_INC)
     Ey_inc = float(EY_INC)
+    pupil_on_q = rho <= a
+    ex_inc_q = np.where(pupil_on_q, Ex_inc, 0.0)
+    ey_inc_q = np.where(pupil_on_q, Ey_inc, 0.0)
 
-    # Result from matrix multiplication: [Ex, Ey]^T = M_xy @ E_inc
     Ex_v = M11 * Ex_inc + M12 * Ey_inc
     Ey_v = M21 * Ex_inc + M22 * Ey_inc
 
-    # Er and Ez
     Er_v = Ex_v * np.cos(phi) + Ey_v * np.sin(phi)
     Ez_v = (rho / zi) * Er_v
 
@@ -116,147 +104,113 @@ def main(display_mode="gamma", vector_plot_mode="quiver"):
     I_Er = Er_v**2
     I_Ez = Ez_v**2
     I_total = I_Ex + I_Ey + I_Ez
-    I_diff = I_total - I_scalar_2d
-
     maps = [
+        ("Incident |Ex|^2", ex_inc_q**2),
+        ("Incident |Ey|^2", np.maximum(ey_inc_q**2, 0.0)),
         ("Scalar |E|^2", I_scalar_2d),
+        ("Vector total |E|^2", I_total),
         ("|Ex|^2", I_Ex),
         ("|Ey|^2", I_Ey),
-        ("|Er|^2", I_Er),
         ("|Ez|^2", I_Ez),
-        ("Vector total |E|^2", I_total),
-        ("I_total - I_scalar", I_diff),
     ]
 
-    fig, axes = plt.subplots(3, 3, figsize=(14, 12))
-    axes = axes.ravel()
+    plot_intensity_maps(maps, q_view=q_view, display_mode=display_mode, title=PARAM_STR, ncols=3)
+    plot_vector_fields(xx, yy, Ex_v, Ey_v, q_view, R, a, Ex_inc, Ey_inc, vector_plot_mode=vector_plot_mode)
 
-    for ax, (title, I) in zip(axes, maps):
-        if title == "I_total - I_scalar":
-            vmax = np.max(np.abs(I)) + 1e-30
-            im = ax.imshow(
-                I,
-                extent=[-q_view, q_view, -q_view, q_view],
-                origin="lower",
-                cmap="RdBu_r",
-                aspect="equal",
-                vmin=-vmax,
-                vmax=vmax,
-            )
-            cb_label = "Delta I"
-        else:
-            I_plot, cb_label = compress_intensity(I, mode=display_mode)
-            im = ax.imshow(
-                I_plot,
-                extent=[-q_view, q_view, -q_view, q_view],
-                origin="lower",
-                cmap="hot",
-                aspect="equal",
-                vmin=0.0,
-            )
-        ax.set_title(title)
-        ax.set_xlabel("x [q]")
-        ax.set_ylabel("y [q]")
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=cb_label)
+    # Difference vector field (Output - Incident) with explicit visibility
+    ex_inc_q = np.where(pupil_on_q, Ex_inc, 0.0)
+    ey_inc_q = np.where(pupil_on_q, Ey_inc, 0.0)
+    ex_diff = Ex_v - ex_inc_q
+    ey_diff = Ey_v - ey_inc_q
+    dmag = np.sqrt(ex_diff**2 + ey_diff**2)
 
-    for ax in axes[len(maps):]:
-        ax.axis("off")
+    figd, axd = plt.subplots(1, 1, figsize=(6.4, 5.6))
+    im = axd.imshow(
+        dmag,
+        extent=[-q_view, q_view, -q_view, q_view],
+        origin="lower",
+        cmap="magma",
+        aspect="equal",
+        vmin=0.0,
+    )
+    plt.colorbar(im, ax=axd, fraction=0.046, pad=0.04, label="|ΔE|")
 
-    fig.suptitle(PARAM_STR)
+    step = max(1, N_IMG // 28)
+    xg = xx[::step, ::step]
+    yg = yy[::step, ::step]
+    exg = ex_diff[::step, ::step]
+    eyg = ey_diff[::step, ::step]
+    mg = np.sqrt(exg**2 + eyg**2)
+    ref = np.percentile(mg, 95) + 1e-30
+    exn = exg / ref
+    eyn = eyg / ref
+    mn = np.sqrt(exn**2 + eyn**2)
+    mask = mn < 0.08
+    exn = np.where(mask, np.nan, exn)
+    eyn = np.where(mask, np.nan, eyn)
+
+    axd.quiver(
+        xg,
+        yg,
+        exn,
+        eyn,
+        color="cyan",
+        pivot="mid",
+        scale_units="xy",
+        scale=6.0,
+        width=0.0045,
+    )
+    axd.set_title("Difference field: Output - Incident")
+    axd.set_xlabel("x [q]")
+    axd.set_ylabel("y [q]")
+    axd.set_xlim(-q_view, q_view)
+    axd.set_ylim(-q_view, q_view)
+    axd.set_aspect("equal")
     plt.tight_layout()
-    plt.show()
+    out_png = "difference_field_output_minus_incident.png"
+    figd.savefig(out_png, dpi=220, bbox_inches="tight")
+    print(f"Saved: {out_png}")
 
-    # Vector-field plots: incident (aperture plane) vs output (q plane)
-    step_quiver = max(1, N_IMG // 24)
-    step_stream = max(1, N_IMG // 96)
+    # Polarization-only difference map (orientation change, independent of amplitude)
+    s1_out = Ex_v**2 - Ey_v**2
+    s2_out = 2.0 * Ex_v * Ey_v
+    psi_out = 0.5 * np.arctan2(s2_out, s1_out)
 
-    # Incident field over pupil aperture in x-y [mm]
-    xp = np.linspace(-R, R, N_IMG)
-    xxp, yyp = np.meshgrid(xp, xp)
-    rhop = np.sqrt(xxp**2 + yyp**2)
-    pupil = rhop <= a
-    xxp_q = xxp[::step_quiver, ::step_quiver]
-    yyp_q = yyp[::step_quiver, ::step_quiver]
-    pupil_q = pupil[::step_quiver, ::step_quiver]
-    ex_in_q = np.where(pupil_q, Ex_inc, 0.0)
-    ey_in_q = np.where(pupil_q, Ey_inc, 0.0)
-    xxp_st = xxp[::step_stream, ::step_stream]
-    yyp_st = yyp[::step_stream, ::step_stream]
-    pupil_st = pupil[::step_stream, ::step_stream]
-    ex_in_st = np.where(pupil_st, Ex_inc, np.nan)
-    ey_in_st = np.where(pupil_st, Ey_inc, np.nan)
+    s1_inc = Ex_inc**2 - Ey_inc**2
+    s2_inc = 2.0 * Ex_inc * Ey_inc
+    psi_inc = 0.5 * np.arctan2(s2_inc, s1_inc)
 
-    # Output field over q-plane, with magnitude compression for readability
-    xx_q = xx[::step_quiver, ::step_quiver]
-    yy_q = yy[::step_quiver, ::step_quiver]
-    ex_out_q = Ex_v[::step_quiver, ::step_quiver]
-    ey_out_q = Ey_v[::step_quiver, ::step_quiver]
-    mag_out = np.sqrt(ex_out_q**2 + ey_out_q**2)
-    ref = np.percentile(mag_out, 95) + 1e-30
-    gain = np.tanh(mag_out / ref) / (mag_out + 1e-30)
-    ex_out_q = ex_out_q * gain
-    ey_out_q = ey_out_q * gain
-    xx_st = xx[::step_stream, ::step_stream]
-    yy_st = yy[::step_stream, ::step_stream]
-    ex_out_st = Ex_v[::step_stream, ::step_stream]
-    ey_out_st = Ey_v[::step_stream, ::step_stream]
-    mag_out_st = np.sqrt(ex_out_st**2 + ey_out_st**2)
-    ref_st = np.percentile(mag_out_st, 95) + 1e-30
-    ex_out_st = ex_out_st / ref_st
-    ey_out_st = ey_out_st / ref_st
-    tiny = np.sqrt(ex_out_st**2 + ey_out_st**2) < 1e-4
-    ex_out_st = np.where(tiny, np.nan, ex_out_st)
-    ey_out_st = np.where(tiny, np.nan, ey_out_st)
+    dpsi = psi_out - psi_inc
+    dpsi = (dpsi + 0.5 * np.pi) % np.pi - 0.5 * np.pi
 
-    figv, axv = plt.subplots(1, 2, figsize=(12, 5))
-    if vector_plot_mode == "stream":
-        speed_in = np.sqrt(np.nan_to_num(ex_in_st, nan=0.0)**2 + np.nan_to_num(ey_in_st, nan=0.0)**2)
-        axv[0].streamplot(
-            xxp_st[0, :],
-            yyp_st[:, 0],
-            ex_in_st,
-            ey_in_st,
-            color=speed_in,
-            cmap="Blues",
-            density=1.6,
-            linewidth=1.1,
-            arrowsize=0.9,
-        )
-    else:
-        axv[0].quiver(xxp_q, yyp_q, ex_in_q, ey_in_q, color="tab:blue", pivot="mid", scale=50)
-    axv[0].set_title("Incident field vectors (pupil plane)")
-    axv[0].set_xlabel("x [mm]")
-    axv[0].set_ylabel("y [mm]")
-    axv[0].set_aspect("equal")
-    axv[0].set_xlim(-R, R)
-    axv[0].set_ylim(-R, R)
+    et_mag = np.sqrt(Ex_v**2 + Ey_v**2)
+    tiny_pol = et_mag < (0.03 * np.max(et_mag))
+    dpsi_deg = np.degrees(np.where(tiny_pol, np.nan, dpsi))
 
-    if vector_plot_mode == "stream":
-        speed_out = np.sqrt(np.nan_to_num(ex_out_st, nan=0.0)**2 + np.nan_to_num(ey_out_st, nan=0.0)**2)
-        axv[1].streamplot(
-            xx_st[0, :],
-            yy_st[:, 0],
-            ex_out_st,
-            ey_out_st,
-            color=speed_out,
-            cmap="hot",
-            density=5,
-            linewidth=1.0,
-            arrowsize=0.9,
-        )
-    else:
-        axv[1].quiver(xx_q, yy_q, ex_out_q, ey_out_q, color="tab:red", pivot="mid", scale=20)
-    axv[1].set_title("Output field vectors (Ex, Ey, regularized)")
-    axv[1].set_xlabel("x [q]")
-    axv[1].set_ylabel("y [q]")
-    axv[1].set_aspect("equal")
-    axv[1].set_xlim(-q_view, q_view)
-    axv[1].set_ylim(-q_view, q_view)
-
-    figv.suptitle("Vector fields: incident vs output")
+    figp, axp = plt.subplots(1, 1, figsize=(6.4, 5.6))
+    imp = axp.imshow(
+        dpsi_deg,
+        extent=[-q_view, q_view, -q_view, q_view],
+        origin="lower",
+        cmap="RdBu",
+        aspect="equal",
+        vmin=-90.0,
+        vmax=90.0,
+    )
+    plt.colorbar(imp, ax=axp, fraction=0.046, pad=0.04, label="Delta polarization angle [deg]")
+    axp.set_title("Polarization orientation difference (Output vs Incident)")
+    axp.set_xlabel("x [q]")
+    axp.set_ylabel("y [q]")
+    axp.set_xlim(-q_view, q_view)
+    axp.set_ylim(-q_view, q_view)
+    axp.set_aspect("equal")
     plt.tight_layout()
+    out_png_pol = "polarization_orientation_difference.png"
+    figp.savefig(out_png_pol, dpi=220, bbox_inches="tight")
+    print(f"Saved: {out_png_pol}")
+
     plt.show()
 
 
 if __name__ == "__main__":
-    main(display_mode="gamma", vector_plot_mode=VECTOR_PLOT_MODE)
+    main()
