@@ -1,0 +1,24 @@
+{
+  "lam": 0.000532,
+  "n0": 1.0,
+  "ni": 2.2,
+  "z0": 2.0,
+  "zi": 8.0,
+  "r_max": 4.0,
+  "q_max": 2067.669172932331,
+  "n_samples": 700,
+  "n_img": 240,
+  "refined_grid": true,
+  "grid_power": 2.2,
+  "plot_resample": 1600,
+  "profile_power": 4.0,
+  "fresnel_model": "paraxial",
+  "exact_safe_aperture": false,
+  "r_safe_exact": 4.0,
+  "alpha_deg": [
+    10.0,
+    25.0,
+    40.0
+  ],
+  "alpha_definition": "a_over_z0"
+}

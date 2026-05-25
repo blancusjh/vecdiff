@@ -1,0 +1,25 @@
+{
+  "output_dir": "outputs/acceptance_effect_clean_pure_default/study",
+  "model": "paraxial",
+  "n0": 1.0,
+  "ni_list": [
+    1.8,
+    2.2,
+    2.6
+  ],
+  "z0": 2.0,
+  "zi": 10.0,
+  "lam": 0.000532,
+  "alpha_list": [
+    10.0,
+    20.0,
+    30.0,
+    40.0
+  ],
+  "profile_power": 2.0,
+  "r_max": 4.0,
+  "n_samples": 700,
+  "n_img": 220,
+  "q_view_factor": 3.0,
+  "save_case_figures": true
+}

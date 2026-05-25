@@ -1,0 +1,17 @@
+pyproject.toml
+vecdiff/CartesianSurfaces.py
+vecdiff/GOTS_parameters.py
+vecdiff/__init__.py
+vecdiff/coordinate_transformation.py
+vecdiff/field_primes.py
+vecdiff/field_reconstruction.py
+vecdiff/fields.py
+vecdiff/fresnel.py
+vecdiff/hankel.py
+vecdiff/propagation.py
+vecdiff/view.py
+vecdiff.egg-info/PKG-INFO
+vecdiff.egg-info/SOURCES.txt
+vecdiff.egg-info/dependency_links.txt
+vecdiff.egg-info/requires.txt
+vecdiff.egg-info/top_level.txt
