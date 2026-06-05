@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 
 from vecdiff.CartesianSurfaces import CartesianSurface
 from vecdiff.fresnel import FresnelOvoidParax
-from vecdiff.fields import FieldCircular
+from vecdiff.fields import Field
+from vecdiff.grid import Grid
 from vecdiff.propagation import HT, propagate_to_focal_plane_through_diopter
 
 from viz_utils import apply_style, plot_intensity_maps, radial_to_2d_abs
@@ -15,20 +16,20 @@ n0 = 1.0
 ni = 1.5
 z0 = -10.0
 zi = 6.0
-R = 2.6
+R = 3.6
 lam = 532e-6
 
 N_R = 1000
 N_Q = 1000
 N_IMG = 512
-PROFILE_N = 0
+PROFILE_N = 0.0
 
 # Incident circular amplitudes (scalars)
-EL_INC = 0.0
-ER_INC = 1.0
+EL_INC = 1.0
+ER_INC = 1.0j
 
 DISPLAY_MODE = "gamma"
-DARK_BACKGROUND = False
+DARK_BACKGROUND = True
 SAVE_PNG = True
 POL_STEP = 12
 POL_MAX_CURVES = 5000
@@ -62,15 +63,15 @@ def main(display_mode=DISPLAY_MODE):
     a = 0.95 * R
     amp = ((r / (a + 1e-30)) ** PROFILE_N) * (r <= a)
 
-    # Build circular input field
-    field_in = FieldCircular(EL_INC * amp, ER_INC * amp)
+    # Build circular input field. This script visualizes one azimuthal output cut.
+    grid = Grid.from_polar(r, np.array([0.0]))
+    field_in = Field.from_circular(EL_INC * amp, ER_INC * amp, grid, symmetric=True)
 
     # Use the library propagation API
     diopter = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
-    observation = {"r": r, "q": q, "varphi": 0.0}
-    field_out = propagate_to_focal_plane_through_diopter(field_in, diopter, observation)
-    EL = np.asarray(field_out.L)
-    ER = np.asarray(field_out.R)
+    field_out = propagate_to_focal_plane_through_diopter(field_in, diopter, q)
+    EL = np.asarray(field_out.L).squeeze(axis=0)
+    ER = np.asarray(field_out.R).squeeze(axis=0)
 
     # Fallback for current FresnelOvoid NaN path: keep example functional.
     if not (np.isfinite(EL).any() and np.isfinite(ER).any()):

@@ -161,7 +161,7 @@ def plot_vector_fields(
             color=speed_out, cmap="Reds", density=1.8, linewidth=1.0, arrowsize=0.9
         )
     else:
-        axv[1].quiver(xx_q, yy_q, ex_out_q, ey_out_q, color="tab:red", pivot="mid", scale=4.8, scale_units="xy", width=0.0075)
+        axv[1].quiver(xx_q, yy_q, ex_out_q, ey_out_q, color="tab:red", pivot="mid", scale=0.8, scale_units="xy", width=0.0075)
 
     axv[1].set_title("Output field vectors (Ex, Ey)")
     axv[1].set_xlabel("x [q]")

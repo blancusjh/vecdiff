@@ -3,7 +3,6 @@ vecdiff/CartesianSurfaces.py
 vecdiff/GOTS_parameters.py
 vecdiff/__init__.py
 vecdiff/coordinate_transformation.py
-vecdiff/field_primes.py
 vecdiff/field_reconstruction.py
 vecdiff/fields.py
 vecdiff/fresnel.py
