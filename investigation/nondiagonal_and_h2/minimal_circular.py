@@ -5,10 +5,11 @@ from vecdiff.CartesianSurfaces import CartesianSurface
 from vecdiff.fresnel import FresnelOvoidParax
 from vecdiff.fields import Field
 from vecdiff.grid import Grid
+from vecdiff.polarization import polarization_from_components
+from vecdiff.polarization_visualization import plot_polarization_quiver
 from vecdiff.propagation import HT, propagate_to_focal_plane_through_diopter
 
 from viz_utils import apply_style, plot_intensity_maps, radial_to_2d_abs
-from polarization_map import plot_polarization_map
 
 
 # Optical system
@@ -31,12 +32,8 @@ ER_INC = 1.0j
 DISPLAY_MODE = "gamma"
 DARK_BACKGROUND = True
 SAVE_PNG = True
-POL_STEP = 12
-POL_MAX_CURVES = 5000
-POL_LIGHT_ON_HOT = "lightgray"
-DIFF_POL_STEP = 24
-DIFF_POL_MAX_CURVES = 12000
-DIFF_POL_SIZE_SCALE = 0.45
+POL_STRIDE = 16
+DIFF_POL_STRIDE = 24
 
 PARAM_STR = f"""Circular case\nn0={n0}, ni={ni}, z0={z0}, zi={zi}, R={R} mm"""
 
@@ -51,6 +48,20 @@ def radial_to_2d_complex(profile_q, q, rho):
     re = np.interp(rho, q, np.real(profile_q), left=float(np.real(profile_q[0])), right=0.0)
     im = np.interp(rho, q, np.imag(profile_q), left=float(np.imag(profile_q[0])), right=0.0)
     return re + 1j * im
+
+
+def overlay_polarization(ax, x, y, ex, ey, title, stride, min_intensity_frac, scale_by_intensity=True):
+    pol = polarization_from_components(ex, ey)
+    plot_polarization_quiver(
+        x,
+        y,
+        pol,
+        stride=stride,
+        min_intensity_fraction=min_intensity_frac,
+        scale_by_intensity=scale_by_intensity,
+        ax=ax,
+    )
+    ax.set_title(title)
 
 
 def main(display_mode=DISPLAY_MODE):
@@ -168,17 +179,11 @@ def main(display_mode=DISPLAY_MODE):
         aspect="equal",
     )
     plt.colorbar(im0, ax=axv[0], fraction=0.046, pad=0.04, label="Incident |E|^2")
-    plot_polarization_map(
-        xxp, yyp, ex_inc_c, ey_inc_c,
+    overlay_polarization(
+        axv[0], xxp, yyp, ex_inc_c, ey_inc_c,
         title="Incident field polarization over scalar intensity",
+        stride=POL_STRIDE,
         min_intensity_frac=0.004,
-        step=POL_STEP,
-        max_curves=POL_MAX_CURVES,
-        save_path=None,
-        curve_color=POL_LIGHT_ON_HOT,
-        arrow_color=POL_LIGHT_ON_HOT,
-        ax=axv[0],
-        show=False,
     )
 
     im1 = axv[1].imshow(
@@ -189,17 +194,11 @@ def main(display_mode=DISPLAY_MODE):
         aspect="equal",
     )
     plt.colorbar(im1, ax=axv[1], fraction=0.046, pad=0.04, label="Output |E|^2")
-    plot_polarization_map(
-        xx, yy, Ex2d_c, Ey2d_c,
+    overlay_polarization(
+        axv[1], xx, yy, Ex2d_c, Ey2d_c,
         title="Output field polarization over scalar intensity",
+        stride=POL_STRIDE,
         min_intensity_frac=0.004,
-        step=POL_STEP,
-        max_curves=POL_MAX_CURVES,
-        save_path=None,
-        curve_color=POL_LIGHT_ON_HOT,
-        arrow_color=POL_LIGHT_ON_HOT,
-        ax=axv[1],
-        show=False,
     )
     figv.suptitle("Polarization overlays: incident vs output")
     plt.tight_layout()
@@ -234,19 +233,12 @@ def main(display_mode=DISPLAY_MODE):
         aspect="equal",
     )
     plt.colorbar(im_ov1, ax=ax_ov[1], fraction=0.046, pad=0.04, label="asinh(14 * (I_out - I_in)_+ / p99.5)")
-    plot_polarization_map(
-        xx, yy, ex_diff_c, ey_diff_c,
+    overlay_polarization(
+        ax_ov[1], xx, yy, ex_diff_c, ey_diff_c,
         title="Delta I + polarization difference",
+        stride=DIFF_POL_STRIDE,
         min_intensity_frac=0.002,
-        step=DIFF_POL_STEP,
-        max_curves=DIFF_POL_MAX_CURVES,
-        save_path=None,
-        curve_color=POL_LIGHT_ON_HOT,
-        arrow_color=POL_LIGHT_ON_HOT,
         scale_by_intensity=False,
-        size_scale=DIFF_POL_SIZE_SCALE,
-        ax=ax_ov[1],
-        show=False,
     )
     fig_ov.suptitle("Difference between input and output")
     plt.tight_layout()

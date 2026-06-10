@@ -5,3 +5,11 @@ from .grid import Grid
 from .hankel import HankelTransform, HT_N
 from .propagation import propagate_to_focal_plane_through_diopter
 from .coordinate_transformation import polar_grid_to_cartesian_grid
+from .polarization import (
+    PolarizationData,
+    ellipse_parameters,
+    polarization_from_components,
+    polarization_from_field,
+    polarization_map_from_field,
+    stokes_parameters,
+)
