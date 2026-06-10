@@ -79,8 +79,8 @@ def propagate_to_focal_plane_through_diopter(field: Field, diopter, q: np.ndarra
         h2y = HT(2, r, (tp - ts) * field.y, q)
         c2  = np.cos(2 * varphi_col)
         s2  = np.sin(2 * varphi_col)
-        E_x = h0x[None, :] - c2 * h2x[None, :] - s2 * h2y[None, :]
-        E_y = h0y[None, :] + c2 * h2y[None, :] - s2 * h2x[None, :]
+        E_x = π * (h0x[None, :] - c2 * h2x[None, :] - s2 * h2y[None, :])
+        E_y = π * (h0y[None, :] + c2 * h2y[None, :] - s2 * h2x[None, :])
         return Field.from_cartesian(E_x, E_y, grid_out, symmetric=True)
 
     if field.symmetry is None:

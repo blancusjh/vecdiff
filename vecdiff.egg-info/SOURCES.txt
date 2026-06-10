@@ -1,4 +1,5 @@
 pyproject.toml
+tests/test_propagation_basis_consistency.py
 vecdiff/CartesianSurfaces.py
 vecdiff/GOTS_parameters.py
 vecdiff/__init__.py
@@ -6,6 +7,7 @@ vecdiff/coordinate_transformation.py
 vecdiff/field_reconstruction.py
 vecdiff/fields.py
 vecdiff/fresnel.py
+vecdiff/grid.py
 vecdiff/hankel.py
 vecdiff/propagation.py
 vecdiff/view.py

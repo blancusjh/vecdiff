@@ -1,5 +1,8 @@
 import numpy as np
 
+π = np.pi
+exp = np.exp
+
 from .hankel import HankelTransform
 
 
@@ -69,8 +72,8 @@ def reconstruct_2d_from_terms(terms, q, rho, varphi, polarization):
         h0y = radial_to_2d(terms["H0y"], q, rho)
         h2x = radial_to_2d(terms["H2x"], q, rho)
         h2y = radial_to_2d(terms["H2y"], q, rho)
-        e_x = h0x - np.cos(2.0 * varphi) * h2x - np.sin(2.0 * varphi) * h2y
-        e_y = -np.sin(2.0 * varphi) * h2x + h0y + np.cos(2.0 * varphi) * h2y
+        e_x = π * (h0x - np.cos(2.0 * varphi) * h2x - np.sin(2.0 * varphi) * h2y)
+        e_y = π * (-np.sin(2.0 * varphi) * h2x + h0y + np.cos(2.0 * varphi) * h2y)
         return e_x, e_y
 
     if rep == "polar":
