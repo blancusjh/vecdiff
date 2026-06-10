@@ -109,11 +109,11 @@ def main(display_mode=DISPLAY_MODE, vector_plot_mode=VECTOR_PLOT_MODE):
     maps = [
         ("Incident |Ex|^2", ex_inc_q**2),
         ("Incident |Ey|^2", np.maximum(ey_inc_q**2, 0.0)),
+        ("|Ez|^2", I_Ez),
         ("Scalar |E|^2", I_scalar_2d),
-        ("Vector total |E|^2", I_total),
         ("|Ex|^2", I_Ex),
         ("|Ey|^2", I_Ey),
-        ("|Ez|^2", I_Ez),
+        ("Vector total |E|^2", I_total),
     ]
 
     plot_intensity_maps(maps, q_view=q_view, display_mode=display_mode, title=PARAM_STR, ncols=3)

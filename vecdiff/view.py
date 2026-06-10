@@ -3,6 +3,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from .coordinate_transformation import polar_grid_to_cartesian_grid
+
 
 def _radial_mesh(half_size, n_points):
     x = np.linspace(-half_size, half_size, n_points)
@@ -61,6 +63,13 @@ def _extract_input_components(initial_field):
 
 
 def _extract_transmitted_components(transmitted):
+    if hasattr(transmitted, "L") and hasattr(transmitted, "R"):
+        return np.asarray(transmitted.L), np.asarray(transmitted.R)
+    if hasattr(transmitted, "r") and hasattr(transmitted, "phi"):
+        return np.asarray(transmitted.r), np.asarray(transmitted.phi)
+    if hasattr(transmitted, "x") and hasattr(transmitted, "y"):
+        return np.asarray(transmitted.x), np.asarray(transmitted.y)
+
     if isinstance(transmitted, dict):
         keys = ("L", "R") if "L" in transmitted and "R" in transmitted else ("x", "y")
         if keys[0] in transmitted and keys[1] in transmitted:
@@ -79,6 +88,45 @@ def _extract_transmitted_components(transmitted):
 
     raise ValueError(
         "`transmitted` must be a tuple/list (component1, component2), dict, or ndarray with shape[0]==2."
+    )
+
+
+def field_cartesian_maps(field, half_size=None, n_img=500):
+    """Sample a polar-grid Field on a Cartesian plotting mesh."""
+    if field.grid.type != "polar":
+        raise ValueError("`field` must be sampled on a polar grid.")
+
+    component1, component2 = _extract_input_components(field)
+    labels, _ = _component_labels(field)
+    radial_axis = np.asarray(field.grid.r)
+    varphi = np.asarray(field.grid.varphi)
+    if half_size is None:
+        half_size = float(np.max(radial_axis))
+
+    rr, extent = _radial_mesh(half_size, n_img)
+    if component1.ndim == 1:
+        map1 = np.interp(rr, radial_axis, component1, left=component1[0], right=0.0)
+        map2 = np.interp(rr, radial_axis, component2, left=component2[0], right=0.0)
+        return map1, map2, extent, labels
+
+    x = np.linspace(-half_size, half_size, n_img)
+    xx, yy = np.meshgrid(x, x)
+    map1 = polar_grid_to_cartesian_grid(component1, radial_axis, varphi, xx, yy, fill_value=0.0)
+    map2 = polar_grid_to_cartesian_grid(component2, radial_axis, varphi, xx, yy, fill_value=0.0)
+    return map1, map2, extent, labels
+
+
+def plot_field(field, half_size=None, n_img=500, cmap="hot", component_view="abs", title=None):
+    """Plot a Field through its native component representation."""
+    component1, component2, extent, labels = field_cartesian_maps(field, half_size, n_img)
+    return plot_field_2d_components(
+        component1,
+        component2,
+        extent,
+        labels=labels,
+        cmap=cmap,
+        component_view=component_view,
+        title=title,
     )
 
 def plot_radial_field(
