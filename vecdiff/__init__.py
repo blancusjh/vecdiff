@@ -17,6 +17,12 @@ from .fourier import (
 )
 from .grid import Grid
 from .hankel import HankelTransform, HT_N
+from .longitudinal import (
+    generate_Ez_cartesian,
+    generate_Ez_field,
+    kz_angular_spectrum,
+    spacing_from_cartesian_grid,
+)
 from .propagation import propagate_to_focal_plane_through_diopter
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 from .polarization import (
