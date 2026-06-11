@@ -1,6 +1,20 @@
 from .CartesianSurfaces import CartesianSurface
 from .fields import Field, FieldCircular, FieldCartesian, FieldPolar
 from .fresnel import FresnelOvoid, FresnelOvoidParax
+from .fourier import (
+    FFT2,
+    FT,
+    FT2,
+    FT3,
+    IFFT2,
+    IFT,
+    IFT2,
+    IFT3,
+    KAXIS,
+    KGRID2,
+    KGRID3,
+    frequency_grid,
+)
 from .grid import Grid
 from .hankel import HankelTransform, HT_N
 from .propagation import propagate_to_focal_plane_through_diopter
