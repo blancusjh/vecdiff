@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from .grid import Grid
+
 π = np.pi
 
 
@@ -9,13 +11,16 @@ import numpy as np
 #  1D Fourier Transform                                             #
 # ================================================================ #
 
-def FT(g, dx=1.0, physical=False, shift=False):
+def FT(g, dx=1.0, physical=True, shift=True):
     """Return the one-dimensional Fourier transform of ``g``.
 
     When ``physical`` is true, the result is scaled by ``dx`` to approximate
     ``integral g(x) exp(-i k x) dx`` at the sampled spectral points.
     """
-    G = np.fft.fft(np.asarray(g, dtype=complex))
+    g = np.asarray(g, dtype=complex)
+    if shift:
+        g = np.fft.ifftshift(g)
+    G = np.fft.fft(g)
     if physical:
         G = dx * G
     if shift:
@@ -23,17 +28,20 @@ def FT(g, dx=1.0, physical=False, shift=False):
     return G
 
 
-def IFT(G, dx=1.0, physical=False, shift=False):
+def IFT(G, dx=1.0, physical=True, shift=True):
     """Return the one-dimensional inverse Fourier transform of ``G``."""
     G = np.asarray(G, dtype=complex)
     if shift:
         G = np.fft.ifftshift(G)
     if physical:
         G = G / dx
-    return np.fft.ifft(G)
+    g = np.fft.ifft(G)
+    if shift:
+        g = np.fft.fftshift(g)
+    return g
 
 
-def KAXIS(N, dx=1.0, shift=False):
+def KAXIS(N, dx=1.0, shift=True):
     """Return the one-dimensional angular spectral axis ``k = 2*pi*f``."""
     k = 2.0 * π * np.fft.fftfreq(N, d=dx)
     if shift:
@@ -45,13 +53,12 @@ def KAXIS(N, dx=1.0, shift=False):
 #  2D Fourier Transform                                             #
 # ================================================================ #
 
-def FT2(g, dx=1.0, dy=1.0, physical=False, shift=False):
-    """Return the two-dimensional Fourier transform of ``g[y, x]``.
-
-    When ``physical`` is true, the result is scaled by ``dx * dy`` to
-    approximate ``integral integral g(x, y) exp[-i(kx*x + ky*y)] dx dy``.
-    """
-    G = np.fft.fft2(np.asarray(g, dtype=complex))
+def _ft2_array(g, dx=1.0, dy=1.0, physical=True, shift=True):
+    """Return the two-dimensional Fourier transform of ``g[y, x]``."""
+    g = np.asarray(g, dtype=complex)
+    if shift:
+        g = np.fft.ifftshift(g)
+    G = np.fft.fft2(g)
     if physical:
         G = dx * dy * G
     if shift:
@@ -59,38 +66,91 @@ def FT2(g, dx=1.0, dy=1.0, physical=False, shift=False):
     return G
 
 
-def IFT2(G, dx=1.0, dy=1.0, physical=False, shift=False):
+def _ift2_array(G, dx=1.0, dy=1.0, physical=True, shift=True):
     """Return the two-dimensional inverse Fourier transform of ``G``."""
     G = np.asarray(G, dtype=complex)
     if shift:
         G = np.fft.ifftshift(G)
     if physical:
         G = G / (dx * dy)
-    return np.fft.ifft2(G)
-
-
-def KGRID2(shape, dx=1.0, dy=1.0, shift=False):
-    """Return angular spectral grids ``(KX, KY)`` for an array ``g[y, x]``."""
-    Ny, Nx = shape
-    kx = 2.0 * π * np.fft.fftfreq(Nx, d=dx)
-    ky = 2.0 * π * np.fft.fftfreq(Ny, d=dy)
+    g = np.fft.ifft2(G)
     if shift:
-        kx = np.fft.fftshift(kx)
-        ky = np.fft.fftshift(ky)
-    return np.meshgrid(kx, ky, indexing="xy")
+        g = np.fft.fftshift(g)
+    return g
+
+
+def _grid_from_shape_or_spacing(shape, grid=None, dx=1.0, dy=1.0) -> Grid:
+    if grid is None:
+        return Grid.from_spacing(shape, dx=dx, dy=dy)
+    if not isinstance(grid, Grid):
+        raise TypeError("grid must be a vecdiff.grid.Grid instance.")
+    return grid
+
+
+def FT2(g, grid: Grid | None = None, *, dx=1.0, dy=1.0, physical=True, shift=True):
+    """Return ``(G, kgrid)`` for the field samples ``g`` on ``grid``.
+
+    When ``physical`` is true, the result is scaled by ``dx * dy`` to
+    approximate ``integral integral g(x, y) exp[-i(kx*x + ky*y)] dx dy``.
+    If ``grid`` is omitted, a centered Cartesian grid is built from ``dx`` and ``dy``.
+    """
+    g = np.asarray(g, dtype=complex)
+    grid = _grid_from_shape_or_spacing(g.shape, grid=grid, dx=dx, dy=dy)
+    if g.shape != grid.shape:
+        raise ValueError("g must have the same shape as grid.")
+
+    dx, dy = grid.spacing()
+    G = _ft2_array(g, dx=dx, dy=dy, physical=physical, shift=shift)
+    return G, grid.kgrid(shift=shift)
+
+
+def IFT2(G, kgrid: Grid | None = None, *, dx=1.0, dy=1.0, physical=True, shift=True):
+    """Return ``(g, grid)`` from samples ``G`` on a Fourier ``kgrid``."""
+    G = np.asarray(G, dtype=complex)
+    if kgrid is None:
+        grid = Grid.from_spacing(G.shape, dx=dx, dy=dy)
+        kgrid = grid.kgrid(shift=shift)
+    elif not isinstance(kgrid, Grid):
+        raise TypeError("kgrid must be a vecdiff.grid.Grid instance.")
+    elif kgrid.dual is None:
+        raise ValueError("kgrid must carry its dual spatial grid.")
+    else:
+        grid = kgrid.dual
+
+    if G.shape != kgrid.shape:
+        raise ValueError("G must have the same shape as kgrid.")
+
+    dx, dy = grid.spacing()
+    return _ift2_array(G, dx=dx, dy=dy, physical=physical, shift=shift), grid
+
+
+def KGRID2(grid: Grid | None = None, *, shape=None, dx=1.0, dy=1.0, shift=True):
+    """Return angular spectral grids ``(KX, KY)`` for a Cartesian ``Grid``."""
+    if grid is None:
+        if shape is None:
+            raise TypeError("KGRID2 requires either grid or shape.")
+        grid = Grid.from_spacing(shape, dx=dx, dy=dy)
+    elif not isinstance(grid, Grid):
+        raise TypeError("grid must be a vecdiff.grid.Grid instance.")
+
+    kgrid = grid.kgrid(shift=shift)
+    return kgrid.X, kgrid.Y
 
 
 # ================================================================ #
 #  3D Fourier Transform                                             #
 # ================================================================ #
 
-def FT3(g, dx=1.0, dy=1.0, dz=1.0, physical=False, shift=False):
+def FT3(g, dx=1.0, dy=1.0, dz=1.0, physical=True, shift=True):
     """Return the three-dimensional Fourier transform of ``g[z, y, x]``.
 
     When ``physical`` is true, the result is scaled by ``dx * dy * dz`` to
     approximate the corresponding Fourier integral.
     """
-    G = np.fft.fftn(np.asarray(g, dtype=complex), axes=(0, 1, 2))
+    g = np.asarray(g, dtype=complex)
+    if shift:
+        g = np.fft.ifftshift(g)
+    G = np.fft.fftn(g, axes=(0, 1, 2))
     if physical:
         G = dx * dy * dz * G
     if shift:
@@ -98,17 +158,20 @@ def FT3(g, dx=1.0, dy=1.0, dz=1.0, physical=False, shift=False):
     return G
 
 
-def IFT3(G, dx=1.0, dy=1.0, dz=1.0, physical=False, shift=False):
+def IFT3(G, dx=1.0, dy=1.0, dz=1.0, physical=True, shift=True):
     """Return the three-dimensional inverse Fourier transform of ``G``."""
     G = np.asarray(G, dtype=complex)
     if shift:
         G = np.fft.ifftshift(G)
     if physical:
         G = G / (dx * dy * dz)
-    return np.fft.ifftn(G, axes=(0, 1, 2))
+    g = np.fft.ifftn(G, axes=(0, 1, 2))
+    if shift:
+        g = np.fft.fftshift(g)
+    return g
 
 
-def KGRID3(shape, dx=1.0, dy=1.0, dz=1.0, shift=False):
+def KGRID3(shape, dx=1.0, dy=1.0, dz=1.0, shift=True):
     """Return angular spectral grids ``(KX, KY, KZ)`` for ``g[z, y, x]``."""
     Nz, Ny, Nx = shape
     kx = 2.0 * π * np.fft.fftfreq(Nx, d=dx)

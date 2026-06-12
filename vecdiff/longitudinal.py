@@ -12,6 +12,15 @@ from .grid import Grid
 
 def spacing_from_cartesian_grid(grid) -> tuple[float, float]:
     """Return uniform Cartesian spacings ``(dx, dy)`` from a grid."""
+    cart_grid = _as_grid(grid)
+    return cart_grid.spacing()
+
+
+def _as_grid(grid) -> Grid:
+    """Return a Cartesian ``Grid`` from either a ``Grid`` or an ``(X, Y)`` pair."""
+    if isinstance(grid, Grid):
+        return grid
+
     if hasattr(grid, "X") and hasattr(grid, "Y"):
         x = np.asarray(grid.X, dtype=float)
         y = np.asarray(grid.Y, dtype=float)
@@ -23,12 +32,7 @@ def spacing_from_cartesian_grid(grid) -> tuple[float, float]:
         x = np.asarray(x, dtype=float)
         y = np.asarray(y, dtype=float)
 
-    if x.shape != y.shape:
-        raise ValueError("x and y grids must have the same shape.")
-    if x.ndim != 2:
-        raise ValueError("x and y must be 2D arrays.")
-
-    return _uniform_spacing(x, axis=1, name="x"), _uniform_spacing(y, axis=0, name="y")
+    return Grid.from_cartesian(x, y)
 
 
 def kz_angular_spectrum(KX, KY, wavelength, n=1.0,
@@ -68,10 +72,10 @@ def generate_Ez_cartesian(Ex, Ey, grid, wavelength, n=1.0,
     if Ex.ndim != 2:
         raise ValueError("Ex and Ey must be 2D Cartesian arrays.")
 
-    dx, dy = spacing_from_cartesian_grid(grid)
-    EX = FT2(Ex, dx=dx, dy=dy)
-    EY = FT2(Ey, dx=dx, dy=dy)
-    KX, KY = KGRID2(Ex.shape, dx=dx, dy=dy)
+    grid = _as_grid(grid)
+    EX, kgrid = FT2(Ex, grid)
+    EY, _ = FT2(Ey, grid)
+    KX, KY = KGRID2(grid)
 
     if method == "exact":
         KZ = kz_angular_spectrum(
@@ -91,7 +95,8 @@ def generate_Ez_cartesian(Ex, Ey, grid, wavelength, n=1.0,
     with np.errstate(divide="ignore", invalid="ignore"):
         EZ = -(KX * EX + KY * EY) / KZ
     EZ = np.where(np.isfinite(EZ), EZ, 0.0)
-    return IFT2(EZ, dx=dx, dy=dy)
+    Ez, _ = IFT2(EZ, kgrid)
+    return Ez
 
 
 def generate_Ez_field(field, wavelength, n=1.0, method="exact",
@@ -127,19 +132,6 @@ def generate_Ez_field(field, wavelength, n=1.0, method="exact",
         return _cartesian_field_to_polar(Ez, cart_grid, field.grid)
 
     raise ValueError(f"Unsupported field grid type: {field.grid.type!r}.")
-
-
-def _uniform_spacing(values: np.ndarray, axis: int, name: str) -> float:
-    diffs = np.diff(values, axis=axis)
-    if diffs.size == 0:
-        raise ValueError(f"{name} grid axis must contain at least two samples.")
-
-    spacing = float(np.mean(diffs))
-    if not np.allclose(diffs, spacing):
-        raise ValueError(f"{name} grid axis must be uniformly sampled.")
-    if np.isclose(spacing, 0.0):
-        raise ValueError(f"{name} grid spacing must be nonzero.")
-    return spacing
 
 
 def _polar_field_to_cartesian(field):
