@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from vecdiff.polarization import polarization_from_components
+from vecdiff import FieldCartesian, Grid
+from vecdiff.polarization import polarization_from_components, polarization_map_from_field
 from vecdiff.polarization_visualization import plot_polarization_map
 
 
@@ -102,3 +103,17 @@ def test_polarization_map_rejects_unknown_intensity_scale_mode():
 
     with pytest.raises(ValueError, match="intensity_scale_mode"):
         plot_polarization_map(x, y, pol, scale=1.0, intensity_scale_mode="sqrt")
+
+
+def test_polarization_map_from_cartesian_field_respects_half_size():
+    axis = np.linspace(-2.0, 2.0, 5)
+    X, Y = np.meshgrid(axis, axis, indexing="xy")
+    grid = Grid.from_cartesian(X, Y)
+    field = FieldCartesian(X + 0.0j, Y + 0.0j, grid=grid, symmetric=False)
+
+    xx, yy, pol = polarization_map_from_field(field, half_size=1.0, n_img=3)
+
+    assert np.allclose(xx[0], [-1.0, 0.0, 1.0])
+    assert np.allclose(yy[:, 0], [-1.0, 0.0, 1.0])
+    assert np.allclose(pol.ex, xx)
+    assert np.allclose(pol.ey, yy)

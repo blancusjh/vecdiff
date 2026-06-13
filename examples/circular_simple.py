@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from vecdiff import CartesianSurface, FieldCircular, Grid
+from vecdiff.polarization_visualization import plot_field_polarization
 from vecdiff.view import plot_field
 
 
@@ -22,6 +23,14 @@ diopter = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
 E0 = FieldCircular(L=0.0 * pupil, R=1.0 * pupil, grid=grid)
 E = E0.propagate_through_diopter(zi, diopter, q)
 
-plot_field(E0, half_size=R, title="Input circular field")
-plot_field(E, half_size=0.0045 * q[-1], title="Propagated circular field")
+input_half_size = R
+propagated_half_size = 0.0045 * q[-1]
+
+plot_field(E0, half_size=input_half_size, title="Input circular field")
+plot_field(E, half_size=propagated_half_size, title="Propagated circular field")
+
+ax, _ = plot_field_polarization(E0, half_size=input_half_size, ellipse_mode="cartesian")
+ax.set_title("Input circular polarization")
+ax, _ = plot_field_polarization(E, half_size=propagated_half_size, ellipse_mode="cartesian")
+ax.set_title("Propagated circular polarization")
 plt.show()

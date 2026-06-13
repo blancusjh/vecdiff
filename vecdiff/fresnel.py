@@ -59,44 +59,55 @@ class FresnelOvoid:
                 z0 = zo
             self.ovoid = CartesianSurface(n0=n0, z0=z0, ni=ni, zi=zi)
 
+    def _cosines(self, rho):
+        """Return positive incidence/transmission cosines on the Cartesian surface.
+
+        The Cartesian surface is parametrized by rho.  Its cylindrical radius is
+        r(rho)=sqrt(rho**2-z(rho)**2).  Keeping rho and r(rho) distinct avoids
+        the sign/variable ambiguity that made the FFT and Hankel branches use
+        different effective Fresnel factors, especially for the physical z0 < 0
+        convention.
+        """
+        o = self.ovoid
+        rho = np.asarray(rho, dtype=float)
+
+        z = o.z(rho)
+        dz = o.dz(rho)
+        r = o.r(rho)
+
+        dr = np.divide(
+            rho - z * dz,
+            r,
+            out=np.ones_like(rho, dtype=float),
+            where=np.abs(r) > 1e-13,
+        )
+
+        normal_norm = np.hypot(dr, dz)
+        N_r = -dz / normal_norm
+        N_z = dr / normal_norm
+
+        l0 = np.hypot(r, z - o.z0)
+        li = np.hypot(r, o.zi - z)
+
+        u0_r = r / l0
+        u0_z = (z - o.z0) / l0
+        ui_r = -r / li
+        ui_z = (o.zi - z) / li
+
+        cos_i = np.abs(u0_r * N_r + u0_z * N_z)
+        cos_t = np.abs(ui_r * N_r + ui_z * N_z)
+        return np.clip(cos_i, 0.0, 1.0), np.clip(cos_t, 0.0, 1.0)
+
 
     def ts(self, r):
         o = self.ovoid
-
-        r = np.asarray(r, dtype=float)
-
-        z  = o.z(r)
-        zp = o.dz(r)
-        r  = o.r(r)
-
-        l0 = np.sqrt((o.z0 - z)**2 + r**2)
-        li = np.sqrt((o.zi - z)**2 + r**2)
-
-        A0 = zp*(r**2 - z*o.z0) - r*(z - o.z0)
-        Ai = zp*(r**2 - z*o.zi) - r*(z - o.zi)
-
-        eta = o.ni / o.n0
-
-        return 2*A0 / (A0 + eta*(l0/li)*Ai)
+        cos_i, cos_t = self._cosines(r)
+        return 2.0 * o.n0 * cos_i / (o.n0 * cos_i + o.ni * cos_t)
 
     def tp(self, r):
         o = self.ovoid
-
-        r = np.asarray(r, dtype=float)
-
-        z  = o.z(r)
-        zp = o.dz(r)
-        r  = o.r(r)
-
-        l0 = np.sqrt((o.z0 - z)**2 + r**2)
-        li = np.sqrt((o.zi - z)**2 + r**2)
-
-        A0 = zp*(r**2 - z*o.z0) - r*(z - o.z0)
-        Ai = zp*(r**2 - z*o.zi) - r*(z - o.zi)
-
-        eta = o.ni / o.n0
-
-        return 2*A0 / (eta*A0 + (l0/li)*Ai)
+        cos_i, cos_t = self._cosines(r)
+        return 2.0 * o.n0 * cos_i / (o.ni * cos_i + o.n0 * cos_t)
 
 
 

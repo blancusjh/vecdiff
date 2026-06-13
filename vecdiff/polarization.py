@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
 
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 
@@ -107,14 +108,37 @@ def polarization_map_from_field(
     """Sample a polar-grid ``Field`` on a Cartesian plane and compute polarization.
 
     Returns ``(xx, yy, pol)``.  For Cartesian-grid fields, the native grid is
-    returned unchanged and ``n_img`` is ignored.
+    returned unchanged unless ``half_size`` is provided.
     """
 
     if not hasattr(field, "grid"):
         raise TypeError("`field` must provide a `grid` attribute.")
 
     if field.grid.type == "cartesian":
-        return field.grid.X, field.grid.Y, polarization_from_field(field)
+        if half_size is None:
+            return field.grid.X, field.grid.Y, polarization_from_field(field)
+
+        x = np.linspace(-half_size, half_size, n_img)
+        xx, yy = np.meshgrid(x, x, indexing="xy")
+        points = np.column_stack((yy.ravel(), xx.ravel()))
+        x_axis = np.asarray(field.grid.X[0, :], dtype=float)
+        y_axis = np.asarray(field.grid.Y[:, 0], dtype=float)
+
+        interp_x = RegularGridInterpolator(
+            (y_axis, x_axis),
+            field.x,
+            bounds_error=False,
+            fill_value=0.0,
+        )
+        interp_y = RegularGridInterpolator(
+            (y_axis, x_axis),
+            field.y,
+            bounds_error=False,
+            fill_value=0.0,
+        )
+        ex = interp_x(points).reshape(xx.shape)
+        ey = interp_y(points).reshape(xx.shape)
+        return xx, yy, polarization_from_components(ex, ey)
 
     if field.grid.type != "polar":
         raise ValueError(f"Unsupported field grid type: {field.grid.type!r}.")

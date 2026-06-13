@@ -263,15 +263,15 @@ def propagate_to_focal_plane_through_diopter(field: Field, diopter, q: np.ndarra
         h2L = HT(2, r, (tp - ts) * field.R, q)
         h0R = HT(0, r, (tp + ts) * field.R, q)
         h2R = HT(2, r, (tp - ts) * field.L, q)
-        E_L = (2*π*h0L)[None, :] - 2*π*exp( 2.0j * varphi_col) * h2L[None, :]
-        E_R = (2*π*h0R)[None, :] - 2*π*exp(-2.0j * varphi_col) * h2R[None, :]
+        E_L = (π*h0L)[None, :] - π*exp( 2.0j * varphi_col) * h2L[None, :]
+        E_R = (π*h0R)[None, :] - π*exp(-2.0j * varphi_col) * h2R[None, :]
         return Field.from_circular(E_L, E_R, grid_out, symmetric=True)
 
     if field.symmetry == 'polar':
         h1r   = HT(1, r, tp * field.r,   q)
         h1phi = HT(1, r, ts * field.phi, q)
-        E_r   = np.broadcast_to((2*π*h1r  )[None, :], (len(varphi), len(q))).copy()
-        E_phi = np.broadcast_to((2*π*h1phi)[None, :], (len(varphi), len(q))).copy()
+        E_r   = np.broadcast_to((-2.0j*π*h1r  )[None, :], (len(varphi), len(q))).copy()
+        E_phi = np.broadcast_to((-2.0j*π*h1phi)[None, :], (len(varphi), len(q))).copy()
         return Field.from_polar(E_r, E_phi, grid_out, symmetric=True)
 
     if field.symmetry == 'cartesian':
