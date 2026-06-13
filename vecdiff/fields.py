@@ -86,11 +86,39 @@ class Field:
     #  Propagation                                                         #
     # ------------------------------------------------------------------ #
 
-    def propagate_through_diopter(self, z: float, ovoid, q: np.ndarray) -> "Field":
+    def propagate_through_diopter(
+        self,
+        z: float,
+        ovoid,
+        q: np.ndarray | None = None,
+        *,
+        method: str = "auto",
+        include_prefactor: bool = False,
+        wavelength: float | None = None,
+        output: str = "k",
+    ) -> "Field":
         """Propagate the field through a refractive diopter to an observation plane."""
         if np.isclose(float(z), float(ovoid.zi)):
-            from .propagation import propagate_to_focal_plane_through_diopter
-            return propagate_to_focal_plane_through_diopter(self, diopter=ovoid, q=q)
+            if method not in {"auto", "hankel", "fft"}:
+                raise ValueError("method must be one of: 'auto', 'hankel', 'fft'.")
+
+            if method == "auto":
+                method = "hankel" if self.symmetry is not None else "fft"
+
+            if method == "hankel":
+                if q is None:
+                    raise ValueError("q is required for method='hankel'.")
+                from .propagation import propagate_to_focal_plane_through_diopter
+                return propagate_to_focal_plane_through_diopter(self, diopter=ovoid, q=q)
+
+            from .propagation import propagate_to_focal_plane_through_diopter_fft
+            return propagate_to_focal_plane_through_diopter_fft(
+                self,
+                diopter=ovoid,
+                include_prefactor=include_prefactor,
+                wavelength=wavelength,
+                output=output,
+            )
         else:
             raise NotImplementedError("Only propagation to the focal plane is supported.")
 

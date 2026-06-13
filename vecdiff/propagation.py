@@ -1,5 +1,6 @@
 import numpy as np
 from .fresnel import FresnelOvoid
+from .fourier import FT2
 from .hankel import HankelTransform
 from .fields import Field
 from .grid import Grid
@@ -15,7 +16,8 @@ def _sanitize_fresnel(r: np.ndarray, t: np.ndarray) -> np.ndarray:
     """Replace non-finite Fresnel samples by interpolation from finite neighbours."""
     finite = np.isfinite(t)
     if np.any(finite):
-        return np.where(finite, t, np.interp(r, r[finite], t[finite]))
+        order = np.argsort(r[finite])
+        return np.where(finite, t, np.interp(r, r[finite][order], t[finite][order]))
     return np.zeros_like(r, dtype=float)
 
 def HT(order: int, r: np.ndarray, f_r: np.ndarray, q: np.ndarray) -> np.ndarray:
@@ -26,6 +28,105 @@ def _build_output_grid(field: Field, q: np.ndarray, varphi: np.ndarray) -> Grid:
     if field.grid.type == "polar":
         return Grid.from_polar(q, varphi)
     raise ValueError(f"Unsupported grid type: {type(field.grid)}")
+
+
+def fresnel_coefficients_on_grid(R: np.ndarray, diopter, support=None) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(tp, ts)`` Fresnel coefficients sampled on a Cartesian radial grid.
+
+    If ``support`` is provided, coefficients are evaluated only where the support
+    mask is true and are set to zero elsewhere.
+    """
+    R = np.asarray(R, dtype=float)
+    tp = np.zeros_like(R, dtype=float)
+    ts = np.zeros_like(R, dtype=float)
+
+    if support is None:
+        active = np.ones(R.shape, dtype=bool)
+    else:
+        active = np.asarray(support, dtype=bool)
+        if active.shape != R.shape:
+            raise ValueError("support must have the same shape as R.")
+
+    if not np.any(active):
+        return tp, ts
+
+    fresnel = FresnelOvoid(ovoid=diopter)
+    r_active = R[active]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tp_active = fresnel.tp(r_active)
+        ts_active = fresnel.ts(r_active)
+    tp[active] = _sanitize_fresnel(r_active, tp_active)
+    ts[active] = _sanitize_fresnel(r_active, ts_active)
+    return tp, ts
+
+
+def transverse_diopter_operator(field: Field, diopter) -> tuple[np.ndarray, np.ndarray]:
+    """Apply the local transverse diopter operator to a Cartesian field."""
+    if field.grid.type != "cartesian":
+        raise ValueError("transverse_diopter_operator requires a Cartesian grid.")
+
+    Ex = np.asarray(field.x, dtype=complex)
+    Ey = np.asarray(field.y, dtype=complex)
+    if Ex.shape != Ey.shape or Ex.shape != field.grid.shape:
+        raise ValueError("field components must match the Cartesian grid shape.")
+
+    support = (np.abs(Ex) > 0.0) | (np.abs(Ey) > 0.0)
+    tp, ts = fresnel_coefficients_on_grid(field.grid.R, diopter, support=support)
+    t_plus = 0.5 * (tp + ts)
+    t_minus = 0.5 * (tp - ts)
+
+    c2 = np.cos(2.0 * field.grid.Phi)
+    s2 = np.sin(2.0 * field.grid.Phi)
+
+    Ux = (t_plus + t_minus * c2) * Ex + (t_minus * s2) * Ey
+    Uy = (t_minus * s2) * Ex + (t_plus - t_minus * c2) * Ey
+    return Ux, Uy
+
+
+def propagate_to_focal_plane_through_diopter_fft(
+    field: Field,
+    diopter,
+    *,
+    include_prefactor: bool = False,
+    wavelength: float | None = None,
+    output: str = "k",
+) -> Field:
+    """Propagate an arbitrary Cartesian field through a diopter using FFT2."""
+    if field.grid.type != "cartesian":
+        raise ValueError("FFT diopter propagation requires a Cartesian input grid.")
+    if output not in {"k", "focal"}:
+        raise ValueError("output must be either 'k' or 'focal'.")
+    if output == "focal" and wavelength is None:
+        raise ValueError("wavelength is required when output='focal'.")
+    if include_prefactor and wavelength is None:
+        raise ValueError("wavelength is required when include_prefactor=True.")
+
+    # Validates that the grid is uniform and obtains the physical sampling.
+    field.grid.spacing()
+
+    Ux, Uy = transverse_diopter_operator(field, diopter)
+    Ex_out, kgrid = FT2(Ux, field.grid, physical=True)
+    Ey_out, _ = FT2(Uy, field.grid, physical=True)
+
+    if include_prefactor:
+        k0 = 2.0 * π / wavelength
+        prefactor = diopter.ni * exp(1.0j * diopter.ni * k0 * diopter.zi)
+        prefactor /= 1.0j * wavelength * diopter.zi * diopter.z0
+        Ex_out = prefactor * Ex_out
+        Ey_out = prefactor * Ey_out
+
+    if output == "k":
+        grid_out = kgrid
+    else:
+        scale = wavelength * diopter.zi / (2.0 * π * diopter.ni)
+        grid_out = Grid.from_cartesian(
+            scale * kgrid.X,
+            scale * kgrid.Y,
+            domain="focal",
+            dual=field.grid,
+        )
+
+    return Field.from_cartesian(Ex_out, Ey_out, grid_out, symmetric=False)
 
 # ------------------------------------------------------------------ #
 #  Propagation                                                         #
@@ -51,8 +152,9 @@ def propagate_to_focal_plane_through_diopter(field: Field, diopter, q: np.ndarra
     varphi_col = varphi.reshape(-1, 1)
 
     fresnel = FresnelOvoid(ovoid=diopter)
-    tp = _sanitize_fresnel(r, fresnel.tp(r))
-    ts = _sanitize_fresnel(r, fresnel.ts(r))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tp = _sanitize_fresnel(r, fresnel.tp(r))
+        ts = _sanitize_fresnel(r, fresnel.ts(r))
 
     grid_out = _build_output_grid(field, q, varphi)
 

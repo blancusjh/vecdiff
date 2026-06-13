@@ -97,3 +97,8 @@ class FresnelOvoid:
         eta = o.ni / o.n0
 
         return 2*A0 / (eta*A0 + (l0/li)*Ai)
+
+
+
+
+# TODO : Implementar El Calculo de las Bases.

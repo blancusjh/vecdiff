@@ -23,7 +23,12 @@ from .longitudinal import (
     kz_angular_spectrum,
     spacing_from_cartesian_grid,
 )
-from .propagation import propagate_to_focal_plane_through_diopter
+from .propagation import (
+    fresnel_coefficients_on_grid,
+    propagate_to_focal_plane_through_diopter,
+    propagate_to_focal_plane_through_diopter_fft,
+    transverse_diopter_operator,
+)
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 from .polarization import (
     PolarizationData,

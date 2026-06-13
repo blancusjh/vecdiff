@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +17,13 @@ def _polarization_curve(ex, ey, points, scale):
     curve = scale * np.column_stack([np.real(ex * exp_it), np.real(ey * exp_it)])
     tangent = scale * np.column_stack([np.real(1j * ex * exp_it), np.real(1j * ey * exp_it)])
     return curve, tangent
+
+
+def _polar_to_cartesian_basis(vectors, cx, cy):
+    phi = np.arctan2(cy, cx)
+    radial = np.array([np.cos(phi), np.sin(phi)])
+    azimuthal = np.array([-np.sin(phi), np.cos(phi)])
+    return vectors[:, :1] * radial + vectors[:, 1:] * azimuthal
 
 
 def _curve_segments(curve):
@@ -62,31 +69,83 @@ def _line_kwargs(kwargs: Mapping[str, Any] | None, linewidth=1.2, color=None, zo
     return out
 
 
+def _intensity_scale_factor(relative_amp, mode, gamma, min_scale):
+    relative_amp = float(np.clip(relative_amp, 0.0, 1.0))
+    min_scale = float(min_scale)
+
+    if mode == "linear":
+        factor = relative_amp
+    elif mode == "power":
+        if gamma <= 0.0:
+            raise ValueError("intensity_scale_gamma must be positive for power scaling.")
+        factor = relative_amp ** float(gamma)
+    elif mode == "log":
+        if gamma <= 0.0:
+            raise ValueError("intensity_scale_gamma must be positive for log scaling.")
+        factor = np.log1p(float(gamma) * relative_amp) / np.log1p(float(gamma))
+    else:
+        raise ValueError("intensity_scale_mode must be 'linear', 'log', or 'power'.")
+
+    return max(float(factor), min_scale)
+
+
 def plot_polarization_map(
     x: np.ndarray,
     y: np.ndarray,
     pol: PolarizationData,
-    stride: int = 18,
+    stride: int | None = None,
+    target_ellipses: int = 20,
+    max_ellipses: int | None = 220,
     scale: float | None = None,
     ellipse_points: int = 72,
-    min_intensity_fraction: float = 0.01,
+    min_intensity_fraction: float = 0.03,
     color_by_phase: bool = False,
     phase_cmap: str = "twilight_shifted",
     phase_colorbar: bool = True,
     scale_by_intensity: bool = True,
+    intensity_scale_mode: Literal["linear", "log", "power"] = "linear",
+    intensity_scale_gamma: float = 0.5,
+    min_ellipse_scale: float = 0.25,
     arrow_opening_angle: float = np.deg2rad(55.0),
     arrow_length: float = 0.25,
     curve_kwargs: Mapping[str, Any] | None = None,
     arrowhead_kwargs: Mapping[str, Any] | None = None,
+    ellipse_mode: Literal["polar", "cartesian"] = "polar",
     ax=None,
 ):
-    """Draw local polarization ellipses over a sampled plane."""
+    """Draw local polarization ellipses over a sampled plane.
+
+    ``ellipse_mode="polar"`` interprets ``pol.ex`` and ``pol.ey`` as local
+    radial and azimuthal components.  ``ellipse_mode="cartesian"`` preserves
+    the previous behavior and interprets them as x and y components.
+
+    When ``scale_by_intensity`` is enabled, ``intensity_scale_mode`` controls
+    how the relative amplitude changes ellipse size.  ``"linear"`` preserves
+    the default behavior, ``"power"`` uses ``relative_amplitude**gamma``, and
+    ``"log"`` uses a normalized ``log1p(gamma * relative_amplitude)`` curve.
+    """
 
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 6))
 
     x = np.asarray(x)
     y = np.asarray(y)
+
+    if x.ndim != 2 or y.ndim != 2:
+        raise ValueError("x and y must be 2D coordinate arrays.")
+    if x.shape != y.shape or x.shape != pol.ex.shape:
+        raise ValueError("x, y, and polarization components must have matching shapes.")
+    if ellipse_mode not in {"polar", "cartesian"}:
+        raise ValueError("ellipse_mode must be 'polar' or 'cartesian'.")
+    if intensity_scale_mode not in {"linear", "log", "power"}:
+        raise ValueError("intensity_scale_mode must be 'linear', 'log', or 'power'.")
+
+    if stride is None:
+        target_ellipses = max(int(target_ellipses), 4)
+        stride = max(1, int(np.floor(min(x.shape) / target_ellipses)))
+    else:
+        stride = max(1, int(stride))
+
     xs = x[::stride, ::stride]
     ys = y[::stride, ::stride]
     ex = pol.ex[::stride, ::stride]
@@ -96,6 +155,12 @@ def plot_polarization_map(
 
     amp_max = float(np.nanmax(amp)) + np.finfo(float).eps
     valid = amp > min_intensity_fraction * amp_max
+    if max_ellipses is not None and np.count_nonzero(valid) > max_ellipses:
+        valid_amp = amp[valid]
+        keep_count = max(1, int(max_ellipses))
+        threshold_index = max(0, valid_amp.size - keep_count)
+        adaptive_threshold = np.partition(valid_amp, threshold_index)[threshold_index]
+        valid &= amp >= adaptive_threshold
 
     if scale is None:
         dx = np.nanmedian(np.abs(np.diff(xs[0]))) if xs.shape[1] > 1 else np.ptp(x)
@@ -121,9 +186,21 @@ def plot_polarization_map(
 
         local_scale = scale / (amp_i + np.finfo(float).eps)
         if scale_by_intensity:
-            local_scale *= amp_i / amp_max
+            relative_amp = amp_i / amp_max
+            size_factor = _intensity_scale_factor(
+                relative_amp,
+                intensity_scale_mode,
+                intensity_scale_gamma,
+                min_ellipse_scale,
+            )
+            local_scale *= size_factor
+        else:
+            size_factor = 1.0
 
         curve, tangent = _polarization_curve(ex_i, ey_i, ellipse_points, local_scale)
+        if ellipse_mode == "polar":
+            curve = _polar_to_cartesian_basis(curve, cx, cy)
+            tangent = _polar_to_cartesian_basis(tangent, cx, cy)
         arrow_at = _arrow_index(curve, phase_i)
         curve = curve + np.array([cx, cy])
 
@@ -133,7 +210,7 @@ def plot_polarization_map(
         arrows = _arrowhead(
             curve[arrow_at],
             tangent[arrow_at],
-            arrow_length * scale * (amp_i / amp_max if scale_by_intensity else 1.0),
+            arrow_length * scale * size_factor,
             arrow_opening_angle,
         )
         if arrows.size:
