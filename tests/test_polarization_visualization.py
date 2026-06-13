@@ -54,6 +54,20 @@ def test_polarization_map_rejects_unknown_ellipse_mode():
         plot_polarization_map(x, y, pol, scale=1.0, ellipse_mode="cylindrical")
 
 
+def test_polarization_map_default_keeps_uniform_sample_without_amplitude_cap():
+    axis = np.linspace(-1.0, 1.0, 40)
+    x, y = np.meshgrid(axis, axis, indexing="xy")
+    amp = np.ones_like(x)
+    amp[::2, ::2] = 0.1
+    pol = polarization_from_components(amp + 0.0j, np.zeros_like(x, dtype=complex))
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(x, y, pol, target_ellipses=20, ellipse_points=4, min_intensity_fraction=0.0, ax=ax)
+
+    assert len(ax.collections[0].get_segments()) == 20 * 20 * 4
+    plt.close(fig)
+
+
 def test_polarization_map_power_intensity_scaling_uses_gamma():
     x = np.array([[0.0, 2.0]])
     y = np.array([[0.0, 0.0]])

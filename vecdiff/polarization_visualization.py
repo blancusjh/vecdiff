@@ -94,11 +94,11 @@ def plot_polarization_map(
     y: np.ndarray,
     pol: PolarizationData,
     stride: int | None = None,
-    target_ellipses: int = 20,
-    max_ellipses: int | None = 220,
+    target_ellipses: int = 48,
+    max_ellipses: int | None = None,
     scale: float | None = None,
     ellipse_points: int = 72,
-    min_intensity_fraction: float = 0.03,
+    min_intensity_fraction: float = 0.01,
     color_by_phase: bool = False,
     phase_cmap: str = "twilight_shifted",
     phase_colorbar: bool = True,
@@ -165,7 +165,7 @@ def plot_polarization_map(
     if scale is None:
         dx = np.nanmedian(np.abs(np.diff(xs[0]))) if xs.shape[1] > 1 else np.ptp(x)
         dy = np.nanmedian(np.abs(np.diff(ys[:, 0]))) if ys.shape[0] > 1 else np.ptp(y)
-        scale = 0.45 * min(float(dx), float(dy))
+        scale = 0.34 * min(float(dx), float(dy))
 
     figure_segments = []
     arrow_segments = []
@@ -232,7 +232,7 @@ def plot_polarization_map(
     arrow_segments = np.concatenate(arrow_segments, axis=0) if arrow_segments else np.empty((0, 2, 2))
 
     if color_by_phase:
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=1.2, zorder=3.0)
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.45, zorder=3.0)
         lc_kwargs.pop("colors", None)
         cmap = lc_kwargs.pop("cmap", phase_cmap)
         lc = LineCollection(figure_segments, array=np.concatenate(colors), cmap=cmap, **lc_kwargs)
@@ -241,16 +241,16 @@ def plot_polarization_map(
             plt.colorbar(lc, ax=ax, label="Normalized phase")
 
         if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=1.2, zorder=4.0)
+            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.55, zorder=4.0)
             ah_kwargs.pop("colors", None)
             ax.add_collection(
                 LineCollection(arrow_segments, array=np.concatenate(arrow_colors), cmap=cmap, **ah_kwargs)
             )
     else:
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=1.2, color="white", zorder=3.0)
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.45, color="white", zorder=3.0)
         ax.add_collection(LineCollection(figure_segments, **lc_kwargs))
         if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=1.2, color=lc_kwargs.get("colors", "white"), zorder=4.0)
+            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.55, color=lc_kwargs.get("colors", "white"), zorder=4.0)
             ax.add_collection(LineCollection(arrow_segments, **ah_kwargs))
 
     ax.set_xlim(np.min(x), np.max(x))
