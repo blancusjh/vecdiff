@@ -96,6 +96,9 @@ class Field:
         include_prefactor: bool = False,
         wavelength: float | None = None,
         output: str = "k",
+        pad_factor: int = 1,
+        kgrid=None,
+        ft_method: str = "auto",
     ) -> "Field":
         """Propagate the field through a refractive diopter to an observation plane."""
         if np.isclose(float(z), float(ovoid.zi)):
@@ -118,6 +121,9 @@ class Field:
                 include_prefactor=include_prefactor,
                 wavelength=wavelength,
                 output=output,
+                pad_factor=pad_factor,
+                kgrid=kgrid,
+                ft_method=ft_method,
             )
         else:
             raise NotImplementedError("Only propagation to the focal plane is supported.")

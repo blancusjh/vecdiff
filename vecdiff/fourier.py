@@ -1,6 +1,7 @@
 """Fourier transform utilities."""
 
 import numpy as np
+from scipy.signal import zoom_fft
 
 from .grid import Grid
 
@@ -87,19 +88,153 @@ def _grid_from_shape_or_spacing(shape, grid=None, dx=1.0, dy=1.0) -> Grid:
     return grid
 
 
-def FT2(g, grid: Grid | None = None, *, dx=1.0, dy=1.0, physical=True, shift=True):
+def _separable_axis_from_grid_values(values: np.ndarray, axis: int, name: str) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    if values.ndim != 2:
+        raise ValueError(f"{name} grid must be two-dimensional.")
+    if axis == 1:
+        axis_values = values[0, :]
+        if not np.allclose(values, axis_values[None, :]):
+            raise ValueError(f"{name} grid must be separable with rows constant along y.")
+    elif axis == 0:
+        axis_values = values[:, 0]
+        if not np.allclose(values, axis_values[:, None]):
+            raise ValueError(f"{name} grid must be separable with columns constant along x.")
+    else:
+        raise ValueError("axis must be 0 or 1.")
+    return axis_values
+
+
+def _uniform_axis(values: np.ndarray, name: str) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    if values.ndim != 1:
+        raise ValueError(f"{name} axis must be one-dimensional.")
+    if values.size < 2:
+        return values
+    diffs = np.diff(values)
+    spacing = float(np.mean(diffs))
+    if not np.allclose(diffs, spacing):
+        raise ValueError(f"{name} axis must be uniformly sampled.")
+    return values
+
+
+def _custom_k_axes(kgrid: Grid) -> tuple[np.ndarray, np.ndarray]:
+    if not isinstance(kgrid, Grid):
+        raise TypeError("kgrid must be a vecdiff.grid.Grid instance.")
+    if kgrid.type != "cartesian":
+        raise ValueError("kgrid must be Cartesian.")
+    kx = _separable_axis_from_grid_values(kgrid.X, axis=1, name="kx")
+    ky = _separable_axis_from_grid_values(kgrid.Y, axis=0, name="ky")
+    return _uniform_axis(kx, "kx"), _uniform_axis(ky, "ky")
+
+
+def _direct_ft2_on_kgrid(
+    g: np.ndarray,
+    grid: Grid,
+    kx: np.ndarray,
+    ky: np.ndarray,
+    *,
+    physical: bool = True,
+) -> np.ndarray:
+    x = np.asarray(grid.X[0, :], dtype=float)
+    y = np.asarray(grid.Y[:, 0], dtype=float)
+    dx, dy = grid.spacing()
+
+    x_kernel = np.exp(-1.0j * np.outer(kx, x))
+    y_kernel = np.exp(-1.0j * np.outer(ky, y))
+    G = y_kernel @ g @ x_kernel.T
+    if physical:
+        G = dx * dy * G
+    return G
+
+
+def _zoom_ft_axis(values: np.ndarray, sample_axis: np.ndarray, k_axis: np.ndarray, axis: int) -> np.ndarray:
+    if k_axis.size == 1:
+        kernel = np.exp(-1.0j * k_axis[0] * sample_axis)
+        transformed = np.tensordot(values, kernel, axes=([axis], [0]))
+        return np.expand_dims(transformed, axis=axis)
+
+    spacing = float(np.mean(np.diff(sample_axis)))
+    fs = 1.0 / spacing
+    frequencies = k_axis / (2.0 * π)
+    transformed = zoom_fft(
+        values,
+        [float(frequencies[0]), float(frequencies[-1])],
+        m=int(k_axis.size),
+        fs=fs,
+        endpoint=True,
+        axis=axis,
+    )
+    phase = np.exp(-1.0j * k_axis * float(sample_axis[0]))
+    if axis == 0:
+        return phase[:, None] * transformed
+    if axis == 1:
+        return transformed * phase[None, :]
+    raise ValueError("axis must be 0 or 1.")
+
+
+def _zoom_ft2_on_kgrid(
+    g: np.ndarray,
+    grid: Grid,
+    kx: np.ndarray,
+    ky: np.ndarray,
+    *,
+    physical: bool = True,
+) -> np.ndarray:
+    x = np.asarray(grid.X[0, :], dtype=float)
+    y = np.asarray(grid.Y[:, 0], dtype=float)
+    dx, dy = grid.spacing()
+
+    G = _zoom_ft_axis(g, x, kx, axis=1)
+    G = _zoom_ft_axis(G, y, ky, axis=0)
+    if physical:
+        G = dx * dy * G
+    return G
+
+
+def FT2(
+    g,
+    grid: Grid | None = None,
+    *,
+    dx=1.0,
+    dy=1.0,
+    kgrid: Grid | None = None,
+    physical=True,
+    shift=True,
+    method: str = "auto",
+):
     """Return ``(G, kgrid)`` for the field samples ``g`` on ``grid``.
 
     When ``physical`` is true, the result is scaled by ``dx * dy`` to
     approximate ``integral integral g(x, y) exp[-i(kx*x + ky*y)] dx dy``.
     If ``grid`` is omitted, a centered Cartesian grid is built from ``dx`` and ``dy``.
+    If ``kgrid`` is provided, the transform is evaluated on that separable
+    Cartesian k-grid using a zoom FFT by default.
     """
     g = np.asarray(g, dtype=complex)
     grid = _grid_from_shape_or_spacing(g.shape, grid=grid, dx=dx, dy=dy)
     if g.shape != grid.shape:
         raise ValueError("g must have the same shape as grid.")
+    if method not in {"auto", "fft", "zoom", "direct"}:
+        raise ValueError("method must be one of: 'auto', 'fft', 'zoom', 'direct'.")
 
     dx, dy = grid.spacing()
+    if kgrid is not None:
+        if method == "fft":
+            raise ValueError("method='fft' cannot be used with a custom kgrid.")
+        kx, ky = _custom_k_axes(kgrid)
+        if kgrid.shape != (ky.size, kx.size):
+            raise ValueError("kgrid shape must match its separable axes.")
+        if kgrid.dual is None:
+            kgrid = Grid.from_cartesian(kgrid.X, kgrid.Y, domain=kgrid.domain, dual=grid)
+
+        if method == "direct":
+            return _direct_ft2_on_kgrid(g, grid, kx, ky, physical=physical), kgrid
+        return _zoom_ft2_on_kgrid(g, grid, kx, ky, physical=physical), kgrid
+
+    if method in {"zoom", "direct"}:
+        raise ValueError(f"method={method!r} requires a custom kgrid.")
+
     G = _ft2_array(g, dx=dx, dy=dy, physical=physical, shift=shift)
     return G, grid.kgrid(shift=shift)
 

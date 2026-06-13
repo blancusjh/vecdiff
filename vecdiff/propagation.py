@@ -1,4 +1,5 @@
 import numpy as np
+from .coordinate_transformation import polar_grid_to_cartesian_grid
 from .fresnel import FresnelOvoid
 from .fourier import FT2
 from .hankel import HankelTransform
@@ -83,6 +84,94 @@ def transverse_diopter_operator(field: Field, diopter) -> tuple[np.ndarray, np.n
     return Ux, Uy
 
 
+def _polar_component_to_cartesian_grid(component, radial_axis, angular_axis, X, Y):
+    component = np.asarray(component, dtype=complex)
+    rho = np.sqrt(X**2 + Y**2)
+
+    if component.ndim == 1:
+        return np.interp(rho, radial_axis, component, left=component[0], right=0.0)
+
+    if component.ndim == 2 and component.shape[0] == 1:
+        row = component[0]
+        return np.interp(rho, radial_axis, row, left=row[0], right=0.0)
+
+    return polar_grid_to_cartesian_grid(
+        component,
+        radial_axis,
+        angular_axis,
+        X,
+        Y,
+        fill_value=0.0,
+    )
+
+
+def _field_with_cartesian_grid_for_fft(field: Field) -> Field:
+    if field.grid.type == "cartesian":
+        return field
+    if field.grid.type != "polar":
+        raise ValueError("FFT diopter propagation requires a Cartesian or polar input grid.")
+
+    print("A Cartesian Grid is preferable for FFT diopter propagation; converting the polar Grid to a Cartesian Grid.")
+
+    r = np.asarray(field.grid.r, dtype=float)
+    varphi = np.asarray(field.grid.varphi, dtype=float)
+    if r.ndim != 1 or r.size < 2:
+        raise ValueError("polar grid must provide at least two radial samples.")
+    if varphi.ndim != 1 or varphi.size < 2:
+        raise ValueError("polar grid must provide at least two angular samples.")
+
+    half_size = float(np.max(r))
+    n_cart = max(int(r.size), 2)
+    dx = 2.0 * half_size / n_cart
+    cart_grid = Grid.from_spacing((n_cart, n_cart), dx=dx, dy=dx)
+    X, Y = cart_grid.X, cart_grid.Y
+
+    Ex = _polar_component_to_cartesian_grid(field.x, r, varphi, X, Y)
+    Ey = _polar_component_to_cartesian_grid(field.y, r, varphi, X, Y)
+    Ez = None
+    if field.z is not None:
+        Ez = _polar_component_to_cartesian_grid(field.z, r, varphi, X, Y)
+    return Field.from_cartesian(Ex, Ey, cart_grid, symmetric=False, Ez=Ez)
+
+
+def _validate_pad_factor(pad_factor: int) -> int:
+    if isinstance(pad_factor, bool) or not hasattr(pad_factor, "__index__"):
+        raise TypeError("pad_factor must be an integer greater than or equal to 1.")
+    pad_factor = pad_factor.__index__()
+    if pad_factor < 1:
+        raise ValueError("pad_factor must be greater than or equal to 1.")
+    return pad_factor
+
+
+def _center_pad_array(values: np.ndarray, pad_factor: int) -> np.ndarray:
+    values = np.asarray(values, dtype=complex)
+    if pad_factor == 1:
+        return values
+
+    ny, nx = values.shape
+    target_y = ny * pad_factor
+    target_x = nx * pad_factor
+    pad_y = target_y - ny
+    pad_x = target_x - nx
+    padding = (
+        (pad_y // 2, pad_y - pad_y // 2),
+        (pad_x // 2, pad_x - pad_x // 2),
+    )
+    return np.pad(values, padding, mode="constant")
+
+
+def _center_padded_grid(grid: Grid, pad_factor: int) -> Grid:
+    if pad_factor == 1:
+        return grid
+
+    dx, dy = grid.spacing()
+    padded_shape = (
+        grid.shape[0] * pad_factor,
+        grid.shape[1] * pad_factor,
+    )
+    return Grid.from_spacing(padded_shape, dx=float(dx), dy=float(dy), domain=grid.domain)
+
+
 def propagate_to_focal_plane_through_diopter_fft(
     field: Field,
     diopter,
@@ -90,10 +179,17 @@ def propagate_to_focal_plane_through_diopter_fft(
     include_prefactor: bool = False,
     wavelength: float | None = None,
     output: str = "k",
+    pad_factor: int = 1,
+    kgrid: Grid | None = None,
+    ft_method: str = "auto",
 ) -> Field:
-    """Propagate an arbitrary Cartesian field through a diopter using FFT2."""
-    if field.grid.type != "cartesian":
-        raise ValueError("FFT diopter propagation requires a Cartesian input grid.")
+    """Propagate an arbitrary Cartesian field through a diopter using FFT2.
+
+    ``pad_factor`` zero-pads the post-diopter field before the FFT, refining
+    the sampled k/focal grid without changing the input sampling interval.
+    """
+    field = _field_with_cartesian_grid_for_fft(field)
+    pad_factor = _validate_pad_factor(pad_factor)
     if output not in {"k", "focal"}:
         raise ValueError("output must be either 'k' or 'focal'.")
     if output == "focal" and wavelength is None:
@@ -105,8 +201,12 @@ def propagate_to_focal_plane_through_diopter_fft(
     field.grid.spacing()
 
     Ux, Uy = transverse_diopter_operator(field, diopter)
-    Ex_out, kgrid = FT2(Ux, field.grid, physical=True)
-    Ey_out, _ = FT2(Uy, field.grid, physical=True)
+    fft_grid = _center_padded_grid(field.grid, pad_factor)
+    Ux_fft = _center_pad_array(Ux, pad_factor)
+    Uy_fft = _center_pad_array(Uy, pad_factor)
+    requested_kgrid = kgrid
+    Ex_out, kgrid = FT2(Ux_fft, fft_grid, kgrid=requested_kgrid, physical=True, method=ft_method)
+    Ey_out, _ = FT2(Uy_fft, fft_grid, kgrid=requested_kgrid, physical=True, method=ft_method)
 
     if include_prefactor:
         k0 = 2.0 * π / wavelength

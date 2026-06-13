@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import RegularGridInterpolator
 
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 
@@ -92,12 +93,46 @@ def _extract_transmitted_components(transmitted):
 
 
 def field_cartesian_maps(field, half_size=None, n_img=500):
-    """Sample a polar-grid Field on a Cartesian plotting mesh."""
-    if field.grid.type != "polar":
-        raise ValueError("`field` must be sampled on a polar grid.")
-
+    """Sample a Field on a Cartesian plotting mesh."""
     component1, component2 = _extract_input_components(field)
     labels, _ = _component_labels(field)
+
+    if field.grid.type == "cartesian":
+        if component1.ndim != 2 or component2.ndim != 2:
+            raise ValueError("Cartesian field components must be 2D.")
+
+        x_axis = np.asarray(field.grid.X[0, :], dtype=float)
+        y_axis = np.asarray(field.grid.Y[:, 0], dtype=float)
+        if half_size is None:
+            half_size = float(max(np.max(np.abs(x_axis)), np.max(np.abs(y_axis))))
+
+        x = np.linspace(-half_size, half_size, n_img)
+        xx, yy = np.meshgrid(x, x, indexing="xy")
+        extent = [-half_size, half_size, -half_size, half_size]
+        points = np.column_stack((yy.ravel(), xx.ravel()))
+
+        interp1 = RegularGridInterpolator(
+            (y_axis, x_axis),
+            component1,
+            bounds_error=False,
+            fill_value=0.0,
+        )
+        interp2 = RegularGridInterpolator(
+            (y_axis, x_axis),
+            component2,
+            bounds_error=False,
+            fill_value=0.0,
+        )
+        return (
+            interp1(points).reshape(xx.shape),
+            interp2(points).reshape(xx.shape),
+            extent,
+            labels,
+        )
+
+    if field.grid.type != "polar":
+        raise ValueError("`field` must be sampled on a Cartesian or polar grid.")
+
     radial_axis = np.asarray(field.grid.r)
     varphi = np.asarray(field.grid.varphi)
     if half_size is None:

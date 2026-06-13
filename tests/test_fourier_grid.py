@@ -112,6 +112,74 @@ def test_ft2_non_physical_mode_matches_shifted_numpy_fft2():
     assert np.allclose(spectrum, expected)
 
 
+def test_ft2_custom_kgrid_direct_matches_manual_sum():
+    grid = Grid.from_spacing((5, 6), dx=0.2, dy=0.3)
+    values = np.exp(-(grid.X**2 + grid.Y**2)) + 0.2j * grid.X
+    kx = np.linspace(-1.7, 1.3, 4)
+    ky = np.linspace(-0.9, 1.1, 3)
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    kgrid = Grid.from_cartesian(KX, KY, domain="k")
+
+    spectrum, out_grid = FT2(values, grid, kgrid=kgrid, method="direct")
+
+    expected = np.empty((ky.size, kx.size), dtype=complex)
+    dx, dy = grid.spacing()
+    for iy, kval_y in enumerate(ky):
+        for ix, kval_x in enumerate(kx):
+            phase = np.exp(-1j * (kval_x * grid.X + kval_y * grid.Y))
+            expected[iy, ix] = dx * dy * np.sum(values * phase)
+
+    assert out_grid.domain == "k"
+    assert out_grid.dual is grid
+    assert np.allclose(spectrum, expected)
+
+
+def test_ft2_custom_kgrid_zoom_matches_direct():
+    grid = Grid.from_spacing((7, 8), dx=0.15, dy=0.25)
+    values = np.exp(-(grid.X**2 + 0.5 * grid.Y**2)) + 0.1j * grid.Y
+    kx = np.linspace(-2.0, 2.0, 9)
+    ky = np.linspace(-1.5, 1.5, 6)
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    kgrid = Grid.from_cartesian(KX, KY, domain="k")
+
+    zoomed, out_grid = FT2(values, grid, kgrid=kgrid)
+    direct, _ = FT2(values, grid, kgrid=kgrid, method="direct")
+
+    assert out_grid.dual is grid
+    assert np.allclose(zoomed, direct)
+
+
+def test_ft2_custom_fft_kgrid_matches_standard_ft2():
+    grid = Grid.from_spacing((7, 8), dx=0.15, dy=0.25)
+    values = np.exp(-(grid.X**2 + grid.Y**2)) + 0.1j * grid.X
+    standard, kgrid = FT2(values, grid)
+
+    zoomed, out_grid = FT2(values, grid, kgrid=kgrid)
+
+    assert out_grid is kgrid
+    assert np.allclose(zoomed, standard)
+
+
+def test_ft2_custom_kgrid_rejects_nonseparable_grid():
+    grid = Grid.from_spacing((5, 6), dx=0.2, dy=0.3)
+    values = np.ones(grid.shape)
+    kx = np.linspace(-1.0, 1.0, 4)
+    ky = np.linspace(-1.0, 1.0, 3)
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    KX = KX + 0.01 * KY
+    kgrid = Grid.from_cartesian(KX, KY, domain="k")
+
+    with np.testing.assert_raises(ValueError):
+        FT2(values, grid, kgrid=kgrid)
+
+
+def test_ft2_zoom_method_requires_custom_kgrid():
+    grid = Grid.from_spacing((5, 6), dx=0.2, dy=0.3)
+
+    with np.testing.assert_raises(ValueError):
+        FT2(np.ones(grid.shape), grid, method="zoom")
+
+
 def test_kgrid2_accepts_shape_and_spacing():
     KX, KY = KGRID2(shape=(4, 6), dx=0.5, dy=0.25)
 

@@ -82,6 +82,111 @@ def test_fft_propagation_uses_centered_ft2(monkeypatch):
     assert np.allclose(out.y, expected_y)
 
 
+def test_fft_propagation_zero_padding_refines_k_grid(monkeypatch):
+    grid = _cartesian_grid(n=16)
+    Ex = np.exp(-(grid.X**2 + grid.Y**2))
+    Ey = 0.25j * grid.X * Ex
+    field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+
+    def fake_coefficients(R, diopter, support=None):
+        return np.ones_like(R), np.ones_like(R)
+
+    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    unpadded = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
+    padded = field.propagate_through_diopter(diopter.zi, diopter, method="fft", pad_factor=3)
+
+    assert padded.x.shape == (3 * grid.shape[0], 3 * grid.shape[1])
+    assert padded.y.shape == padded.x.shape
+    assert padded.grid.dual.shape == padded.x.shape
+    assert np.isclose(padded.grid.dx, unpadded.grid.dx / 3.0)
+    assert np.isclose(padded.grid.dy, unpadded.grid.dy / 3.0)
+
+
+def test_fft_propagation_accepts_custom_kgrid(monkeypatch):
+    grid = _cartesian_grid(n=16)
+    Ex = np.exp(-(grid.X**2 + grid.Y**2))
+    Ey = 0.25j * grid.X * Ex
+    field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    kx = np.linspace(-2.0, 2.0, 9)
+    ky = np.linspace(-1.5, 1.5, 7)
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    kgrid = Grid.from_cartesian(KX, KY, domain="k")
+
+    def fake_coefficients(R, diopter, support=None):
+        return np.ones_like(R), np.ones_like(R)
+
+    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    out = field.propagate_through_diopter(
+        diopter.zi,
+        diopter,
+        method="fft",
+        kgrid=kgrid,
+    )
+    expected_x, expected_grid = FT2(Ex, grid, kgrid=kgrid)
+    expected_y, _ = FT2(Ey, grid, kgrid=kgrid)
+
+    assert out.grid.domain == "k"
+    assert out.grid.dual is grid
+    assert out.x.shape == (ky.size, kx.size)
+    assert np.allclose(out.grid.X, expected_grid.X)
+    assert np.allclose(out.grid.Y, expected_grid.Y)
+    assert np.allclose(out.x, expected_x)
+    assert np.allclose(out.y, expected_y)
+
+
+def test_fft_propagation_accepts_custom_kgrid_with_padding(monkeypatch):
+    grid = _cartesian_grid(n=8)
+    Ex = np.exp(-(grid.X**2 + grid.Y**2))
+    Ey = 0.25j * grid.X * Ex
+    field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    kx = np.linspace(-2.0, 2.0, 9)
+    ky = np.linspace(-1.5, 1.5, 7)
+    KX, KY = np.meshgrid(kx, ky, indexing="xy")
+    kgrid = Grid.from_cartesian(KX, KY, domain="k")
+
+    def fake_coefficients(R, diopter, support=None):
+        return np.ones_like(R), np.ones_like(R)
+
+    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    out = field.propagate_through_diopter(
+        diopter.zi,
+        diopter,
+        method="fft",
+        kgrid=kgrid,
+        pad_factor=2,
+    )
+
+    padded_grid = propagation._center_padded_grid(grid, 2)
+    expected_x = np.pad(Ex, ((4, 4), (4, 4)), mode="constant")
+    expected_y = np.pad(Ey, ((4, 4), (4, 4)), mode="constant")
+    expected_x, expected_grid = FT2(expected_x, padded_grid, kgrid=kgrid)
+    expected_y, _ = FT2(expected_y, padded_grid, kgrid=kgrid)
+
+    assert out.grid.domain == "k"
+    assert out.grid.dual.shape == padded_grid.shape
+    assert out.grid.dual.spacing() == padded_grid.spacing()
+    assert out.x.shape == (ky.size, kx.size)
+    assert np.allclose(out.grid.X, expected_grid.X)
+    assert np.allclose(out.grid.Y, expected_grid.Y)
+    assert np.allclose(out.x, expected_x)
+    assert np.allclose(out.y, expected_y)
+
+
+def test_fft_propagation_rejects_invalid_pad_factor():
+    grid = _cartesian_grid(n=8)
+    field = FieldCartesian(np.ones(grid.shape), np.zeros(grid.shape), grid=grid, symmetric=False)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+
+    with np.testing.assert_raises(ValueError):
+        field.propagate_through_diopter(diopter.zi, diopter, method="fft", pad_factor=0)
+
+    with np.testing.assert_raises(TypeError):
+        field.propagate_through_diopter(diopter.zi, diopter, method="fft", pad_factor=1.5)
+
+
 def test_legacy_positional_call_still_uses_hankel_branch():
     r = np.linspace(0.0, 0.8, 12)
     phi = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
@@ -96,6 +201,30 @@ def test_legacy_positional_call_still_uses_hankel_branch():
     assert out.grid.type == "polar"
     assert out.x.shape == (phi.size, q.size)
     assert out.y.shape == (phi.size, q.size)
+
+
+def test_fft_propagation_converts_polar_grid_to_cartesian(monkeypatch, capsys):
+    r = np.linspace(0.0, 0.8, 12)
+    phi = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
+    grid = Grid.from_polar(r, phi)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    field = FieldCartesian(np.exp(-r**2), np.zeros_like(r), grid=grid)
+
+    def fake_coefficients(R, diopter, support=None):
+        return np.ones_like(R), np.ones_like(R)
+
+    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    out = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
+    captured = capsys.readouterr()
+
+    assert "A Cartesian Grid is preferable" in captured.out
+    assert out.grid.type == "cartesian"
+    assert out.grid.domain == "k"
+    assert out.grid.dual.type == "cartesian"
+    assert out.x.shape == (r.size, r.size)
+    assert out.y.shape == (r.size, r.size)
+    assert np.any(np.isclose(out.grid.dual.X[0], 0.0))
+    assert np.any(np.isclose(out.grid.dual.Y[:, 0], 0.0))
 
 
 def test_cross_component_is_governed_by_sin_two_phi(monkeypatch):
