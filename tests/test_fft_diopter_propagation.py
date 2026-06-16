@@ -82,6 +82,33 @@ def test_fft_propagation_uses_centered_ft2(monkeypatch):
     assert np.allclose(out.y, expected_y)
 
 
+def test_fft_propagation_identity_transmission_skips_diopter_operator(monkeypatch):
+    grid = _cartesian_grid(n=16)
+    Ex = np.exp(-(grid.X**2 + grid.Y**2))
+    Ey = 0.25j * grid.X * Ex
+    field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+
+    def fail_if_called(field, diopter):
+        raise AssertionError("identity transmission should not apply the vectorial operator")
+
+    monkeypatch.setattr(propagation, "transverse_diopter_operator", fail_if_called)
+    out = field.propagate_through_diopter(
+        diopter.zi,
+        diopter,
+        method="fft",
+        transmission="identity",
+    )
+    expected_x, expected_grid = FT2(Ex, grid, physical=True)
+    expected_y, _ = FT2(Ey, grid, physical=True)
+
+    assert out.grid.domain == "k"
+    assert np.allclose(out.grid.X, expected_grid.X)
+    assert np.allclose(out.grid.Y, expected_grid.Y)
+    assert np.allclose(out.x, expected_x)
+    assert np.allclose(out.y, expected_y)
+
+
 def test_fft_propagation_zero_padding_refines_k_grid(monkeypatch):
     grid = _cartesian_grid(n=16)
     Ex = np.exp(-(grid.X**2 + grid.Y**2))

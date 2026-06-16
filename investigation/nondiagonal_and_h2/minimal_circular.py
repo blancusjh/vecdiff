@@ -13,6 +13,7 @@ from viz_utils import apply_style, plot_intensity_maps, radial_to_2d_abs
 
 
 # Optical system
+
 n0 = 1.0
 ni = 1.5
 z0 = -10.0

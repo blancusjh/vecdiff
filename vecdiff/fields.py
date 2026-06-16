@@ -99,6 +99,7 @@ class Field:
         pad_factor: int = 1,
         kgrid=None,
         ft_method: str = "auto",
+        transmission: str = "vectorial",
     ) -> "Field":
         """Propagate the field through a refractive diopter to an observation plane."""
         if np.isclose(float(z), float(ovoid.zi)):
@@ -109,6 +110,8 @@ class Field:
                 method = "hankel" if self.symmetry is not None else "fft"
 
             if method == "hankel":
+                if transmission != "vectorial":
+                    raise ValueError("method='hankel' only supports transmission='vectorial'.")
                 if q is None:
                     raise ValueError("q is required for method='hankel'.")
                 from .propagation import propagate_to_focal_plane_through_diopter
@@ -124,6 +127,7 @@ class Field:
                 pad_factor=pad_factor,
                 kgrid=kgrid,
                 ft_method=ft_method,
+                transmission=transmission,
             )
         else:
             raise NotImplementedError("Only propagation to the focal plane is supported.")

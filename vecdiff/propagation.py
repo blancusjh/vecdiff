@@ -182,6 +182,7 @@ def propagate_to_focal_plane_through_diopter_fft(
     pad_factor: int = 1,
     kgrid: Grid | None = None,
     ft_method: str = "auto",
+    transmission: str = "vectorial",
 ) -> Field:
     """Propagate an arbitrary Cartesian field through a diopter using FFT2.
 
@@ -196,11 +197,17 @@ def propagate_to_focal_plane_through_diopter_fft(
         raise ValueError("wavelength is required when output='focal'.")
     if include_prefactor and wavelength is None:
         raise ValueError("wavelength is required when include_prefactor=True.")
+    if transmission not in {"vectorial", "identity"}:
+        raise ValueError("transmission must be either 'vectorial' or 'identity'.")
 
     # Validates that the grid is uniform and obtains the physical sampling.
     field.grid.spacing()
 
-    Ux, Uy = transverse_diopter_operator(field, diopter)
+    if transmission == "vectorial":
+        Ux, Uy = transverse_diopter_operator(field, diopter)
+    else:
+        Ux = np.asarray(field.x, dtype=complex)
+        Uy = np.asarray(field.y, dtype=complex)
     fft_grid = _center_padded_grid(field.grid, pad_factor)
     Ux_fft = _center_pad_array(Ux, pad_factor)
     Uy_fft = _center_pad_array(Uy, pad_factor)
