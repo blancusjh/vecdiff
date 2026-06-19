@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import PowerNorm
@@ -12,6 +10,7 @@ from vecdiff.propagation import (
     propagate_to_focal_plane_through_diopter,
     propagate_to_focal_plane_through_diopter_fft,
 )
+from _output import example_output_dir, print_saved
 
 
 def rel_l2(a, b):
@@ -289,8 +288,7 @@ def save_case_figure(
 
 
 def run_sweep():
-    output_dir = Path(__file__).resolve().parent / "output" / "aperture_angle_method_comparison"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = example_output_dir(__file__)
 
     wavelength = 532e-6
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
@@ -393,6 +391,7 @@ def save_summary(output_dir, records, diopter, wavelength):
         f"wavelength={wavelength}; tan(theta_max)=R/|z0|"
     )
     fig.savefig(output_dir / "summary_errors.png", dpi=240)
+    print_saved(output_dir / "summary_errors.png")
     plt.close(fig)
 
     csv_path = output_dir / "summary_errors.csv"
@@ -404,6 +403,7 @@ def save_summary(output_dir, records, diopter, wavelength):
                 f"{record['aperture_radius']:.12g},{record['rel_l2']:.12e},"
                 f"{record['max_rel']:.12e},{record['center_abs_diff']:.12e}\n"
             )
+    print_saved(csv_path)
 
 
 if __name__ == "__main__":

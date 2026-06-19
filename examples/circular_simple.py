@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from vecdiff import CartesianSurface, FieldCartesian, FieldCircular, Grid
 from vecdiff.polarization_visualization import plot_field_polarization
 from vecdiff.view import plot_field
+from _output import example_output_dir, print_saved
 
 
 def field_in_focal_wavelengths(field, zi, ni):
@@ -33,17 +34,32 @@ E_focal = field_in_focal_wavelengths(E, zi, ni)
 
 input_half_size = R
 propagated_half_size = 5.0
+output_dir = example_output_dir(__file__)
 
-plot_field(E0, half_size=input_half_size, title="Input circular field")
+fig, _ = plot_field(E0, half_size=input_half_size, title="Input circular field")
+path = output_dir / "input_field_components.png"
+fig.savefig(path, dpi=220, bbox_inches="tight")
+print_saved(path)
+
 fig, axes = plot_field(E_focal, half_size=propagated_half_size, title="Propagated circular field")
 for ax in axes:
     ax.set_xlabel(r"$x/\lambda$")
     ax.set_ylabel(r"$y/\lambda$")
+path = output_dir / "propagated_field_components.png"
+fig.savefig(path, dpi=220, bbox_inches="tight")
+print_saved(path)
 
 ax, _ = plot_field_polarization(E0, half_size=input_half_size, ellipse_mode="cartesian")
 ax.set_title("Input circular polarization")
+path = output_dir / "input_polarization.png"
+ax.figure.savefig(path, dpi=220, bbox_inches="tight")
+print_saved(path)
+
 ax, _ = plot_field_polarization(E_focal, half_size=propagated_half_size, ellipse_mode="cartesian")
 ax.set_title("Propagated circular polarization")
 ax.set_xlabel(r"$x/\lambda$")
 ax.set_ylabel(r"$y/\lambda$")
+path = output_dir / "propagated_polarization.png"
+ax.figure.savefig(path, dpi=220, bbox_inches="tight")
+print_saved(path)
 plt.show()

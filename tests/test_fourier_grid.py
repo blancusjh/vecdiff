@@ -5,6 +5,18 @@ from vecdiff.grid import Grid
 from vecdiff.longitudinal import generate_Ez_cartesian
 
 
+def test_grid_from_axes_builds_cartesian_grid():
+    x = np.array([-1.0, 0.0, 1.0])
+    y = np.array([-2.0, 0.0])
+
+    grid = Grid.from_axes(x, y)
+
+    assert grid.shape == (2, 3)
+    assert np.allclose(grid.X[0], x)
+    assert np.allclose(grid.Y[:, 0], y)
+    assert grid.domain == "space"
+
+
 def test_centered_1d_transform_handles_centered_samples():
     values = np.zeros(8)
     values[values.size//2] = 1.0
@@ -40,6 +52,20 @@ def test_grid_spacing_and_kgrid_match_numpy_fftfreq():
 
     assert np.allclose(KX[0], expected_kx)
     assert np.allclose(KY[:, 0], expected_ky)
+
+
+def test_grid_kgrid_accepts_custom_shape():
+    grid = Grid.from_spacing((4, 6), dx=0.5, dy=0.25)
+
+    kgrid = grid.kgrid((8, 10))
+
+    expected_kx = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(10, d=0.5))
+    expected_ky = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(8, d=0.25))
+    assert kgrid.shape == (8, 10)
+    assert kgrid.domain == "k"
+    assert kgrid.dual is grid
+    assert np.allclose(kgrid.X[0], expected_kx)
+    assert np.allclose(kgrid.Y[:, 0], expected_ky)
 
 
 def test_grid_from_spacing_builds_centered_grid():

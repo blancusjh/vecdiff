@@ -82,6 +82,55 @@ class Field:
         )
         return self
 
+    def with_circular_aperture(self, radius: float, *, center: tuple[float, float] = (0.0, 0.0)) -> "Field":
+        """Return a copy of the field masked by a circular aperture in grid units."""
+        x0, y0 = center
+        aperture = (self.grid.X - x0)**2 + (self.grid.Y - y0)**2 <= radius**2
+        Ez = None if self.z is None else self.z * aperture
+        return Field.from_cartesian(
+            self.x * aperture,
+            self.y * aperture,
+            self.grid,
+            symmetric=self.symmetry == "cartesian",
+            Ez=Ez,
+        )
+
+    def propagate_in_medium(
+        self,
+        distance: float,
+        *,
+        wavelength: float,
+        n: float = 1.0,
+        include_evanescent: bool = False,
+    ) -> "Field":
+        """Propagate a Cartesian field through a homogeneous medium."""
+        if self.grid.type != "cartesian":
+            raise ValueError("propagate_in_medium requires a Cartesian grid.")
+
+        from .fourier import FT2, IFT2
+        from .longitudinal import kz_angular_spectrum
+
+        EX, kgrid = FT2(self.x, self.grid)
+        EY, _ = FT2(self.y, self.grid)
+        KZ = kz_angular_spectrum(
+            kgrid.X,
+            kgrid.Y,
+            wavelength=wavelength,
+            n=n,
+            include_evanescent=include_evanescent,
+        )
+        transfer = np.zeros_like(KZ, dtype=complex)
+        finite = np.isfinite(KZ)
+        transfer[finite] = np.exp(1.0j * KZ[finite] * float(distance))
+
+        Ex, _ = IFT2(EX * transfer, kgrid)
+        Ey, _ = IFT2(EY * transfer, kgrid)
+        Ez = None
+        if self.z is not None:
+            EZ, _ = FT2(self.z, self.grid)
+            Ez, _ = IFT2(EZ * transfer, kgrid)
+        return Field.from_cartesian(Ex, Ey, self.grid, symmetric=self.symmetry == "cartesian", Ez=Ez)
+
     # ------------------------------------------------------------------ #
     #  Propagation                                                         #
     # ------------------------------------------------------------------ #

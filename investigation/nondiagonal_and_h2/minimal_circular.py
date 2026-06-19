@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -37,6 +39,17 @@ POL_STRIDE = 16
 DIFF_POL_STRIDE = 24
 
 PARAM_STR = f"""Circular case\nn0={n0}, ni={ni}, z0={z0}, zi={zi}, R={R} mm"""
+
+OUTPUT_DIR = Path(__file__).resolve().parent / "output" / Path(__file__).stem
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def print_saved(path):
+    try:
+        shown = path.resolve().relative_to(Path(__file__).resolve().parents[2])
+    except ValueError:
+        shown = path
+    print(f"Saved: {shown}")
 
 
 def circular_to_cartesian(EL, ER):
@@ -159,7 +172,7 @@ def main(display_mode=DISPLAY_MODE):
         ("Circular total |E|^2", I_total),
     ]
 
-    intensity_png = "circular_intensity_maps.png" if SAVE_PNG else None
+    intensity_png = OUTPUT_DIR / "circular_intensity_maps.png" if SAVE_PNG else None
     plot_intensity_maps(
         maps,
         q_view=q_view,
@@ -204,11 +217,12 @@ def main(display_mode=DISPLAY_MODE):
     figv.suptitle("Polarization overlays: incident vs output")
     plt.tight_layout()
     if SAVE_PNG:
-        figv.savefig("circular_vector_fields.png", dpi=220, bbox_inches="tight")
-        print("Saved: circular_vector_fields.png")
+        vector_path = OUTPUT_DIR / "circular_vector_fields.png"
+        figv.savefig(vector_path, dpi=220, bbox_inches="tight")
+        print_saved(vector_path)
 
     # Third figure: focused comparison on difference (intensity + polarization difference)
-    overlay_png = "circular_overlay_diffpol_on_deltaI_hot.png" if SAVE_PNG else None
+    overlay_png = OUTPUT_DIR / "circular_overlay_diffpol_on_deltaI_hot.png" if SAVE_PNG else None
     fig_ov, ax_ov = plt.subplots(1, 2, figsize=(12.5, 5.2))
     dI_pos = np.maximum(I_diff_out_minus_inc, 0.0)
     ref_dI = np.percentile(dI_pos, 99.5) + 1e-30
@@ -245,7 +259,7 @@ def main(display_mode=DISPLAY_MODE):
     plt.tight_layout()
     if SAVE_PNG:
         fig_ov.savefig(overlay_png, dpi=220, bbox_inches="tight")
-        print(f"Saved: {overlay_png}")
+        print_saved(overlay_png)
     plt.show()
 
 

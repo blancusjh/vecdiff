@@ -59,6 +59,43 @@ def test_transverse_operator_reduces_to_scalar_limit(monkeypatch):
     assert np.allclose(Uy, t * Ey)
 
 
+def test_field_circular_aperture_masks_components_without_mutating_input():
+    grid = _cartesian_grid(n=5, half_size=1.0)
+    Ex = np.ones(grid.shape)
+    Ey = 2.0 * np.ones(grid.shape)
+    Ez = 3.0 * np.ones(grid.shape)
+    field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False, z=Ez)
+
+    masked = field.with_circular_aperture(0.75)
+    aperture = grid.R <= 0.75
+
+    assert masked is not field
+    assert masked.grid is grid
+    assert np.allclose(masked.x, Ex * aperture)
+    assert np.allclose(masked.y, Ey * aperture)
+    assert np.allclose(masked.z, Ez * aperture)
+    assert np.allclose(field.x, Ex)
+    assert np.allclose(field.y, Ey)
+    assert np.allclose(field.z, Ez)
+
+
+def test_field_propagate_in_medium_applies_plane_wave_phase():
+    grid = _cartesian_grid(n=8, half_size=1.0)
+    Ex = np.ones(grid.shape, dtype=complex)
+    Ey = 2.0 * np.ones(grid.shape, dtype=complex)
+    field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
+
+    distance = 0.3
+    wavelength = 0.5
+    n = 1.25
+    propagated = field.propagate_in_medium(distance, wavelength=wavelength, n=n)
+    phase = np.exp(1.0j * 2.0 * np.pi * n * distance / wavelength)
+
+    assert propagated.grid is grid
+    assert np.allclose(propagated.x, phase * Ex)
+    assert np.allclose(propagated.y, phase * Ey)
+
+
 def test_fft_propagation_uses_centered_ft2(monkeypatch):
     grid = _cartesian_grid(n=16)
     Ex = np.exp(-(grid.X**2 + grid.Y**2))

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -40,6 +42,18 @@ DARK_BACKGROUND = False
 DISPLAY_MODE = "gamma"
 
 HT = HankelTransform.transform_array
+
+
+OUTPUT_DIR = Path(__file__).resolve().parent / "output" / Path(__file__).stem
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def print_saved(path):
+    try:
+        shown = path.resolve().relative_to(Path(__file__).resolve().parents[2])
+    except ValueError:
+        shown = path
+    print(f"Saved: {shown}")
 
 
 def propagate(r, q, tp, ts, E):
@@ -169,9 +183,9 @@ def main(display_mode=DISPLAY_MODE, vector_plot_mode=VECTOR_PLOT_MODE):
     axd.set_ylim(-q_view, q_view)
     axd.set_aspect("equal")
     plt.tight_layout()
-    out_png = "difference_field_output_minus_incident.png"
+    out_png = OUTPUT_DIR / "difference_field_output_minus_incident.png"
     figd.savefig(out_png, dpi=220, bbox_inches="tight")
-    print(f"Saved: {out_png}")
+    print_saved(out_png)
 
     # Polarization-only difference map (orientation change, independent of amplitude)
     s1_out = Ex_v**2 - Ey_v**2
@@ -207,9 +221,9 @@ def main(display_mode=DISPLAY_MODE, vector_plot_mode=VECTOR_PLOT_MODE):
     axp.set_ylim(-q_view, q_view)
     axp.set_aspect("equal")
     plt.tight_layout()
-    out_png_pol = "polarization_orientation_difference.png"
+    out_png_pol = OUTPUT_DIR / "polarization_orientation_difference.png"
     figp.savefig(out_png_pol, dpi=220, bbox_inches="tight")
-    print(f"Saved: {out_png_pol}")
+    print_saved(out_png_pol)
 
     plt.show()
 

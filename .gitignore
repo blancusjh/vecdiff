@@ -8,3 +8,12 @@ notebooks/
 
 # Generated figures from examples/investigations
 *.png
+*.npz
+
+examples/output/**
+!examples/output/
+!examples/output/README.md
+examples/vecdiff_results/
+investigation/**/output/
+/output/
+/output_circular_pupil_resolution/

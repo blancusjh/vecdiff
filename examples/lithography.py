@@ -10,16 +10,18 @@ Repository API assumed:
     github.com/blancusjh/vecdiff
 
 Core imports:
-    from vecdiff import Grid, FieldCartesian, CartesianSurface
+    from vecdiff import CartesianSurface, FieldCartesian, Grid
 """
 
-import os
+from dataclasses import dataclass
+
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from vecdiff import Grid, FieldCartesian, CartesianSurface
+from _output import example_output_dir, print_saved
 
 
 # ---------------------------------------------------------------------
@@ -28,71 +30,66 @@ from vecdiff import Grid, FieldCartesian, CartesianSurface
 
 lam = 532e-6
 
-# High-contrast diagnostic configuration: the large index jump in D2
-# deliberately increases tp - ts and therefore the cross-polarized component.
-# The diopters are conjugate: D2["z0"] = -D1["zi"].
-D1 = dict(n0=1.0, ni=1.01, z0=-10.0, zi=6.0)
-D2 = dict(n0=D1["ni"], ni=20.0, z0=-D1["zi"], zi=0.300)
+# Light propagates from vacuum into the lens medium through D1, then exits
+# back into vacuum through D2.  The second object distance is measured from
+# the second vertex, so it depends on the lens thickness xi.
+D1 = dict(n0=1.0, ni=1.5, z0=-10.0, zi=2.0)
+xi = 0.500
+D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=2.00)
 
-Kc = 900.0
-rA = 3.8317059702075125 / Kc
-dA = 2.0 * rA
+r_a = 1.5
+alpha_max = np.arctan(r_a / abs(D1["z0"]))
+Kc = D1["n0"] * (2.0 * np.pi / lam) * np.sin(alpha_max)
+r_Airy = 3.8317059702075125 / Kc
+d_Airy = 2.0 * r_Airy
 
 # Near-resolution feature scale for the polarization-transfer diagnostic.
-Pattern_sep = 0.82 * dA
+Pattern_sep = 0.79 * d_Airy
 Pattern_theta = 0.25 * np.pi
-Incident_polarization = "lineal x"
 
-out_dir = os.path.join("output", "lithography_pattern")
-os.makedirs(out_dir, exist_ok=True)
+out_dir = example_output_dir(__file__)
+
+
+@dataclass(frozen=True)
+class Lens:
+    radius: float
+    first: dict
+    second: dict
+    xi: float
+
+    @property
+    def distance_from_first_focus_to_second_vertex(self):
+        return self.xi - self.first["zi"]
 
 
 # ---------------------------------------------------------------------
 # Numerical utilities
 # ---------------------------------------------------------------------
 
-def angular_axis(N, d):
-    return 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(N, d=d))
 
+def orient_field_axes(Ex, Ey, x, y):
+    Ex = np.asarray(Ex)
+    Ey = np.asarray(Ey)
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
 
-def kgrid_from_spacing(N, dx, dy):
-    kx = angular_axis(N, dx)
-    ky = angular_axis(N, dy)
-    KX, KY = np.meshgrid(kx, ky, indexing="xy")
-    return Grid.from_cartesian(KX, KY, domain="k")
+    if x[0] > x[-1]:
+        x = x[::-1]
+        Ex = Ex[:, ::-1]
+        Ey = Ey[:, ::-1]
 
+    if y[0] > y[-1]:
+        y = y[::-1]
+        Ex = Ex[::-1, :]
+        Ey = Ey[::-1, :]
 
-def crop_by_axes(A, ax, ay, xmax):
-    ix = (ax >= -xmax) & (ax <= xmax)
-    iy = (ay >= -xmax) & (ay <= xmax)
-    return np.asarray(A)[np.ix_(iy, ix)], ax[ix], ay[iy]
-
-
-def apply_circular_pupil(Fx, Fy, kx, ky, Kc):
-    """
-    Apply the physical circular pupil
-
-        P(kx, ky) = 1,  kx^2 + ky^2 <= Kc^2,
-
-    using a square crop only as the containing computational box.
-    """
-    Fx, kx_c, ky_c = crop_by_axes(Fx, kx, ky, Kc)
-    Fy, _, _ = crop_by_axes(Fy, kx, ky, Kc)
-
-    KX, KY = np.meshgrid(kx_c, ky_c)
-    pupil = (KX**2 + KY**2) <= Kc**2
-
-    return Fx * pupil, Fy * pupil, kx_c, ky_c, pupil
+    return Ex, Ey, x, y
 
 
 def mean_normalize(I):
     I = np.asarray(I, dtype=float)
     positive = I[I > 0]
     return I / positive.mean() if positive.size else I
-
-
-def image_extent(x, y):
-    return [float(x[0]), float(x[-1]), float(y[0]), float(y[-1])]
 
 
 def image_extent_over_lambda(x, y):
@@ -114,134 +111,53 @@ def display_positive(I, percentile=99.6, gamma=0.85):
     return np.clip(I / vmax, 0.0, 1.0) ** gamma
 
 
-def display_signed(A, percentile=99.2):
-    A = np.asarray(A, dtype=float)
-    vals = np.abs(A[np.isfinite(A)])
-
-    vmax = np.percentile(vals, percentile) if vals.size else 1.0
-    vmax = max(vmax, 1.0e-14)
-
-    return 0.5 + 0.5 * np.clip(A / vmax, -1.0, 1.0)
-
-
-def pair_resolution_ratio(I, xr, yr, sep, theta):
-    Xr, Yr = np.meshgrid(xr, yr)
-    ux = np.cos(theta)
-    uy = np.sin(theta)
-
-    coord = Xr * ux + Yr * uy
-    perp = -Xr * uy + Yr * ux
-
-    mid = (np.abs(coord) <= 0.12 * sep) & (np.abs(perp) <= 0.35 * dA)
-    left = (np.abs(coord + 0.5 * sep) <= 0.30 * sep) & (np.abs(perp) <= 0.45 * dA)
-    right = (np.abs(coord - 0.5 * sep) <= 0.30 * sep) & (np.abs(perp) <= 0.45 * dA)
-
-    peak = min(float(np.max(I[left])), float(np.max(I[right])))
-    valley = float(np.mean(I[mid]))
-    return valley / (peak + 1.0e-15)
-
-
-def add_airy_radius(ax, x0, y0):
-    ax.plot([x0], [y0], marker="o", color="white", mec="black", mew=0.6, ms=3.5, zorder=5)
-    ax.plot([x0, x0 + rA / lam], [y0, y0], color="black", lw=4.0, zorder=4)
-    ax.plot([x0, x0 + rA / lam], [y0, y0], color="white", lw=2.2, zorder=5)
-    ax.text(
-        x0,
-        y0 + 1.4 * rA / lam,
-        f"Radio de Airy\n$r_A/\\lambda={rA / lam:.3g}$",
-        color="white",
-        fontsize=8,
-        ha="left",
-        va="bottom",
-        bbox=dict(facecolor="black", alpha=0.50, edgecolor="none", pad=2.0),
-    )
-
-
 # ---------------------------------------------------------------------
-# Propagation through two diopters
+# Propagation through a lens
 # ---------------------------------------------------------------------
 
-def propagate_two_diopters_circular_pupil(field, L, *, vectorial, Npad1=768, Npad2=768):
-    """
-    Propagate a transverse Cartesian field through two finite-conjugate diopters.
-
-    Scalar mode:
-        propagates with identity transmission, equivalent to tp=ts=1 in this test.
-
-    Vectorial mode:
-        uses Field.propagate_through_diopter with vectorial Fresnel transmission.
-
-    The circular pupil is imposed after the first Fourier map.
-    """
-    dx = float(np.mean(np.diff(field.grid.X[0, :])))
-    dy = float(np.mean(np.diff(field.grid.Y[:, 0])))
+def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768):
     transmission = "vectorial" if vectorial else "identity"
 
-    diopter1 = CartesianSurface(**D1)
-    propagated1 = field.propagate_through_diopter(
+    diopter1 = CartesianSurface(**lens.first)
+    diopter2 = CartesianSurface(**lens.second)
+    pupil_radius = (
+        lam * lens.first["zi"] * Kc / (2.0 * np.pi * lens.first["ni"])
+    )
+
+    focal_field = field.propagate_through_diopter(
         diopter1.zi,
         diopter1,
         method="fft",
-        kgrid=kgrid_from_spacing(Npad1, dx, dy),
+        output="focal",
+        wavelength=lam,
+        kgrid=field.grid.kgrid(Npad1),
         transmission=transmission,
-    )
-    kx1 = propagated1.grid.X[0, :]
-    ky1 = propagated1.grid.Y[:, 0]
-
-    Ex1, Ey1, kx_c, ky_c, pupil = apply_circular_pupil(
-        propagated1.x,
-        propagated1.y,
-        kx1,
-        ky1,
-        Kc,
+    ).with_circular_aperture(
+        pupil_radius
     )
 
-    alpha1 = lam * D1["zi"] / (2.0 * np.pi * D1["ni"])
-
-    xf = alpha1 * kx_c
-    yf = alpha1 * ky_c
-
-    dxf = float(np.mean(np.diff(xf)))
-    dyf = float(np.mean(np.diff(yf)))
-
-    XF, YF = np.meshgrid(xf, yf)
-
-    focal_field = FieldCartesian(
-        Ex1,
-        Ey1,
-        grid=Grid.from_cartesian(XF, YF),
-        symmetric=False,
+    second_tangent_field = focal_field.propagate_in_medium(
+        lens.distance_from_first_focus_to_second_vertex,
+        wavelength=lam,
+        n=lens.first["ni"],
     )
 
-    diopter2 = CartesianSurface(**D2)
-    propagated2 = focal_field.propagate_through_diopter(
+    image_field = second_tangent_field.propagate_through_diopter(
         diopter2.zi,
         diopter2,
         method="fft",
-        kgrid=kgrid_from_spacing(Npad2, dxf, dyf),
+        output="focal",
+        wavelength=lam,
+        kgrid=second_tangent_field.grid.kgrid(Npad2),
         transmission=transmission,
     )
 
-    Ex2 = propagated2.x
-    Ey2 = propagated2.y
-    kx2 = propagated2.grid.X[0, :]
-    ky2 = propagated2.grid.Y[:, 0]
+    Ex2 = image_field.x
+    Ey2 = image_field.y
+    xr = image_field.grid.X[0, :]
+    yr = image_field.grid.Y[:, 0]
 
-    xrec = -alpha1 * kx2
-    yrec = -alpha1 * ky2
-
-    if xrec[0] > xrec[-1]:
-        xrec = xrec[::-1]
-        Ex2 = Ex2[:, ::-1]
-        Ey2 = Ey2[:, ::-1]
-
-    if yrec[0] > yrec[-1]:
-        yrec = yrec[::-1]
-        Ex2 = Ex2[::-1, :]
-        Ey2 = Ey2[::-1, :]
-
-    Ex2, xr, yr = crop_by_axes(Ex2, xrec, yrec, L / 2.0)
-    Ey2, _, _ = crop_by_axes(Ey2, xrec, yrec, L / 2.0)
+    Ex2, Ey2, xr, yr = orient_field_axes(Ex2, Ey2, xr, yr)
 
     return Ex2, Ey2, xr, yr
 
@@ -263,7 +179,7 @@ def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
     The full pattern is scaled by scale_sep, so relative distances are preserved.
     """
     s = scale_sep
-    cr = 0.18 * dA
+    cr = 0.18 * d_Airy
     w = 2.0 * cr
     ux = np.cos(theta)
     uy = np.sin(theta)
@@ -272,9 +188,6 @@ def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
 
     T = np.zeros_like(X, dtype=float)
     boxes = {}
-
-    def add_rect(xmin, xmax, ymin, ymax):
-        T[(X >= xmin) & (X <= xmax) & (Y >= ymin) & (Y <= ymax)] = 1.0
 
     def add_rotated_rect(cx, cy, length, width, angle):
         ca = np.cos(angle)
@@ -344,12 +257,63 @@ def bbox_union(boxes):
     return min(xs), max(xs), min(ys), max(ys)
 
 
+def padded_window_from_box(xmin, xmax, ymin, ymax, padding=0.18):
+    cx = 0.5 * (xmin + xmax)
+    cy = 0.5 * (ymin + ymax)
+    span = max(xmax - xmin, ymax - ymin)
+    half_window = 0.5 * span * (1.0 + padding)
+    return {
+        "xmin": cx - half_window,
+        "xmax": cx + half_window,
+        "ymin": cy - half_window,
+        "ymax": cy + half_window,
+    }
+
+
+def clamp_window_to_axes(window, x, y):
+    return {
+        "xmin": max(float(window["xmin"]), float(min(x[0], x[-1]))),
+        "xmax": min(float(window["xmax"]), float(max(x[0], x[-1]))),
+        "ymin": max(float(window["ymin"]), float(min(y[0], y[-1]))),
+        "ymax": min(float(window["ymax"]), float(max(y[0], y[-1]))),
+    }
+
+
+def signal_window(arrays, x, y, threshold=0.035, padding=0.18):
+    combined = np.zeros_like(np.asarray(arrays[0], dtype=float))
+
+    for A in arrays:
+        A = np.asarray(A, dtype=float)
+        scale = float(np.nanmax(np.abs(A)))
+        if scale > 0.0:
+            combined = np.maximum(combined, np.abs(A) / scale)
+
+    active = combined >= threshold
+    if not np.any(active):
+        return clamp_window_to_axes({
+            "xmin": float(x[0]),
+            "xmax": float(x[-1]),
+            "ymin": float(y[0]),
+            "ymax": float(y[-1]),
+        }, x, y)
+
+    yy, xx = np.nonzero(active)
+    xmin = float(x[max(int(xx.min()) - 1, 0)])
+    xmax = float(x[min(int(xx.max()) + 1, len(x) - 1)])
+    ymin = float(y[max(int(yy.min()) - 1, 0)])
+    ymax = float(y[min(int(yy.max()) + 1, len(y) - 1)])
+    return clamp_window_to_axes(
+        padded_window_from_box(xmin, xmax, ymin, ymax, padding=padding),
+        x,
+        y,
+    )
+
+
 def run_lithography_example(*, L=1.60, N=513, Npad=768):
     x = np.linspace(-L / 2.0, L / 2.0, N)
     y = np.linspace(-L / 2.0, L / 2.0, N)
-
-    X, Y = np.meshgrid(x, y)
-    grid = Grid.from_cartesian(X, Y)
+    grid = Grid.from_axes(x, y)
+    X, Y = grid.X, grid.Y
 
     T, boxes = build_lithography_mask(X, Y, Pattern_sep)
 
@@ -360,17 +324,19 @@ def run_lithography_example(*, L=1.60, N=513, Npad=768):
         symmetric=False,
     )
 
-    Ex_s, Ey_s, xr, yr = propagate_two_diopters_circular_pupil(
+    lens = Lens(radius=r_a, first=D1, second=D2, xi=xi)
+
+    Ex_s, Ey_s, xr, yr = propagate_through_lens(
         field,
-        L,
+        lens,
         vectorial=False,
         Npad1=Npad,
         Npad2=Npad,
     )
 
-    Ex_v, Ey_v, _, _ = propagate_two_diopters_circular_pupil(
+    Ex_v, Ey_v, _, _ = propagate_through_lens(
         field,
-        L,
+        lens,
         vectorial=True,
         Npad1=Npad,
         Npad2=Npad,
@@ -384,22 +350,13 @@ def run_lithography_example(*, L=1.60, N=513, Npad=768):
     cross_fraction = float(
         np.sum(np.abs(Ey_v)**2) / (np.sum(np.abs(Ex_v)**2 + np.abs(Ey_v)**2) + 1.0e-30)
     )
-    scalar_pair_ratio = pair_resolution_ratio(Is, xr, yr, Pattern_sep, Pattern_theta)
-    vectorial_pair_ratio = pair_resolution_ratio(Iv, xr, yr, Pattern_sep, Pattern_theta)
-
     xmin, xmax, ymin, ymax = bbox_union(boxes)
-    cx = 0.5 * (xmin + xmax)
-    cy = 0.5 * (ymin + ymax)
-    span = max(xmax - xmin, ymax - ymin)
-
-    half_window = 0.5 * (span / 0.80)
-
-    zoom = {
-        "xmin": cx - half_window,
-        "xmax": cx + half_window,
-        "ymin": cy - half_window,
-        "ymax": cy + half_window,
-    }
+    input_zoom = clamp_window_to_axes(
+        padded_window_from_box(xmin, xmax, ymin, ymax, padding=0.22),
+        x,
+        y,
+    )
+    output_zoom = signal_window([Is, Iv, Id_abs], xr, yr, threshold=0.035, padding=0.18)
 
     return {
         "x": x,
@@ -413,30 +370,32 @@ def run_lithography_example(*, L=1.60, N=513, Npad=768):
         "Icross": Icross,
         "Id": Id,
         "Id_abs": Id_abs,
-        "zoom": zoom,
+        "input_zoom": input_zoom,
+        "output_zoom": output_zoom,
         "cross_fraction": cross_fraction,
-        "scalar_pair_ratio": scalar_pair_ratio,
-        "vectorial_pair_ratio": vectorial_pair_ratio,
+        "lens": lens,
     }
 
 
 def plot_lithography_result(result):
-    fig, axes = plt.subplots(1, 4, figsize=(15.4, 4.5), constrained_layout=True)
+    fig, axes = plt.subplots(1, 4, figsize=(16.5, 4.5), constrained_layout=False)
 
     panels = [
-        (result["T"], result["x"], result["y"], "Máscara de entrada", False),
-        (result["Is"], result["xr"], result["yr"], "Intensidad - Escalar", False),
-        (result["Iv"], result["xr"], result["yr"], "Intensidad - Vectorial", False),
-        (result["Id_abs"], result["xr"], result["yr"], r"$|\mathrm{Vectorial} - \mathrm{Escalar}|$", False),
+        (result["T"], result["x"], result["y"], "Máscara de entrada", result["input_zoom"]),
+        (result["Is"], result["xr"], result["yr"], "Intensidad - Escalar", result["output_zoom"]),
+        (result["Iv"], result["xr"], result["yr"], "Intensidad - Vectorial", result["output_zoom"]),
+        (
+            result["Id_abs"],
+            result["xr"],
+            result["yr"],
+            r"$|\mathrm{Vectorial} - \mathrm{Escalar}|$",
+            result["output_zoom"],
+        ),
     ]
 
-    z = result["zoom"]
-
-    for j, (A, xx, yy, title, signed) in enumerate(panels):
-        shown = display_signed(A) if signed else display_positive(A)
-
+    for j, (A, xx, yy, title, zoom) in enumerate(panels):
         im = axes[j].imshow(
-            shown,
+            display_positive(A),
             origin="lower",
             extent=image_extent_over_lambda(xx, yy),
             cmap="gray",
@@ -445,34 +404,31 @@ def plot_lithography_result(result):
             interpolation="nearest",
         )
         fig.colorbar(im, ax=axes[j], fraction=0.046, pad=0.04)
-        axes[j].set_xlim(z["xmin"] / lam, z["xmax"] / lam)
-        axes[j].set_ylim(z["ymin"] / lam, z["ymax"] / lam)
+        axes[j].set_xlim(zoom["xmin"] / lam, zoom["xmax"] / lam)
+        axes[j].set_ylim(zoom["ymin"] / lam, zoom["ymax"] / lam)
 
         axes[j].set_title(title)
         axes[j].set_xlabel(r"$x/\lambda$")
         axes[j].set_ylabel(r"$y/\lambda$")
         axes[j].set_aspect("equal")
 
-        if j == 1:
-            add_airy_radius(
-                axes[j],
-                (z["xmin"] + 0.08 * (z["xmax"] - z["xmin"])) / lam,
-                (z["ymin"] + 0.09 * (z["ymax"] - z["ymin"])) / lam,
-            )
-
     fig.suptitle(
         rf"Patrón de litografía a través de lente"
         "\n"
         rf"$z_{{0,1}}={D1['z0']} \,\mathrm{{mm}}$, "
         rf"$z_{{i,1}}={D1['zi']} \,\mathrm{{mm}}$, "
-        rf"$z_{{i,2}}={D2['zi']} \,\mathrm{{mm}}$",
+        rf"$\xi={xi:g}\,\mathrm{{mm}}$, "
+        rf"$z_{{i,2}}={D2['zi']} \,\mathrm{{mm}}$, "
+        rf"$r_a={r_a:g}\,\mathrm{{mm}}$, "
+        rf"$\alpha_\mathrm{{max}}={np.degrees(alpha_max):.2f}^\circ$"
+        "\n"
+        rf"Campo incidente: $\mathbf{{E}}_0 = T\,\hat{{\mathbf{{x}}}}$",
     )
+    fig.subplots_adjust(left=0.045, right=0.965, bottom=0.16, top=0.72, wspace=0.50)
 
-    fig.savefig(
-        os.path.join(out_dir, "lithography_pattern_check.png"),
-        dpi=150,
-        bbox_inches="tight",
-    )
+    output_path = out_dir / "lithography_pattern_check.png"
+    fig.savefig(output_path, dpi=150)
+    print_saved(output_path)
 
     plt.close(fig)
 
@@ -486,17 +442,21 @@ if __name__ == "__main__":
     Id = result["Id"]
 
     print("OK")
-    print(f"rA={rA:.10f}")
-    print(f"dA={dA:.10f}")
-    print(f"Pattern_sep={Pattern_sep:.10f} ({Pattern_sep / dA:.4f} dA)")
-    print(f"conjugacy_error=D1_zi_plus_D2_z0={D1['zi'] + D2['z0']:.10e}")
+    print(f"r_a={r_a:.10f}")
+    print(f"alpha_max_deg={np.degrees(alpha_max):.10f}")
+    print(f"Kc={Kc:.10f}")
+    print(f"xi={xi:.10f}")
+    print(f"first_focus_to_second_vertex={xi - D1['zi']:.10f}")
+    print(f"r_Airy={r_Airy:.10f}")
+    print(f"d_Airy={d_Airy:.10f}")
+    print(f"Pattern_sep={Pattern_sep:.10f} ({Pattern_sep / d_Airy:.4f} d_Airy)")
+    print(f"second_diopter_z0={D2['z0']:.10f}")
+    print(f"conjugacy_error=xi_minus_D1_zi_plus_D2_z0={xi - D1['zi'] + D2['z0']:.10e}")
     print(f"scalar_shape={Is.shape}")
     print(f"vectorial_shape={Iv.shape}")
     print(f"scalar_finite={np.isfinite(Is).all()}")
     print(f"vectorial_finite={np.isfinite(Iv).all()}")
     print(f"cross_pol_fraction={result['cross_fraction']:.10e}")
-    print(f"scalar_pair_ratio={result['scalar_pair_ratio']:.10e}")
-    print(f"vectorial_pair_ratio={result['vectorial_pair_ratio']:.10e}")
     print(f"difference_abs_max={np.max(np.abs(Id)):.10e}")
     print(f"difference_abs_p99={np.percentile(np.abs(Id), 99):.10e}")
-    print(os.path.join(out_dir, "lithography_pattern_check.png"))
+    print(out_dir / "lithography_pattern_check.png")

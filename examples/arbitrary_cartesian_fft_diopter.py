@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import PowerNorm
@@ -7,6 +5,7 @@ from matplotlib.colors import PowerNorm
 from vecdiff import CartesianSurface, FieldCartesian, Grid
 from vecdiff.polarization import polarization_from_field
 from vecdiff.polarization_visualization import plot_polarization_map
+from _output import example_output_dir, print_saved
 
 
 def recover_Ez_from_transverse_k_field(field, wavelength, n):
@@ -261,13 +260,16 @@ def main():
     if include_z_component:
         E_out.z = recover_Ez_from_transverse_k_field(E_out, wavelength=wavelength, n=diopter.ni)
 
-    output_dir = Path(__file__).resolve().parent / "output"
-    output_dir.mkdir(exist_ok=True)
+    output_dir = example_output_dir(__file__)
+
+    incident_path = output_dir / "incident_field_components.png"
+    propagated_path = output_dir / "propagated_field_components.png"
+    polarization_path = output_dir / "propagated_polarization.png"
 
     save_field_figure(
         E_G,
         r"Incident $E_G$ on the object-centered tangent sphere",
-        output_dir / "arbitrary_cartesian_fft_diopter_incident.png",
+        incident_path,
         x_label=r"$x/\lambda$",
         y_label=r"$y/\lambda$",
         extent_scale=wavelength,
@@ -275,7 +277,7 @@ def main():
     save_field_figure(
         E_out,
         r"FFT propagation of $E_G$ through a diopter",
-        output_dir / "arbitrary_cartesian_fft_diopter.png",
+        propagated_path,
         x_label=r"$k_x$",
         y_label=r"$k_y$",
         view=2.5,
@@ -283,9 +285,11 @@ def main():
     save_polarization_figure(
         E_out,
         r"Polarization of propagated $E_G$",
-        output_dir / "arbitrary_cartesian_fft_diopter_polarization.png",
+        polarization_path,
         view=1.35,
     )
+    for path in (incident_path, propagated_path, polarization_path):
+        print_saved(path)
 
     plt.show()
 

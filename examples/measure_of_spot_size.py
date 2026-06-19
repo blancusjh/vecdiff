@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 
 from vecdiff import CartesianSurface, FieldCartesian, Grid
 from vecdiff.view import radial_map
+from _output import example_output_dir, print_saved
 
 
 n0, ni = 1.0, 1.5
@@ -48,4 +49,8 @@ ax.set_ylabel("qy")
 ax.set_title("Spot size")
 ax.legend(loc="upper right")
 fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+output_dir = example_output_dir(__file__)
+path = output_dir / "spot_size_metrics.png"
+fig.savefig(path, dpi=220, bbox_inches="tight")
+print_saved(path)
 plt.show()

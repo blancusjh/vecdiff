@@ -29,6 +29,19 @@ class Grid:
         return cls(X, Y, domain=domain, dual=dual)
 
     @classmethod
+    def from_axes(
+        cls,
+        x: np.ndarray,
+        y: np.ndarray,
+        *,
+        domain: str = "space",
+        dual: "Grid | None" = None,
+    ) -> "Grid":
+        """Return a Cartesian grid from one-dimensional x and y axes."""
+        X, Y = np.meshgrid(np.asarray(x, dtype=float), np.asarray(y, dtype=float), indexing="xy")
+        return cls(X, Y, domain=domain, dual=dual)
+
+    @classmethod
     def from_spacing(
         cls,
         shape: tuple[int, int],
@@ -85,10 +98,16 @@ class Grid:
             self._uniform_spacing(self.Y, axis=0, name="y"),
         )
 
-    def kgrid(self, *, shift: bool = True) -> "Grid":
+    def kgrid(self, shape: int | tuple[int, int] | None = None, *, shift: bool = True) -> "Grid":
         """Return the angular-frequency grid dual to this Cartesian grid."""
         self._require_cartesian_grid()
-        ny, nx = self.shape
+        if shape is None:
+            ny, nx = self.shape
+        elif hasattr(shape, "__index__"):
+            ny = nx = shape.__index__()
+        else:
+            ny, nx = shape
+
         dx, dy = self.spacing()
 
         kx = 2.0 * np.pi * np.fft.fftfreq(nx, d=dx)
