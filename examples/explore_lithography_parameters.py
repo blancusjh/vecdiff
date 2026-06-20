@@ -82,7 +82,7 @@ def image_score(result):
 
 
 def mask_window_size():
-    return 18.0 * litho.Pattern_sep
+    return litho.mask_window_size()
 
 
 def sampling_metrics(*, L, N):
@@ -108,6 +108,8 @@ def evaluate_case(params, *, N, Npad):
         "xi": lens.xi,
         "first_focus_to_second_vertex": lens.distance_from_first_focus_to_second_vertex,
         "second_diopter_z0": lens.second["z0"],
+        "magnification": lens.magnification,
+        "abs_magnification": abs(lens.magnification),
         **sampling,
         **metrics,
     }
@@ -119,8 +121,8 @@ def sweep_cases(*, N=641, Npad=768):
         "aperture_radius": [1.0, 2.0, 4.0],
         "focus_distance": [2.0],
         "object_distance": [6.0, 10.0],
-        "second_focus": [2.0],
-        "gap": [-1.5, -0.5, 0.5],
+        "second_focus": [0.60, 0.80, 1.00],
+        "gap": [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0],
         "sep_factor": [0.70, 0.85],
     }
     keys = list(parameter_grid)
@@ -133,6 +135,8 @@ def sweep_cases(*, N=641, Npad=768):
             row = evaluate_case(params, N=N, Npad=Npad)
             if row["contact_radius_px"] < 4.0:
                 row["error"] = "input mask under-sampled"
+            elif row["abs_magnification"] >= 1.0:
+                row["error"] = "magnifying case"
             rows.append(row)
         except Exception as exc:
             rows.append({**params, "error": repr(exc)})
@@ -190,7 +194,7 @@ def main():
         print(
             "score={score:.4e}  "
             "ni={ni:.2f}  z0=-{object_distance:.1f}  r_a={aperture_radius:.2f}  "
-            "gap={gap:.2f}  xi={xi:.2f}  sep={sep_factor:.2f} d_Airy  "
+            "gap={gap:.2f}  xi={xi:.2f}  |M|={abs_magnification:.3f}  sep={sep_factor:.2f} d_Airy  "
             "contact_px={contact_radius_px:.1f}  "
             "Cs={scalar_contrast:.3f}  Cv={vectorial_contrast:.3f}  "
             "drop={contrast_drop:.3f}  cross={cross_fraction:.3e}  "

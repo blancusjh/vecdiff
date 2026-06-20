@@ -33,18 +33,18 @@ lam = 532e-6
 # Light propagates from vacuum into the lens medium through D1, then exits
 # back into vacuum through D2.  The second object distance is measured from
 # the second vertex, so it depends on the lens thickness xi.
-D1 = dict(n0=1.0, ni=1.5, z0=-10.0, zi=2.0)
-xi = 0.500
-D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=2.00)
+D1 = dict(n0=1.0, ni=1.5, z0=-6.0, zi=2.0)
+xi = 3.000
+D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=0.80)
 
-r_a = 1.5
+r_a = 4.0
 alpha_max = np.arctan(r_a / abs(D1["z0"]))
 Kc = D1["n0"] * (2.0 * np.pi / lam) * np.sin(alpha_max)
 r_Airy = 3.8317059702075125 / Kc
 d_Airy = 2.0 * r_Airy
 
 # Near-resolution feature scale for the polarization-transfer diagnostic.
-Pattern_sep = 0.79 * d_Airy
+Pattern_sep = 0.70 * d_Airy
 Pattern_theta = 0.25 * np.pi
 
 out_dir = example_output_dir(__file__)
@@ -60,6 +60,14 @@ class Lens:
     @property
     def distance_from_first_focus_to_second_vertex(self):
         return self.xi - self.first["zi"]
+
+    @property
+    def magnification(self):
+        """Transverse scale of the two focal-plane Fourier maps."""
+        return -(
+            self.first["ni"] * self.second["zi"]
+            / (self.second["ni"] * self.first["zi"])
+        )
 
 
 # ---------------------------------------------------------------------
@@ -309,7 +317,14 @@ def signal_window(arrays, x, y, threshold=0.035, padding=0.18):
     )
 
 
-def run_lithography_example(*, L=1.60, N=513, Npad=768):
+def mask_window_size():
+    return 18.0 * Pattern_sep
+
+
+def run_lithography_example(*, L=None, N=1025, Npad=1024):
+    if L is None:
+        L = mask_window_size()
+
     x = np.linspace(-L / 2.0, L / 2.0, N)
     y = np.linspace(-L / 2.0, L / 2.0, N)
     grid = Grid.from_axes(x, y)
@@ -420,7 +435,8 @@ def plot_lithography_result(result):
         rf"$\xi={xi:g}\,\mathrm{{mm}}$, "
         rf"$z_{{i,2}}={D2['zi']} \,\mathrm{{mm}}$, "
         rf"$r_a={r_a:g}\,\mathrm{{mm}}$, "
-        rf"$\alpha_\mathrm{{max}}={np.degrees(alpha_max):.2f}^\circ$"
+        rf"$\alpha_\mathrm{{max}}={np.degrees(alpha_max):.2f}^\circ$, "
+        rf"$|M|={abs(result['lens'].magnification):.3f}$"
         "\n"
         rf"Campo incidente: $\mathbf{{E}}_0 = T\,\hat{{\mathbf{{x}}}}$",
     )
@@ -434,7 +450,7 @@ def plot_lithography_result(result):
 
 
 if __name__ == "__main__":
-    result = run_lithography_example(L=0.32, N=769, Npad=1024)
+    result = run_lithography_example()
     plot_lithography_result(result)
 
     Is = result["Is"]
@@ -447,6 +463,7 @@ if __name__ == "__main__":
     print(f"Kc={Kc:.10f}")
     print(f"xi={xi:.10f}")
     print(f"first_focus_to_second_vertex={xi - D1['zi']:.10f}")
+    print(f"transverse_magnification={result['lens'].magnification:.10f}")
     print(f"r_Airy={r_Airy:.10f}")
     print(f"d_Airy={d_Airy:.10f}")
     print(f"Pattern_sep={Pattern_sep:.10f} ({Pattern_sep / d_Airy:.4f} d_Airy)")
