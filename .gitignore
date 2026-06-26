@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 Archive.zip
 docs/assets/input_quiver_harmonic.gif
+docs/assets/quiver_harmonic.gif
 
 notebooks/
 

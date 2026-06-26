@@ -6,7 +6,7 @@ tests for working with sampled electromagnetic fields in Cartesian, polar, and
 circular representations.
 
 <p align="center">
-  <img src="docs/assets/input_quiver_harmonic_readme.gif" alt="Animated harmonic input-field quiver visualization" width="720">
+  <img src="docs/assets/quiver_harmonic_readme.gif" alt="Animated harmonic input-field quiver visualization" width="720">
 </p>
 
 ## What Is Included
