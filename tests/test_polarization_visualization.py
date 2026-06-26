@@ -68,6 +68,31 @@ def test_polarization_map_default_keeps_uniform_sample_without_amplitude_cap():
     plt.close(fig)
 
 
+def test_polarization_map_threshold_is_an_intensity_fraction():
+    x = np.array([[0.0, 1.0]])
+    y = np.array([[0.0, 0.0]])
+    pol = polarization_from_components(
+        np.array([[1.0 + 0.0j, 0.2 + 0.0j]]),
+        np.zeros_like(x, dtype=complex),
+    )
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(
+        x,
+        y,
+        pol,
+        scale=1.0,
+        ellipse_points=4,
+        min_intensity_fraction=0.1,
+        ellipse_mode="cartesian",
+        ax=ax,
+    )
+
+    # The second sample has 4% of the peak intensity and must be excluded.
+    assert len(ax.collections[0].get_segments()) == 4
+    plt.close(fig)
+
+
 def test_polarization_map_power_intensity_scaling_uses_gamma():
     x = np.array([[0.0, 2.0]])
     y = np.array([[0.0, 0.0]])

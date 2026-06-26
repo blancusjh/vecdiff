@@ -1,7 +1,10 @@
 .DS_Store
 .backup/
+.venv/
 __pycache__/
 *.py[cod]
+Archive.zip
+docs/assets/input_quiver_harmonic.gif
 
 notebooks/
 

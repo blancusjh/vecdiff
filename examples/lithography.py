@@ -28,23 +28,27 @@ from _output import example_output_dir, print_saved
 # Optical configuration
 # ---------------------------------------------------------------------
 
-lam = 532e-6
+lam = 193e-6
 
-# Light propagates from vacuum into the lens medium through D1, then exits
-# back into vacuum through D2.  The second object distance is measured from
-# the second vertex, so it depends on the lens thickness xi.
-D1 = dict(n0=1.0, ni=1.5, z0=-6.0, zi=2.0)
-xi = 3.000
-D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=0.80)
+# Synthetic fused silica is used in 193 nm ArF projection optics.  Its index
+# is approximately 1.560 at this wavelength; losses are neglected because the
+# diopter model currently accepts real refractive indices only.
+# Light propagates from vacuum through fused silica, then exits back to vacuum.
+D1 = dict(n0=1.0, ni=1.5602, z0=-4.0, zi=2.0)
+xi = 5.000
+D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=0.25 * D1["zi"] / D1["ni"])
 
-r_a = 4.0
+r_a = 4.0 * np.tan(np.deg2rad(70.0))
 alpha_max = np.arctan(r_a / abs(D1["z0"]))
-Kc = D1["n0"] * (2.0 * np.pi / lam) * np.sin(alpha_max)
+NA = D1["n0"] * np.sin(alpha_max)
+Kc = (2.0 * np.pi / lam) * NA
 r_Airy = 3.8317059702075125 / Kc
 d_Airy = 2.0 * r_Airy
 
 # Near-resolution feature scale for the polarization-transfer diagnostic.
-Pattern_sep = 0.70 * d_Airy
+# This separation keeps the scalar contacts and grating resolved, while the
+# high-NA vectorial transfer mixes a substantial cross-polarized component.
+Pattern_sep = 0.95 * d_Airy
 Pattern_theta = 0.25 * np.pi
 
 out_dir = example_output_dir(__file__)
@@ -393,12 +397,19 @@ def run_lithography_example(*, L=None, N=1025, Npad=1024):
 
 
 def plot_lithography_result(result):
-    fig, axes = plt.subplots(1, 4, figsize=(16.5, 4.5), constrained_layout=False)
+    fig, axes = plt.subplots(1, 5, figsize=(20.3, 5.1), constrained_layout=False)
 
     panels = [
         (result["T"], result["x"], result["y"], "Máscara de entrada", result["input_zoom"]),
         (result["Is"], result["xr"], result["yr"], "Intensidad - Escalar", result["output_zoom"]),
         (result["Iv"], result["xr"], result["yr"], "Intensidad - Vectorial", result["output_zoom"]),
+        (
+            result["Icross"],
+            result["xr"],
+            result["yr"],
+            r"Intensidad - $E_y$ cruzado",
+            result["output_zoom"],
+        ),
         (
             result["Id_abs"],
             result["xr"],
@@ -428,19 +439,19 @@ def plot_lithography_result(result):
         axes[j].set_aspect("equal")
 
     fig.suptitle(
-        rf"Patrón de litografía a través de lente"
+        "Patrón de litografía a través de lente"
         "\n"
-        rf"$z_{{0,1}}={D1['z0']} \,\mathrm{{mm}}$, "
-        rf"$z_{{i,1}}={D1['zi']} \,\mathrm{{mm}}$, "
-        rf"$\xi={xi:g}\,\mathrm{{mm}}$, "
-        rf"$z_{{i,2}}={D2['zi']} \,\mathrm{{mm}}$, "
-        rf"$r_a={r_a:g}\,\mathrm{{mm}}$, "
-        rf"$\alpha_\mathrm{{max}}={np.degrees(alpha_max):.2f}^\circ$, "
-        rf"$|M|={abs(result['lens'].magnification):.3f}$"
+        rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$: vacío $\rightarrow$ sílice fundida $\rightarrow$ vacío"
         "\n"
-        rf"Campo incidente: $\mathbf{{E}}_0 = T\,\hat{{\mathbf{{x}}}}$",
+        rf"$n_0={D1['n0']:.2f}$, $n_1={D1['ni']:.3f}$, $n_2={D2['ni']:.2f}$  |  "
+        rf"$z_{{0,1}}={D1['z0']:.1f}\,\mathrm{{mm}}$, $z_{{i,1}}={D1['zi']:.1f}\,\mathrm{{mm}}$, "
+        rf"$\xi={xi:.1f}\,\mathrm{{mm}}$, $z_{{i,2}}={D2['zi']:.3f}\,\mathrm{{mm}}$"
+        "\n"
+        rf"$r_a={r_a:.2f}\,\mathrm{{mm}}$, $\alpha_\mathrm{{max}}={np.degrees(alpha_max):.1f}^\circ$, $\mathrm{{NA}}={NA:.2f}$, "
+        rf"$|M|={abs(result['lens'].magnification):.2f}$  |  "
+        rf"$\mathbf{{E}}_0 = T\,\hat{{\mathbf{{x}}}}$",
     )
-    fig.subplots_adjust(left=0.045, right=0.965, bottom=0.16, top=0.72, wspace=0.50)
+    fig.subplots_adjust(left=0.038, right=0.975, bottom=0.16, top=0.76, wspace=0.48)
 
     output_path = out_dir / "lithography_pattern_check.png"
     fig.savefig(output_path, dpi=150)
@@ -460,6 +471,7 @@ if __name__ == "__main__":
     print("OK")
     print(f"r_a={r_a:.10f}")
     print(f"alpha_max_deg={np.degrees(alpha_max):.10f}")
+    print(f"NA={NA:.10f}")
     print(f"Kc={Kc:.10f}")
     print(f"xi={xi:.10f}")
     print(f"first_focus_to_second_vertex={xi - D1['zi']:.10f}")

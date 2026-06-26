@@ -55,7 +55,7 @@ path = output_dir / "input_polarization.png"
 ax.figure.savefig(path, dpi=220, bbox_inches="tight")
 print_saved(path)
 
-ax, _ = plot_field_polarization(E_focal, half_size=propagated_half_size, ellipse_mode="cartesian")
+ax, _ = plot_field_polarization(E_focal, half_size=propagated_half_size, ellipse_mode="cartesian", scale_by_intensity=True)
 ax.set_title("Propagated circular polarization")
 ax.set_xlabel(r"$x/\lambda$")
 ax.set_ylabel(r"$y/\lambda$")
