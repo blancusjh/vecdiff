@@ -8,7 +8,10 @@ import pytest
 
 from vecdiff import FieldCartesian, Grid
 from vecdiff.polarization import polarization_from_components, polarization_map_from_field
-from vecdiff.polarization_visualization import plot_polarization_map
+from vecdiff.polarization_visualization import (
+    plot_field_polarization,
+    plot_polarization_map,
+)
 
 
 def _first_curve_point(ax):
@@ -156,3 +159,82 @@ def test_polarization_map_from_cartesian_field_respects_half_size():
     assert np.allclose(yy[:, 0], [-1.0, 0.0, 1.0])
     assert np.allclose(pol.ex, xx)
     assert np.allclose(pol.ey, yy)
+
+
+def test_polarization_map_default_threshold_covers_faint_secondary_maxima():
+    # A sample at 0.5% of the peak intensity models a faint secondary lobe.
+    # The default threshold must keep it so the whole diffraction pattern is
+    # shown, not just the bright core.
+    x = np.array([[0.0, 1.0]])
+    y = np.array([[0.0, 0.0]])
+    pol = polarization_from_components(
+        np.array([[1.0 + 0.0j, np.sqrt(0.005) + 0.0j]]),
+        np.zeros_like(x, dtype=complex),
+    )
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(x, y, pol, scale=1.0, ellipse_points=4, ellipse_mode="cartesian", ax=ax)
+
+    assert len(ax.collections[0].get_segments()) == 2 * 4
+    plt.close(fig)
+
+
+def test_polarization_map_max_radius_limits_glyphs():
+    x = np.array([[0.0, 1.0]])
+    y = np.array([[0.0, 0.0]])
+    pol = polarization_from_components(
+        np.array([[1.0 + 0.0j, 1.0 + 0.0j]]),
+        np.zeros_like(x, dtype=complex),
+    )
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(
+        x, y, pol, scale=1.0, ellipse_points=4, ellipse_mode="cartesian", max_radius=0.5, ax=ax
+    )
+
+    # Only the sample at the origin (r=0) is within max_radius; r=1 is dropped.
+    assert len(ax.collections[0].get_segments()) == 1 * 4
+    plt.close(fig)
+
+
+def test_polarization_map_default_glyphs_have_halo():
+    x = np.array([[0.0]])
+    y = np.array([[1.0]])
+    pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[0.5j]]))
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(x, y, pol, scale=1.0, ellipse_points=8, ax=ax)
+
+    assert len(ax.collections[0].get_path_effects()) > 0
+    plt.close(fig)
+
+
+def test_polarization_map_color_override_disables_halo():
+    x = np.array([[0.0]])
+    y = np.array([[1.0]])
+    pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[0.5j]]))
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(
+        x, y, pol, scale=1.0, ellipse_points=8, curve_kwargs={"color": "red"}, ax=ax
+    )
+
+    assert not ax.collections[0].get_path_effects()
+    plt.close(fig)
+
+
+def test_field_polarization_ellipse_mode_defaults_to_cartesian():
+    # A y-polarized sample off the x-axis: the Cartesian basis draws the ellipse
+    # extent along y, while the (rejected) polar default would rotate it.
+    axis = np.linspace(-1.0, 1.0, 5)
+    X, Y = np.meshgrid(axis, axis, indexing="xy")
+    grid = Grid.from_cartesian(X, Y)
+    field = FieldCartesian(np.zeros_like(X, dtype=complex), np.ones_like(Y, dtype=complex), grid=grid, symmetric=False)
+
+    ax, _ = plot_field_polarization(field, background=None, ellipse_points=4, min_intensity_fraction=0.0)
+    segments = ax.collections[0].get_segments()
+    # Each ellipse for purely y-polarized light is a vertical line: constant x,
+    # varying y about its centre.  In the rejected polar basis it would tilt.
+    first = np.asarray(segments[0])
+    assert np.allclose(first[:, 0], first[0, 0])
+    plt.close(ax.figure)

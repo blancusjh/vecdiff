@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Mapping
 
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
@@ -90,20 +91,50 @@ def _intensity_scale_factor(relative_amp, mode, gamma, min_scale):
     return max(float(factor), min_scale)
 
 
+def _halo(linewidth, fg="black", grow=1.3):
+    """Return a path-effect stroke that outlines a glyph for legibility.
+
+    A thin dark outline keeps white glyphs readable over both the dark and the
+    bright ends of a perceptually-uniform background colormap -- essential when
+    the map covers a full diffraction pattern whose lobes span that whole range.
+    """
+
+    return [pe.withStroke(linewidth=float(linewidth) + float(grow), foreground=fg)]
+
+
+def _user_set(kwargs: Mapping[str, Any] | None, *keys: str) -> bool:
+    """True if the caller explicitly provided any of ``keys`` in ``kwargs``."""
+
+    return bool(kwargs) and any(key in kwargs for key in keys)
+
+
+def _radius_mask(xs: np.ndarray, ys: np.ndarray, max_radius: float | None) -> np.ndarray:
+    """Boolean mask selecting samples within ``max_radius`` of the origin.
+
+    Used to limit glyphs to a chosen radial extent, i.e. up to a given order of
+    diffraction maxima.  ``None`` keeps every sample.
+    """
+
+    if max_radius is None:
+        return np.ones(np.shape(xs), dtype=bool)
+    return (np.asarray(xs) ** 2 + np.asarray(ys) ** 2) <= float(max_radius) ** 2
+
+
 def plot_polarization_map(
     x: np.ndarray,
     y: np.ndarray,
     pol: PolarizationData,
     stride: int | None = None,
-    target_ellipses: int = 14,
+    target_ellipses: int = 28,
     max_ellipses: int | None = None,
+    max_radius: float | None = None,
     scale: float | None = None,
     ellipse_points: int = 72,
-    min_intensity_fraction: float = 0.01,
+    min_intensity_fraction: float = 0.002,
     color_by_phase: bool = False,
     phase_cmap: str = "twilight_shifted",
     phase_colorbar: bool = True,
-    scale_by_intensity: bool = True,
+    scale_by_intensity: bool = False,
     intensity_scale_mode: Literal["linear", "log", "power"] = "power",
     intensity_scale_gamma: float = 0.5,
     min_ellipse_scale: float = 0.30,
@@ -120,15 +151,22 @@ def plot_polarization_map(
     radial and azimuthal components.  ``ellipse_mode="cartesian"`` preserves
     the previous behavior and interprets them as x and y components.
 
-    Samples are concentrated in the region above ``min_intensity_fraction`` of
-    the peak intensity when ``stride`` is omitted.  The threshold is evaluated
-    on ``S0 = |Ex|² + |Ey|²``; locations below it are omitted because their
-    polarization state is not visually meaningful.
+    Ellipses are drawn wherever ``S0 = |Ex|² + |Ey|²`` exceeds
+    ``min_intensity_fraction`` of the peak.  The default is deliberately low so
+    the polarization state is shown across the whole diffraction pattern --
+    including the secondary maxima -- while the dark nulls between lobes stay
+    empty.  ``max_radius`` further limits the glyphs to a chosen radial extent
+    (i.e. up to a given order of maxima); ``None`` uses the full window.
 
-    When ``scale_by_intensity`` is enabled, ``intensity_scale_mode`` controls
-    how the relative amplitude changes ellipse size.  ``"linear"`` preserves
-    the default behavior, ``"power"`` uses ``relative_amplitude**gamma``, and
-    ``"log"`` uses a normalized ``log1p(gamma * relative_amplitude)`` curve.
+    By default ``scale_by_intensity`` is ``False`` so every ellipse is drawn at
+    the same readable size and the polarization state in a faint outer lobe is
+    just as legible as in the bright core.  Enable it (with
+    ``intensity_scale_mode`` / ``intensity_scale_gamma``) to instead encode
+    intensity through glyph size.
+
+    Glyphs default to white with a thin dark halo so they read over both the
+    dark and bright ends of the background colormap; pass ``color`` (or
+    ``path_effects``) in ``curve_kwargs`` / ``arrowhead_kwargs`` to override.
     """
 
     if ax is None:
@@ -173,6 +211,7 @@ def plot_polarization_map(
 
     amp_max = np.sqrt(s0_max)
     valid = s0[::stride, ::stride] > float(min_intensity_fraction) * s0_max
+    valid &= _radius_mask(xs, ys, max_radius)
     if max_ellipses is not None and np.count_nonzero(valid) > max_ellipses:
         valid_amp = amp[valid]
         keep_count = max(1, int(max_ellipses))
@@ -254,6 +293,8 @@ def plot_polarization_map(
         lc_kwargs.pop("colors", None)
         cmap = lc_kwargs.pop("cmap", phase_cmap)
         lc = LineCollection(figure_segments, array=np.concatenate(colors), cmap=cmap, **lc_kwargs)
+        if not _user_set(curve_kwargs, "path_effects"):
+            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.8))
         ax.add_collection(lc)
         if phase_colorbar:
             plt.colorbar(lc, ax=ax, label="Normalized phase")
@@ -261,15 +302,25 @@ def plot_polarization_map(
         if arrow_segments.size:
             ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.55, zorder=4.0)
             ah_kwargs.pop("colors", None)
-            ax.add_collection(
-                LineCollection(arrow_segments, array=np.concatenate(arrow_colors), cmap=cmap, **ah_kwargs)
-            )
+            ah = LineCollection(arrow_segments, array=np.concatenate(arrow_colors), cmap=cmap, **ah_kwargs)
+            if not _user_set(arrowhead_kwargs, "path_effects"):
+                ah.set_path_effects(_halo(ah_kwargs["linewidths"], grow=0.8))
+            ax.add_collection(ah)
     else:
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.70, color="black", zorder=3.0)
-        ax.add_collection(LineCollection(figure_segments, **lc_kwargs))
+        # White glyphs with a thin dark halo stay legible over both the dark and
+        # bright ends of the background colormap, so a full-coverage map reads
+        # everywhere from the bright core out to the faint secondary maxima.
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.70, color="white", zorder=3.0)
+        lc = LineCollection(figure_segments, **lc_kwargs)
+        if not _user_set(curve_kwargs, "color", "colors", "path_effects"):
+            lc.set_path_effects(_halo(lc_kwargs["linewidths"]))
+        ax.add_collection(lc)
         if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.85, color=lc_kwargs.get("colors", "black"), zorder=4.0)
-            ax.add_collection(LineCollection(arrow_segments, **ah_kwargs))
+            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.85, color=lc_kwargs.get("colors", "white"), zorder=4.0)
+            ah = LineCollection(arrow_segments, **ah_kwargs)
+            if not _user_set(arrowhead_kwargs, "color", "colors", "path_effects"):
+                ah.set_path_effects(_halo(ah_kwargs["linewidths"]))
+            ax.add_collection(ah)
 
     ax.set_xlim(np.min(x), np.max(x))
     ax.set_ylim(np.min(y), np.max(y))
@@ -285,10 +336,11 @@ def plot_polarization_quiver(
     pol: PolarizationData,
     stride: int | None = None,
     azimuthal_stride: int | None = None,
-    target_arrows: int = 14,
+    target_arrows: int = 28,
+    max_radius: float | None = None,
     length: float | None = None,
     arrow_length_fraction: float = 1.0,
-    min_intensity_fraction: float = 0.01,
+    min_intensity_fraction: float = 0.002,
     min_cross_fraction: float = 0.0,
     scale_by_intensity: bool = False,
     color_by_cross_fraction: bool = False,
@@ -302,8 +354,10 @@ def plot_polarization_quiver(
     The defaults are chosen as a coherent visual configuration: arrow length
     is tied to the sampled grid spacing, the shaft is long enough to read the
     local orientation, and the arrowhead is kept modest relative to the body.
-    This makes the default suitable for dense polarization maps without
-    per-example tuning.
+    Arrows are white with a thin dark halo so they read over both the dark and
+    bright ends of the background colormap.  Like the ellipse map, the low
+    ``min_intensity_fraction`` default extends the arrows across the secondary
+    maxima, and ``max_radius`` limits them to a chosen order of maxima.
     """
 
     if ax is None:
@@ -341,6 +395,7 @@ def plot_polarization_quiver(
     )
     valid = s0s > float(min_intensity_fraction) * s0_max
     valid &= cross_fraction >= float(min_cross_fraction)
+    valid &= _radius_mask(xs, ys, max_radius)
 
     if length is None:
         # Geometric neighbour distances work for both Cartesian meshes and
@@ -365,8 +420,7 @@ def plot_polarization_quiver(
         "scale_units": "xy",
         "scale": 1.0,
         "pivot": "mid",
-        "color": "0.82",
-        "alpha": 0.7,
+        "color": "white",
         "width": 0.0038,
         "headwidth": 3.6,
         "headlength": 4.2,
@@ -376,6 +430,8 @@ def plot_polarization_quiver(
     if quiver_kwargs:
         kwargs.update(dict(quiver_kwargs))
 
+    apply_halo = not _user_set(quiver_kwargs, "color", "path_effects")
+
     if color_by_cross_fraction:
         kwargs.pop("color", None)
         kwargs.setdefault("cmap", cross_fraction_cmap)
@@ -384,7 +440,10 @@ def plot_polarization_quiver(
         if cross_fraction_colorbar:
             plt.colorbar(quiver, ax=ax, label=r"$|E_y|^2 / (|E_x|^2 + |E_y|^2)$")
     else:
-        ax.quiver(xs[valid], ys[valid], u[valid], v[valid], **kwargs)
+        quiver = ax.quiver(xs[valid], ys[valid], u[valid], v[valid], **kwargs)
+
+    if apply_halo:
+        quiver.set_path_effects(_halo(0.0, grow=0.8))
     ax.set_xlim(np.min(x), np.max(x))
     ax.set_ylim(np.min(y), np.max(y))
     ax.set_aspect("equal", adjustable="box")
@@ -467,6 +526,10 @@ def plot_field_polarization(
         raise ValueError("background must be 'intensity', 'cross_fraction', or None.")
 
     if glyph == "ellipse":
+        # ``pol`` is expressed in Cartesian field components, so the ellipse
+        # renderer must interpret it in the Cartesian basis unless the caller
+        # explicitly asked otherwise.
+        kwargs.setdefault("ellipse_mode", "cartesian")
         plot_polarization_map(xx, yy, pol, ax=ax, **kwargs)
     elif glyph == "quiver":
         plot_polarization_quiver(xx, yy, pol, ax=ax, **kwargs)

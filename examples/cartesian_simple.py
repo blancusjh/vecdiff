@@ -64,21 +64,13 @@ path = output_dir / "propagated_field_components.png"
 fig.savefig(path, dpi=220, bbox_inches="tight")
 print_saved(path)
 
-ax, _ = plot_field_polarization(E0, half_size=input_half_size, ellipse_mode="cartesian")
+ax, _ = plot_field_polarization(E0, half_size=input_half_size)
 ax.set_title("Input Cartesian polarization")
 path = output_dir / "input_polarization.png"
 ax.figure.savefig(path, dpi=220, bbox_inches="tight")
 print_saved(path)
 
-ax, _ = plot_field_polarization(
-    E_focal,
-    half_size=propagated_half_size,
-    glyph="quiver",
-    min_intensity_fraction=0.01,
-    target_arrows=36,
-    arrow_length_fraction=0.65,
-    quiver_kwargs={"color": "0.82", "alpha": 0.9},
-)
+ax, _ = plot_field_polarization(E_focal, half_size=propagated_half_size)
 ax.set_title("Propagated Cartesian polarization")
 ax.set_xlabel(r"$x/\lambda$")
 ax.set_ylabel(r"$y/\lambda$")
@@ -97,8 +89,6 @@ ax, _ = plot_field_polarization(
     min_intensity_fraction=1e-7,
     min_cross_fraction=0.50,
     target_arrows=120,
-    arrow_length_fraction=0.85,
-    quiver_kwargs={"color": "0.82", "alpha": 0.9},
 )
 ax.set_title(r"Ey-dominant polarization: $|E_y|^2 / |E|^2 \geq 0.5$")
 ax.set_xlabel(r"$x/\lambda$")
