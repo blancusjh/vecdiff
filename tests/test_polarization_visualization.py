@@ -223,6 +223,23 @@ def test_polarization_map_color_override_disables_halo():
     plt.close(fig)
 
 
+def test_polarization_map_draws_arrowhead_for_linear_light():
+    # Linear light along x: the ellipse collapses to a line whose tangent
+    # vanishes at the turning point the arrowhead is placed on.  The renderer
+    # must fall back to the major axis so a head is still drawn.
+    x = np.array([[0.0]])
+    y = np.array([[0.0]])
+    pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[0.0 + 0.0j]]))
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(x, y, pol, scale=1.0, ellipse_points=8, ellipse_mode="cartesian", ax=ax)
+
+    # collections[0] is the curve, collections[1] the arrowhead (two segments).
+    assert len(ax.collections) == 2
+    assert len(ax.collections[1].get_segments()) == 2
+    plt.close(fig)
+
+
 def test_field_polarization_ellipse_mode_defaults_to_cartesian():
     # A y-polarized sample off the x-axis: the Cartesian basis draws the ellipse
     # extent along y, while the (rejected) polar default would rotate it.

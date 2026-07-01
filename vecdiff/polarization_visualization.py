@@ -125,7 +125,7 @@ def plot_polarization_map(
     y: np.ndarray,
     pol: PolarizationData,
     stride: int | None = None,
-    target_ellipses: int = 28,
+    target_ellipses: int = 24,
     max_ellipses: int | None = None,
     max_radius: float | None = None,
     scale: float | None = None,
@@ -139,7 +139,7 @@ def plot_polarization_map(
     intensity_scale_gamma: float = 0.5,
     min_ellipse_scale: float = 0.30,
     arrow_opening_angle: float = np.deg2rad(55.0),
-    arrow_length: float = 0.25,
+    arrow_length: float = 0.5,
     curve_kwargs: Mapping[str, Any] | None = None,
     arrowhead_kwargs: Mapping[str, Any] | None = None,
     ellipse_mode: Literal["polar", "cartesian"] = "polar",
@@ -222,7 +222,9 @@ def plot_polarization_map(
     if scale is None:
         dx = np.nanmedian(np.abs(np.diff(xs[0]))) if xs.shape[1] > 1 else np.ptp(x)
         dy = np.nanmedian(np.abs(np.diff(ys[:, 0]))) if ys.shape[0] > 1 else np.ptp(y)
-        scale = 0.46 * min(float(dx), float(dy))
+        # 0.38 keeps ellipse diameters at ~0.76x the sample spacing, leaving a
+        # clear gap between neighbouring glyphs so they never merge.
+        scale = 0.38 * min(float(dx), float(dy))
 
     figure_segments = []
     arrow_segments = []
@@ -259,6 +261,13 @@ def plot_polarization_map(
             curve = _polar_to_cartesian_basis(curve, cx, cy)
             tangent = _polar_to_cartesian_basis(tangent, cx, cy)
         arrow_at = _arrow_index(curve, phase_i)
+        # Direction the arrowhead points.  For an ellipse this is the local
+        # tangent (its sense encodes handedness), but for linear light the
+        # tangent vanishes at the turning points, so fall back to the major
+        # axis (the centred glyph vertex) to still draw a head along the line.
+        head_dir = tangent[arrow_at]
+        if np.linalg.norm(head_dir) <= np.finfo(float).eps:
+            head_dir = curve[arrow_at]
         curve = curve + np.array([cx, cy])
 
         segments = _curve_segments(curve)
@@ -266,7 +275,7 @@ def plot_polarization_map(
 
         arrows = _arrowhead(
             curve[arrow_at],
-            tangent[arrow_at],
+            head_dir,
             arrow_length * scale * size_factor,
             arrow_opening_angle,
         )
@@ -300,7 +309,7 @@ def plot_polarization_map(
             plt.colorbar(lc, ax=ax, label="Normalized phase")
 
         if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.55, zorder=4.0)
+            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.70, zorder=4.0)
             ah_kwargs.pop("colors", None)
             ah = LineCollection(arrow_segments, array=np.concatenate(arrow_colors), cmap=cmap, **ah_kwargs)
             if not _user_set(arrowhead_kwargs, "path_effects"):
@@ -316,7 +325,7 @@ def plot_polarization_map(
             lc.set_path_effects(_halo(lc_kwargs["linewidths"]))
         ax.add_collection(lc)
         if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.85, color=lc_kwargs.get("colors", "white"), zorder=4.0)
+            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=1.0, color=lc_kwargs.get("colors", "white"), zorder=4.0)
             ah = LineCollection(arrow_segments, **ah_kwargs)
             if not _user_set(arrowhead_kwargs, "color", "colors", "path_effects"):
                 ah.set_path_effects(_halo(ah_kwargs["linewidths"]))
@@ -336,7 +345,7 @@ def plot_polarization_quiver(
     pol: PolarizationData,
     stride: int | None = None,
     azimuthal_stride: int | None = None,
-    target_arrows: int = 28,
+    target_arrows: int = 24,
     max_radius: float | None = None,
     length: float | None = None,
     arrow_length_fraction: float = 1.0,
