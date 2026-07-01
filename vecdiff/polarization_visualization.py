@@ -7,18 +7,52 @@ from typing import Any, Literal, Mapping
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.collections import LineCollection
+from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.colors import Normalize, PowerNorm
 
 from .polarization import PolarizationData
 
 
-def _polarization_curve(ex, ey, points, scale):
-    t = np.linspace(0.0, 2.0 * np.pi, points, endpoint=False)
-    exp_it = np.exp(1j * t)
-    curve = scale * np.column_stack([np.real(ex * exp_it), np.real(ey * exp_it)])
-    tangent = scale * np.column_stack([np.real(1j * ex * exp_it), np.real(1j * ey * exp_it)])
-    return curve, tangent
+def _ellipse_glyph(ex, ey, points):
+    """Build a smooth polarization-ellipse glyph from complex components.
+
+    The ellipse is sampled uniformly in geometric angle (never by physical
+    phase), so its points are evenly spaced and never pile up at the vertices --
+    circular light gives a clean circle, linear light a clean straight line.
+    The semi-major axis is normalized to 1; callers scale it to the glyph size.
+
+    Returns ``(pts, head_point, head_dir)`` in the local (ex, ey) frame:
+    ``pts`` is an ``(points, 2)`` array tracing the ellipse, ``head_point`` is
+    the tip of the major axis and ``head_dir`` the direction the arrowhead
+    points -- the local tangent there (its sense encodes handedness), falling
+    back to the major axis for linear light where that tangent vanishes.
+    """
+
+    ex = complex(ex)
+    ey = complex(ey)
+    ax2 = abs(ex) ** 2
+    ay2 = abs(ey) ** 2
+    s0 = ax2 + ay2
+    s1 = ax2 - ay2
+    s2 = 2.0 * np.real(ex * np.conj(ey))
+    s3 = -2.0 * np.imag(ex * np.conj(ey))
+
+    psi = 0.5 * np.arctan2(s2, s1)
+    chi = 0.5 * np.arcsin(np.clip(s3 / max(s0, np.finfo(float).eps), -1.0, 1.0))
+    ratio = np.tan(chi)  # signed minor/major axis ratio in [-1, 1]
+
+    theta = np.linspace(0.0, 2.0 * np.pi, points, endpoint=False)
+    xe = np.cos(theta)
+    ye = ratio * np.sin(theta)
+    cos_p, sin_p = np.cos(psi), np.sin(psi)
+    pts = np.column_stack([cos_p * xe - sin_p * ye, sin_p * xe + cos_p * ye])
+
+    head_point = np.array([cos_p, sin_p])  # major-axis tip: rotate (1, 0)
+    # Tangent at the major tip (theta=0): d/dtheta (xe, ye) = (0, ratio).
+    head_dir = np.array([-sin_p * ratio, cos_p * ratio])
+    if np.linalg.norm(head_dir) <= np.finfo(float).eps:
+        head_dir = head_point.copy()  # linear light: point along the line outward
+    return pts, head_point, head_dir
 
 
 def _polar_to_cartesian_basis(vectors, cx, cy):
@@ -32,28 +66,22 @@ def _curve_segments(curve):
     return np.stack([curve, np.roll(curve, -1, axis=0)], axis=1)
 
 
-def _arrowhead(point, tangent, length, opening_angle):
-    norm = np.linalg.norm(tangent)
+def _arrowhead_triangle(tip, direction, length, width):
+    """Return a 3-vertex filled arrowhead centred at ``tip``.
+
+    A single clean filled triangle (drawn as a polygon) reads as a crisp head,
+    unlike a pair of haloed line segments which blob at small glyph sizes.
+    """
+
+    direction = np.asarray(direction, dtype=float)
+    norm = np.linalg.norm(direction)
     if norm <= np.finfo(float).eps:
-        return np.empty((0, 2, 2))
-
-    angle = np.arctan2(-tangent[1], -tangent[0])
-    half = 0.5 * opening_angle
-    directions = np.array(
-        [
-            [np.cos(angle - half), np.sin(angle - half)],
-            [np.cos(angle + half), np.sin(angle + half)],
-        ]
-    )
-    tails = point + length * directions
-    tips = np.repeat(point[None, :], 2, axis=0)
-    return np.stack([tails, tips], axis=1)
-
-
-def _arrow_index(curve, angle):
-    curve_angle = np.arctan2(curve[:, 1], curve[:, 0])
-    error = np.abs(np.angle(np.exp(1j * (curve_angle - angle))))
-    return int(np.argmin(error))
+        return None
+    t = direction / norm
+    perp = np.array([-t[1], t[0]])
+    apex = tip + 0.5 * length * t
+    base = tip - 0.5 * length * t
+    return np.array([apex, base + 0.5 * width * perp, base - 0.5 * width * perp])
 
 
 def _line_kwargs(kwargs: Mapping[str, Any] | None, linewidth=1.2, color=None, zorder=None):
@@ -227,9 +255,11 @@ def plot_polarization_map(
         scale = 0.38 * min(float(dx), float(dy))
 
     figure_segments = []
-    arrow_segments = []
+    head_polys = []
     colors = []
-    arrow_colors = []
+    head_colors = []
+
+    head_width_ratio = 2.0 * np.tan(0.5 * float(arrow_opening_angle))
 
     for cx, cy, ex_i, ey_i, amp_i, phase_i, keep in zip(
         xs.ravel(),
@@ -243,7 +273,6 @@ def plot_polarization_map(
         if not keep:
             continue
 
-        local_scale = scale / (amp_i + np.finfo(float).eps)
         if scale_by_intensity:
             relative_amp = amp_i / amp_max
             size_factor = _intensity_scale_factor(
@@ -252,41 +281,36 @@ def plot_polarization_map(
                 intensity_scale_gamma,
                 min_ellipse_scale,
             )
-            local_scale *= size_factor
         else:
             size_factor = 1.0
+        glyph_extent = scale * size_factor
 
-        curve, tangent = _polarization_curve(ex_i, ey_i, ellipse_points, local_scale)
+        pts, head_point, head_dir = _ellipse_glyph(ex_i, ey_i, ellipse_points)
         if ellipse_mode == "polar":
-            curve = _polar_to_cartesian_basis(curve, cx, cy)
-            tangent = _polar_to_cartesian_basis(tangent, cx, cy)
-        arrow_at = _arrow_index(curve, phase_i)
-        # Direction the arrowhead points.  For an ellipse this is the local
-        # tangent (its sense encodes handedness), but for linear light the
-        # tangent vanishes at the turning points, so fall back to the major
-        # axis (the centred glyph vertex) to still draw a head along the line.
-        head_dir = tangent[arrow_at]
-        if np.linalg.norm(head_dir) <= np.finfo(float).eps:
-            head_dir = curve[arrow_at]
-        curve = curve + np.array([cx, cy])
+            pts = _polar_to_cartesian_basis(pts, cx, cy)
+            head_point = _polar_to_cartesian_basis(head_point[None, :], cx, cy)[0]
+            head_dir = _polar_to_cartesian_basis(head_dir[None, :], cx, cy)[0]
 
+        center = np.array([cx, cy])
+        curve = glyph_extent * pts + center
         segments = _curve_segments(curve)
         figure_segments.append(segments)
 
-        arrows = _arrowhead(
-            curve[arrow_at],
+        head_length = arrow_length * glyph_extent
+        head = _arrowhead_triangle(
+            glyph_extent * head_point + center,
             head_dir,
-            arrow_length * scale * size_factor,
-            arrow_opening_angle,
+            head_length,
+            head_width_ratio * head_length,
         )
-        if arrows.size:
-            arrow_segments.append(arrows)
+        if head is not None:
+            head_polys.append(head)
 
         if color_by_phase:
             c = (phase_i + np.pi) / (2.0 * np.pi)
             colors.append(np.full(segments.shape[0], c))
-            if arrows.size:
-                arrow_colors.append(np.full(arrows.shape[0], c))
+            if head is not None:
+                head_colors.append(c)
 
     if not figure_segments:
         ax.set_xlim(np.min(x), np.max(x))
@@ -295,41 +319,51 @@ def plot_polarization_map(
         return ax
 
     figure_segments = np.concatenate(figure_segments, axis=0)
-    arrow_segments = np.concatenate(arrow_segments, axis=0) if arrow_segments else np.empty((0, 2, 2))
+    head_polys = np.asarray(head_polys) if head_polys else None
+
+    # Resolve the arrowhead fill: honour an explicit head or curve colour, else
+    # match the white body.  A dark halo is added only when nothing was overridden.
+    if _user_set(arrowhead_kwargs, "color", "colors"):
+        head_face = arrowhead_kwargs.get("color", arrowhead_kwargs.get("colors"))
+    elif _user_set(curve_kwargs, "color", "colors"):
+        head_face = curve_kwargs.get("color", curve_kwargs.get("colors"))
+    else:
+        head_face = "white"
+    head_alpha = arrowhead_kwargs.get("alpha") if arrowhead_kwargs else None
 
     if color_by_phase:
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.45, zorder=3.0)
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.55, zorder=3.0)
         lc_kwargs.pop("colors", None)
         cmap = lc_kwargs.pop("cmap", phase_cmap)
         lc = LineCollection(figure_segments, array=np.concatenate(colors), cmap=cmap, **lc_kwargs)
         if not _user_set(curve_kwargs, "path_effects"):
-            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.8))
+            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.9))
         ax.add_collection(lc)
         if phase_colorbar:
             plt.colorbar(lc, ax=ax, label="Normalized phase")
 
-        if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=0.70, zorder=4.0)
-            ah_kwargs.pop("colors", None)
-            ah = LineCollection(arrow_segments, array=np.concatenate(arrow_colors), cmap=cmap, **ah_kwargs)
+        if head_polys is not None:
+            pc = PolyCollection(head_polys, array=np.asarray(head_colors), cmap=cmap, zorder=4.0)
             if not _user_set(arrowhead_kwargs, "path_effects"):
-                ah.set_path_effects(_halo(ah_kwargs["linewidths"], grow=0.8))
-            ax.add_collection(ah)
+                pc.set_path_effects(_halo(0.5, grow=0.9))
+            ax.add_collection(pc)
     else:
         # White glyphs with a thin dark halo stay legible over both the dark and
         # bright ends of the background colormap, so a full-coverage map reads
         # everywhere from the bright core out to the faint secondary maxima.
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.70, color="white", zorder=3.0)
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.9, color="white", zorder=3.0)
         lc = LineCollection(figure_segments, **lc_kwargs)
         if not _user_set(curve_kwargs, "color", "colors", "path_effects"):
-            lc.set_path_effects(_halo(lc_kwargs["linewidths"]))
+            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=1.0))
         ax.add_collection(lc)
-        if arrow_segments.size:
-            ah_kwargs = _line_kwargs(arrowhead_kwargs, linewidth=1.0, color=lc_kwargs.get("colors", "white"), zorder=4.0)
-            ah = LineCollection(arrow_segments, **ah_kwargs)
+
+        if head_polys is not None:
+            pc = PolyCollection(head_polys, facecolors=head_face, edgecolors="none", zorder=4.0)
+            if head_alpha is not None:
+                pc.set_alpha(float(head_alpha))
             if not _user_set(arrowhead_kwargs, "color", "colors", "path_effects"):
-                ah.set_path_effects(_halo(ah_kwargs["linewidths"]))
-            ax.add_collection(ah)
+                pc.set_path_effects(_halo(0.5, grow=1.0))
+            ax.add_collection(pc)
 
     ax.set_xlim(np.min(x), np.max(x))
     ax.set_ylim(np.min(y), np.max(y))

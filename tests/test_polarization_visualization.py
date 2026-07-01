@@ -234,9 +234,10 @@ def test_polarization_map_draws_arrowhead_for_linear_light():
     fig, ax = plt.subplots()
     plot_polarization_map(x, y, pol, scale=1.0, ellipse_points=8, ellipse_mode="cartesian", ax=ax)
 
-    # collections[0] is the curve, collections[1] the arrowhead (two segments).
+    # collections[0] is the ellipse body, collections[1] the filled arrowhead
+    # triangle: one polygon must be drawn even though the light is linear.
     assert len(ax.collections) == 2
-    assert len(ax.collections[1].get_segments()) == 2
+    assert len(ax.collections[1].get_paths()) == 1
     plt.close(fig)
 
 
