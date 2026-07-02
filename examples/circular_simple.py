@@ -27,11 +27,11 @@ save = figure_saver(__file__)
 save(plot_field(E0, half_size=R, title="Input circular field")[0], "input_field_components")
 save(plot_field(E_focal, half_size=5.0, title="Propagated circular field")[0], "propagated_field_components")
 
-ax, _ = plot_field_polarization(E0, half_size=R, sampling="polar")
+ax, _ = plot_field_polarization(E0, half_size=R, sampling="polar", n_rings=18)
 ax.set_title("Input circular polarization")
 save(ax, "input_polarization")
 
-ax, _ = plot_field_polarization(E_focal, half_size=5.0, sampling="polar")
+ax, _ = plot_field_polarization(E_focal, half_size=5.0, sampling="polar", n_rings=18)
 ax.set(title="Propagated circular polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")
 
