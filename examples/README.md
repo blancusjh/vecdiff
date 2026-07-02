@@ -35,7 +35,7 @@ Each script prints the path of the files it saves.
 
 | Example | Purpose | Main outputs |
 | --- | --- | --- |
-| `harmonic_field_animation.py` | Time-harmonic animation (`vecdiff.animate_harmonic_field`) of the instantaneous real field `Re[E e^{-i omega t}]` for a cross-maximizing edge-weighted pupil. Cartesian (linear x) case *breathes*; circular case *rotates*. Both carry the system parameters and a faithful, invariant `|E|^2` colorbar; they also refresh the two README hero GIFs. | `harmonic_field_cartesian.gif`, `harmonic_field_circular.gif` (and `docs/assets/quiver_harmonic_readme.gif`, `docs/assets/quiver_harmonic_circular.gif`) |
+| `harmonic_field_animation.py` | Time-harmonic animation (`vecdiff.animate_harmonic_field`) of the instantaneous real field `Re[E e^{-i omega t}]` for a cross-maximizing edge-weighted pupil. Cartesian (linear x) case *breathes*; circular case *rotates*. Both carry the system parameters and refresh the two README hero GIFs. | `harmonic_field_cartesian.gif`, `harmonic_field_circular.gif` (and `docs/assets/quiver_harmonic_readme.gif`, `docs/assets/quiver_harmonic_circular.gif`) |
 
 `_common.py` and `_output.py` are shared helpers, not runnable examples.
 

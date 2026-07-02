@@ -45,6 +45,7 @@ def animate_harmonic_field(
     intensity_gamma=0.4,
     vmin=0.0,
     vmax=1.0,
+    colorbar=True,
     arrow_scale=1.3,
     arrow_norm=0.4,
     ax=None,
@@ -81,9 +82,10 @@ def animate_harmonic_field(
         faint rings.  It affects only the color mapping -- the colorbar keeps a
         faithful linear axis in normalized ``|E|^2``.
     vmin, vmax : float
-        Fixed colorbar limits on the peak-normalized ``|E|^2`` (default
-        ``0``/``1``).  Being fixed, the colorbar is identical across frames and
-        across animations, so panels are directly comparable.
+        Fixed display limits on the peak-normalized ``|E|^2`` (default
+        ``0``/``1``); the mapping is identical across frames and animations.
+    colorbar : bool
+        Whether to draw the intensity colorbar (default ``True``).
     caption : str, optional
         Static figure sub-title, e.g. the optical-system parameters.
 
@@ -128,7 +130,8 @@ def animate_harmonic_field(
     # stays a faithful linear scale in normalized |E|^2.
     im = ax.imshow(bg, extent=extent, origin="lower", cmap=cmap,
                    norm=PowerNorm(gamma=float(intensity_gamma), vmin=float(vmin), vmax=float(vmax)))
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=r"$|E|^2$ (norm.)")
+    if colorbar:
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=r"$|E|^2$ (norm.)")
 
     q = ax.quiver(qx, qy, np.real(qEx) * weight, np.real(qEy) * weight,
                   color="black", pivot="middle", angles="xy",
