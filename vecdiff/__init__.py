@@ -38,3 +38,8 @@ from .polarization import (
     polarization_map_from_field,
     stokes_parameters,
 )
+from .animation import (
+    animate_harmonic_field,
+    harmonic_field_frames,
+    save_animation,
+)

@@ -31,6 +31,12 @@ Each script prints the path of the files it saves.
 | `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders). | `inversion_high_index.png`, `inversion_glass.png`, `image_plane_polarization.png` |
 | `lithography.py` | Synthetic lithography diagnostic mask through two diopters, scalar vs vectorial. | `lithography_pattern_check.png` |
 
+## Animation
+
+| Example | Purpose | Main outputs |
+| --- | --- | --- |
+| `harmonic_field_animation.py` | Time-harmonic animation of a focused circular pupil (`vecdiff.animate_harmonic_field`): the instantaneous real field `Re[E e^{-i omega t}]` spins over the optical cycle. Also refreshes the README hero GIF. | `harmonic_field.gif` (and `docs/assets/quiver_harmonic_readme.gif`) |
+
 `_common.py` and `_output.py` are shared helpers, not runnable examples.
 
 ## Output Layout
@@ -46,6 +52,7 @@ examples/output/
   two_diopter_imaging/
   resolution_inversion/
   lithography/
+  harmonic_field_animation/
 ```
 
 Older local runs may still have legacy generated files in `examples/output/`,
