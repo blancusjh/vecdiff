@@ -35,7 +35,9 @@ save(ax, "input_polarization")
 # Focal plane: crop to ~4 maxima, sample finely in radius so the polarization
 # deformation across each maximum is visible (>= 5 radii per lobe), and size the
 # glyphs by intensity (non-linear).
-ax, _ = plot_field_polarization(E_focal, half_size=3.0, sampling="polar", n_rings=30, scale_by_intensity=True)
+ax, _ = plot_field_polarization(
+    E_focal, half_size=3.0, sampling="polar", n_rings=15, scale_by_intensity=True, min_ellipse_scale=0.5
+)
 ax.set(title="Propagated circular polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")
 
