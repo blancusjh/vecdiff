@@ -86,7 +86,7 @@ E_cart = FieldCartesian(x=Ex, y=Ey, grid=Grid.from_cartesian(xx, yy), symmetric=
 
 anim = animate_harmonic_field(
     E_cart, n_img=380, n_frames=60, n_periods=2, target_arrows=30,
-    intensity_gamma=0.45, arrow_norm=0.45,
+    intensity_gamma=0.45, vmin=0.0, vmax=1.0, arrow_norm=0.45,
     title=r"Campo instantáneo cartesiano (pol. lineal $\hat{x}$)",
     caption=caption + r"  ·  pol. incidente lineal $\hat{x}$",
 )
@@ -110,7 +110,7 @@ E_circ.grid = Grid.from_polar(E_circ.grid.r * q_lambda, E_circ.grid.varphi)
 
 anim_c = animate_harmonic_field(
     E_circ, half_size=half_size, n_img=280, n_frames=60, n_periods=2, target_arrows=30,
-    intensity_gamma=0.45, arrow_norm=0.45,
+    intensity_gamma=0.45, vmin=0.0, vmax=1.0, arrow_norm=0.45,
     title=r"Campo instantáneo circular (pol. incidente $R$)",
     caption=caption + r"  ·  pol. incidente circular $R$",
 )

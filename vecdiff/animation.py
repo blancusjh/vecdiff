@@ -43,6 +43,8 @@ def animate_harmonic_field(
     target_arrows=32,
     cmap="afmhot",
     intensity_gamma=0.4,
+    vmin=0.0,
+    vmax=1.0,
     arrow_scale=1.3,
     arrow_norm=0.4,
     ax=None,
@@ -76,8 +78,12 @@ def animate_harmonic_field(
         while the bright core does not dominate.
     intensity_gamma : float
         Display gamma (``PowerNorm``) for the background; ``< 1`` brightens the
-        faint rings.  It affects only the color mapping -- the colorbar keeps an
-        invariant, faithful linear axis in true normalized ``|E|^2`` (0..1).
+        faint rings.  It affects only the color mapping -- the colorbar keeps a
+        faithful linear axis in normalized ``|E|^2``.
+    vmin, vmax : float
+        Fixed colorbar limits on the peak-normalized ``|E|^2`` (default
+        ``0``/``1``).  Being fixed, the colorbar is identical across frames and
+        across animations, so panels are directly comparable.
     caption : str, optional
         Static figure sub-title, e.g. the optical-system parameters.
 
@@ -117,11 +123,11 @@ def animate_harmonic_field(
         _, ax = plt.subplots(figsize=(7.2, 6.0), constrained_layout=True)
     fig = ax.figure
 
-    # PowerNorm brightens the faint rings for display while the colorbar keeps
-    # an invariant, faithful linear axis in true normalized |E|^2 (0..1) -- the
-    # same scale regardless of intensity_gamma and identical across fields.
+    # Fixed vmin/vmax: the colorbar limits never rescale (per frame or per
+    # field).  PowerNorm only brightens the faint rings for display; the axis
+    # stays a faithful linear scale in normalized |E|^2.
     im = ax.imshow(bg, extent=extent, origin="lower", cmap=cmap,
-                   norm=PowerNorm(gamma=float(intensity_gamma), vmin=0.0, vmax=1.0))
+                   norm=PowerNorm(gamma=float(intensity_gamma), vmin=float(vmin), vmax=float(vmax)))
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=r"$|E|^2$ (norm.)")
 
     q = ax.quiver(qx, qy, np.real(qEx) * weight, np.real(qEy) * weight,
