@@ -134,11 +134,11 @@ def system_caption(a=None, *, n0=N0, ni=NI, z0=Z0, zi=ZI, lam=LAM):
     ``a`` is given, appends it and the resulting maximum object-side aperture
     angle ``alpha_obj``.
     """
-    cap = (rf"sistema estigmático: $n_0$={n0}, $n_i$={ni}, "
-           rf"$z_0$={z0} mm, $z_i$={zi} mm  ·  $\lambda$={lam * 1e6:.0f} nm")
+    cap = (rf"dioptrio estigmático: $n_0$={n0:g}, $n_i$={ni:g}, "
+           rf"$z_0$={z0:g}, $z_i$={zi:g} mm  ·  $\lambda$={lam * 1e6:.0f} nm")
     if a is not None:
         alpha_obj, _, _ = geometry_angles(a, n0=n0, ni=ni, z0=z0, zi=zi)
-        cap += rf"  ·  apertura $a$={a:.2f} mm, $\alpha_{{obj}}$={alpha_obj:.1f}°"
+        cap += rf"  ·  $a$={a:g} mm, $\alpha_\mathrm{{obj}}$={alpha_obj:.1f}°"
     return cap
 
 
