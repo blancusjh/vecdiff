@@ -536,7 +536,8 @@ def plot_field_polarization(
         n_rings = max(1, int(kwargs.pop("n_rings", 12)))
         r_max = float(half_size) if half_size is not None else float(np.max(np.hypot(bg_x, bg_y)))
         dr = r_max / (n_rings + 0.5)
-        xg, yg = [], []
+        # Always include an on-axis (r=0) glyph, then the concentric rings.
+        xg, yg = [np.array([0.0])], [np.array([0.0])]
         for rk in dr * (np.arange(n_rings) + 1.0):
             n_az = max(6, int(round(2.0 * np.pi * rk / dr)))
             ang = np.linspace(0.0, 2.0 * np.pi, n_az, endpoint=False)
