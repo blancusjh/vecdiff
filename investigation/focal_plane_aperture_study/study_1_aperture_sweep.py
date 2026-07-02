@@ -129,8 +129,13 @@ ax[1, 1].set_title("Transmisión y radio de energía encerrada")
 ax[1, 1].grid(True, alpha=0.3)
 ax[1, 1].legend()
 
-fig.suptitle(rf"Barrido de apertura | $n_0$={N0}, $n_i$={NI}, $z_0$={Z0}, $z_i$={ZI} (Fresnel exacto) | "
-             r"polarización incidente lineal $\hat{x}$")
+alpha_max = common.geometry_angles(apertures[-1])[0]
+sweep_caption = (common.system_caption()
+                 + rf"  ·  $a\in$[{apertures[0]:.2f}, {apertures[-1]:.2f}] mm, "
+                 rf"$\alpha_{{obj}}\leq${alpha_max:.1f}°")
+
+fig.suptitle("Barrido de apertura, escalar ($t_-=0$) vs vectorial (Fresnel exacto)  ·  "
+             r"polarización incidente lineal $\hat{x}$" + "\n" + sweep_caption, fontsize=11)
 fig.savefig(out / "fig1_metrics_vs_aperture.png", dpi=220)
 plt.close(fig)
 
@@ -147,6 +152,7 @@ ax.set_ylabel(r"$f_{cross}$")
 ax.set_title("Ley de escala de la componente cruzada")
 ax.grid(True, which="both", alpha=0.3)
 ax.legend()
+fig.suptitle(sweep_caption, fontsize=8)
 fig.savefig(out / "fig2_scaling_law.png", dpi=220)
 plt.close(fig)
 
@@ -183,10 +189,11 @@ for a in selected:
         axi.set_ylabel(r"$y/\lambda$")
         fig.colorbar(im, ax=axi, fraction=0.046, pad=0.04)
     fig.suptitle(
-        rf"a = {a:.2f} mm  ($\alpha_{{obj}}$ = {row['alpha_obj_deg']:.1f}$^\circ$, "
-        rf"$\theta_{{img}}$ = {row['theta_img_deg']:.1f}$^\circ$)  |  "
-        rf"$f_{{cross}}$ = {row['f_cross']:.2e}, elipticidad = {row['ellipticity']:.3f}  |  "
-        r"pol. incidente lineal $\hat{x}$"
+        rf"$a$ = {a:.2f} mm  ($\alpha_{{obj}}$ = {row['alpha_obj_deg']:.1f}$^\circ$, "
+        rf"$\theta_{{img}}$ = {row['theta_img_deg']:.1f}$^\circ$)  ·  "
+        rf"$f_{{cross}}$ = {row['f_cross']:.2e}, elipticidad = {row['ellipticity']:.3f}  ·  "
+        r"pol. incidente lineal $\hat{x}$" + "\n" + common.system_caption(),
+        fontsize=11,
     )
     tag = f"{a:.2f}".replace(".", "p")
     fig.savefig(out / f"fig3_maps_a{tag}.png", dpi=200)
@@ -219,6 +226,7 @@ for a in selected:
     ax2.set_ylim(1e-8, 2)
     ax2.grid(True, which="both", alpha=0.3)
     ax2.legend()
+    fig.suptitle(common.system_caption(a) + r"  ·  pol. incidente lineal $\hat{x}$", fontsize=9)
     fig.savefig(out / f"fig4_cuts_a{tag}.png", dpi=200)
     plt.close(fig)
 

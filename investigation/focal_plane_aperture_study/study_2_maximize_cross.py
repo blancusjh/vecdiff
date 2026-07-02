@@ -165,7 +165,13 @@ axes[2].set_title("Compromiso eficiencia vs componente cruzada")
 axes[2].grid(True, which="both", alpha=0.3)
 axes[2].legend()
 
-fig.suptitle(r"Componente cruzada vs índice y pupila (Fresnel exacto, rama física del óvalo) | pol. incidente lineal $\hat{x}$")
+sweep_caption = (
+    rf"sistema estigmático: $n_0$={N0}, $z_0$={common.Z0} mm, $z_i$={common.ZI} mm  ·  "
+    rf"$\lambda$={common.LAM * 1e6:.0f} nm  ·  "
+    rf"$n_i\in$[{NI_LIST[0]}, {NI_LIST[-1]}], apertura = 0.98·$r_\mathrm{{rasante}}$")
+fig.suptitle(
+    r"Componente cruzada vs índice y pupila (Fresnel exacto, rama física del óvalo)  ·  "
+    r"pol. incidente lineal $\hat{x}$" + "\n" + sweep_caption, fontsize=11)
 fig.savefig(out / "fig1_maximization.png", dpi=220)
 plt.close(fig)
 
@@ -200,12 +206,12 @@ for axi, (img, cmap, title, clim) in zip(axes, panels):
     axi.set_xlabel(r"$x/\lambda$")
     axi.set_ylabel(r"$y/\lambda$")
     fig.colorbar(im, ax=axi, fraction=0.046, pad=0.04)
+best_caption = common.system_caption(
+    best_entry["a"], ni=best_entry["ni"], z0=best_entry["z0"], zi=best_entry["zi"])
 fig.suptitle(
-    rf"$n_i$={best_entry['ni']}, $\epsilon$={best_entry['eps']}, "
-    rf"$p$={best_entry['p']}, a={best_entry['a']:.2f} mm  |  "
-    rf"$f_{{cross}}$={best_entry['f_cross']:.3f}, throughput={best_entry['throughput']:.3f}  |  "
-    r"pol. incidente lineal $\hat{x}$"
-)
+    rf"$\epsilon$={best_entry['eps']}, $p$={best_entry['p']}  ·  "
+    rf"$f_{{cross}}$={best_entry['f_cross']:.3f}, throughput={best_entry['throughput']:.3f}  ·  "
+    r"pol. incidente lineal $\hat{x}$" + "\n" + best_caption, fontsize=11)
 fig.savefig(out / "fig2_best_config_maps.png", dpi=200)
 plt.close(fig)
 
@@ -234,7 +240,8 @@ for axi, img, title in zip(axes, (clover, ring),
     axi.set_xlabel(r"$x/\lambda$")
     axi.set_ylabel(r"$y/\lambda$")
     fig.colorbar(im, ax=axi, fraction=0.046, pad=0.04)
-fig.suptitle(r"Canal cruzado: entrada lineal $\hat{x}$ vs entrada circular $L$")
+fig.suptitle(r"Canal cruzado: entrada lineal $\hat{x}$ vs entrada circular $L$" + "\n"
+             + best_caption, fontsize=10)
 fig.savefig(out / "fig3_cross_channel_shape.png", dpi=200)
 plt.close(fig)
 

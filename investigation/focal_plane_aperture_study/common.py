@@ -127,6 +127,21 @@ def geometry_angles(rho, *, n0=N0, ni=NI, z0=Z0, zi=ZI):
     return alpha_obj, theta_inc, theta_img
 
 
+def system_caption(a=None, *, n0=N0, ni=NI, z0=Z0, zi=ZI, lam=LAM):
+    """One-line summary of the stigmatic single-diopter system for figures.
+
+    Always reports ``n0, ni, z0, zi`` and the wavelength; when an aperture
+    ``a`` is given, appends it and the resulting maximum object-side aperture
+    angle ``alpha_obj``.
+    """
+    cap = (rf"sistema estigmático: $n_0$={n0}, $n_i$={ni}, "
+           rf"$z_0$={z0} mm, $z_i$={zi} mm  ·  $\lambda$={lam * 1e6:.0f} nm")
+    if a is not None:
+        alpha_obj, _, _ = geometry_angles(a, n0=n0, ni=ni, z0=z0, zi=zi)
+        cap += rf"  ·  apertura $a$={a:.2f} mm, $\alpha_{{obj}}$={alpha_obj:.1f}°"
+    return cap
+
+
 # ------------------------------------------------------------------ #
 #  Vectorized Hankel transform                                         #
 # ------------------------------------------------------------------ #
