@@ -520,7 +520,10 @@ def plot_field_polarization(
     ``sampling="polar"`` places them on evenly spaced concentric rings (with the
     number of glyphs per ring growing with radius, so the spacing stays uniform),
     which suits radially structured fields such as focal diffraction patterns.
-    The polar layout is controlled by ``n_rings`` (default 12).
+    The polar layout is controlled by ``n_rings`` (default 12) and
+    ``angular_spacing`` (default 1.0): values above 1 thin out the glyphs along
+    each ring (larger azimuthal gaps) without changing the radial sampling,
+    which leaves room to size the glyphs larger via an explicit ``scale``.
     """
 
     from .polarization import polarization_from_components, polarization_map_from_field
@@ -534,12 +537,13 @@ def plot_field_polarization(
         from scipy.interpolate import RegularGridInterpolator
 
         n_rings = max(1, int(kwargs.pop("n_rings", 12)))
+        angular_spacing = max(float(kwargs.pop("angular_spacing", 1.0)), np.finfo(float).eps)
         r_max = float(half_size) if half_size is not None else float(np.max(np.hypot(bg_x, bg_y)))
         dr = r_max / (n_rings + 0.5)
         # Always include an on-axis (r=0) glyph, then the concentric rings.
         xg, yg = [np.array([0.0])], [np.array([0.0])]
         for rk in dr * (np.arange(n_rings) + 1.0):
-            n_az = max(6, int(round(2.0 * np.pi * rk / dr)))
+            n_az = max(6, int(round(2.0 * np.pi * rk / (angular_spacing * dr))))
             ang = np.linspace(0.0, 2.0 * np.pi, n_az, endpoint=False)
             xg.append(rk * np.cos(ang))
             yg.append(rk * np.sin(ang))
