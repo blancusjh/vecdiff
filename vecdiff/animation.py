@@ -46,6 +46,7 @@ def animate_harmonic_field(
     arrow_norm=0.4,
     ax=None,
     title="Campo instantáneo",
+    caption=None,
 ):
     """Animate the instantaneous real field ``Re[E e^{-i omega t}]`` over the cycle.
 
@@ -75,6 +76,8 @@ def animate_harmonic_field(
     intensity_gamma : float
         Display gamma for the background (``intensity ** gamma`` after
         normalization); ``< 1`` brightens the faint rings.
+    caption : str, optional
+        Static figure sub-title, e.g. the optical-system parameters.
 
     Returns
     -------
@@ -109,7 +112,7 @@ def animate_harmonic_field(
     quiver_scale = peak_disp / (arrow_scale * spacing)
 
     if ax is None:
-        _, ax = plt.subplots(figsize=(6.4, 5.6), constrained_layout=True)
+        _, ax = plt.subplots(figsize=(7.2, 6.0), constrained_layout=True)
     fig = ax.figure
 
     im = ax.imshow(bg, extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=1.0)
@@ -121,7 +124,11 @@ def animate_harmonic_field(
     ax.set_aspect("equal")
     ax.set_xlim(extent[0], extent[1])
     ax.set_ylim(extent[2], extent[3])
+    ax.set_xlabel(r"$x/\lambda$")
+    ax.set_ylabel(r"$y/\lambda$")
     title_artist = ax.set_title(f"{title}  |  $\\omega t = 0.00$")
+    if caption:
+        fig.suptitle(caption, fontsize=8)
 
     omega_t = np.linspace(0.0, 2.0 * np.pi * n_periods, n_frames, endpoint=False)
 
