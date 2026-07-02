@@ -21,5 +21,3 @@ examples/vecdiff_results/
 investigation/**/output/
 /output/
 /output_circular_pupil_resolution/
-# Curated figures referenced by investigation reports stay tracked.
-!investigation/focal_plane_aperture_study/results/*.png
