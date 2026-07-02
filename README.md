@@ -16,6 +16,9 @@ circular representations.
 - Hankel-transform utilities for radially symmetric propagation problems.
 - Fresnel and diopter operators for vectorial field transmission.
 - Polarization diagnostics and visualization helpers.
+- Time-harmonic field animation (the quiver above shows the instantaneous
+  real field `Re[E e^{-i omega t}]` of a focused, cross-maximizing pupil over
+  the optical cycle; regenerate it with `python examples/harmonic_field_animation.py`).
 - Example scripts that generate reproducible figures and comparison outputs.
 
 ## Installation
@@ -43,8 +46,11 @@ Examples live in `examples/` and are intended to be run from the repository
 root:
 
 ```bash
-python examples/cartesian_simple.py
-python examples/circular_simple.py
+python examples/cartesian_simple.py            # single-diopter propagation basics
+python examples/aperture_scalar_vs_vectorial.py  # scalar (t- = 0) vs vectorial focus
+python examples/maximize_cross_polarization.py   # edge pupil maximizing the cross field
+python examples/two_diopter_imaging.py           # orientation-dependent vectorial imaging
+python examples/resolution_inversion.py          # scalar resolves, vectorial fuses
 ```
 
 Generated artifacts are written under `examples/output/`. See
@@ -58,5 +64,4 @@ vecdiff/          Python package
 examples/         Runnable scripts and generated-output conventions
 tests/            Unit tests
 docs/assets/      README and documentation media
-investigation/    Exploratory research scripts
 ```
