@@ -52,10 +52,15 @@ C_TH = 0.15
 DISC_DIAM = 0.30e-3  # mm, canonical small circular features
 LINE_LEN_F = 1.5     # line length in units of sep
 # Edge-weighted pupil (r/a)^EDGE_P concentrates the energy near the grazing rim
-# where t_minus/t_plus peaks, amplifying the polarization mixing so the
-# inversion is visually obvious (scalar clearly split, vectorial fused).
-EDGE_P = 4.0
-S_FRACS = np.linspace(0.50, 0.80, 13)  # separations in units of d_Airy
+# where t_minus/t_plus peaks.  It doubles as a Toraldo-type super-resolving
+# apodization: it narrows the scalar PSF so the scalar image splits the two
+# features deeply, while the mixing keeps the vectorial image fused.
+EDGE_P = 8.0
+# The showcase is chosen to make the scalar case resolve as clearly as
+# possible: largest scalar valley contrast whose vectorial counterpart is still
+# well below the Rayleigh threshold (clearly fused, not marginally resolved).
+SHOWCASE_VEC_MAX = 0.10
+S_FRACS = np.linspace(0.48, 0.84, 19)  # separations in units of d_Airy
 
 out = common.output_dir(__file__)
 
@@ -173,14 +178,14 @@ def run_system(system):
     fig.savefig(out / f"fig1_inversion_window_{tag}.png", dpi=220)
     plt.close(fig)
 
-    # -- showcase: the separation of clearest inversion (max C_sca - C_vec
-    #    subject to scalar resolved and vectorial not) ------------------
+    # -- showcase: make the scalar resolve as clearly as possible -- the
+    #    largest scalar contrast whose vectorial image is still clearly fused --
     def pick_showcase(feature):
         c_sca, c_vec = curves[(feature, "sep_y")]
-        ok = (c_vec < C_TH) & (c_sca >= C_TH)
+        ok = (c_vec < SHOWCASE_VEC_MAX) & (c_sca >= C_TH)
         if not ok.any():
             return None
-        return float(S_FRACS[np.argmax(np.where(ok, c_sca - c_vec, -np.inf))])
+        return float(S_FRACS[np.argmax(np.where(ok, c_sca, -np.inf))])
 
     for feature in ("discs", "lines"):
         s_frac = pick_showcase(feature)

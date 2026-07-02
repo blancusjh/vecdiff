@@ -142,10 +142,15 @@ escalar A. Con separación **perpendicular** a la polarización (A + B) el valle
 entre las dos imágenes se rellena; paralela, se profundiza. Dos palancas
 amplifican el efecto para hacerlo evidente: (i) una dioptra de salida rápida
 (D2 con zᵢ₂ = 0.6 mm) que acerca el borde de la pupila a la incidencia rasante
-de D2, y (ii) una **pupila con peso de borde (r/a)⁴**, que concentra la energía
+de D2, y (ii) una **pupila con peso de borde (r/a)⁸**, que concentra la energía
 donde t₋/t₊ es máximo (Estudio 2) — sin los lóbulos duros de una pupila anular.
+Este peso de borde es además una **apodización superresolvente (tipo Toraldo)**:
+estrecha la PSF escalar, de modo que el escalar separa los dos objetos con un
+valle profundo mientras la mezcla mantiene fundida la imagen vectorial.
 Criterio de distinguibilidad: el de **Rayleigh** (hendidura ~26%, contraste de
-valle C ≈ 0.15); "resuelto" = C ≥ 0.15, e inversión = C_esc ≥ 0.15 > C_vec.
+valle C ≈ 0.15); "resuelto" = C ≥ 0.15, e inversión = C_esc ≥ 0.15 > C_vec. El
+escaparate se elige en el punto de **máximo contraste escalar** con el vectorial
+aún claramente fundido (C_vec < 0.10).
 
 Se estudian **dos sistemas**, ambos cascadas conjugadas aire→vidrio→aire:
 
@@ -161,15 +166,15 @@ Se estudian **dos sistemas**, ambos cascadas conjugadas aire→vidrio→aire:
 ![ventana de inversión, alto índice](results/s4_inversion_window_alto_indice.png)
 
 - **Discos (canónico), separación ⊥ polarización:** ventana de inversión
-  [0.572, 0.619]·d_Airy (**~4.6%**). Escaparate en sep = 0.60·d_Airy = 0.45 µm:
-  **C_esc = 0.269 (dos discos resueltos, valle al 58% del pico) vs C_vec = 0.059
-  (fundidos, valle relleno al ~90%)** — el perfil escalar tiene dos máximos
-  claros y el vectorial uno solo alargado.
-- **Líneas** (cortas, longitud 1.5·sep): ventana [0.516, 0.554]·d_Airy;
-  escaparate sep = 0.78·d_Airy: **C_esc = 0.224 vs C_vec = −0.054** (el vectorial
+  [0.547, 0.592]·d_Airy (**~4.5%**). Escaparate en sep = 0.56·d_Airy = 0.42 µm:
+  **C_esc = 0.331 (dos discos claramente resueltos, valle al 50% del pico) vs
+  C_vec = 0.073 (fundidos, valle relleno al ~86%)** — el perfil escalar tiene dos
+  máximos bien separados y el vectorial uno solo alargado.
+- **Líneas** (cortas, longitud 1.5·sep): ventana [0.503, 0.508]·d_Airy;
+  escaparate sep = 0.82·d_Airy: **C_esc = 0.254 vs C_vec = −0.103** (el vectorial
   ni siquiera tiene mínimo local).
 - **La inversión es direccional**: con separación **paralela** a la polarización
-  la ventana tiene signo opuesto (el vectorial resuelve *mejor*, −0.023·d_Airy en
+  la ventana tiene signo opuesto (el vectorial resuelve *mejor*, −0.016·d_Airy en
   discos). El término vectorial no "borra" resolución isótropamente: la
   transfiere de una orientación a la otra.
 
@@ -180,11 +185,11 @@ Se estudian **dos sistemas**, ambos cascadas conjugadas aire→vidrio→aire:
 
 ![ventana de inversión, vidrio](results/s4_inversion_window_vidrio.png)
 
-- **Discos, ⊥ polarización:** ventana [0.569, 0.587]·d_Airy (**~1.9%**, más
-  estrecha que con alto índice). Escaparate sep = 0.57·d_Airy = 0.74 µm:
-  **C_esc = 0.188 (resuelto) vs C_vec = 0.083 (fundido)**.
-- **Líneas:** ventana [0.522, 0.529]·d_Airy; escaparate sep = 0.78·d_Airy:
-  **C_esc = 0.255 vs C_vec = 0.130**. Con el peso de borde la inversión de líneas
+- **Discos, ⊥ polarización:** ventana [0.555, 0.569]·d_Airy (**~1.4%**, más
+  estrecha que con alto índice). Escaparate sep = 0.56·d_Airy = 0.73 µm:
+  **C_esc = 0.188 (resuelto) vs C_vec = 0.076 (fundido)**.
+- **Líneas:** ventana [0.505, 0.507]·d_Airy; escaparate sep = 0.84·d_Airy:
+  **C_esc = 0.256 vs C_vec = 0.072**. Con el peso de borde la inversión de líneas
   sobrevive también a índices realistas (sin él desaparecía).
 
 ![showcase discos, vidrio](results/s4_showcase_discs_vidrio.png)
@@ -233,12 +238,13 @@ de Stokes — orientación ψ y elipticidad χ — y `plot_polarization_map`, v�
    orientación (±0.02 de contraste cerca de Rayleigh), una imagen fantasma cruzada
    localizada en bordes/esquinas, y diferencias globales de ~2% a NA alta.
 5. **Existe un régimen de inversión de resolución**: con dioptra de salida rápida,
-   pupila con peso de borde (r/a)⁴ y separación perpendicular a la polarización hay
-   una ventana de separaciones (criterio de Rayleigh) en la que el modelo escalar
-   predice dos características resueltas y el vectorial las muestra fusionadas. Con
-   alto índice (nᵢ=2.4) el escalar da un valle del 58% (C=0.27) donde el vectorial
-   apenas hunde un 10% (C=0.06); con vidrio realista (nᵢ=1.5) persiste, más
-   marginal (C=0.19 vs 0.08). La ventana cambia de signo al rotar la separación 90°.
+   pupila superresolvente con peso de borde (r/a)⁸ y separación perpendicular a la
+   polarización hay una ventana de separaciones (criterio de Rayleigh) en la que el
+   modelo escalar resuelve dos características y el vectorial las muestra fusionadas.
+   Con alto índice (nᵢ=2.4) el escalar da un valle profundo al 50% (C=0.33) donde el
+   vectorial apenas hunde un 14% (C=0.07); con vidrio realista (nᵢ=1.5) persiste,
+   más marginal (C=0.19 vs 0.08). La ventana cambia de signo al rotar la separación
+   90°.
 
 ## Límites del estudio
 
