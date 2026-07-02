@@ -17,10 +17,11 @@ LAM = 532e-6  # mm
 D1 = dict(n0=1.0, ni=2.4, z0=-6.0, zi=3.6)
 D2 = dict(n0=D1["ni"], ni=1.0, z0=-D1["zi"], zi=3.6)
 
-def mag_of(d2=None):
+def mag_of(d2=None, d1=None):
     """Transverse magnification of the two-diopter cascade (two Fourier stages)."""
+    d1 = D1 if d1 is None else d1
     d2 = D2 if d2 is None else d2
-    return (d2["zi"] * D1["ni"]) / (D1["zi"] * d2["ni"])
+    return (d2["zi"] * d1["ni"]) / (d1["zi"] * d2["ni"])
 
 
 MAG = mag_of()
@@ -34,18 +35,19 @@ X, Y = np.meshgrid(_x, _x)
 DX = float(_x[1] - _x[0])
 
 
-def Kc_of(r_a):
+def Kc_of(r_a, d1=None):
     """Pupil cutoff (angular frequency) for aperture radius ``r_a``."""
-    alpha = np.arctan(r_a / abs(D1["z0"]))
-    return D1["n0"] * (2.0 * np.pi / LAM) * np.sin(alpha)
+    d1 = D1 if d1 is None else d1
+    alpha = np.arctan(r_a / abs(d1["z0"]))
+    return d1["n0"] * (2.0 * np.pi / LAM) * np.sin(alpha)
 
 
-def airy_radius(r_a):
+def airy_radius(r_a, d1=None):
     """Object-space Airy radius of the system at aperture ``r_a``."""
-    return 3.8317059702075125 / Kc_of(r_a)
+    return 3.8317059702075125 / Kc_of(r_a, d1)
 
 
-def system_caption(r_a=None, *, d2=None, lam=LAM):
+def system_caption(r_a=None, *, d1=None, d2=None, lam=LAM):
     """Compact one-line summary of the two-diopter stigmatic imaging system.
 
     The diopters are conjugate: D2 runs the indices back (ni -> n0) and its
@@ -53,12 +55,13 @@ def system_caption(r_a=None, *, d2=None, lam=LAM):
     whole cascade is set by the index pair and the three axial planes
     ``z0, zi1, zi2`` -- the rest is redundant and omitted.
     """
+    d1 = D1 if d1 is None else d1
     d2 = D2 if d2 is None else d2
-    cap = (rf"dioptrios conjugados: $n_0$={D1['n0']:g}, $n_i$={D1['ni']:g}  ·  "
-           rf"$z_0$={D1['z0']:g}, $z_{{i1}}$={D1['zi']:g}, $z_{{i2}}$={d2['zi']:g} mm  ·  "
+    cap = (rf"dioptrios conjugados: $n_0$={d1['n0']:g}, $n_i$={d1['ni']:g}  ·  "
+           rf"$z_0$={d1['z0']:g}, $z_{{i1}}$={d1['zi']:g}, $z_{{i2}}$={d2['zi']:g} mm  ·  "
            rf"$\lambda$={lam * 1e6:.0f} nm")
     if r_a is not None:
-        alpha = np.degrees(np.arctan(r_a / abs(D1["z0"])))
+        alpha = np.degrees(np.arctan(r_a / abs(d1["z0"])))
         cap += rf"  ·  $r_a$={r_a:g} mm, $\alpha_\mathrm{{max}}$={alpha:.1f}°"
     return cap
 
@@ -109,11 +112,12 @@ def apply_t_plus(field, diopter):
                           grid=field.grid, symmetric=False)
 
 
-def stage1(mask, vectorial):
+def stage1(mask, vectorial, d1=None):
     """Mask plane -> Fourier plane through D1 (no pupil yet)."""
+    d1 = D1 if d1 is None else d1
     E0 = FieldCartesian(x=mask.astype(complex), y=np.zeros_like(mask, dtype=complex),
                         grid=Grid.from_cartesian(X, Y), symmetric=False)
-    diopter = CartesianSurface(**D1)
+    diopter = CartesianSurface(**d1)
     if vectorial:
         return E0.propagate_through_diopter(
             z=diopter.zi, ovoid=diopter, method="fft",
@@ -124,21 +128,28 @@ def stage1(mask, vectorial):
         kgrid=_kgrid(N_K, DX), transmission="identity")
 
 
-def stage2(E1, r_a, vectorial, eps=0.0, d2=None):
-    """(Annular) pupil in the Fourier plane, then D2 to the image plane.
+def stage2(E1, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None):
+    """Pupil in the Fourier plane, then D2 to the image plane.
 
-    ``eps`` is the central-obstruction fraction of the pupil cutoff.
-    ``d2`` overrides the second-diopter geometry (defaults to ``D2``).
+    ``eps`` is the central-obstruction fraction of the pupil cutoff (annulus).
+    ``edge_p`` applies a smooth edge-weighting amplitude ``(|k|/kc)^edge_p``,
+    which concentrates the pupil energy near the grazing rim -- where
+    ``t_minus/t_plus`` peaks -- to amplify the polarization mixing without the
+    hard side-lobes of a closed annulus.
+    ``d1``/``d2`` override the first/second-diopter geometry.
     """
+    d1 = D1 if d1 is None else d1
     d2 = D2 if d2 is None else d2
     kx = E1.grid.X[0, :]
     ky = E1.grid.Y[:, 0]
     KX, KY = np.meshgrid(kx, ky)
     K2 = KX**2 + KY**2
-    kc2 = Kc_of(r_a) ** 2
-    pupil = (K2 <= kc2) & (K2 >= (eps**2) * kc2)
+    kc2 = Kc_of(r_a, d1) ** 2
+    pupil = ((K2 <= kc2) & (K2 >= (eps**2) * kc2)).astype(float)
+    if edge_p > 0.0:
+        pupil = pupil * (K2 / kc2) ** (0.5 * edge_p)
 
-    scale = LAM * D1["zi"] / (2.0 * np.pi * D1["ni"])
+    scale = LAM * d1["zi"] / (2.0 * np.pi * d1["ni"])
     XF, YF = np.meshgrid(scale * kx, scale * ky)
     Ef = FieldCartesian(x=E1.x * pupil, y=E1.y * pupil,
                         grid=Grid.from_cartesian(XF, YF), symmetric=False)
@@ -157,15 +168,16 @@ def stage2(E1, r_a, vectorial, eps=0.0, d2=None):
         wavelength=LAM, transmission="identity")
 
 
-def image(mask, r_a, vectorial, eps=0.0, d2=None, _cache={}):
-    """Full pipeline mask -> image field (stage1 cached per mask/model)."""
-    key = (mask.tobytes(), vectorial)
+def image(mask, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None, _cache={}):
+    """Full pipeline mask -> image field (stage1 cached per mask/model/d1)."""
+    d1_key = tuple(sorted((D1 if d1 is None else d1).items()))
+    key = (mask.tobytes(), vectorial, d1_key)
     if key not in _cache:
         _cache.clear()  # keep at most one mask in memory per model pair
-        _cache[key] = stage1(mask, vectorial)
-        other = (mask.tobytes(), not vectorial)
-        _cache[other] = stage1(mask, not vectorial)
-    return stage2(_cache[key], r_a, vectorial, eps=eps, d2=d2)
+        _cache[key] = stage1(mask, vectorial, d1=d1)
+        other = (mask.tobytes(), not vectorial, d1_key)
+        _cache[other] = stage1(mask, not vectorial, d1=d1)
+    return stage2(_cache[key], r_a, vectorial, eps=eps, edge_p=edge_p, d2=d2, d1=d1)
 
 
 # ------------------------------------------------------------------ #

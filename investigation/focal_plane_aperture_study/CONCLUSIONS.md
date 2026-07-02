@@ -139,32 +139,55 @@ líneas como para el caso canónico de dos características circulares (discos).
 **Mecanismo y diseño.** A lo largo del eje de separación el campo copolar de la
 imagen es A ∓ B (cos 2φ = ±1): B interfiere a *primer orden* con el campo
 escalar A. Con separación **perpendicular** a la polarización (A + B) el valle
-entre las dos imágenes se rellena; paralela, se profundiza. Para agrandar el
-efecto se usa una dioptra de salida rápida (D2 con zᵢ = 0.6, M = 0.4) y pupila
-ancha (r_a = 10 mm), que coloca el borde de la pupila de Fourier (≈1.29 mm)
-cerca de la rama rasante de D2 (1.46 mm) manteniendo toda la pupila física.
-Criterio de distinguibilidad: profundidad de valle C ≥ C_th.
+entre las dos imágenes se rellena; paralela, se profundiza. Dos palancas
+amplifican el efecto para hacerlo evidente: (i) una dioptra de salida rápida
+(D2 con zᵢ₂ = 0.6 mm) que acerca el borde de la pupila a la incidencia rasante
+de D2, y (ii) una **pupila con peso de borde (r/a)⁴**, que concentra la energía
+donde t₋/t₊ es máximo (Estudio 2) — sin los lóbulos duros de una pupila anular.
+Criterio de distinguibilidad: el de **Rayleigh** (hendidura ~26%, contraste de
+valle C ≈ 0.15); "resuelto" = C ≥ 0.15, e inversión = C_esc ≥ 0.15 > C_vec.
 
-![ventana de inversión](results/s4_inversion_window.png)
+Se estudian **dos sistemas**, ambos cascadas conjugadas aire→vidrio→aire:
 
-- **Discos (canónico), separación ⊥ polarización, C_th = 5%:** el umbral escalar
-  está en sep* = 0.630·d_Airy y el vectorial en 0.677·d_Airy → **ventana de
-  inversión de 0.047·d_Airy (~7% en separación)**. Escaparate en
-  sep = 0.68·d_Airy = 0.51 µm: **C_esc = 0.159 (valle visible) vs
-  C_vec = 0.044 (valle prácticamente plano)**.
-- **Líneas:** las líneas largas promedian el término cos 2φ a lo largo de su
-  longitud y su transición coherente de contraste es casi binaria (salta de
-  ~0 a ~0.4 en menos de un píxel de máscara), así que se usan líneas cortas
-  (longitud 1.5·sep) y el criterio tipo Rayleigh C_th = 15%. Ventana
-  [0.616, 0.633]·d_Airy; escaparate en sep = 0.62·d_Airy = 0.47 µm:
-  **C_esc = 0.225 vs C_vec = 0.087**.
+1. **Alto índice** (nᵢ = 2.4, tipo diamante/rutilo), pupila ancha r_a = 10 mm —
+   el contraste de índices más fuerte, con la inversión más marcada.
+2. **Vidrio realista** (nᵢ = 1.5, óptica común). Su techo de mezcla
+   t₋/t₊ = (nᵢ−n₀)/(nᵢ+n₀) = 0.2 es la mitad del de 2.4 (0.41); como su escala de
+   Fourier es mayor, la pupila máxima físicamente realizable es r_a ≈ 3.5 mm
+   (α_max = 30°). La inversión **persiste** aunque más marginal.
+
+### Sistema de alto índice (nᵢ = 2.4)
+
+![ventana de inversión, alto índice](results/s4_inversion_window_alto_indice.png)
+
+- **Discos (canónico), separación ⊥ polarización:** ventana de inversión
+  [0.572, 0.619]·d_Airy (**~4.6%**). Escaparate en sep = 0.60·d_Airy = 0.45 µm:
+  **C_esc = 0.269 (dos discos resueltos, valle al 58% del pico) vs C_vec = 0.059
+  (fundidos, valle relleno al ~90%)** — el perfil escalar tiene dos máximos
+  claros y el vectorial uno solo alargado.
+- **Líneas** (cortas, longitud 1.5·sep): ventana [0.516, 0.554]·d_Airy;
+  escaparate sep = 0.78·d_Airy: **C_esc = 0.224 vs C_vec = −0.054** (el vectorial
+  ni siquiera tiene mínimo local).
 - **La inversión es direccional**: con separación **paralela** a la polarización
-  la ventana tiene signo opuesto (el vectorial resuelve *mejor* que el escalar,
-  ventana −0.020·d_Airy en discos). El término vectorial no "borra" resolución
-  de forma isótropa: la transfiere de una orientación a la otra.
+  la ventana tiene signo opuesto (el vectorial resuelve *mejor*, −0.023·d_Airy en
+  discos). El término vectorial no "borra" resolución isótropamente: la
+  transfiere de una orientación a la otra.
 
-![showcase discos](results/s4_showcase_discs.png)
-![showcase líneas](results/s4_showcase_lines.png)
+![showcase discos, alto índice](results/s4_showcase_discs_alto_indice.png)
+![showcase líneas, alto índice](results/s4_showcase_lines_alto_indice.png)
+
+### Sistema de vidrio realista (nᵢ = 1.5)
+
+![ventana de inversión, vidrio](results/s4_inversion_window_vidrio.png)
+
+- **Discos, ⊥ polarización:** ventana [0.569, 0.587]·d_Airy (**~1.9%**, más
+  estrecha que con alto índice). Escaparate sep = 0.57·d_Airy = 0.74 µm:
+  **C_esc = 0.188 (resuelto) vs C_vec = 0.083 (fundido)**.
+- **Líneas:** ventana [0.522, 0.529]·d_Airy; escaparate sep = 0.78·d_Airy:
+  **C_esc = 0.255 vs C_vec = 0.130**. Con el peso de borde la inversión de líneas
+  sobrevive también a índices realistas (sin él desaparecía).
+
+![showcase discos, vidrio](results/s4_showcase_discs_vidrio.png)
 
 ### Análisis de polarización de las imágenes
 
@@ -173,17 +196,16 @@ mapas de polarización del paquete (`polarization_map_from_field` para los mapas
 de Stokes — orientación ψ y elipticidad χ — y `plot_polarization_map`, vía
 `plot_field_polarization`, para las elipses locales sobre la intensidad):
 
-![Stokes discos](results/s4_polarization_discs.png)
-![mapa de polarización discos](results/s4_polmap_discs.png)
-![Stokes líneas](results/s4_polarization_lines.png)
-![mapa de polarización líneas](results/s4_polmap_lines.png)
+![Stokes discos, alto índice](results/s4_stokes_discs_alto_indice.png)
+![mapa de polarización discos, alto índice](results/s4_polmap_discs_alto_indice.png)
+![mapa de polarización discos, vidrio](results/s4_polmap_discs_vidrio.png)
 
 - **Imagen escalar:** polarización uniforme — E_y ≡ 0, ψ ≡ 0, χ ≡ 0 en todo el
   plano; las elipses son segmentos horizontales alineados con la polarización
   incidente x̂.
 - **Imagen vectorial:** la fracción cruzada de la imagen es
-  **f_cross ≈ 1.5×10⁻²** (dos órdenes por encima del sistema lento del
-  Estudio 3). |E_y|² forma el trébol de cuatro lóbulos anclado a las esquinas
+  **f_cross ≈ 1.5×10⁻²** (alto índice; dos órdenes por encima del sistema lento
+  del Estudio 3). |E_y|² forma el trébol de cuatro lóbulos anclado a las esquinas
   de cada característica.
 - **La luz cruzada está casi en fase con la copolar:** la elipticidad se
   mantiene |χ| ≲ 1° en toda la zona brillante — el campo sigue siendo casi
@@ -210,11 +232,13 @@ de Stokes — orientación ψ y elipticidad χ — y `plot_polarization_map`, v�
 4. **En imágenes**, el término vectorial produce resolución dependiente de la
    orientación (±0.02 de contraste cerca de Rayleigh), una imagen fantasma cruzada
    localizada en bordes/esquinas, y diferencias globales de ~2% a NA alta.
-5. **Existe un régimen de inversión de resolución**: con dioptra de salida rápida
-   y separación perpendicular a la polarización hay una ventana de separaciones
-   (~7% para dos puntos canónicos, ~3% para líneas cortas) en la que el modelo
-   escalar predice dos características resueltas y el vectorial las muestra
-   fusionadas — y la ventana cambia de signo al rotar la separación 90°.
+5. **Existe un régimen de inversión de resolución**: con dioptra de salida rápida,
+   pupila con peso de borde (r/a)⁴ y separación perpendicular a la polarización hay
+   una ventana de separaciones (criterio de Rayleigh) en la que el modelo escalar
+   predice dos características resueltas y el vectorial las muestra fusionadas. Con
+   alto índice (nᵢ=2.4) el escalar da un valle del 58% (C=0.27) donde el vectorial
+   apenas hunde un 10% (C=0.06); con vidrio realista (nᵢ=1.5) persiste, más
+   marginal (C=0.19 vs 0.08). La ventana cambia de signo al rotar la separación 90°.
 
 ## Límites del estudio
 
