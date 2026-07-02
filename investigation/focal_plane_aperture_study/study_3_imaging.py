@@ -137,7 +137,7 @@ ax3.set_xlabel(r"radio de pupila $r_a$ [mm]")
 ax3.set_title("Diferencia global escalar/vectorial")
 ax3.grid(True, which="both", alpha=0.3)
 ax3.legend(fontsize=8)
-fig.suptitle("Formación de imágenes: escalar ($t_-=0$) vs vectorial")
+fig.suptitle(r"Formación de imágenes: escalar ($t_-=0$) vs vectorial | polarización incidente lineal $\hat{x}$")
 fig.savefig(out / "fig1_contrast_vs_aperture.png", dpi=220)
 plt.close(fig)
 
@@ -185,7 +185,7 @@ for name in orientations:
         axi.set_xlim(-lim, lim)
         axi.set_ylim(-lim, lim)
         fig.colorbar(im, ax=axi, fraction=0.046, pad=0.04)
-    fig.suptitle(f"Imágenes con r_a = {r_a} mm, orientación {name}")
+    fig.suptitle(rf"Imágenes con r_a = {r_a} mm, orientación {name} | pol. incidente lineal $\hat{{x}}$")
     fig.savefig(out / f"fig2_gallery_{name}_ra{str(r_a).replace('.', 'p')}.png", dpi=200)
     plt.close(fig)
 
@@ -212,7 +212,7 @@ for row_i, name in enumerate(orientations):
         ax.set_xlabel(r"$u / (M \cdot sep)$")
         ax.grid(True, alpha=0.3)
 axes[0, 0].legend()
-fig.suptitle("Perfiles a través de las dos líneas: escalar vs vectorial")
+fig.suptitle(r"Perfiles a través de las dos líneas: escalar vs vectorial | pol. incidente lineal $\hat{x}$")
 fig.savefig(out / "fig3_profiles.png", dpi=200)
 plt.close(fig)
 

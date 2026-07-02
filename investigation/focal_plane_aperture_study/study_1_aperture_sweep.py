@@ -129,7 +129,8 @@ ax[1, 1].set_title("Transmisión y radio de energía encerrada")
 ax[1, 1].grid(True, alpha=0.3)
 ax[1, 1].legend()
 
-fig.suptitle(rf"Barrido de apertura | $n_0$={N0}, $n_i$={NI}, $z_0$={Z0}, $z_i$={ZI} (Fresnel exacto)")
+fig.suptitle(rf"Barrido de apertura | $n_0$={N0}, $n_i$={NI}, $z_0$={Z0}, $z_i$={ZI} (Fresnel exacto) | "
+             r"polarización incidente lineal $\hat{x}$")
 fig.savefig(out / "fig1_metrics_vs_aperture.png", dpi=220)
 plt.close(fig)
 
@@ -184,7 +185,8 @@ for a in selected:
     fig.suptitle(
         rf"a = {a:.2f} mm  ($\alpha_{{obj}}$ = {row['alpha_obj_deg']:.1f}$^\circ$, "
         rf"$\theta_{{img}}$ = {row['theta_img_deg']:.1f}$^\circ$)  |  "
-        rf"$f_{{cross}}$ = {row['f_cross']:.2e}, elipticidad = {row['ellipticity']:.3f}"
+        rf"$f_{{cross}}$ = {row['f_cross']:.2e}, elipticidad = {row['ellipticity']:.3f}  |  "
+        r"pol. incidente lineal $\hat{x}$"
     )
     tag = f"{a:.2f}".replace(".", "p")
     fig.savefig(out / f"fig3_maps_a{tag}.png", dpi=200)
