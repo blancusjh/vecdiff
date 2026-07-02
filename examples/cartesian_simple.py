@@ -28,28 +28,18 @@ save(plot_field(E0, half_size=R, title="Input Cartesian field")[0], "input_field
 save(plot_field(E_focal, half_size=20.0, title="Propagated Cartesian field")[0], "propagated_field_components")
 
 # Uniform input: a coarse layout is enough (no radial detail to resolve).
-ax, _ = plot_field_polarization(E0, half_size=R, sampling="polar", n_rings=10, scale_by_intensity=True)
+ax, _ = plot_field_polarization(E0, half_size=R, scale_by_intensity=True)
 ax.set_title("Input Cartesian polarization")
 save(ax, "input_polarization")
 
-# Focal plane: window already reaches ~the 4th maximum. n_rings=24 samples the
-# second maximum at 5 radii (the 5th right at its outer edge). The glyphs would
-# be tiny and hard to tell apart at the library's default packing, so thin out
-# the azimuthal count (angular_spacing) to make room for an explicit, larger
-# scale -- the radial spacing (tied to n_rings/half_size) is what limits size
-# without overlap, not the azimuthal count. A milder gamma and a lower size
-# floor let the intensity scaling actually show as a size gradient from the
-# bright core down to the faint 4th maximum, instead of everything past the
-# core clamping to the same floor size.
-_n_rings, _half_size = 24, 20.0
-_dr = _half_size / (_n_rings + 0.5)
+# Focal plane: window already reaches ~the 4th maximum. target_ellipses=36 gives
+# ~5 samples across the second maximum's width. A milder gamma and a lower size
+# floor let the intensity scaling show as a size gradient from the bright core
+# down to the faint 4th maximum, instead of flattening to one floor size.
 ax, _ = plot_field_polarization(
     E_focal,
-    half_size=_half_size,
-    sampling="polar",
-    n_rings=_n_rings,
-    angular_spacing=2.0,
-    scale=0.75 * _dr,
+    half_size=20.0,
+    target_ellipses=36,
     scale_by_intensity=True,
     intensity_scale_gamma=0.35,
     min_ellipse_scale=0.28,
