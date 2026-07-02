@@ -70,27 +70,43 @@ def system_caption(r_a=None, *, d1=None, d2=None, lam=LAM):
 #  Masks                                                               #
 # ------------------------------------------------------------------ #
 
-def two_line_mask(theta, sep, line_w, line_len):
-    """Two lines whose separation axis makes ``theta`` with x."""
+def two_line_mask(theta, sep, line_w, line_len, xy=None):
+    """Two lines whose separation axis makes ``theta`` with x.
+
+    ``xy`` optionally overrides the sampling grid with a local ``(Xg, Yg)``
+    pair (e.g. a fine grid cropped to a display window) instead of the module
+    grid used for propagation.
+    """
+    Xg, Yg = (X, Y) if xy is None else xy
     ux, uy = np.cos(theta), np.sin(theta)
     vx, vy = -uy, ux
-    T = np.zeros_like(X)
+    T = np.zeros_like(Xg)
     for sign in (-1.0, 1.0):
         cx, cy = sign * 0.5 * sep * ux, sign * 0.5 * sep * uy
-        u = (X - cx) * ux + (Y - cy) * uy
-        v = (X - cx) * vx + (Y - cy) * vy
+        u = (Xg - cx) * ux + (Yg - cy) * uy
+        v = (Xg - cx) * vx + (Yg - cy) * vy
         T[(np.abs(u) <= 0.5 * line_w) & (np.abs(v) <= 0.5 * line_len)] = 1.0
     return T
 
 
-def two_disc_mask(theta, sep, diameter):
-    """Two discs (canonical two-point objects) separated along ``theta``."""
+def two_disc_mask(theta, sep, diameter, xy=None):
+    """Two discs (canonical two-point objects) separated along ``theta``.
+
+    ``xy`` optionally overrides the sampling grid, see ``two_line_mask``.
+    """
+    Xg, Yg = (X, Y) if xy is None else xy
     ux, uy = np.cos(theta), np.sin(theta)
-    T = np.zeros_like(X)
+    T = np.zeros_like(Xg)
     for sign in (-1.0, 1.0):
         cx, cy = sign * 0.5 * sep * ux, sign * 0.5 * sep * uy
-        T[(X - cx) ** 2 + (Y - cy) ** 2 <= (0.5 * diameter) ** 2] = 1.0
+        T[(Xg - cx) ** 2 + (Yg - cy) ** 2 <= (0.5 * diameter) ** 2] = 1.0
     return T
+
+
+def fine_mask_grid(half_size_mm, n_img):
+    """Local ``(Xg, Yg)`` Cartesian grid for a high-resolution display-only mask."""
+    x = np.linspace(-half_size_mm, half_size_mm, n_img)
+    return np.meshgrid(x, x)
 
 
 # ------------------------------------------------------------------ #
@@ -99,6 +115,27 @@ def two_disc_mask(theta, sep, diameter):
 
 def _kgrid(n, dx):
     k = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(n, d=dx))
+    KX, KY = np.meshgrid(k, k)
+    return Grid.from_cartesian(KX, KY, domain="k")
+
+
+def zoomed_focal_kgrid(half_size_mm, n_img, d2=None):
+    """Dense k-grid covering only ``[-half_size_mm, half_size_mm]`` in D2's focal plane.
+
+    The default k-grid built by ``_kgrid`` spans the *whole* Nyquist range at
+    ``N_K`` points, so a pixel's physical size is the total field of view
+    divided by ``N_K`` -- zooming into a sub-wavelength window then only shows
+    a handful of those pixels (blocky renders).  ``FT2`` evaluates a custom,
+    non-FFT-grid ``kgrid`` with a zoom FFT (``scipy.signal.zoom_fft``), so
+    passing a k-grid restricted to the small window of interest gives ``n_img``
+    points *inside that window specifically*, at the cost of one chirp-z
+    transform instead of a full-field FFT -- i.e. a free "digital zoom" for
+    figures, decoupled from the coarse default field of view.
+    """
+    d2 = D2 if d2 is None else d2
+    scale2 = LAM * d2["zi"] / (2.0 * np.pi * d2["ni"])
+    k_lim = half_size_mm / scale2
+    k = np.linspace(-k_lim, k_lim, n_img)
     KX, KY = np.meshgrid(k, k)
     return Grid.from_cartesian(KX, KY, domain="k")
 
@@ -128,7 +165,7 @@ def stage1(mask, vectorial, d1=None):
         kgrid=_kgrid(N_K, DX), transmission="identity")
 
 
-def stage2(E1, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None):
+def stage2(E1, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None, kgrid=None):
     """Pupil in the Fourier plane, then D2 to the image plane.
 
     ``eps`` is the central-obstruction fraction of the pupil cutoff (annulus).
@@ -137,6 +174,8 @@ def stage2(E1, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None):
     ``t_minus/t_plus`` peaks -- to amplify the polarization mixing without the
     hard side-lobes of a closed annulus.
     ``d1``/``d2`` override the first/second-diopter geometry.
+    ``kgrid`` overrides the default full-field output k-grid, e.g. with
+    ``zoomed_focal_kgrid`` for a densely sampled crop around a small region.
     """
     d1 = D1 if d1 is None else d1
     d2 = D2 if d2 is None else d2
@@ -154,21 +193,23 @@ def stage2(E1, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None):
     Ef = FieldCartesian(x=E1.x * pupil, y=E1.y * pupil,
                         grid=Grid.from_cartesian(XF, YF), symmetric=False)
 
-    dxf = scale * float(kx[1] - kx[0])
+    if kgrid is None:
+        dxf = scale * float(kx[1] - kx[0])
+        kgrid = _kgrid(N_K, dxf)
     diopter = CartesianSurface(**d2)
     if vectorial:
         return Ef.propagate_through_diopter(
             z=diopter.zi, ovoid=diopter, method="fft",
-            kgrid=_kgrid(N_K, dxf), output="focal",
+            kgrid=kgrid, output="focal",
             wavelength=LAM, transmission="vectorial")
     Efs = apply_t_plus(Ef, diopter)
     return Efs.propagate_through_diopter(
         z=diopter.zi, ovoid=diopter, method="fft",
-        kgrid=_kgrid(N_K, dxf), output="focal",
+        kgrid=kgrid, output="focal",
         wavelength=LAM, transmission="identity")
 
 
-def image(mask, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None, _cache={}):
+def image(mask, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None, kgrid=None, _cache={}):
     """Full pipeline mask -> image field (stage1 cached per mask/model/d1)."""
     d1_key = tuple(sorted((D1 if d1 is None else d1).items()))
     key = (mask.tobytes(), vectorial, d1_key)
@@ -177,7 +218,7 @@ def image(mask, r_a, vectorial, eps=0.0, edge_p=0.0, d2=None, d1=None, _cache={}
         _cache[key] = stage1(mask, vectorial, d1=d1)
         other = (mask.tobytes(), not vectorial, d1_key)
         _cache[other] = stage1(mask, not vectorial, d1=d1)
-    return stage2(_cache[key], r_a, vectorial, eps=eps, edge_p=edge_p, d2=d2, d1=d1)
+    return stage2(_cache[key], r_a, vectorial, eps=eps, edge_p=edge_p, d2=d2, d1=d1, kgrid=kgrid)
 
 
 # ------------------------------------------------------------------ #

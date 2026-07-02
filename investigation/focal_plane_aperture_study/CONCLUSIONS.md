@@ -167,11 +167,11 @@ Se estudian **dos sistemas**, ambos cascadas conjugadas aire→vidrio→aire:
 
 - **Discos (canónico), separación ⊥ polarización:** ventana de inversión
   [0.547, 0.592]·d_Airy (**~4.5%**). Escaparate en sep = 0.56·d_Airy = 0.42 µm:
-  **C_esc = 0.331 (dos discos claramente resueltos, valle al 50% del pico) vs
-  C_vec = 0.073 (fundidos, valle relleno al ~86%)** — el perfil escalar tiene dos
+  **C_esc = 0.332 (dos discos claramente resueltos, valle al 50% del pico) vs
+  C_vec = 0.075 (fundidos, valle relleno al ~86%)** — el perfil escalar tiene dos
   máximos bien separados y el vectorial uno solo alargado.
 - **Líneas** (cortas, longitud 1.5·sep): ventana [0.503, 0.508]·d_Airy;
-  escaparate sep = 0.82·d_Airy: **C_esc = 0.254 vs C_vec = −0.103** (el vectorial
+  escaparate sep = 0.82·d_Airy: **C_esc = 0.260 vs C_vec = −0.092** (el vectorial
   ni siquiera tiene mínimo local).
 - **La inversión es direccional**: con separación **paralela** a la polarización
   la ventana tiene signo opuesto (el vectorial resuelve *mejor*, −0.016·d_Airy en
@@ -187,9 +187,9 @@ Se estudian **dos sistemas**, ambos cascadas conjugadas aire→vidrio→aire:
 
 - **Discos, ⊥ polarización:** ventana [0.555, 0.569]·d_Airy (**~1.4%**, más
   estrecha que con alto índice). Escaparate sep = 0.56·d_Airy = 0.73 µm:
-  **C_esc = 0.188 (resuelto) vs C_vec = 0.076 (fundido)**.
+  **C_esc = 0.189 (resuelto) vs C_vec = 0.076 (fundido)**.
 - **Líneas:** ventana [0.505, 0.507]·d_Airy; escaparate sep = 0.84·d_Airy:
-  **C_esc = 0.256 vs C_vec = 0.072**. Con el peso de borde la inversión de líneas
+  **C_esc = 0.258 vs C_vec = 0.075**. Con el peso de borde la inversión de líneas
   sobrevive también a índices realistas (sin él desaparecía).
 
 ![showcase discos, vidrio](results/s4_showcase_discs_vidrio.png)
