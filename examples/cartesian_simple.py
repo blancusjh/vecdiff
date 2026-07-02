@@ -33,9 +33,17 @@ ax.set_title("Input Cartesian polarization")
 save(ax, "input_polarization")
 
 # Focal plane: window already reaches ~the 4th maximum; sample finely in radius
-# (>= 5 radii per lobe) and size the glyphs by intensity (non-linear).
+# (~4 radii per lobe), size the glyphs by intensity (non-linear), keep secondary
+# maxima a bit larger via the size floor, and favor a longer visible shaft over
+# the arrowhead.
 ax, _ = plot_field_polarization(
-    E_focal, half_size=20.0, sampling="polar", n_rings=20, scale_by_intensity=True, min_ellipse_scale=0.5
+    E_focal,
+    half_size=20.0,
+    sampling="polar",
+    n_rings=22,
+    scale_by_intensity=True,
+    min_ellipse_scale=0.65,
+    arrow_length=0.3,
 )
 ax.set(title="Propagated Cartesian polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")
