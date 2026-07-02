@@ -27,11 +27,14 @@ save = figure_saver(__file__)
 save(plot_field(E0, half_size=R, title="Input circular field")[0], "input_field_components")
 save(plot_field(E_focal, half_size=5.0, title="Propagated circular field")[0], "propagated_field_components")
 
-ax, _ = plot_field_polarization(E0, half_size=R, sampling="polar", n_rings=18)
+# Uniform input: a coarse layout is enough (no radial detail to resolve).
+ax, _ = plot_field_polarization(E0, half_size=R, sampling="polar", n_rings=10)
 ax.set_title("Input circular polarization")
 save(ax, "input_polarization")
 
-ax, _ = plot_field_polarization(E_focal, half_size=5.0, sampling="polar", n_rings=18)
+# Focal plane: crop to ~4 maxima and sample finely in radius so the way the
+# polarization state deforms across each maximum is visible (>= 5 radii per lobe).
+ax, _ = plot_field_polarization(E_focal, half_size=3.0, sampling="polar", n_rings=30)
 ax.set(title="Propagated circular polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")
 
