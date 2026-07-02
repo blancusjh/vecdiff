@@ -35,7 +35,7 @@ save(ax, "input_polarization")
 # Focal plane: window already reaches ~the 4th maximum; sample finely in radius
 # (>= 5 radii per lobe) and size the glyphs by intensity (non-linear).
 ax, _ = plot_field_polarization(
-    E_focal, half_size=20.0, sampling="polar", n_rings=24, scale_by_intensity=True, min_ellipse_scale=0.5
+    E_focal, half_size=20.0, sampling="polar", n_rings=24, scale_by_intensity=True, min_ellipse_scale=0.7
 )
 ax.set(title="Propagated Cartesian polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")

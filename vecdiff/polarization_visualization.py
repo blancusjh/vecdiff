@@ -560,7 +560,7 @@ def plot_field_polarization(
         if glyph == "quiver":
             kwargs.setdefault("length", 0.7 * dr)
         else:
-            kwargs.setdefault("scale", 0.38 * dr)
+            kwargs.setdefault("scale", 0.45 * dr)
     else:
         raise ValueError("sampling must be 'cartesian' or 'polar'.")
     if ax is None:
