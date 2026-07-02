@@ -32,7 +32,8 @@ import common
 import imaging_common as ic
 from imaging_common import LAM
 
-from vecdiff.polarization import polarization_from_field
+from vecdiff import FieldCartesian, Grid
+from vecdiff.polarization import polarization_map_from_field
 from vecdiff.polarization_visualization import plot_field_polarization
 
 R_A = 10.0
@@ -216,62 +217,65 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
 
     # -------------------------------------------------------------- #
     #  Polarization analysis of the showcase images                    #
+    #  (built on the package polarization maps:                        #
+    #   polarization_map_from_field + plot_polarization_map)           #
     # -------------------------------------------------------------- #
-    polfig = "fig4_polarization_discs.png" if feature == "discs" else "fig5_polarization_lines.png"
-    fig, axes = plt.subplots(2, 5, figsize=(21, 7.8), constrained_layout=True)
+    half_win = 1.05 * lim * LAM  # analysis half-window in grid units (mm)
 
-    # Shared color scales taken from the vectorial image.
-    pol_v = polarization_from_field(E_v)
+    # Fields in wavelength units with peak-normalized amplitude, so the map
+    # backgrounds and glyph overlays share a common readable scale.
+    E_s_lam, E_v_lam = (
+        FieldCartesian(x=E.x / np.sqrt(vmax), y=E.y / np.sqrt(vmax),
+                       grid=Grid.from_cartesian(E.grid.X / LAM, E.grid.Y / LAM),
+                       symmetric=False)
+        for E in (E_s, E_v)
+    )
+
+    # Stokes maps resampled on the analysis window with the package helper.
+    pol_maps = {}
+    for tag, E_lam in (("escalar", E_s_lam), ("vectorial", E_v_lam)):
+        xx, yy, pol = polarization_map_from_field(E_lam, half_size=1.05 * lim, n_img=340)
+        pol_maps[tag] = (xx, yy, pol)
+
+    _, _, pol_v = pol_maps["vectorial"]
     bright_v = pol_v.s0 > 0.02 * pol_v.s0.max()
-    iy_lim = float((np.abs(pol_v.ey) ** 2 / vmax).max())
+    iy_lim = float(np.abs(pol_v.ey).max() ** 2)
     psi_lim = max(5.0, float(np.nanpercentile(
         np.abs(np.degrees(np.where(bright_v, pol_v.psi, np.nan))), 99)))
     chi_lim = max(1.0, 1.2 * float(np.nanmax(
         np.abs(np.degrees(np.where(bright_v, pol_v.chi, np.nan))))))
 
-    from vecdiff import FieldCartesian, Grid
+    polfig = "fig4_polarization_discs.png" if feature == "discs" else "fig5_polarization_lines.png"
+    fig, axes = plt.subplots(2, 4, figsize=(17.5, 7.8), constrained_layout=True)
 
-    for row_i, (E, tag) in enumerate(((E_s, "escalar ($t_-=0$)"), (E_v, "vectorial"))):
-        pol = polarization_from_field(E)
-        Ix = np.abs(pol.ex) ** 2
-        Iy = np.abs(pol.ey) ** 2
-        s0 = pol.s0
-        bright = s0 > 0.02 * s0.max()
-        f_cross_img = float(Iy.sum() / (s0.sum() + 1e-300))
+    for row_i, tag in enumerate(("escalar", "vectorial")):
+        xx, yy, pol = pol_maps[tag]
+        ext = [xx.min(), xx.max(), yy.min(), yy.max()]
+        bright = pol.s0 > 0.02 * pol.s0.max()
+        f_cross_img = float((np.abs(pol.ey) ** 2).sum() / (pol.s0.sum() + 1e-300))
+        row_tag = "escalar ($t_-=0$)" if tag == "escalar" else tag
 
-        im = axes[row_i, 0].imshow((Ix / vmax) ** 0.8, extent=extent, origin="lower",
+        im = axes[row_i, 0].imshow((np.abs(pol.ex) ** 2) ** 0.8, extent=ext, origin="lower",
                                    cmap="gray", vmin=0, vmax=1)
-        axes[row_i, 0].set_title(rf"{tag}: $|E_x|^2$ (copolar)")
+        axes[row_i, 0].set_title(rf"{row_tag}: $|E_x|^2$ (copolar)")
         fig.colorbar(im, ax=axes[row_i, 0], fraction=0.046, pad=0.04)
 
-        im = axes[row_i, 1].imshow(Iy / vmax, extent=extent, origin="lower", cmap="magma",
-                                   vmin=0.0, vmax=iy_lim)
+        im = axes[row_i, 1].imshow(np.abs(pol.ey) ** 2, extent=ext, origin="lower",
+                                   cmap="magma", vmin=0.0, vmax=iy_lim)
         axes[row_i, 1].set_title(rf"$|E_y|^2$ (cruzada), $f_{{cross}}$ = {f_cross_img:.1e}")
         fig.colorbar(im, ax=axes[row_i, 1], fraction=0.046, pad=0.04)
 
         psi = np.where(bright, np.degrees(pol.psi), np.nan)
-        im = axes[row_i, 2].imshow(psi, extent=extent, origin="lower",
+        im = axes[row_i, 2].imshow(psi, extent=ext, origin="lower",
                                    cmap="RdBu_r", vmin=-psi_lim, vmax=psi_lim)
         axes[row_i, 2].set_title(r"orientación $\psi$ [$^\circ$]")
         fig.colorbar(im, ax=axes[row_i, 2], fraction=0.046, pad=0.04)
 
         chi = np.where(bright, np.degrees(pol.chi), np.nan)
-        im = axes[row_i, 3].imshow(chi, extent=extent, origin="lower",
+        im = axes[row_i, 3].imshow(chi, extent=ext, origin="lower",
                                    cmap="RdBu_r", vmin=-chi_lim, vmax=chi_lim)
         axes[row_i, 3].set_title(r"elipticidad $\chi$ [$^\circ$]")
         fig.colorbar(im, ax=axes[row_i, 3], fraction=0.046, pad=0.04)
-
-        # Glyph panel in wavelength units with peak-normalized intensity.
-        E_lam = FieldCartesian(
-            x=E.x / np.sqrt(vmax), y=E.y / np.sqrt(vmax),
-            grid=Grid.from_cartesian(E.grid.X / LAM, E.grid.Y / LAM),
-            symmetric=False)
-        plot_field_polarization(
-            E_lam, half_size=1.05 * lim, n_img=220, sampling="cartesian",
-            target_ellipses=13, min_intensity_fraction=0.02,
-            ax=axes[row_i, 4],
-        )
-        axes[row_i, 4].set_title("elipses de polarización")
 
         for axi in axes[row_i, :]:
             axi.set_xlim(-lim, lim)
@@ -280,10 +284,33 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
             axi.set_ylabel(r"$y/\lambda$")
 
     fig.suptitle(
-        rf"Polarización de la imagen | {label}, sep = {s_frac:.2f} $d_{{Airy}}$, "
+        rf"Mapas de polarización (Stokes) de la imagen | {label}, sep = {s_frac:.2f} $d_{{Airy}}$, "
         r"polarización incidente lineal $\hat{x}$")
     fig.savefig(out / polfig, dpi=180)
     plt.close(fig)
-    print(f"{feature}: análisis de polarización -> {polfig}")
+    print(f"{feature}: mapas de Stokes -> {polfig}")
+
+    # Dedicated polarization-ellipse maps (plot_polarization_map via
+    # plot_field_polarization: intensity background + local ellipse glyphs).
+    mapfig = "fig6_polmap_discs.png" if feature == "discs" else "fig7_polmap_lines.png"
+    fig, axes = plt.subplots(1, 2, figsize=(13.6, 6.4), constrained_layout=True)
+    for axi, (tag, E_lam) in zip(axes, (("escalar ($t_-=0$)", E_s_lam),
+                                        ("vectorial", E_v_lam))):
+        plot_field_polarization(
+            E_lam, half_size=1.05 * lim, n_img=300, sampling="cartesian",
+            target_ellipses=17, min_intensity_fraction=0.01,
+            ax=axi,
+        )
+        axi.set_title(tag)
+        axi.set_xlim(-lim, lim)
+        axi.set_ylim(-lim, lim)
+        axi.set_xlabel(r"$x/\lambda$")
+        axi.set_ylabel(r"$y/\lambda$")
+    fig.suptitle(
+        rf"Mapa de polarización de la imagen | {label}, sep = {s_frac:.2f} $d_{{Airy}}$, "
+        r"polarización incidente lineal $\hat{x}$")
+    fig.savefig(out / mapfig, dpi=200)
+    plt.close(fig)
+    print(f"{feature}: mapa de elipses -> {mapfig}")
 
 print(f"Done. Outputs in {out}")
