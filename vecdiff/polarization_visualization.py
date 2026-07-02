@@ -315,10 +315,17 @@ def plot_polarization_map(
         segments = _curve_segments(curve)
         figure_segments.append(segments)
 
-        # Scale the head by ellipticity: none for linear light (a clean line
-        # centred on the sample) growing to full size for circular light, so
-        # the head reads as a handedness marker, not a spurious travel arrow.
-        head_length = arrow_length * glyph_extent * ellipticity
+        # Scale the head by ellipticity: none for (essentially) linear light --
+        # a clean line centred on the sample -- growing to full size for
+        # circular light, so the head reads as a handedness marker rather than
+        # a spurious travel arrow.  The sqrt keeps a *visible* head as soon as
+        # the handedness is perceptible (a bare linear factor would render the
+        # head of a chi ~ few-degree ellipse invisibly small), while the
+        # threshold below still drops it for numerically-linear samples.
+        if ellipticity < 0.01:
+            head_length = 0.0
+        else:
+            head_length = arrow_length * glyph_extent * np.sqrt(ellipticity)
         head = _arrowhead_triangle(
             glyph_extent * head_point + center,
             head_dir,
