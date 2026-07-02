@@ -35,7 +35,7 @@ Each script prints the path of the files it saves.
 
 | Example | Purpose | Main outputs |
 | --- | --- | --- |
-| `harmonic_field_animation.py` | Time-harmonic animation of a focused circular pupil (`vecdiff.animate_harmonic_field`): the instantaneous real field `Re[E e^{-i omega t}]` spins over the optical cycle. Also refreshes the README hero GIF. | `harmonic_field.gif` (and `docs/assets/quiver_harmonic_readme.gif`) |
+| `harmonic_field_animation.py` | Time-harmonic animation (`vecdiff.animate_harmonic_field`) of the instantaneous real field `Re[E e^{-i omega t}]` for a cross-maximizing edge-weighted pupil. Cartesian (linear x) case *breathes*; circular case *rotates*. Refreshes the README hero GIF from the Cartesian case. | `harmonic_field_cartesian.gif`, `harmonic_field_circular.gif` (and `docs/assets/quiver_harmonic_readme.gif`) |
 
 `_common.py` and `_output.py` are shared helpers, not runnable examples.
 

@@ -17,8 +17,8 @@ circular representations.
 - Fresnel and diopter operators for vectorial field transmission.
 - Polarization diagnostics and visualization helpers.
 - Time-harmonic field animation (the quiver above shows the instantaneous
-  real field `Re[E e^{-i omega t}]` of a focused circular pupil over the
-  optical cycle; regenerate it with `python examples/harmonic_field_animation.py`).
+  real field `Re[E e^{-i omega t}]` of a focused, cross-maximizing pupil over
+  the optical cycle; regenerate it with `python examples/harmonic_field_animation.py`).
 - Example scripts that generate reproducible figures and comparison outputs.
 
 ## Installation
