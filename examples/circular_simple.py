@@ -28,7 +28,7 @@ save = figure_saver(__file__)
 fig, _ = plot_field_polarization_summary(
     E0,
     half_size=R,
-    title="Input circular field",
+    title="Campo en la pupila (circular)",
     polarization_kwargs=dict(sampling="polar", n_rings=10, scale_by_intensity=True),
 )
 save(fig, "input_summary")
@@ -40,7 +40,7 @@ save(fig, "input_summary")
 fig, _ = plot_field_polarization_summary(
     E_focal,
     half_size=5.0,
-    title="Propagated circular field",
+    title="Campo en el plano focal (circular)",
     polarization_kwargs=dict(sampling="polar", n_rings=15, scale_by_intensity=True, min_ellipse_scale=0.5),
 )
 save(fig, "propagated_summary")
