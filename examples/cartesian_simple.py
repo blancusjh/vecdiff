@@ -28,7 +28,7 @@ save = figure_saver(__file__)
 fig, _ = plot_field_polarization_summary(
     E0,
     half_size=R,
-    title="Input Cartesian field",
+    title="Campo en la pupila (cartesiano)",
     polarization_kwargs=dict(scale_by_intensity=True),
 )
 save(fig, "input_summary")
@@ -42,7 +42,7 @@ save(fig, "input_summary")
 fig, _ = plot_field_polarization_summary(
     E_focal,
     half_size=20.0,
-    title="Propagated Cartesian field",
+    title="Campo en el plano focal (cartesiano)",
     show_cross_fraction=True,
     polarization_kwargs=dict(
         target_ellipses=36,

@@ -349,7 +349,7 @@ def plot_polarization_map(
             lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.6))
         ax.add_collection(lc)
         if phase_colorbar:
-            plt.colorbar(lc, ax=ax, label="Normalized phase")
+            plt.colorbar(lc, ax=ax, label="Fase normalizada")
 
         if head_polys is not None:
             pc = PolyCollection(head_polys, array=np.asarray(head_colors), cmap=cmap, zorder=4.0)
@@ -430,11 +430,11 @@ def plot_polarization_scalar_map(
     if quantity == "ellipticity":
         vmax_physical = 45.0
         cmap = "RdBu_r"
-        label = r"Ellipticity angle $\chi$ (deg)"
+        label = r"Ángulo de elipticidad $\chi$ (°)"
     elif quantity == "orientation":
         vmax_physical = 90.0
         cmap = "twilight_shifted"
-        label = r"Major-axis angle $\psi$ (deg)"
+        label = r"Ángulo del eje mayor $\psi$ (°)"
     else:
         raise ValueError("quantity must be 'ellipticity' or 'orientation'.")
 
@@ -761,25 +761,25 @@ def plot_field_polarization_summary(
 
     vmax = float(np.max(intensity)) or 1.0
     im = axes[0, 2].imshow(intensity, extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
-    axes[0, 2].set_title("Intensity")
+    axes[0, 2].set_title("Intensidad")
     fig.colorbar(im, ax=axes[0, 2], fraction=0.046, pad=0.04)
 
     polarization_kwargs.setdefault("half_size", half_size)
     polarization_kwargs.setdefault("n_img", n_img)
     plot_field_polarization(field, ax=axes[1, 0], **polarization_kwargs)
-    axes[1, 0].set_title("Polarization")
+    axes[1, 0].set_title("Polarización")
 
     plot_polarization_scalar_map(
         field, "ellipticity", half_size=half_size, n_img=n_img,
         min_intensity_fraction=min_intensity_fraction, autocrop=False, ax=axes[1, 1],
     )
-    axes[1, 1].set_title("Ellipticity angle")
+    axes[1, 1].set_title("Ángulo de elipticidad")
 
     plot_polarization_scalar_map(
         field, "orientation", half_size=half_size, n_img=n_img,
         min_intensity_fraction=min_intensity_fraction, autocrop=False, ax=axes[1, 2],
     )
-    axes[1, 2].set_title("Major-axis orientation")
+    axes[1, 2].set_title("Orientación del eje mayor")
 
     # The cross-polarization diagnostic deliberately uses very low intensity
     # thresholds to reveal faint nodal-ring features across the whole sampled
@@ -792,7 +792,7 @@ def plot_field_polarization_summary(
         cross_fraction_kwargs.setdefault("background", "cross_fraction")
         cross_fraction_kwargs.setdefault("glyph", "quiver")
         plot_field_polarization(field, ax=axes[0, 3], **cross_fraction_kwargs)
-        axes[0, 3].set_title("Cross-polarization fraction")
+        axes[0, 3].set_title("Fracción de polarización cruzada")
         axes[1, 3].axis("off")
         uncropped_axes = {axes[0, 3]}
 
