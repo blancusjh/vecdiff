@@ -168,12 +168,15 @@ Criterio de distinguibilidad: profundidad de valle C ≥ C_th.
 
 ### Análisis de polarización de las imágenes
 
-Para cada escaparate se analiza el estado de polarización de la imagen
-(componentes, parámetros de Stokes → orientación ψ y elipticidad χ, y elipses
-locales con las utilidades de `vecdiff.polarization`):
+Para cada escaparate se analiza el estado de polarización de la imagen con los
+mapas de polarización del paquete (`polarization_map_from_field` para los mapas
+de Stokes — orientación ψ y elipticidad χ — y `plot_polarization_map`, vía
+`plot_field_polarization`, para las elipses locales sobre la intensidad):
 
-![polarización discos](results/s4_polarization_discs.png)
-![polarización líneas](results/s4_polarization_lines.png)
+![Stokes discos](results/s4_polarization_discs.png)
+![mapa de polarización discos](results/s4_polmap_discs.png)
+![Stokes líneas](results/s4_polarization_lines.png)
+![mapa de polarización líneas](results/s4_polmap_lines.png)
 
 - **Imagen escalar:** polarización uniforme — E_y ≡ 0, ψ ≡ 0, χ ≡ 0 en todo el
   plano; las elipses son segmentos horizontales alineados con la polarización
