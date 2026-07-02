@@ -241,6 +241,31 @@ def test_polarization_map_draws_arrowhead_for_linear_light():
     plt.close(fig)
 
 
+def test_field_polarization_polar_sampling_places_glyphs():
+    axis = np.linspace(-2.0, 2.0, 41)
+    X, Y = np.meshgrid(axis, axis, indexing="xy")
+    grid = Grid.from_cartesian(X, Y)
+    amp = np.exp(-(X**2 + Y**2))
+    field = FieldCartesian(amp + 0.0j, 1j * amp, grid=grid, symmetric=False)
+
+    ax, _ = plot_field_polarization(field, background=None, sampling="polar", n_rings=6)
+
+    # The polar layout must actually place ellipse glyphs (concentric rings).
+    assert len(ax.collections) >= 1
+    assert len(ax.collections[0].get_segments()) > 0
+    plt.close(ax.figure)
+
+
+def test_field_polarization_rejects_unknown_sampling():
+    axis = np.linspace(-1.0, 1.0, 5)
+    X, Y = np.meshgrid(axis, axis, indexing="xy")
+    grid = Grid.from_cartesian(X, Y)
+    field = FieldCartesian(X + 0.0j, Y + 0.0j, grid=grid, symmetric=False)
+
+    with pytest.raises(ValueError, match="sampling"):
+        plot_field_polarization(field, background=None, sampling="spiral")
+
+
 def test_field_polarization_ellipse_mode_defaults_to_cartesian():
     # A y-polarized sample off the x-axis: the Cartesian basis draws the ellipse
     # extent along y, while the (rejected) polar default would rotate it.

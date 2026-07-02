@@ -62,4 +62,13 @@ ax.set_ylabel(r"$y/\lambda$")
 path = output_dir / "propagated_polarization.png"
 ax.figure.savefig(path, dpi=220, bbox_inches="tight")
 print_saved(path)
+
+# Polar glyph layout: concentric rings that follow the diffraction maxima.
+ax, _ = plot_field_polarization(E_focal, half_size=propagated_half_size, sampling="polar")
+ax.set_title("Propagated circular polarization (polar layout)")
+ax.set_xlabel(r"$x/\lambda$")
+ax.set_ylabel(r"$y/\lambda$")
+path = output_dir / "propagated_polarization_polar.png"
+ax.figure.savefig(path, dpi=220, bbox_inches="tight")
+print_saved(path)
 plt.show()

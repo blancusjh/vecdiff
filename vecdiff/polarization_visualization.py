@@ -153,7 +153,7 @@ def plot_polarization_map(
     y: np.ndarray,
     pol: PolarizationData,
     stride: int | None = None,
-    target_ellipses: int = 24,
+    target_ellipses: int = 20,
     max_ellipses: int | None = None,
     max_radius: float | None = None,
     scale: float | None = None,
@@ -248,11 +248,17 @@ def plot_polarization_map(
         valid &= amp >= adaptive_threshold
 
     if scale is None:
-        dx = np.nanmedian(np.abs(np.diff(xs[0]))) if xs.shape[1] > 1 else np.ptp(x)
-        dy = np.nanmedian(np.abs(np.diff(ys[:, 0]))) if ys.shape[0] > 1 else np.ptp(y)
+        # Use geometric neighbour distances so this works for both Cartesian
+        # meshes and polar meshes (whose azimuthal spacing vanishes at r=0 and
+        # would otherwise collapse the glyph size to zero).
+        radial_steps = np.hypot(np.diff(xs, axis=1), np.diff(ys, axis=1)) if xs.shape[1] > 1 else np.array([])
+        angular_steps = np.hypot(np.diff(xs, axis=0), np.diff(ys, axis=0)) if xs.shape[0] > 1 else np.array([])
+        steps = np.concatenate((radial_steps.ravel(), angular_steps.ravel()))
+        steps = steps[np.isfinite(steps) & (steps > np.finfo(float).eps)]
+        base_spacing = float(np.nanmedian(steps)) if steps.size else float(min(np.ptp(x), np.ptp(y)))
         # 0.38 keeps ellipse diameters at ~0.76x the sample spacing, leaving a
         # clear gap between neighbouring glyphs so they never merge.
-        scale = 0.38 * min(float(dx), float(dy))
+        scale = 0.38 * base_spacing
 
     figure_segments = []
     head_polys = []
@@ -332,12 +338,12 @@ def plot_polarization_map(
     head_alpha = arrowhead_kwargs.get("alpha") if arrowhead_kwargs else None
 
     if color_by_phase:
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.55, zorder=3.0)
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.45, zorder=3.0)
         lc_kwargs.pop("colors", None)
         cmap = lc_kwargs.pop("cmap", phase_cmap)
         lc = LineCollection(figure_segments, array=np.concatenate(colors), cmap=cmap, **lc_kwargs)
         if not _user_set(curve_kwargs, "path_effects"):
-            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.9))
+            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.6))
         ax.add_collection(lc)
         if phase_colorbar:
             plt.colorbar(lc, ax=ax, label="Normalized phase")
@@ -345,16 +351,16 @@ def plot_polarization_map(
         if head_polys is not None:
             pc = PolyCollection(head_polys, array=np.asarray(head_colors), cmap=cmap, zorder=4.0)
             if not _user_set(arrowhead_kwargs, "path_effects"):
-                pc.set_path_effects(_halo(0.5, grow=0.9))
+                pc.set_path_effects(_halo(0.4, grow=0.6))
             ax.add_collection(pc)
     else:
         # White glyphs with a thin dark halo stay legible over both the dark and
         # bright ends of the background colormap, so a full-coverage map reads
         # everywhere from the bright core out to the faint secondary maxima.
-        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.9, color="white", zorder=3.0)
+        lc_kwargs = _line_kwargs(curve_kwargs, linewidth=0.6, color="white", zorder=3.0)
         lc = LineCollection(figure_segments, **lc_kwargs)
         if not _user_set(curve_kwargs, "color", "colors", "path_effects"):
-            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=1.0))
+            lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.6))
         ax.add_collection(lc)
 
         if head_polys is not None:
@@ -362,7 +368,7 @@ def plot_polarization_map(
             if head_alpha is not None:
                 pc.set_alpha(float(head_alpha))
             if not _user_set(arrowhead_kwargs, "color", "colors", "path_effects"):
-                pc.set_path_effects(_halo(0.5, grow=1.0))
+                pc.set_path_effects(_halo(0.4, grow=0.6))
             ax.add_collection(pc)
 
     ax.set_xlim(np.min(x), np.max(x))
@@ -505,26 +511,52 @@ def plot_field_polarization(
     ax=None,
     **kwargs,
 ):
-    """Plot field polarization with Cartesian or native polar glyph sampling."""
+    """Plot field polarization with a Cartesian or polar glyph layout.
+
+    ``sampling="cartesian"`` (default) places the glyphs on a square grid.
+    ``sampling="polar"`` places them on evenly spaced concentric rings (with the
+    number of glyphs per ring growing with radius, so the spacing stays uniform),
+    which suits radially structured fields such as focal diffraction patterns.
+    The polar layout is controlled by ``n_rings`` (default 12).
+    """
 
     from .polarization import polarization_from_components, polarization_map_from_field
 
-    # Always use a Cartesian mesh for the raster background, but optionally
-    # retain the native (q, phi) mesh for glyph placement.
+    # Always sample the field on a Cartesian mesh for the raster background; the
+    # glyph positions come from this mesh (Cartesian) or an even polar layout.
     bg_x, bg_y, bg_pol = polarization_map_from_field(field, half_size=half_size, n_img=n_img)
     if sampling == "cartesian":
         xx, yy, pol = bg_x, bg_y, bg_pol
     elif sampling == "polar":
-        if field.grid.type != "polar":
-            raise ValueError("sampling='polar' requires a field sampled on a polar grid.")
-        radial = np.asarray(field.grid.r, dtype=float)
-        keep = np.ones_like(radial, dtype=bool) if half_size is None else radial <= float(half_size)
-        xx = np.asarray(field.grid.X)[:, keep]
-        yy = np.asarray(field.grid.Y)[:, keep]
-        pol = polarization_from_components(
-            np.asarray(field.x)[:, keep],
-            np.asarray(field.y)[:, keep],
-        )
+        from scipy.interpolate import RegularGridInterpolator
+
+        n_rings = max(1, int(kwargs.pop("n_rings", 12)))
+        r_max = float(half_size) if half_size is not None else float(np.max(np.hypot(bg_x, bg_y)))
+        dr = r_max / (n_rings + 0.5)
+        xg, yg = [], []
+        for rk in dr * (np.arange(n_rings) + 1.0):
+            n_az = max(6, int(round(2.0 * np.pi * rk / dr)))
+            ang = np.linspace(0.0, 2.0 * np.pi, n_az, endpoint=False)
+            xg.append(rk * np.cos(ang))
+            yg.append(rk * np.sin(ang))
+        xg = np.concatenate(xg)
+        yg = np.concatenate(yg)
+
+        x_axis = np.asarray(bg_x[0, :], dtype=float)
+        y_axis = np.asarray(bg_y[:, 0], dtype=float)
+        pts = np.column_stack((yg, xg))
+        ex_g = RegularGridInterpolator((y_axis, x_axis), bg_pol.ex, bounds_error=False, fill_value=0.0)(pts)
+        ey_g = RegularGridInterpolator((y_axis, x_axis), bg_pol.ey, bounds_error=False, fill_value=0.0)(pts)
+        xx = xg[:, None]
+        yy = yg[:, None]
+        pol = polarization_from_components(ex_g[:, None], ey_g[:, None])
+        # Glyph positions are irregular here, so fix the stride and glyph size
+        # explicitly instead of inferring them from a grid.
+        kwargs.setdefault("stride", 1)
+        if glyph == "quiver":
+            kwargs.setdefault("length", 0.7 * dr)
+        else:
+            kwargs.setdefault("scale", 0.38 * dr)
     else:
         raise ValueError("sampling must be 'cartesian' or 'polar'.")
     if ax is None:
