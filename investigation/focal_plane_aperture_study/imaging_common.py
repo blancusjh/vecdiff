@@ -45,6 +45,23 @@ def airy_radius(r_a):
     return 3.8317059702075125 / Kc_of(r_a)
 
 
+def system_caption(r_a=None, *, d2=None, lam=LAM):
+    """One-line summary of the two-diopter stigmatic imaging system.
+
+    Reports both diopters (n0, ni, z0, zi) and the wavelength; when a pupil
+    radius ``r_a`` is given, appends it and the maximum object-side aperture
+    angle ``alpha = arctan(r_a / |z0(D1)|)``.
+    """
+    d2 = D2 if d2 is None else d2
+    cap = (rf"D1: $n_0$={D1['n0']}$\to${D1['ni']}, $z_0$={D1['z0']}, $z_i$={D1['zi']} mm  ·  "
+           rf"D2: $n_0$={d2['n0']}$\to${d2['ni']}, $z_0$={d2['z0']}, $z_i$={d2['zi']} mm  ·  "
+           rf"$\lambda$={lam * 1e6:.0f} nm")
+    if r_a is not None:
+        alpha = np.degrees(np.arctan(r_a / abs(D1["z0"])))
+        cap += rf"  ·  apertura $r_a$={r_a} mm, $\alpha_{{max}}$={alpha:.1f}°"
+    return cap
+
+
 # ------------------------------------------------------------------ #
 #  Masks                                                               #
 # ------------------------------------------------------------------ #

@@ -134,8 +134,8 @@ for axi, feature in zip(axes, ("discs", "lines")):
     axi.grid(True, alpha=0.3)
     axi.legend(fontsize=8)
 fig.suptitle(
-    rf"Contraste del valle vs separación | $r_a$={R_A} mm, D2 rápida ($z_i$={D2_FAST['zi']}) | "
-    r"polarización incidente lineal $\hat{x}$")
+    r"Contraste del valle vs separación  ·  polarización incidente lineal $\hat{x}$" + "\n"
+    + ic.system_caption(R_A, d2=D2_FAST), fontsize=10)
 fig.savefig(out / "fig1_inversion_window.png", dpi=220)
 plt.close(fig)
 
@@ -208,8 +208,9 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
 
     label = "discos" if feature == "discs" else "líneas"
     fig.suptitle(
-        rf"{label}: sep = {s_frac:.2f} $d_{{Airy}}$ = {sep*1e3:.3f} µm | "
-        r"polarización incidente lineal $\hat{x}$, separación $\parallel \hat{y}$")
+        rf"{label}: sep = {s_frac:.2f} $d_{{Airy}}$ = {sep*1e3:.3f} µm  ·  "
+        r"pol. incidente lineal $\hat{x}$, separación $\parallel \hat{y}$" + "\n"
+        + ic.system_caption(R_A, d2=D2_FAST), fontsize=10)
     fig.savefig(out / figname, dpi=200)
     plt.close(fig)
     print(f"{feature}: showcase en sep = {s_frac:.2f} dAiry "
@@ -284,8 +285,9 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
             axi.set_ylabel(r"$y/\lambda$")
 
     fig.suptitle(
-        rf"Mapas de polarización (Stokes) de la imagen | {label}, sep = {s_frac:.2f} $d_{{Airy}}$, "
-        r"polarización incidente lineal $\hat{x}$")
+        rf"Mapas de polarización (Stokes) de la imagen  ·  {label}, sep = {s_frac:.2f} $d_{{Airy}}$  ·  "
+        r"pol. incidente lineal $\hat{x}$" + "\n" + ic.system_caption(R_A, d2=D2_FAST),
+        fontsize=10)
     fig.savefig(out / polfig, dpi=180)
     plt.close(fig)
     print(f"{feature}: mapas de Stokes -> {polfig}")
@@ -307,8 +309,9 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
         axi.set_xlabel(r"$x/\lambda$")
         axi.set_ylabel(r"$y/\lambda$")
     fig.suptitle(
-        rf"Mapa de polarización de la imagen | {label}, sep = {s_frac:.2f} $d_{{Airy}}$, "
-        r"polarización incidente lineal $\hat{x}$")
+        rf"Mapa de polarización de la imagen  ·  {label}, sep = {s_frac:.2f} $d_{{Airy}}$  ·  "
+        r"pol. incidente lineal $\hat{x}$" + "\n" + ic.system_caption(R_A, d2=D2_FAST),
+        fontsize=10)
     fig.savefig(out / mapfig, dpi=200)
     plt.close(fig)
     print(f"{feature}: mapa de elipses -> {mapfig}")
