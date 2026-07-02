@@ -6,7 +6,14 @@ tests for working with sampled electromagnetic fields in Cartesian, polar, and
 circular representations.
 
 <p align="center">
-  <img src="docs/assets/quiver_harmonic_readme.gif" alt="Animated harmonic input-field quiver visualization" width="720">
+  <img src="docs/assets/quiver_harmonic_readme.gif" alt="Harmonic instantaneous focal field, linear x incidence" width="420">
+  <img src="docs/assets/quiver_harmonic_circular.gif" alt="Harmonic instantaneous focal field, circular incidence" width="420">
+</p>
+
+<p align="center">
+  <em>Instantaneous focal field <code>Re[E e<sup>-i&omega;t</sup>]</code> over the optical cycle
+  (cross-maximizing edge pupil): linear-x incidence (left) makes the field
+  <em>breathe</em>; circular incidence (right) makes it <em>rotate</em>.</em>
 </p>
 
 ## What Is Included

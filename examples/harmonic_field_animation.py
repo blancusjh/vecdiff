@@ -38,7 +38,9 @@ edge_p = 6.0  # pupil amplitude ~ (r/a)^edge_p
 q_lambda = zi / (2.0 * np.pi * ni)  # q -> focal-plane radius [lambda]
 
 out_dir = example_output_dir(__file__)
-readme_gif = Path(__file__).resolve().parent.parent / "docs" / "assets" / "quiver_harmonic_readme.gif"
+assets = Path(__file__).resolve().parent.parent / "docs" / "assets"
+readme_gif = assets / "quiver_harmonic_readme.gif"          # Cartesian hero
+readme_gif_circular = assets / "quiver_harmonic_circular.gif"  # circular companion
 
 
 def grazing_aperture():
@@ -114,4 +116,6 @@ anim_c = animate_harmonic_field(
 )
 save_animation(anim_c, out_dir / "harmonic_field_circular.gif", fps=20, dpi=80)
 print_saved(out_dir / "harmonic_field_circular.gif")
+save_animation(anim_c, readme_gif_circular, fps=20, dpi=80)  # README companion asset
+print_saved(readme_gif_circular)
 plt.close("all")

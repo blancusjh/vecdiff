@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.colors import PowerNorm
 
 from .polarization import polarization_map_from_field
 
@@ -74,8 +75,9 @@ def animate_harmonic_field(
         (uniform arrows); the default ``0.4`` keeps the faint rings legible
         while the bright core does not dominate.
     intensity_gamma : float
-        Display gamma for the background (``intensity ** gamma`` after
-        normalization); ``< 1`` brightens the faint rings.
+        Display gamma (``PowerNorm``) for the background; ``< 1`` brightens the
+        faint rings.  It affects only the color mapping -- the colorbar keeps an
+        invariant, faithful linear axis in true normalized ``|E|^2`` (0..1).
     caption : str, optional
         Static figure sub-title, e.g. the optical-system parameters.
 
@@ -89,8 +91,8 @@ def animate_harmonic_field(
     axis_y = yy[:, 0]
     extent = [float(axis_x[0]), float(axis_x[-1]), float(axis_y[0]), float(axis_y[-1])]
 
-    imax = float(intensity.max())
-    bg = (intensity / imax) ** float(intensity_gamma) if imax > 0 else intensity
+    imax = float(intensity.max()) or 1.0
+    bg = intensity / imax  # true normalized |E|^2 in [0, 1]
 
     # Subsample the mesh to ~target_arrows arrows across the window.
     stride = max(1, int(round(n_img / max(int(target_arrows), 1))))
@@ -115,7 +117,11 @@ def animate_harmonic_field(
         _, ax = plt.subplots(figsize=(7.2, 6.0), constrained_layout=True)
     fig = ax.figure
 
-    im = ax.imshow(bg, extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=1.0)
+    # PowerNorm brightens the faint rings for display while the colorbar keeps
+    # an invariant, faithful linear axis in true normalized |E|^2 (0..1) -- the
+    # same scale regardless of intensity_gamma and identical across fields.
+    im = ax.imshow(bg, extent=extent, origin="lower", cmap=cmap,
+                   norm=PowerNorm(gamma=float(intensity_gamma), vmin=0.0, vmax=1.0))
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=r"$|E|^2$ (norm.)")
 
     q = ax.quiver(qx, qy, np.real(qEx) * weight, np.real(qEy) * weight,
