@@ -1,15 +1,10 @@
 """Study 3 - Image formation: scalar (t_minus = 0) vs vectorial vs aperture.
 
 A two-line mask, x-polarized, is imaged by a 4f-like system of two conjugate
-diopters (D1: air -> glass, D2: glass -> air, the geometry of the former
-``resolution_two_features`` example).  A circular pupil of radius ``Kc(r_a)``
-is applied in the Fourier plane between the diopters; sweeping the aperture
-radius ``r_a`` sweeps the numerical aperture of the system.
-
-The *scalar* system applies only the isotropic transmission ``t_plus`` at each
-diopter (t_minus = 0); the *vectorial* system applies the full transverse
-operator.  Both share the same pupil, so every difference in the images comes
-from the polarization mixing term.
+diopters (D1: air -> glass, D2: glass -> air; see ``imaging_common``).  A
+circular pupil of radius ``Kc(r_a)`` is applied in the Fourier plane between
+the diopters; sweeping the aperture radius ``r_a`` sweeps the numerical
+aperture of the system.
 
 For each aperture and for the two mask orientations (line separation parallel
 and perpendicular to the incident polarization) the script records the
@@ -22,145 +17,27 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-from vecdiff import CartesianSurface, FieldCartesian, Grid
-from vecdiff.propagation import fresnel_coefficients_on_grid
-
 import common
+import imaging_common as ic
+from imaging_common import LAM, MAG, Kc_of
 
-LAM = 532e-6  # mm
-
-D1 = dict(n0=1.0, ni=2.4, z0=-6.0, zi=3.6)
-D2 = dict(n0=D1["ni"], ni=1.0, z0=-D1["zi"], zi=3.6)
+D1 = ic.D1
+L = ic.L
 
 R_A_LIST = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.5]  # pupil radii in mm
 GALLERY_R_A = [3.0, 6.5]
 R_A_REF = 4.0                          # aperture defining the line separation
 
-N = 641
-L = 0.02  # mm
-N_K = 1024
-
 out = common.output_dir(__file__)
 
-
-def Kc_of(r_a):
-    alpha = np.arctan(r_a / abs(D1["z0"]))
-    return D1["n0"] * (2.0 * np.pi / LAM) * np.sin(alpha)
-
-
 # Two-line mask: separation 0.9 * d_Airy at the reference aperture.
-r_airy_ref = 3.8317059702075125 / Kc_of(R_A_REF)
-SEP = 0.9 * 2.0 * r_airy_ref
+SEP = 0.9 * 2.0 * ic.airy_radius(R_A_REF)
 LINE_W = 0.35 * SEP
 LINE_LEN = 3.0 * SEP
 
-x = np.linspace(-L / 2.0, L / 2.0, N)
-X, Y = np.meshgrid(x, x)
-DX = float(x[1] - x[0])
-
-
-def two_line_mask(theta):
-    """Binary mask of two lines whose separation axis makes ``theta`` with x."""
-    ux, uy = np.cos(theta), np.sin(theta)
-    vx, vy = -uy, ux
-    T = np.zeros_like(X)
-    for sign in (-1.0, 1.0):
-        cx, cy = sign * 0.5 * SEP * ux, sign * 0.5 * SEP * uy
-        u = (X - cx) * ux + (Y - cy) * uy
-        v = (X - cx) * vx + (Y - cy) * vy
-        T[(np.abs(u) <= 0.5 * LINE_W) & (np.abs(v) <= 0.5 * LINE_LEN)] = 1.0
-    return T
-
-
-def kgrid_from_spacing(n, dx):
-    k = 2.0 * np.pi * np.fft.fftshift(np.fft.fftfreq(n, d=dx))
-    KX, KY = np.meshgrid(k, k)
-    return Grid.from_cartesian(KX, KY, domain="k")
-
-
-def apply_t_plus(field, diopter):
-    """Scalar limit: multiply both components by t_plus = (tp + ts)/2."""
-    support = (np.abs(field.x) > 0.0) | (np.abs(field.y) > 0.0)
-    tp, ts = fresnel_coefficients_on_grid(field.grid.R, diopter, support=support)
-    t_plus = 0.5 * (tp + ts)
-    return FieldCartesian(x=t_plus * field.x, y=t_plus * field.y,
-                          grid=field.grid, symmetric=False)
-
-
-def stage1(mask, vectorial):
-    """Mask plane -> Fourier plane through D1 (no pupil yet)."""
-    E0 = FieldCartesian(x=mask.astype(complex), y=np.zeros_like(mask, dtype=complex),
-                        grid=Grid.from_cartesian(X, Y), symmetric=False)
-    diopter = CartesianSurface(**D1)
-    if vectorial:
-        return E0.propagate_through_diopter(
-            z=diopter.zi, ovoid=diopter, method="fft",
-            kgrid=kgrid_from_spacing(N_K, DX), transmission="vectorial")
-    E0s = apply_t_plus(E0, diopter)
-    return E0s.propagate_through_diopter(
-        z=diopter.zi, ovoid=diopter, method="fft",
-        kgrid=kgrid_from_spacing(N_K, DX), transmission="identity")
-
-
-def stage2(E1, r_a, vectorial):
-    """Pupil in the Fourier plane, then D2 to the image plane."""
-    kx = E1.grid.X[0, :]
-    ky = E1.grid.Y[:, 0]
-    KX, KY = np.meshgrid(kx, ky)
-    pupil = (KX**2 + KY**2) <= Kc_of(r_a) ** 2
-
-    scale = LAM * D1["zi"] / (2.0 * np.pi * D1["ni"])
-    XF, YF = np.meshgrid(scale * kx, scale * ky)
-    Ef = FieldCartesian(x=E1.x * pupil, y=E1.y * pupil,
-                        grid=Grid.from_cartesian(XF, YF), symmetric=False)
-
-    dxf = scale * float(kx[1] - kx[0])
-    diopter = CartesianSurface(**D2)
-    if vectorial:
-        return Ef.propagate_through_diopter(
-            z=diopter.zi, ovoid=diopter, method="fft",
-            kgrid=kgrid_from_spacing(N_K, dxf), output="focal",
-            wavelength=LAM, transmission="vectorial")
-    Efs = apply_t_plus(Ef, diopter)
-    return Efs.propagate_through_diopter(
-        z=diopter.zi, ovoid=diopter, method="fft",
-        kgrid=kgrid_from_spacing(N_K, dxf), output="focal",
-        wavelength=LAM, transmission="identity")
-
-
-# Transverse magnification of the two-diopter cascade (two Fourier stages).
-MAG = (D2["zi"] * D1["ni"]) / (D1["zi"] * D2["ni"])
-
-
-def _bilinear(I, xr, yr, px, py):
-    ix = np.clip(np.searchsorted(xr, px) - 1, 0, xr.size - 2)
-    iy = np.clip(np.searchsorted(yr, py) - 1, 0, yr.size - 2)
-    wx = np.clip((px - xr[ix]) / (xr[ix + 1] - xr[ix]), 0.0, 1.0)
-    wy = np.clip((py - yr[iy]) / (yr[iy + 1] - yr[iy]), 0.0, 1.0)
-    return ((1 - wy) * ((1 - wx) * I[iy, ix] + wx * I[iy, ix + 1])
-            + wy * ((1 - wx) * I[iy + 1, ix] + wx * I[iy + 1, ix + 1]))
-
 
 def two_line_contrast(E, theta):
-    """Valley contrast of the two-line image along the separation axis.
-
-    The image is magnified by ``MAG``: the line centers sit at
-    ``u = +-0.5 * MAG * SEP``.  Peaks and valley are searched in windows
-    around their nominal positions to stay robust against coherent ringing.
-    """
-    I = np.abs(E.x) ** 2 + np.abs(E.y) ** 2
-    xr = E.grid.X[0, :]
-    yr = E.grid.Y[:, 0]
-    u = np.linspace(-1.0, 1.0, 801) * (1.1 * MAG * SEP)
-    profile = _bilinear(I, xr, yr, u * np.cos(theta), u * np.sin(theta))
-
-    u_line = 0.5 * MAG * SEP
-    peak_win = np.abs(np.abs(u) - u_line) <= 0.3 * u_line
-    valley_win = np.abs(u) <= 0.4 * u_line
-    peaks = 0.5 * (profile[peak_win & (u < 0)].max() + profile[peak_win & (u > 0)].max())
-    valley = profile[valley_win].min()
-    contrast = (peaks - valley) / (peaks + valley + 1e-300)
-    return float(contrast), u, profile
+    return ic.valley_contrast(E, theta, SEP)
 
 
 def image_energies(E):
@@ -174,18 +51,17 @@ def image_energies(E):
 # ------------------------------------------------------------------ #
 
 orientations = {"sep_x": 0.0, "sep_y": 0.5 * np.pi}
-masks = {name: two_line_mask(theta) for name, theta in orientations.items()}
+masks = {name: ic.two_line_mask(theta, SEP, LINE_W, LINE_LEN)
+         for name, theta in orientations.items()}
 
 rows = []
 images = {}
 profiles = {}
 for name, theta in orientations.items():
-    E1 = {"vec": stage1(masks[name], vectorial=True),
-          "sca": stage1(masks[name], vectorial=False)}
     for r_a in R_A_LIST:
         I_sca_ref = None
         for model in ("sca", "vec"):
-            E2 = stage2(E1[model], r_a, vectorial=(model == "vec"))
+            E2 = ic.image(masks[name], r_a, vectorial=(model == "vec"))
             contrast, u, prof = two_line_contrast(E2, theta)
             e_co, e_cross = image_energies(E2)
             I_total = np.abs(E2.x) ** 2 + np.abs(E2.y) ** 2

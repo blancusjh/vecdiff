@@ -130,6 +130,42 @@ pupila circular en el plano de Fourier con radio barrido r_a = 2…6.5 mm
 ![galería sep y](results/s3_gallery_sep_y_ra6p5.png)
 ![perfiles](results/s3_profiles.png)
 
+## Estudio 4 — Inversión de resolución: el escalar resuelve, el vectorial no (`study_4_resolution_inversion.py`)
+
+Objetivo: encontrar configuraciones de dos características **distinguibles en el
+modelo escalar (t₋=0) pero indistinguibles en el vectorial**, tanto para dos
+líneas como para el caso canónico de dos características circulares (discos).
+
+**Mecanismo y diseño.** A lo largo del eje de separación el campo copolar de la
+imagen es A ∓ B (cos 2φ = ±1): B interfiere a *primer orden* con el campo
+escalar A. Con separación **perpendicular** a la polarización (A + B) el valle
+entre las dos imágenes se rellena; paralela, se profundiza. Para agrandar el
+efecto se usa una dioptra de salida rápida (D2 con zᵢ = 0.6, M = 0.4) y pupila
+ancha (r_a = 10 mm), que coloca el borde de la pupila de Fourier (≈1.29 mm)
+cerca de la rama rasante de D2 (1.46 mm) manteniendo toda la pupila física.
+Criterio de distinguibilidad: profundidad de valle C ≥ C_th.
+
+![ventana de inversión](results/s4_inversion_window.png)
+
+- **Discos (canónico), separación ⊥ polarización, C_th = 5%:** el umbral escalar
+  está en sep* = 0.630·d_Airy y el vectorial en 0.677·d_Airy → **ventana de
+  inversión de 0.047·d_Airy (~7% en separación)**. Escaparate en
+  sep = 0.68·d_Airy = 0.51 µm: **C_esc = 0.159 (valle visible) vs
+  C_vec = 0.044 (valle prácticamente plano)**.
+- **Líneas:** las líneas largas promedian el término cos 2φ a lo largo de su
+  longitud y su transición coherente de contraste es casi binaria (salta de
+  ~0 a ~0.4 en menos de un píxel de máscara), así que se usan líneas cortas
+  (longitud 1.5·sep) y el criterio tipo Rayleigh C_th = 15%. Ventana
+  [0.616, 0.633]·d_Airy; escaparate en sep = 0.62·d_Airy = 0.47 µm:
+  **C_esc = 0.225 vs C_vec = 0.087**.
+- **La inversión es direccional**: con separación **paralela** a la polarización
+  la ventana tiene signo opuesto (el vectorial resuelve *mejor* que el escalar,
+  ventana −0.020·d_Airy en discos). El término vectorial no "borra" resolución
+  de forma isótropa: la transfiere de una orientación a la otra.
+
+![showcase discos](results/s4_showcase_discs.png)
+![showcase líneas](results/s4_showcase_lines.png)
+
 ## Síntesis
 
 1. Al abrir la apertura, la componente cruzada crece como la **cuarta potencia** del
@@ -146,6 +182,11 @@ pupila circular en el plano de Fourier con radio barrido r_a = 2…6.5 mm
 4. **En imágenes**, el término vectorial produce resolución dependiente de la
    orientación (±0.02 de contraste cerca de Rayleigh), una imagen fantasma cruzada
    localizada en bordes/esquinas, y diferencias globales de ~2% a NA alta.
+5. **Existe un régimen de inversión de resolución**: con dioptra de salida rápida
+   y separación perpendicular a la polarización hay una ventana de separaciones
+   (~7% para dos puntos canónicos, ~3% para líneas cortas) en la que el modelo
+   escalar predice dos características resueltas y el vectorial las muestra
+   fusionadas — y la ventana cambia de signo al rotar la separación 90°.
 
 ## Límites del estudio
 
@@ -163,10 +204,14 @@ pupila circular en el plano de Fourier con radio barrido r_a = 2…6.5 mm
 ```bash
 pip install -e .   # desde la raíz del repositorio
 cd investigation/focal_plane_aperture_study
-python study_1_aperture_sweep.py   # ~40 s
-python study_2_maximize_cross.py   # ~60 s
-python study_3_imaging.py          # ~60 s
+python study_1_aperture_sweep.py          # ~40 s
+python study_2_maximize_cross.py          # ~60 s
+python study_3_imaging.py                 # ~60 s
+python study_4_resolution_inversion.py    # ~3 min
 ```
+
+`imaging_common.py` contiene la maquinaria compartida del sistema de dos
+dioptras usada por los estudios 3 y 4.
 
 Las salidas completas van a `output/<script>/`; `results/` conserva las figuras y
 CSV citados en este informe.
