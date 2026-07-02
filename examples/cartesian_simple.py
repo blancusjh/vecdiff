@@ -49,7 +49,8 @@ ax, _ = plot_field_polarization(
     scale=0.65 * _dr,
     scale_by_intensity=True,
     min_ellipse_scale=0.75,
-    arrow_length=0.3,
+    arrow_length=0.5,
+    arrow_opening_angle=np.deg2rad(70.0),
 )
 ax.set(title="Propagated Cartesian polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")
