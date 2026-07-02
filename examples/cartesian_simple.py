@@ -37,7 +37,10 @@ save(ax, "input_polarization")
 # be tiny and hard to tell apart at the library's default packing, so thin out
 # the azimuthal count (angular_spacing) to make room for an explicit, larger
 # scale -- the radial spacing (tied to n_rings/half_size) is what limits size
-# without overlap, not the azimuthal count.
+# without overlap, not the azimuthal count. A milder gamma and a lower size
+# floor let the intensity scaling actually show as a size gradient from the
+# bright core down to the faint 4th maximum, instead of everything past the
+# core clamping to the same floor size.
 _n_rings, _half_size = 24, 20.0
 _dr = _half_size / (_n_rings + 0.5)
 ax, _ = plot_field_polarization(
@@ -46,9 +49,10 @@ ax, _ = plot_field_polarization(
     sampling="polar",
     n_rings=_n_rings,
     angular_spacing=2.0,
-    scale=0.65 * _dr,
+    scale=0.75 * _dr,
     scale_by_intensity=True,
-    min_ellipse_scale=0.75,
+    intensity_scale_gamma=0.35,
+    min_ellipse_scale=0.28,
     arrow_length=0.5,
     arrow_opening_angle=np.deg2rad(70.0),
 )
