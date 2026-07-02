@@ -223,10 +223,10 @@ def test_polarization_map_color_override_disables_halo():
     plt.close(fig)
 
 
-def test_polarization_map_draws_arrowhead_for_linear_light():
-    # Linear light along x: the ellipse collapses to a line whose tangent
-    # vanishes at the turning point the arrowhead is placed on.  The renderer
-    # must fall back to the major axis so a head is still drawn.
+def test_polarization_map_linear_light_draws_headless_centered_line():
+    # Linear light has no handedness, so its glyph must be a clean line segment
+    # centred on the sample point with NO arrowhead (a spurious head would imply
+    # a travel/rotation direction and skew the glyph off-centre).
     x = np.array([[0.0]])
     y = np.array([[0.0]])
     pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[0.0 + 0.0j]]))
@@ -234,11 +234,39 @@ def test_polarization_map_draws_arrowhead_for_linear_light():
     fig, ax = plt.subplots()
     plot_polarization_map(x, y, pol, scale=1.0, ellipse_points=8, ellipse_mode="cartesian", ax=ax)
 
-    # collections[0] is the ellipse body, collections[1] the filled arrowhead
-    # triangle: one polygon must be drawn even though the light is linear.
-    assert len(ax.collections) == 2
-    assert len(ax.collections[1].get_paths()) == 1
+    # Only the line body is drawn -- no arrowhead polygon collection.
+    assert len(ax.collections) == 1
+    body = np.vstack([seg[0] for seg in ax.collections[0].get_segments()])
+    # The line is centred on the sample point (symmetric about x=0).
+    assert np.isclose(0.5 * (body[:, 0].min() + body[:, 0].max()), 0.0)
+    assert np.isclose(body[:, 1].min(), 0.0) and np.isclose(body[:, 1].max(), 0.0)
     plt.close(fig)
+
+
+def test_polarization_map_arrowhead_scales_with_ellipticity():
+    # Circular light gets a full head; a mildly elliptical field gets a
+    # proportionally shorter one; linear light none.  Head length must grow
+    # monotonically with |chi|.
+    def head_length(ey):
+        x = np.array([[0.0]]); yy = np.array([[0.0]])
+        pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[ey]]))
+        fig, ax = plt.subplots()
+        plot_polarization_map(yy, x, pol, scale=1.0, ellipse_points=64, ellipse_mode="cartesian", ax=ax)
+        if len(ax.collections) < 2:
+            plt.close(fig)
+            return 0.0
+        head = np.asarray(ax.collections[1].get_paths()[0].vertices)
+        apex, base_mid = head[0], 0.5 * (head[1] + head[2])
+        plt.close(fig)
+        return float(np.linalg.norm(apex - base_mid))
+
+    linear = head_length(0.0 + 0.0j)      # chi = 0
+    mild = head_length(0.3j)              # small ellipticity
+    circular = head_length(1.0j)          # chi = 45 deg, ratio = 1
+
+    assert linear == 0.0
+    assert 0.0 < mild < circular
+    plt.close("all")
 
 
 def test_field_polarization_polar_sampling_places_glyphs():

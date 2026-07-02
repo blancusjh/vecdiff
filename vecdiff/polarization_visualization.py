@@ -21,11 +21,18 @@ def _ellipse_glyph(ex, ey, points):
     circular light gives a clean circle, linear light a clean straight line.
     The semi-major axis is normalized to 1; callers scale it to the glyph size.
 
-    Returns ``(pts, head_point, head_dir)`` in the local (ex, ey) frame:
-    ``pts`` is an ``(points, 2)`` array tracing the ellipse, ``head_point`` is
-    the tip of the major axis and ``head_dir`` the direction the arrowhead
-    points -- the local tangent there (its sense encodes handedness), falling
-    back to the major axis for linear light where that tangent vanishes.
+    Returns ``(pts, head_point, head_dir, ellipticity)`` in the local (ex, ey)
+    frame: ``pts`` is an ``(points, 2)`` array tracing the ellipse,
+    ``head_point`` is the tip of the major axis, ``head_dir`` the direction the
+    arrowhead points, and ``ellipticity`` is ``|minor/major|`` in ``[0, 1]``.
+
+    The head caps the major-axis tip pointing *outward* along the axis, canted
+    by the local tangent so its sense encodes handedness; ``head_point`` and the
+    tangent are orthogonal, so ``outward + tangent`` never vanishes and stays
+    continuous as ``chi -> 0``.  The caller scales the head length by
+    ``ellipticity`` so linear light -- which has no handedness -- draws a clean
+    headless line centred on its sample point, and the head grows to full size
+    only for circular light.
     """
 
     ex = complex(ex)
@@ -49,10 +56,13 @@ def _ellipse_glyph(ex, ey, points):
 
     head_point = np.array([cos_p, sin_p])  # major-axis tip: rotate (1, 0)
     # Tangent at the major tip (theta=0): d/dtheta (xe, ye) = (0, ratio).
-    head_dir = np.array([-sin_p * ratio, cos_p * ratio])
-    if np.linalg.norm(head_dir) <= np.finfo(float).eps:
-        head_dir = head_point.copy()  # linear light: point along the line outward
-    return pts, head_point, head_dir
+    tangent = np.array([-sin_p * ratio, cos_p * ratio])
+    # Cap the tip pointing outward, canted by the tangent.  head_point and
+    # tangent are orthogonal, so the sum has magnitude sqrt(1 + ratio**2) >= 1
+    # and never vanishes -- continuous from linear (along the line) to circular
+    # (canted 45 deg), instead of the tangent flipping perpendicular at chi -> 0.
+    head_dir = head_point + tangent
+    return pts, head_point, head_dir, abs(float(ratio))
 
 
 def _polar_to_cartesian_basis(vectors, cx, cy):
@@ -75,7 +85,7 @@ def _arrowhead_triangle(tip, direction, length, width):
 
     direction = np.asarray(direction, dtype=float)
     norm = np.linalg.norm(direction)
-    if norm <= np.finfo(float).eps:
+    if norm <= np.finfo(float).eps or length <= np.finfo(float).eps:
         return None
     t = direction / norm
     perp = np.array([-t[1], t[0]])
@@ -294,7 +304,7 @@ def plot_polarization_map(
             size_factor = 1.0
         glyph_extent = scale * size_factor
 
-        pts, head_point, head_dir = _ellipse_glyph(ex_i, ey_i, ellipse_points)
+        pts, head_point, head_dir, ellipticity = _ellipse_glyph(ex_i, ey_i, ellipse_points)
         if ellipse_mode == "polar":
             pts = _polar_to_cartesian_basis(pts, cx, cy)
             head_point = _polar_to_cartesian_basis(head_point[None, :], cx, cy)[0]
@@ -305,7 +315,10 @@ def plot_polarization_map(
         segments = _curve_segments(curve)
         figure_segments.append(segments)
 
-        head_length = arrow_length * glyph_extent
+        # Scale the head by ellipticity: none for linear light (a clean line
+        # centred on the sample) growing to full size for circular light, so
+        # the head reads as a handedness marker, not a spurious travel arrow.
+        head_length = arrow_length * glyph_extent * ellipticity
         head = _arrowhead_triangle(
             glyph_extent * head_point + center,
             head_dir,
