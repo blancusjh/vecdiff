@@ -79,8 +79,11 @@ def _arrowhead_triangle(tip, direction, length, width):
         return None
     t = direction / norm
     perp = np.array([-t[1], t[0]])
-    apex = tip + 0.5 * length * t
-    base = tip - 0.5 * length * t
+    # Seat the head on the vertex (apex at the tip, base pulled inward) so it
+    # never overhangs the ellipse: the glyph stays centred on its grid point and
+    # the map reads as a uniform lattice.
+    apex = tip
+    base = tip - length * t
     return np.array([apex, base + 0.5 * width * perp, base - 0.5 * width * perp])
 
 
