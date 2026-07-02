@@ -43,8 +43,11 @@ Examples live in `examples/` and are intended to be run from the repository
 root:
 
 ```bash
-python examples/cartesian_simple.py
-python examples/circular_simple.py
+python examples/cartesian_simple.py            # single-diopter propagation basics
+python examples/aperture_scalar_vs_vectorial.py  # scalar (t- = 0) vs vectorial focus
+python examples/maximize_cross_polarization.py   # edge pupil maximizing the cross field
+python examples/two_diopter_imaging.py           # orientation-dependent vectorial imaging
+python examples/resolution_inversion.py          # scalar resolves, vectorial fuses
 ```
 
 Generated artifacts are written under `examples/output/`. See
@@ -58,5 +61,4 @@ vecdiff/          Python package
 examples/         Runnable scripts and generated-output conventions
 tests/            Unit tests
 docs/assets/      README and documentation media
-investigation/    Exploratory research scripts
 ```
