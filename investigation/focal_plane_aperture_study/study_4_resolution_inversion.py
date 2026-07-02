@@ -61,6 +61,10 @@ EDGE_P = 8.0
 # well below the Rayleigh threshold (clearly fused, not marginally resolved).
 SHOWCASE_VEC_MAX = 0.10
 S_FRACS = np.linspace(0.48, 0.84, 19)  # separations in units of d_Airy
+# Points across the displayed window for showcase/polarization renders, via a
+# zoom-FFT crop (see imaging_common.zoomed_focal_kgrid) -- decoupled from the
+# coarse default field-of-view pixel size used during the separation scan.
+RENDER_N_IMG = 480
 
 out = common.output_dir(__file__)
 
@@ -96,10 +100,10 @@ def make_systems():
     ]
 
 
-def make_mask(feature, theta, sep):
+def make_mask(feature, theta, sep, xy=None):
     if feature == "discs":
-        return ic.two_disc_mask(theta, sep, DISC_DIAM)
-    return ic.two_line_mask(theta, sep, 0.35 * sep, LINE_LEN_F * sep)
+        return ic.two_disc_mask(theta, sep, DISC_DIAM, xy=xy)
+    return ic.two_line_mask(theta, sep, 0.35 * sep, LINE_LEN_F * sep, xy=xy)
 
 
 def crossing(s, c, level):
@@ -202,9 +206,16 @@ def _render_showcase(system, feature, s_frac, mag, d_airy, caption):
     d1, d2, r_a, tag, edge_p = (system["d1"], system["d2"], system["r_a"],
                                 system["tag"], system["edge_p"])
     sep = s_frac * d_airy
-    mask = make_mask(feature, 0.5 * np.pi, sep)
-    E_s = ic.image(mask, r_a, False, edge_p=edge_p, d1=d1, d2=d2)
-    E_v = ic.image(mask, r_a, True, edge_p=edge_p, d1=d1, d2=d2)
+    lim = 1.6 * mag * sep / LAM  # half-window in wavelengths, image plane
+
+    # Render on a dense zoom-FFT crop of the actual window shown (RENDER_N_IMG
+    # points inside it) instead of inheriting the coarse pixel size of the
+    # default full-field output grid (whose FOV is fixed, so zooming into a
+    # sub-wavelength window would only show a handful of its pixels).
+    render_kgrid = ic.zoomed_focal_kgrid(1.05 * lim * LAM, RENDER_N_IMG, d2=d2)
+    mask_scan = make_mask(feature, 0.5 * np.pi, sep)  # for the propagation (coarse) grid
+    E_s = ic.image(mask_scan, r_a, False, edge_p=edge_p, d1=d1, d2=d2, kgrid=render_kgrid)
+    E_v = ic.image(mask_scan, r_a, True, edge_p=edge_p, d1=d1, d2=d2, kgrid=render_kgrid)
     Cs, u_s, p_s = ic.valley_contrast(E_s, 0.5 * np.pi, sep, mag=mag)
     Cv, u_v, p_v = ic.valley_contrast(E_v, 0.5 * np.pi, sep, mag=mag)
     label = "discos" if feature == "discs" else "líneas"
@@ -214,12 +225,16 @@ def _render_showcase(system, feature, s_frac, mag, d_airy, caption):
     vmax = max(I_s.max(), I_v.max())
     xr, yr = E_s.grid.X[0, :] / LAM, E_s.grid.Y[:, 0] / LAM
     extent = [xr[0], xr[-1], yr[0], yr[-1]]
-    lim = 1.6 * mag * sep / LAM
+
+    # Mask panel rendered on its own fine grid (display-only, decoupled from
+    # the coarse mask-plane propagation sampling) so it is equally sharp.
+    mask_half_mm = (lim / mag) * LAM
+    mask_xy = ic.fine_mask_grid(mask_half_mm, RENDER_N_IMG)
+    mask_fine = make_mask(feature, 0.5 * np.pi, sep, xy=mask_xy)
 
     fig, axes = plt.subplots(1, 4, figsize=(17.5, 4.3), constrained_layout=True)
-    half_L = 0.5 * ic.L
-    axes[0].imshow(mask, extent=[v / LAM for v in (-half_L, half_L, -half_L, half_L)],
-                   origin="lower", cmap="gray")
+    mask_extent = [v / LAM for v in (-mask_half_mm, mask_half_mm, -mask_half_mm, mask_half_mm)]
+    axes[0].imshow(mask_fine, extent=mask_extent, origin="lower", cmap="gray")
     axes[0].set_title("Máscara (objeto)")
     axes[0].set_xlim(-lim / mag, lim / mag)
     axes[0].set_ylim(-lim / mag, lim / mag)
@@ -265,7 +280,7 @@ def _render_polarization(system, feature, s_frac, sep, lim, vmax, E_s, E_v, capt
 
     pol_maps = {}
     for name, E_lam in (("escalar", E_s_lam), ("vectorial", E_v_lam)):
-        xx, yy, pol = polarization_map_from_field(E_lam, half_size=1.05 * lim, n_img=340)
+        xx, yy, pol = polarization_map_from_field(E_lam, half_size=1.05 * lim, n_img=RENDER_N_IMG)
         pol_maps[name] = (xx, yy, pol)
 
     _, _, pol_v = pol_maps["vectorial"]
@@ -312,7 +327,7 @@ def _render_polarization(system, feature, s_frac, sep, lim, vmax, E_s, E_v, capt
 
     fig, axes = plt.subplots(1, 2, figsize=(13.6, 6.4), constrained_layout=True)
     for axi, (name, E_lam) in zip(axes, (("escalar ($t_-=0$)", E_s_lam), ("vectorial", E_v_lam))):
-        plot_field_polarization(E_lam, half_size=1.05 * lim, n_img=300, sampling="cartesian",
+        plot_field_polarization(E_lam, half_size=1.05 * lim, n_img=RENDER_N_IMG, sampling="cartesian",
                                 target_ellipses=17, min_intensity_fraction=0.01, ax=axi)
         axi.set_title(name)
         axi.set_xlim(-lim, lim)
