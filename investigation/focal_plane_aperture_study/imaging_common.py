@@ -46,19 +46,20 @@ def airy_radius(r_a):
 
 
 def system_caption(r_a=None, *, d2=None, lam=LAM):
-    """One-line summary of the two-diopter stigmatic imaging system.
+    """Compact one-line summary of the two-diopter stigmatic imaging system.
 
-    Reports both diopters (n0, ni, z0, zi) and the wavelength; when a pupil
-    radius ``r_a`` is given, appends it and the maximum object-side aperture
-    angle ``alpha = arctan(r_a / |z0(D1)|)``.
+    The diopters are conjugate: D2 runs the indices back (ni -> n0) and its
+    object plane is fixed by D1's image plane, ``z0(D2) = -zi(D1)``.  So the
+    whole cascade is set by the index pair and the three axial planes
+    ``z0, zi1, zi2`` -- the rest is redundant and omitted.
     """
     d2 = D2 if d2 is None else d2
-    cap = (rf"D1: $n_0$={D1['n0']}$\to${D1['ni']}, $z_0$={D1['z0']}, $z_i$={D1['zi']} mm  ·  "
-           rf"D2: $n_0$={d2['n0']}$\to${d2['ni']}, $z_0$={d2['z0']}, $z_i$={d2['zi']} mm  ·  "
+    cap = (rf"dioptrios conjugados: $n_0$={D1['n0']:g}, $n_i$={D1['ni']:g}  ·  "
+           rf"$z_0$={D1['z0']:g}, $z_{{i1}}$={D1['zi']:g}, $z_{{i2}}$={d2['zi']:g} mm  ·  "
            rf"$\lambda$={lam * 1e6:.0f} nm")
     if r_a is not None:
         alpha = np.degrees(np.arctan(r_a / abs(D1["z0"])))
-        cap += rf"  ·  apertura $r_a$={r_a} mm, $\alpha_{{max}}$={alpha:.1f}°"
+        cap += rf"  ·  $r_a$={r_a:g} mm, $\alpha_\mathrm{{max}}$={alpha:.1f}°"
     return cap
 
 
