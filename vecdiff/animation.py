@@ -142,12 +142,18 @@ def animate_harmonic_field(
     if caption:
         fig.suptitle(caption, fontsize=8)
 
+    # Solve the constrained layout once, then freeze it.  Otherwise the layout
+    # is re-solved every frame and the changing title width (omega t = 0.00 vs
+    # 12.57) nudges the axes and colorbar by a pixel, making them shimmer.
+    fig.canvas.draw()
+    fig.set_layout_engine("none")
+
     omega_t = np.linspace(0.0, 2.0 * np.pi * n_periods, n_frames, endpoint=False)
 
     def update(frame):
         phase = np.exp(-1.0j * omega_t[frame])
         q.set_UVC(np.real(qEx * phase) * weight, np.real(qEy * phase) * weight)
-        title_artist.set_text(f"{title}  |  $\\omega t = {omega_t[frame]:.2f}$")
+        title_artist.set_text(f"{title}  |  $\\omega t = {omega_t[frame]:6.2f}$")
         return q, title_artist
 
     return FuncAnimation(fig, update, frames=n_frames, interval=1000.0 / 24.0, blit=False)
@@ -156,23 +162,36 @@ def animate_harmonic_field(
 def save_animation(anim, path, *, fps=24, dpi=90, colors=128):
     """Save a :class:`FuncAnimation` to ``path`` (``.gif`` via Pillow, else ffmpeg).
 
-    For GIFs the frames are re-quantized to an adaptive ``colors``-entry palette
-    and optimized, which shrinks the file several-fold versus the raw writer
-    output (smooth ring gradients otherwise compress poorly).
+    The GIF path renders each frame's RGBA buffer directly and remaps every
+    frame to a *single global* ``colors``-entry palette (dithering off).  This
+    bypasses ``PillowWriter``'s per-frame adaptive quantization, which
+    re-quantizes identical static pixels (e.g. the colorbar) slightly
+    differently each frame and makes them shimmer; one global table keeps
+    static regions rock-steady.
     """
     path = str(path)
+    fig = anim._fig
+
     if not path.lower().endswith(".gif"):
         anim.save(path, fps=fps, dpi=dpi)
         return path
 
-    from matplotlib.animation import PillowWriter
-    anim.save(path, writer=PillowWriter(fps=fps), dpi=dpi)
+    from PIL import Image
 
-    from PIL import Image, ImageSequence
-    with Image.open(path) as gif:
-        frames = [f.convert("RGB").quantize(colors=colors, method=Image.MEDIANCUT)
-                  for f in ImageSequence.Iterator(gif)]
-        duration = gif.info.get("duration", int(1000 / fps))
+    fig.set_dpi(dpi)
+    fig.canvas.draw()
+    rgb = []
+    for data in anim.new_frame_seq():
+        anim._func(data)          # update the artists for this frame
+        fig.canvas.draw()
+        buf = np.asarray(fig.canvas.buffer_rgba())[..., :3]
+        rgb.append(Image.fromarray(buf.copy()))
+
+    # One global palette from the first frame (its static background + full
+    # colorbar already span the colour range), reused for every frame so
+    # identical pixels map to identical indices and never flicker.
+    master = rgb[0].quantize(colors=colors, method=Image.MEDIANCUT)
+    frames = [im.quantize(palette=master, dither=Image.Dither.NONE) for im in rgb]
     frames[0].save(path, save_all=True, append_images=frames[1:], loop=0,
-                   duration=duration, optimize=True, disposal=2)
+                   duration=int(1000 / fps), optimize=False, disposal=1)
     return path
