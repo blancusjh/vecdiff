@@ -382,6 +382,61 @@ def plot_polarization_map(
     return ax
 
 
+def plot_polarization_scalar_map(
+    field,
+    quantity: Literal["ellipticity", "orientation"],
+    half_size: float | None = None,
+    n_img: int = 500,
+    min_intensity_fraction: float = 0.002,
+    ax=None,
+):
+    """Plot a scalar map of the local ellipticity angle or major-axis orientation.
+
+    ``quantity="ellipticity"`` shows the ellipticity angle ``chi`` (0 deg is
+    linear, +-45 deg is circular). ``quantity="orientation"`` shows the
+    major-axis angle ``psi`` of the polarization ellipse. Both are masked
+    below ``min_intensity_fraction`` of the peak intensity, where the local
+    polarization state is not meaningfully defined.
+    """
+
+    from .polarization import polarization_map_from_field
+
+    if quantity == "ellipticity":
+        vmin, vmax = -45.0, 45.0
+        cmap = "RdBu_r"
+        label = r"Ellipticity angle $\chi$ (deg)"
+    elif quantity == "orientation":
+        vmin, vmax = -90.0, 90.0
+        cmap = "twilight_shifted"
+        label = r"Major-axis angle $\psi$ (deg)"
+    else:
+        raise ValueError("quantity must be 'ellipticity' or 'orientation'.")
+
+    xx, yy, pol = polarization_map_from_field(field, half_size=half_size, n_img=n_img)
+    values_rad = pol.chi if quantity == "ellipticity" else pol.psi
+    values_deg = np.rad2deg(values_rad)
+
+    s0_max = float(np.nanmax(pol.s0)) + np.finfo(float).eps
+    masked = np.where(pol.s0 > float(min_intensity_fraction) * s0_max, values_deg, np.nan)
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 6))
+
+    im = ax.imshow(
+        masked,
+        extent=[float(np.min(xx)), float(np.max(xx)), float(np.min(yy)), float(np.max(yy))],
+        origin="lower",
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        aspect="equal",
+    )
+    plt.colorbar(im, ax=ax, label=label)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    return ax, pol
+
+
 def plot_polarization_quiver(
     x: np.ndarray,
     y: np.ndarray,

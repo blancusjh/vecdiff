@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from vecdiff import CartesianSurface, FieldCircular, Grid
-from vecdiff.polarization_visualization import plot_field_polarization
+from vecdiff.polarization_visualization import plot_field_polarization, plot_polarization_scalar_map
 from vecdiff.view import plot_field
 from _common import focal_field, figure_saver
 
@@ -40,5 +40,22 @@ ax, _ = plot_field_polarization(
 )
 ax.set(title="Propagated circular polarization", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
 save(ax, "propagated_polarization")
+
+# Scalar maps: ellipticity angle and major-axis orientation of the local ellipse.
+ax, _ = plot_polarization_scalar_map(E0, "ellipticity", half_size=R)
+ax.set_title("Input ellipticity angle")
+save(ax, "input_ellipticity")
+
+ax, _ = plot_polarization_scalar_map(E0, "orientation", half_size=R)
+ax.set_title("Input major-axis orientation")
+save(ax, "input_orientation")
+
+ax, _ = plot_polarization_scalar_map(E_focal, "ellipticity", half_size=5.0)
+ax.set(title="Propagated ellipticity angle", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
+save(ax, "propagated_ellipticity")
+
+ax, _ = plot_polarization_scalar_map(E_focal, "orientation", half_size=5.0)
+ax.set(title="Propagated major-axis orientation", xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
+save(ax, "propagated_orientation")
 
 plt.show()
