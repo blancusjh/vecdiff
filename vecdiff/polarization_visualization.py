@@ -382,12 +382,29 @@ def plot_polarization_map(
     return ax
 
 
+def _autocrop_extent(xx, yy, valid, padding=1.15):
+    """Return a square ``(xmin, xmax, ymin, ymax)`` box tightly bounding ``valid``."""
+
+    if not np.any(valid):
+        return float(np.min(xx)), float(np.max(xx)), float(np.min(yy)), float(np.max(yy))
+
+    radius = float(np.max(np.hypot(xx[valid], yy[valid]))) * padding
+    radius = min(radius, float(np.max(np.hypot(xx, yy))))
+    if radius <= 0.0:
+        radius = float(np.max(np.hypot(xx, yy))) or 1.0
+    return -radius, radius, -radius, radius
+
+
 def plot_polarization_scalar_map(
     field,
     quantity: Literal["ellipticity", "orientation"],
     half_size: float | None = None,
     n_img: int = 500,
     min_intensity_fraction: float = 0.002,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    autocrop: bool = True,
+    crop_padding: float = 1.15,
     ax=None,
 ):
     """Plot a scalar map of the local ellipticity angle or major-axis orientation.
@@ -397,16 +414,25 @@ def plot_polarization_scalar_map(
     major-axis angle ``psi`` of the polarization ellipse. Both are masked
     below ``min_intensity_fraction`` of the peak intensity, where the local
     polarization state is not meaningfully defined.
+
+    The color range defaults (``vmin``/``vmax`` left as ``None``) to the
+    actual spread of the data instead of the full physical range: a field
+    that stays close to linear polarization would otherwise wash out to a
+    single near-white color against a fixed +-45/+-90 deg scale. Pass explicit
+    ``vmin``/``vmax`` to compare several plots on the same scale. When
+    ``autocrop`` is enabled, the axes are zoomed to the region where the
+    signal actually exceeds ``min_intensity_fraction`` instead of showing the
+    full sampled window, most of which would otherwise be blank.
     """
 
     from .polarization import polarization_map_from_field
 
     if quantity == "ellipticity":
-        vmin, vmax = -45.0, 45.0
+        vmax_physical = 45.0
         cmap = "RdBu_r"
         label = r"Ellipticity angle $\chi$ (deg)"
     elif quantity == "orientation":
-        vmin, vmax = -90.0, 90.0
+        vmax_physical = 90.0
         cmap = "twilight_shifted"
         label = r"Major-axis angle $\psi$ (deg)"
     else:
@@ -417,7 +443,14 @@ def plot_polarization_scalar_map(
     values_deg = np.rad2deg(values_rad)
 
     s0_max = float(np.nanmax(pol.s0)) + np.finfo(float).eps
-    masked = np.where(pol.s0 > float(min_intensity_fraction) * s0_max, values_deg, np.nan)
+    valid = pol.s0 > float(min_intensity_fraction) * s0_max
+    masked = np.where(valid, values_deg, np.nan)
+
+    if vmin is None or vmax is None:
+        data_scale = float(np.nanmax(np.abs(masked[valid]))) if np.any(valid) else vmax_physical
+        data_scale = min(max(data_scale * 1.15, 1e-6), vmax_physical)
+        vmin = -data_scale if vmin is None else vmin
+        vmax = data_scale if vmax is None else vmax
 
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 6))
@@ -434,6 +467,10 @@ def plot_polarization_scalar_map(
     plt.colorbar(im, ax=ax, label=label)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
+    if autocrop:
+        xmin, xmax, ymin, ymax = _autocrop_extent(xx, yy, valid, padding=crop_padding)
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
     return ax, pol
 
 
@@ -674,3 +711,99 @@ def plot_field_polarization(
     else:
         raise ValueError("glyph must be 'ellipse' or 'quiver'.")
     return ax, pol
+
+
+def plot_field_polarization_summary(
+    field,
+    half_size: float | None = None,
+    n_img: int = 500,
+    title: str | None = None,
+    component_view: str = "abs",
+    cmap: str = "hot",
+    min_intensity_fraction: float = 0.002,
+    crop_padding: float = 1.15,
+    show_cross_fraction: bool = False,
+    polarization_kwargs: Mapping[str, Any] | None = None,
+    cross_fraction_kwargs: Mapping[str, Any] | None = None,
+    figsize: tuple[float, float] | None = None,
+):
+    """Combine the component, intensity, polarization, and scalar-angle maps into one figure.
+
+    Lays out (component 1, component 2, intensity) on the top row and
+    (polarization ellipses, ellipticity angle, major-axis orientation) on the
+    bottom row, all cropped to the same region where the signal exceeds
+    ``min_intensity_fraction`` of its peak -- avoiding both a scattered set of
+    separate figures and the mostly-blank margins a fixed large window leaves
+    around a compact focal spot. With ``show_cross_fraction=True`` a fourth
+    column adds the ``Ey``-fraction diagnostic.
+    """
+
+    from .polarization import polarization_map_from_field
+    from .view import field_cartesian_maps
+
+    polarization_kwargs = dict(polarization_kwargs or {})
+
+    ncols = 4 if show_cross_fraction else 3
+    if figsize is None:
+        figsize = (4.6 * ncols, 8.2)
+    fig, axes = plt.subplots(2, ncols, figsize=figsize, constrained_layout=True)
+
+    rep = {"abs": np.abs, "real": np.real, "imag": np.imag}[component_view]
+    c1, c2, extent, labels = field_cartesian_maps(field, half_size=half_size, n_img=n_img)
+    i1, i2 = rep(c1), rep(c2)
+    intensity = i1**2 + i2**2
+
+    for ax, img, label in ((axes[0, 0], i1, labels[0]), (axes[0, 1], i2, labels[1])):
+        vmax = float(np.max(np.abs(img))) or 1.0
+        im = ax.imshow(np.abs(img), extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
+        ax.set_title(rf"$E_{{{label}}}$")
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    vmax = float(np.max(intensity)) or 1.0
+    im = axes[0, 2].imshow(intensity, extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
+    axes[0, 2].set_title("Intensity")
+    fig.colorbar(im, ax=axes[0, 2], fraction=0.046, pad=0.04)
+
+    polarization_kwargs.setdefault("half_size", half_size)
+    polarization_kwargs.setdefault("n_img", n_img)
+    plot_field_polarization(field, ax=axes[1, 0], **polarization_kwargs)
+    axes[1, 0].set_title("Polarization")
+
+    plot_polarization_scalar_map(
+        field, "ellipticity", half_size=half_size, n_img=n_img,
+        min_intensity_fraction=min_intensity_fraction, autocrop=False, ax=axes[1, 1],
+    )
+    axes[1, 1].set_title("Ellipticity angle")
+
+    plot_polarization_scalar_map(
+        field, "orientation", half_size=half_size, n_img=n_img,
+        min_intensity_fraction=min_intensity_fraction, autocrop=False, ax=axes[1, 2],
+    )
+    axes[1, 2].set_title("Major-axis orientation")
+
+    # The cross-polarization diagnostic deliberately uses very low intensity
+    # thresholds to reveal faint nodal-ring features across the whole sampled
+    # window, so it is excluded from the shared crop below.
+    uncropped_axes = set()
+    if show_cross_fraction:
+        cross_fraction_kwargs = dict(cross_fraction_kwargs or {})
+        cross_fraction_kwargs.setdefault("half_size", half_size)
+        cross_fraction_kwargs.setdefault("n_img", n_img)
+        cross_fraction_kwargs.setdefault("background", "cross_fraction")
+        cross_fraction_kwargs.setdefault("glyph", "quiver")
+        plot_field_polarization(field, ax=axes[0, 3], **cross_fraction_kwargs)
+        axes[0, 3].set_title("Cross-polarization fraction")
+        axes[1, 3].axis("off")
+        uncropped_axes = {axes[0, 3]}
+
+    xx, yy, pol = polarization_map_from_field(field, half_size=half_size, n_img=n_img)
+    valid = pol.s0 > float(min_intensity_fraction) * (float(np.nanmax(pol.s0)) + np.finfo(float).eps)
+    xmin, xmax, ymin, ymax = _autocrop_extent(xx, yy, valid, padding=crop_padding)
+    for ax in axes.flat:
+        if ax.has_data() and ax not in uncropped_axes:
+            ax.set_xlim(xmin, xmax)
+            ax.set_ylim(ymin, ymax)
+
+    if title:
+        fig.suptitle(title)
+    return fig, axes
