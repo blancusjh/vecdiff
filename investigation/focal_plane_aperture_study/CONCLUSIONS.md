@@ -166,6 +166,31 @@ Criterio de distinguibilidad: profundidad de valle C ≥ C_th.
 ![showcase discos](results/s4_showcase_discs.png)
 ![showcase líneas](results/s4_showcase_lines.png)
 
+### Análisis de polarización de las imágenes
+
+Para cada escaparate se analiza el estado de polarización de la imagen
+(componentes, parámetros de Stokes → orientación ψ y elipticidad χ, y elipses
+locales con las utilidades de `vecdiff.polarization`):
+
+![polarización discos](results/s4_polarization_discs.png)
+![polarización líneas](results/s4_polarization_lines.png)
+
+- **Imagen escalar:** polarización uniforme — E_y ≡ 0, ψ ≡ 0, χ ≡ 0 en todo el
+  plano; las elipses son segmentos horizontales alineados con la polarización
+  incidente x̂.
+- **Imagen vectorial:** la fracción cruzada de la imagen es
+  **f_cross ≈ 1.5×10⁻²** (dos órdenes por encima del sistema lento del
+  Estudio 3). |E_y|² forma el trébol de cuatro lóbulos anclado a las esquinas
+  de cada característica.
+- **La luz cruzada está casi en fase con la copolar:** la elipticidad se
+  mantiene |χ| ≲ 1° en toda la zona brillante — el campo sigue siendo casi
+  lineal. El efecto dominante es una **rotación del plano de polarización**:
+  ψ alcanza ±35° en los flancos laterales (donde el copolar es débil) con un
+  patrón cuadrupolar antisimétrico, y unos pocos grados dentro de los lóbulos
+  brillantes. Esa coherencia de fase entre A y B es justo lo que hace el
+  llenado del valle un efecto de primer orden (2·Re(A·B*)) y no de segundo
+  (|B|²).
+
 ## Síntesis
 
 1. Al abrir la apertura, la componente cruzada crece como la **cuarta potencia** del

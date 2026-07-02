@@ -165,7 +165,7 @@ axes[2].set_title("Compromiso eficiencia vs componente cruzada")
 axes[2].grid(True, which="both", alpha=0.3)
 axes[2].legend()
 
-fig.suptitle("Maximización de la componente cruzada (Fresnel exacto, rama física del óvalo)")
+fig.suptitle(r"Componente cruzada vs índice y pupila (Fresnel exacto, rama física del óvalo) | pol. incidente lineal $\hat{x}$")
 fig.savefig(out / "fig1_maximization.png", dpi=220)
 plt.close(fig)
 
@@ -201,9 +201,10 @@ for axi, (img, cmap, title, clim) in zip(axes, panels):
     axi.set_ylabel(r"$y/\lambda$")
     fig.colorbar(im, ax=axi, fraction=0.046, pad=0.04)
 fig.suptitle(
-    rf"Mejor configuración: $n_i$={best_entry['ni']}, $\epsilon$={best_entry['eps']}, "
+    rf"$n_i$={best_entry['ni']}, $\epsilon$={best_entry['eps']}, "
     rf"$p$={best_entry['p']}, a={best_entry['a']:.2f} mm  |  "
-    rf"$f_{{cross}}$={best_entry['f_cross']:.3f}, throughput={best_entry['throughput']:.3f}"
+    rf"$f_{{cross}}$={best_entry['f_cross']:.3f}, throughput={best_entry['throughput']:.3f}  |  "
+    r"pol. incidente lineal $\hat{x}$"
 )
 fig.savefig(out / "fig2_best_config_maps.png", dpi=200)
 plt.close(fig)
@@ -233,7 +234,7 @@ for axi, img, title in zip(axes, (clover, ring),
     axi.set_xlabel(r"$x/\lambda$")
     axi.set_ylabel(r"$y/\lambda$")
     fig.colorbar(im, ax=axi, fraction=0.046, pad=0.04)
-fig.suptitle("Forma del canal cruzado según la base de polarización (misma energía)")
+fig.suptitle(r"Canal cruzado: entrada lineal $\hat{x}$ vs entrada circular $L$")
 fig.savefig(out / "fig3_cross_channel_shape.png", dpi=200)
 plt.close(fig)
 

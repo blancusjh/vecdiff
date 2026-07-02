@@ -32,6 +32,9 @@ import common
 import imaging_common as ic
 from imaging_common import LAM
 
+from vecdiff.polarization import polarization_from_field
+from vecdiff.polarization_visualization import plot_field_polarization
+
 R_A = 10.0
 D2_FAST = dict(n0=ic.D1["ni"], ni=1.0, z0=-ic.D1["zi"], zi=0.6)
 MAG = ic.mag_of(D2_FAST)
@@ -119,7 +122,7 @@ for axi, feature in zip(axes, ("discs", "lines")):
     s2 = crossing(S_FRACS, c_vec, C_TH[feature])
     if np.isfinite(s1) and np.isfinite(s2) and s2 > s1:
         axi.axvspan(s1, s2, color="gold", alpha=0.35,
-                    label="escalar sí / vectorial no")
+                    label=r"ventana $C_{esc} \geq C_{th} > C_{vec}$")
     axi.axhline(C_TH[feature], color="k", lw=0.8, ls=":")
     axi.axhline(0.0, color="k", lw=0.8)
     axi.set_xlabel(r"separación [$d_{Airy}$]")
@@ -130,7 +133,8 @@ for axi, feature in zip(axes, ("discs", "lines")):
     axi.grid(True, alpha=0.3)
     axi.legend(fontsize=8)
 fig.suptitle(
-    rf"Inversión de resolución | $r_a$={R_A} mm, D2 rápida ($z_i$={D2_FAST['zi']})")
+    rf"Contraste del valle vs separación | $r_a$={R_A} mm, D2 rápida ($z_i$={D2_FAST['zi']}) | "
+    r"polarización incidente lineal $\hat{x}$")
 fig.savefig(out / "fig1_inversion_window.png", dpi=220)
 plt.close(fig)
 
@@ -178,10 +182,10 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
     axes[0].set_ylim(-lim / MAG, lim / MAG)
     im1 = axes[1].imshow((I_s / vmax) ** 0.8, extent=extent, origin="lower",
                          cmap="gray", vmin=0, vmax=1)
-    axes[1].set_title(f"Imagen escalar: C = {Cs:.3f} (distinguible)")
+    axes[1].set_title(f"Imagen escalar ($t_-=0$): C = {Cs:.3f}")
     im2 = axes[2].imshow((I_v / vmax) ** 0.8, extent=extent, origin="lower",
                          cmap="gray", vmin=0, vmax=1)
-    axes[2].set_title(f"Imagen vectorial: C = {Cv:.3f} (indistinguible)")
+    axes[2].set_title(f"Imagen vectorial: C = {Cv:.3f}")
     for axi in axes[1:3]:
         axi.set_xlim(-lim, lim)
         axi.set_ylim(-lim, lim)
@@ -197,17 +201,89 @@ for feature, figname in (("discs", "fig2_showcase_discs.png"),
         axes[3].axvline(s, color="gray", lw=0.7, alpha=0.6)
     axes[3].set_xlabel(r"$u / (M \cdot sep)$")
     axes[3].set_ylabel("I (norm.)")
-    axes[3].set_title("Perfil a lo largo de la separación (⊥ a la polarización)")
+    axes[3].set_title(r"Perfil a lo largo de la separación ($\parallel \hat{y}$)")
     axes[3].grid(True, alpha=0.3)
     axes[3].legend()
 
     label = "discos" if feature == "discs" else "líneas"
     fig.suptitle(
-        rf"{label}: sep = {s_frac:.2f} $d_{{Airy}}$ = {sep*1e3:.3f} µm — "
-        rf"el modelo escalar resuelve, el vectorial no")
+        rf"{label}: sep = {s_frac:.2f} $d_{{Airy}}$ = {sep*1e3:.3f} µm | "
+        r"polarización incidente lineal $\hat{x}$, separación $\parallel \hat{y}$")
     fig.savefig(out / figname, dpi=200)
     plt.close(fig)
     print(f"{feature}: showcase en sep = {s_frac:.2f} dAiry "
           f"(C_sca = {Cs:.3f}, C_vec = {Cv:.3f})")
+
+    # -------------------------------------------------------------- #
+    #  Polarization analysis of the showcase images                    #
+    # -------------------------------------------------------------- #
+    polfig = "fig4_polarization_discs.png" if feature == "discs" else "fig5_polarization_lines.png"
+    fig, axes = plt.subplots(2, 5, figsize=(21, 7.8), constrained_layout=True)
+
+    # Shared color scales taken from the vectorial image.
+    pol_v = polarization_from_field(E_v)
+    bright_v = pol_v.s0 > 0.02 * pol_v.s0.max()
+    iy_lim = float((np.abs(pol_v.ey) ** 2 / vmax).max())
+    psi_lim = max(5.0, float(np.nanpercentile(
+        np.abs(np.degrees(np.where(bright_v, pol_v.psi, np.nan))), 99)))
+    chi_lim = max(1.0, 1.2 * float(np.nanmax(
+        np.abs(np.degrees(np.where(bright_v, pol_v.chi, np.nan))))))
+
+    from vecdiff import FieldCartesian, Grid
+
+    for row_i, (E, tag) in enumerate(((E_s, "escalar ($t_-=0$)"), (E_v, "vectorial"))):
+        pol = polarization_from_field(E)
+        Ix = np.abs(pol.ex) ** 2
+        Iy = np.abs(pol.ey) ** 2
+        s0 = pol.s0
+        bright = s0 > 0.02 * s0.max()
+        f_cross_img = float(Iy.sum() / (s0.sum() + 1e-300))
+
+        im = axes[row_i, 0].imshow((Ix / vmax) ** 0.8, extent=extent, origin="lower",
+                                   cmap="gray", vmin=0, vmax=1)
+        axes[row_i, 0].set_title(rf"{tag}: $|E_x|^2$ (copolar)")
+        fig.colorbar(im, ax=axes[row_i, 0], fraction=0.046, pad=0.04)
+
+        im = axes[row_i, 1].imshow(Iy / vmax, extent=extent, origin="lower", cmap="magma",
+                                   vmin=0.0, vmax=iy_lim)
+        axes[row_i, 1].set_title(rf"$|E_y|^2$ (cruzada), $f_{{cross}}$ = {f_cross_img:.1e}")
+        fig.colorbar(im, ax=axes[row_i, 1], fraction=0.046, pad=0.04)
+
+        psi = np.where(bright, np.degrees(pol.psi), np.nan)
+        im = axes[row_i, 2].imshow(psi, extent=extent, origin="lower",
+                                   cmap="RdBu_r", vmin=-psi_lim, vmax=psi_lim)
+        axes[row_i, 2].set_title(r"orientación $\psi$ [$^\circ$]")
+        fig.colorbar(im, ax=axes[row_i, 2], fraction=0.046, pad=0.04)
+
+        chi = np.where(bright, np.degrees(pol.chi), np.nan)
+        im = axes[row_i, 3].imshow(chi, extent=extent, origin="lower",
+                                   cmap="RdBu_r", vmin=-chi_lim, vmax=chi_lim)
+        axes[row_i, 3].set_title(r"elipticidad $\chi$ [$^\circ$]")
+        fig.colorbar(im, ax=axes[row_i, 3], fraction=0.046, pad=0.04)
+
+        # Glyph panel in wavelength units with peak-normalized intensity.
+        E_lam = FieldCartesian(
+            x=E.x / np.sqrt(vmax), y=E.y / np.sqrt(vmax),
+            grid=Grid.from_cartesian(E.grid.X / LAM, E.grid.Y / LAM),
+            symmetric=False)
+        plot_field_polarization(
+            E_lam, half_size=1.05 * lim, n_img=220, sampling="cartesian",
+            target_ellipses=13, min_intensity_fraction=0.02,
+            ax=axes[row_i, 4],
+        )
+        axes[row_i, 4].set_title("elipses de polarización")
+
+        for axi in axes[row_i, :]:
+            axi.set_xlim(-lim, lim)
+            axi.set_ylim(-lim, lim)
+            axi.set_xlabel(r"$x/\lambda$")
+            axi.set_ylabel(r"$y/\lambda$")
+
+    fig.suptitle(
+        rf"Polarización de la imagen | {label}, sep = {s_frac:.2f} $d_{{Airy}}$, "
+        r"polarización incidente lineal $\hat{x}$")
+    fig.savefig(out / polfig, dpi=180)
+    plt.close(fig)
+    print(f"{feature}: análisis de polarización -> {polfig}")
 
 print(f"Done. Outputs in {out}")
