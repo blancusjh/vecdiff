@@ -27,7 +27,11 @@ import matplotlib.pyplot as plt
 from vecdiff import CartesianSurface, FieldCartesian, Grid
 from vecdiff.fresnel import FresnelOvoid
 from vecdiff.propagation import fresnel_coefficients_on_grid
-from vecdiff.polarization_visualization import plot_field_polarization_summary
+from vecdiff.view import field_cartesian_maps
+from vecdiff.polarization_visualization import (
+    plot_field_polarization,
+    plot_polarization_scalar_map,
+)
 from _output import example_output_dir, print_saved
 
 lam = 532e-6  # mm
@@ -151,6 +155,13 @@ def run_system(tag, label, ni_glass, r_a=None):
     mask_fine = np.zeros_like(XF)
     for sign in (-1.0, 1.0):
         mask_fine[XF**2 + (YF - sign * 0.5 * sep) ** 2 <= (0.5 * DISC_DIAM) ** 2] = 1.0
+
+    # Incident field on the object plane: the x-polarized mask (Ey = 0),
+    # expressed in wavelengths on its own (magnified) scale.
+    E_inc = FieldCartesian(x=mask_fine.astype(complex), y=np.zeros_like(mask_fine, dtype=complex),
+                           grid=Grid.from_cartesian(XF / lam, YF / lam), symmetric=False)
+    lim_inc = half_mask / lam
+
     axes[0].imshow(mask_fine, extent=[v / lam for v in (-half_mask, half_mask, -half_mask, half_mask)],
                    origin="lower", cmap="gray")
     axes[0].set_title("Máscara (objeto)")
@@ -185,7 +196,7 @@ def run_system(tag, label, ni_glass, r_a=None):
     print_saved(path)
     plt.close(fig)
 
-    return E_v, lim_lam, caption
+    return E_v, lim_lam, caption, E_inc, lim_inc
 
 
 systems = {
@@ -193,25 +204,85 @@ systems = {
     "glass": run_system("glass", r"vidrio ($n_i$=1.5)", 1.5),
 }
 
+
 # ---------------------------------------------------------------------
-# Full polarization analysis of the vectorial image for each system:
-# Ex / Ey (cross channel) / intensity on top; polarization ellipses,
-# ellipticity chi and major-axis orientation psi on the bottom, plus the
-# Ey cross-fraction diagnostic -- via vecdiff.plot_field_polarization_summary.
+# Polarization analysis of the vectorial image, split into three focused,
+# self-contained figures per system (all share the same system caption):
+#   1. component analysis  -- incident field vs. image field, |Ex|/|Ey|/|E|^2
+#   2. polarization maps    -- ellipse glyphs and the cross-polarized fraction
+#   3. ellipse angle model  -- ellipticity chi and major-axis orientation psi
 # ---------------------------------------------------------------------
 
-for tag, (E_v, lim, caption) in systems.items():
+
+def component_analysis_figure(E_inc, lim_inc, E_img, lim_img, title):
+    """Incident field (top row) and vectorial image (bottom row): |Ex|, |Ey|, |E|^2."""
+    fig, axes = plt.subplots(2, 3, figsize=(13.5, 8.8), constrained_layout=True)
+    rows = (("Campo incidente", E_inc, lim_inc), ("Imagen vectorial", E_img, lim_img))
+    for row_axes, (row_label, field, half) in zip(axes, rows):
+        c1, c2, extent, labels = field_cartesian_maps(field, half_size=half)
+        a1, a2 = np.abs(c1), np.abs(c2)
+        panels = ((a1, rf"$|E_{{{labels[0]}}}|$"), (a2, rf"$|E_{{{labels[1]}}}|$"),
+                  (a1 ** 2 + a2 ** 2, r"Intensidad $|E|^2$"))
+        for ax, (img, ptitle) in zip(row_axes, panels):
+            vmax = float(img.max()) or 1.0
+            im = ax.imshow(img, extent=extent, origin="lower", cmap="hot",
+                           vmin=0.0, vmax=vmax, aspect="equal")
+            ax.set_title(ptitle)
+            ax.set_xlabel(r"$x/\lambda$")
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        row_axes[0].set_ylabel(f"{row_label}\n" + r"$y/\lambda$")
+    fig.suptitle(title, fontsize=10)
+    return fig
+
+
+def polarization_maps_figure(E_img, lim_img, title):
+    """Polarization ellipse glyphs and the cross-polarized fraction map."""
+    fig, axes = plt.subplots(1, 2, figsize=(12.6, 5.9), constrained_layout=True)
+    plot_field_polarization(
+        E_img, half_size=lim_img, ax=axes[0], sampling="cartesian",
+        target_ellipses=17, scale_by_intensity=True, min_ellipse_scale=0.5,
+    )
+    axes[0].set_title("Elipses de polarización")
+    plot_field_polarization(
+        E_img, half_size=lim_img, ax=axes[1], background="cross_fraction", glyph="quiver",
+    )
+    axes[1].set_title("Fracción de polarización cruzada")
+    fig.suptitle(title, fontsize=10)
+    return fig
+
+
+def ellipse_angles_figure(E_img, lim_img, title):
+    """Scalar maps of the polarization-ellipse angles: ellipticity chi and orientation psi."""
+    fig, axes = plt.subplots(1, 2, figsize=(12.6, 5.9), constrained_layout=True)
+    plot_polarization_scalar_map(
+        E_img, "ellipticity", half_size=lim_img, min_intensity_fraction=0.01, ax=axes[0],
+    )
+    axes[0].set_title(r"Ángulo de elipticidad $\chi$")
+    plot_polarization_scalar_map(
+        E_img, "orientation", half_size=lim_img, min_intensity_fraction=0.01, ax=axes[1],
+    )
+    axes[1].set_title(r"Orientación del eje mayor $\psi$")
+    fig.suptitle(title, fontsize=10)
+    return fig
+
+
+for tag, (E_v, lim, caption, E_inc, lim_inc) in systems.items():
     E_lam = FieldCartesian(x=E_v.x, y=E_v.y,
                            grid=Grid.from_cartesian(E_v.grid.X / lam, E_v.grid.Y / lam),
                            symmetric=False)
     label = "alto índice" if tag == "high_index" else "vidrio"
-    fig, _ = plot_field_polarization_summary(
-        E_lam, half_size=lim, min_intensity_fraction=0.01, show_cross_fraction=True,
-        title=f"Polarización de la imagen vectorial ({label})\n{caption}",
-        polarization_kwargs=dict(sampling="cartesian", target_ellipses=17,
-                                 scale_by_intensity=True, min_ellipse_scale=0.5),
-    )
-    path = out_dir / f"image_polarization_{tag}.png"
-    fig.savefig(path, dpi=180)
-    print_saved(path)
-    plt.close(fig)
+    header = rf"imagen vectorial ({label})" + "\n" + caption
+
+    figures = {
+        f"components_{tag}": component_analysis_figure(
+            E_inc, lim_inc, E_lam, lim, f"Análisis por componentes — {header}"),
+        f"polarization_maps_{tag}": polarization_maps_figure(
+            E_lam, lim, f"Mapas de polarización — {header}"),
+        f"ellipse_angles_{tag}": ellipse_angles_figure(
+            E_lam, lim, f"Ángulos de la elipse de polarización — {header}"),
+    }
+    for name, fig in figures.items():
+        path = out_dir / f"{name}.png"
+        fig.savefig(path, dpi=180)
+        print_saved(path)
+        plt.close(fig)
