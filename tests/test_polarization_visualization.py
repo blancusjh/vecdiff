@@ -244,14 +244,17 @@ def test_polarization_map_linear_light_draws_headless_centered_line():
 
 
 def test_polarization_map_arrowhead_scales_with_ellipticity():
-    # Circular light gets a full head; a mildly elliptical field gets a
-    # proportionally shorter one; linear light none.  Head length must grow
-    # monotonically with |chi|.
+    # With head_fade_by_ellipticity enabled the head length encodes |chi|:
+    # circular light gets a full head, a mildly elliptical field a
+    # proportionally shorter one, and linear light none.  Head length must
+    # grow monotonically with |chi|.  (Under the default the head keeps a
+    # fixed size and only its presence/direction encodes handedness.)
     def head_length(ey):
         x = np.array([[0.0]]); yy = np.array([[0.0]])
         pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[ey]]))
         fig, ax = plt.subplots()
-        plot_polarization_map(yy, x, pol, scale=1.0, ellipse_points=64, ellipse_mode="cartesian", ax=ax)
+        plot_polarization_map(yy, x, pol, scale=1.0, ellipse_points=64, ellipse_mode="cartesian",
+                              head_fade_by_ellipticity=True, ax=ax)
         if len(ax.collections) < 2:
             plt.close(fig)
             return 0.0
