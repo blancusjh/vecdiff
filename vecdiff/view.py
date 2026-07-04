@@ -92,17 +92,17 @@ def _extract_transmitted_components(transmitted):
     )
 
 
-def field_cartesian_maps(field, half_size=None, n_img=500):
-    """Sample a Field on a Cartesian plotting mesh."""
-    component1, component2 = _extract_input_components(field)
-    labels, _ = _component_labels(field)
+def sample_component_pair_on_cartesian_mesh(component1, component2, grid, half_size=None, n_img=500):
+    """Interpolate an explicit pair of field components onto a square Cartesian mesh."""
+    component1 = np.asarray(component1)
+    component2 = np.asarray(component2)
 
-    if field.grid.type == "cartesian":
+    if grid.type == "cartesian":
         if component1.ndim != 2 or component2.ndim != 2:
             raise ValueError("Cartesian field components must be 2D.")
 
-        x_axis = np.asarray(field.grid.X[0, :], dtype=float)
-        y_axis = np.asarray(field.grid.Y[:, 0], dtype=float)
+        x_axis = np.asarray(grid.X[0, :], dtype=float)
+        y_axis = np.asarray(grid.Y[:, 0], dtype=float)
         if half_size is None:
             half_size = float(max(np.max(np.abs(x_axis)), np.max(np.abs(y_axis))))
 
@@ -111,30 +111,15 @@ def field_cartesian_maps(field, half_size=None, n_img=500):
         extent = [-half_size, half_size, -half_size, half_size]
         points = np.column_stack((yy.ravel(), xx.ravel()))
 
-        interp1 = RegularGridInterpolator(
-            (y_axis, x_axis),
-            component1,
-            bounds_error=False,
-            fill_value=0.0,
-        )
-        interp2 = RegularGridInterpolator(
-            (y_axis, x_axis),
-            component2,
-            bounds_error=False,
-            fill_value=0.0,
-        )
-        return (
-            interp1(points).reshape(xx.shape),
-            interp2(points).reshape(xx.shape),
-            extent,
-            labels,
-        )
+        interp1 = RegularGridInterpolator((y_axis, x_axis), component1, bounds_error=False, fill_value=0.0)
+        interp2 = RegularGridInterpolator((y_axis, x_axis), component2, bounds_error=False, fill_value=0.0)
+        return interp1(points).reshape(xx.shape), interp2(points).reshape(xx.shape), extent
 
-    if field.grid.type != "polar":
-        raise ValueError("`field` must be sampled on a Cartesian or polar grid.")
+    if grid.type != "polar":
+        raise ValueError("`grid` must be Cartesian or polar.")
 
-    radial_axis = np.asarray(field.grid.r)
-    varphi = np.asarray(field.grid.varphi)
+    radial_axis = np.asarray(grid.r)
+    varphi = np.asarray(grid.varphi)
     if half_size is None:
         half_size = float(np.max(radial_axis))
 
@@ -142,12 +127,22 @@ def field_cartesian_maps(field, half_size=None, n_img=500):
     if component1.ndim == 1:
         map1 = np.interp(rr, radial_axis, component1, left=component1[0], right=0.0)
         map2 = np.interp(rr, radial_axis, component2, left=component2[0], right=0.0)
-        return map1, map2, extent, labels
+        return map1, map2, extent
 
     x = np.linspace(-half_size, half_size, n_img)
     xx, yy = np.meshgrid(x, x)
     map1 = polar_grid_to_cartesian_grid(component1, radial_axis, varphi, xx, yy, fill_value=0.0)
     map2 = polar_grid_to_cartesian_grid(component2, radial_axis, varphi, xx, yy, fill_value=0.0)
+    return map1, map2, extent
+
+
+def field_cartesian_maps(field, half_size=None, n_img=500):
+    """Sample a Field on a Cartesian plotting mesh."""
+    component1, component2 = _extract_input_components(field)
+    labels, _ = _component_labels(field)
+    map1, map2, extent = sample_component_pair_on_cartesian_mesh(
+        component1, component2, field.grid, half_size=half_size, n_img=n_img
+    )
     return map1, map2, extent, labels
 
 

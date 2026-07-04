@@ -2,7 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from vecdiff import CartesianSurface, FieldCartesian, Grid
-from vecdiff.polarization_visualization import plot_field_polarization_summary
+from vecdiff.polarization_visualization import (
+    plot_incident_and_focal_components,
+    plot_incident_and_focal_polarization_map,
+    plot_incident_and_focal_polarization_angles,
+)
 from _common import focal_field, figure_saver
 
 # --- Setup: uniform x-polarized pupil focused through a diopter (Hankel) ---
@@ -23,44 +27,37 @@ E_focal = focal_field(E0.propagate_through_diopter(zi, diopter, q, method="hanke
 # --- Figures ---
 save = figure_saver(__file__)
 
-# Input: components, intensity, polarization ellipses, ellipticity and orientation
-# in one figure. Uniform field, so a coarse layout is enough.
-fig, _ = plot_field_polarization_summary(
+# Cartesian components of the incident field (top) and focal field (bottom).
+fig, _ = plot_incident_and_focal_components(
     E0,
-    half_size=R,
-    title="Campo en la pupila (cartesiano)",
-    polarization_kwargs=dict(scale_by_intensity=True),
-)
-save(fig, "input_summary")
-
-# Focal plane: window reaches ~the 4th maximum. target_ellipses=36 gives ~5
-# samples across the second maximum's width. A milder gamma and a lower size
-# floor let the intensity scaling show as a size gradient from the bright core
-# down to the faint 4th maximum. The cross-polarization panel needs very low
-# thresholds to reveal the Ey-dominant nodal rings, so it stays uncropped
-# while the other panels zoom to where the pattern actually has signal.
-fig, _ = plot_field_polarization_summary(
     E_focal,
-    half_size=20.0,
-    title="Campo en el plano focal (cartesiano)",
-    show_cross_fraction=True,
-    polarization_kwargs=dict(
-        target_ellipses=36,
-        scale_by_intensity=True,
-        intensity_scale_gamma=0.35,
-        min_ellipse_scale=0.28,
-        arrow_length=0.5,
-        arrow_opening_angle=np.deg2rad(70.0),
-    ),
-    # Ex has nodal rings where Ey dominates locally despite the low total
-    # intensity: needs low thresholds to reveal them.
-    cross_fraction_kwargs=dict(
-        cross_fraction_min_intensity=1e-7,
-        min_intensity_fraction=1e-7,
-        min_cross_fraction=0.50,
-        target_arrows=120,
-    ),
+    basis="cartesian",
+    incident_half_size=R,
+    focal_half_size=20.0,
+    title="Componentes cartesianas: pupila vs. plano focal",
 )
-save(fig, "propagated_summary")
+save(fig, "components")
+
+# Local polarization ellipses side by side. The library defaults already give
+# the harmonic preset (uniform sizes, 45%/42 deg arrow heads always visible),
+# so no kwargs are needed here.
+fig, _ = plot_incident_and_focal_polarization_map(
+    E0,
+    E_focal,
+    incident_half_size=R,
+    focal_half_size=20.0,
+    title="Polarización: pupila vs. plano focal (cartesiano)",
+)
+save(fig, "polarization_map")
+
+# Ellipticity and major-axis orientation.
+fig, _ = plot_incident_and_focal_polarization_angles(
+    E0,
+    E_focal,
+    incident_half_size=R,
+    focal_half_size=20.0,
+    title="Ángulos de la elipse: pupila vs. plano focal (cartesiano)",
+)
+save(fig, "polarization_angles")
 
 plt.show()

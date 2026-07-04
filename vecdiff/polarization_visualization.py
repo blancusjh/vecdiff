@@ -26,13 +26,11 @@ def _ellipse_glyph(ex, ey, points):
     ``head_point`` is the tip of the major axis, ``head_dir`` the direction the
     arrowhead points, and ``ellipticity`` is ``|minor/major|`` in ``[0, 1]``.
 
-    The head caps the major-axis tip pointing *outward* along the axis, canted
-    by the local tangent so its sense encodes handedness; ``head_point`` and the
-    tangent are orthogonal, so ``outward + tangent`` never vanishes and stays
-    continuous as ``chi -> 0``.  The caller scales the head length by
-    ``ellipticity`` so linear light -- which has no handedness -- draws a clean
-    headless line centred on its sample point, and the head grows to full size
-    only for circular light.
+    ``head_dir`` is the tangent to the ellipse curve at the major-axis tip:
+    perpendicular to the major axis for elliptical/circular light, with sign
+    given by handedness (right- vs left-handed). For linear light the tangent
+    vanishes and the caller must decide how to render the head (or omit it,
+    since a linear oscillation has no handedness to indicate).
     """
 
     ex = complex(ex)
@@ -55,13 +53,11 @@ def _ellipse_glyph(ex, ey, points):
     pts = np.column_stack([cos_p * xe - sin_p * ye, sin_p * xe + cos_p * ye])
 
     head_point = np.array([cos_p, sin_p])  # major-axis tip: rotate (1, 0)
-    # Tangent at the major tip (theta=0): d/dtheta (xe, ye) = (0, ratio).
-    tangent = np.array([-sin_p * ratio, cos_p * ratio])
-    # Cap the tip pointing outward, canted by the tangent.  head_point and
-    # tangent are orthogonal, so the sum has magnitude sqrt(1 + ratio**2) >= 1
-    # and never vanishes -- continuous from linear (along the line) to circular
-    # (canted 45 deg), instead of the tangent flipping perpendicular at chi -> 0.
-    head_dir = head_point + tangent
+    # Tangent to the ellipse at the major-axis tip (theta=0):
+    # d/dtheta (xe, ye) = (0, ratio), rotated by psi. Perpendicular to the
+    # major axis for elliptical/circular light, sign encodes handedness.
+    # Vanishes for linear light (no handedness to point along).
+    head_dir = np.array([-sin_p * ratio, cos_p * ratio])
     return pts, head_point, head_dir, abs(float(ratio))
 
 
@@ -76,11 +72,19 @@ def _curve_segments(curve):
     return np.stack([curve, np.roll(curve, -1, axis=0)], axis=1)
 
 
-def _arrowhead_triangle(tip, direction, length, width):
-    """Return a 3-vertex filled arrowhead centred at ``tip``.
+def _arrowhead_triangle(location, direction, length, width):
+    """Return a 3-vertex filled arrowhead whose axial midpoint sits on ``location``.
 
-    A single clean filled triangle (drawn as a polygon) reads as a crisp head,
-    unlike a pair of haloed line segments which blob at small glyph sizes.
+    ``location`` is the point on the ellipse curve where the head is anchored:
+    the apex extends ``length / 2`` outward along ``direction`` and the base
+    extends ``length / 2`` inward. A single clean filled triangle (drawn as a
+    polygon) reads as a crisp head, unlike a pair of haloed line segments
+    which blob at small glyph sizes.
+
+    Centring the head on its anchor -- rather than seating the apex there --
+    keeps the ellipse curve visibly threading through the head, so the glyph
+    reads as an "ellipse-with-marker" rather than an appendage growing off the
+    tip.
     """
 
     direction = np.asarray(direction, dtype=float)
@@ -89,12 +93,24 @@ def _arrowhead_triangle(tip, direction, length, width):
         return None
     t = direction / norm
     perp = np.array([-t[1], t[0]])
-    # Seat the head on the vertex (apex at the tip, base pulled inward) so it
-    # never overhangs the ellipse: the glyph stays centred on its grid point and
-    # the map reads as a uniform lattice.
-    apex = tip
-    base = tip - length * t
+    half = 0.5 * length
+    apex = location + half * t
+    base = location - half * t
     return np.array([apex, base + 0.5 * width * perp, base - 0.5 * width * perp])
+
+
+def _slim_colorbar(mappable, ax, label=None):
+    """Attach a slim colorbar that is clearly shorter than the axis.
+
+    ``aspect=35`` gives a thin bar (thinner than Matplotlib's ~20 default) and
+    ``shrink=0.65`` keeps its height well under the axis so it never dominates
+    the panel visually even under ``constrained_layout``.
+    """
+
+    kwargs = {"aspect": 35, "shrink": 0.65, "pad": 0.03, "fraction": 0.045}
+    if label is not None:
+        kwargs["label"] = label
+    return plt.colorbar(mappable, ax=ax, **kwargs)
 
 
 def _line_kwargs(kwargs: Mapping[str, Any] | None, linewidth=1.2, color=None, zorder=None):
@@ -166,7 +182,7 @@ def plot_polarization_map(
     y: np.ndarray,
     pol: PolarizationData,
     stride: int | None = None,
-    target_ellipses: int = 20,
+    target_ellipses: int = 18,
     max_ellipses: int | None = None,
     max_radius: float | None = None,
     scale: float | None = None,
@@ -179,8 +195,10 @@ def plot_polarization_map(
     intensity_scale_mode: Literal["linear", "log", "power"] = "power",
     intensity_scale_gamma: float = 0.5,
     min_ellipse_scale: float = 0.30,
-    arrow_opening_angle: float = np.deg2rad(55.0),
-    arrow_length: float = 0.5,
+    arrow_opening_angle: float = np.deg2rad(42.0),
+    arrow_length: float = 0.45,
+    arrow_head_absolute_length: float | None = None,
+    head_fade_by_ellipticity: bool = False,
     curve_kwargs: Mapping[str, Any] | None = None,
     arrowhead_kwargs: Mapping[str, Any] | None = None,
     ellipse_mode: Literal["polar", "cartesian"] = "polar",
@@ -208,6 +226,20 @@ def plot_polarization_map(
     Glyphs default to white with a thin dark halo so they read over both the
     dark and bright ends of the background colormap; pass ``color`` (or
     ``path_effects``) in ``curve_kwargs`` / ``arrowhead_kwargs`` to override.
+
+    The arrowhead axis is aligned with the tangent to the ellipse curve at
+    its anchor point -- perpendicular to the major axis for
+    elliptical/circular light, with sign given by handedness. Its length is
+    ``arrow_length * glyph_extent`` (proportional to the ellipse). Pass
+    ``arrow_head_absolute_length`` to fix the head length in graph units
+    instead, which decouples it from the ellipse size.
+
+    Linear light has a vanishing tangent (no handedness to point along) and
+    therefore draws no head, regardless of ``head_fade_by_ellipticity``. For
+    numerically non-linear light (any non-zero ellipticity), the toggle only
+    controls the head *length*: when ``False`` (default) the head keeps its
+    full size, when ``True`` it is scaled by ``sqrt(ellipticity)`` and hidden
+    below ``|chi| < 0.01`` -- so the head strictly encodes handedness.
     """
 
     if ax is None:
@@ -322,10 +354,18 @@ def plot_polarization_map(
         # the handedness is perceptible (a bare linear factor would render the
         # head of a chi ~ few-degree ellipse invisibly small), while the
         # threshold below still drops it for numerically-linear samples.
-        if ellipticity < 0.01:
-            head_length = 0.0
+        head_base = (
+            float(arrow_head_absolute_length)
+            if arrow_head_absolute_length is not None
+            else arrow_length * glyph_extent
+        )
+        if head_fade_by_ellipticity:
+            if ellipticity < 0.01:
+                head_length = 0.0
+            else:
+                head_length = head_base * np.sqrt(ellipticity)
         else:
-            head_length = arrow_length * glyph_extent * np.sqrt(ellipticity)
+            head_length = head_base
         head = _arrowhead_triangle(
             glyph_extent * head_point + center,
             head_dir,
@@ -369,7 +409,7 @@ def plot_polarization_map(
             lc.set_path_effects(_halo(lc_kwargs["linewidths"], grow=0.6))
         ax.add_collection(lc)
         if phase_colorbar:
-            plt.colorbar(lc, ax=ax, label="Fase normalizada")
+            _slim_colorbar(lc, ax, label="Fase normalizada")
 
         if head_polys is not None:
             pc = PolyCollection(head_polys, array=np.asarray(head_colors), cmap=cmap, zorder=4.0)
@@ -484,7 +524,7 @@ def plot_polarization_scalar_map(
         vmax=vmax,
         aspect="equal",
     )
-    plt.colorbar(im, ax=ax, label=label)
+    _slim_colorbar(im, ax, label=label)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     if autocrop:
@@ -602,7 +642,7 @@ def plot_polarization_quiver(
         kwargs.setdefault("norm", Normalize(vmin=0.0, vmax=1.0))
         quiver = ax.quiver(xs[valid], ys[valid], u[valid], v[valid], cross_fraction[valid], **kwargs)
         if cross_fraction_colorbar:
-            plt.colorbar(quiver, ax=ax, label=r"$|E_y|^2 / (|E_x|^2 + |E_y|^2)$")
+            _slim_colorbar(quiver, ax, label=r"$|E_y|^2 / (|E_x|^2 + |E_y|^2)$")
     else:
         quiver = ax.quiver(xs[valid], ys[valid], u[valid], v[valid], **kwargs)
 
@@ -693,7 +733,7 @@ def plot_field_polarization(
             aspect="equal",
             norm=norm,
         )
-        colorbar = plt.colorbar(im, ax=ax, label=r"$|E_x|^2 + |E_y|^2$")
+        colorbar = _slim_colorbar(im, ax, label=r"$|E_x|^2 + |E_y|^2$")
         if vmax > 0.0:
             intensity_ticks = np.linspace(0.0, vmax, 5)
             colorbar.set_ticks(intensity_ticks)
@@ -716,7 +756,7 @@ def plot_field_polarization(
             vmax=1.0,
             aspect="equal",
         )
-        plt.colorbar(im, ax=ax, label=r"$|E_y|^2 / (|E_x|^2 + |E_y|^2)$")
+        _slim_colorbar(im, ax, label=r"$|E_y|^2 / (|E_x|^2 + |E_y|^2)$")
     elif background is not None:
         raise ValueError("background must be 'intensity', 'cross_fraction', or None.")
 
@@ -823,6 +863,220 @@ def plot_field_polarization_summary(
         if ax.has_data() and ax not in uncropped_axes:
             ax.set_xlim(xmin, xmax)
             ax.set_ylim(ymin, ymax)
+
+    if title:
+        fig.suptitle(title)
+    return fig, axes
+
+
+def _components_in_basis(field, basis: Literal["cartesian", "circular"]):
+    """Return ``(c1, c2, label1, label2)`` for a Field in the requested transverse basis."""
+
+    from .coordinate_transformation import cartesian_to_circular
+
+    if basis == "cartesian":
+        return np.asarray(field.x), np.asarray(field.y), "x", "y"
+    if basis == "circular":
+        L = getattr(field, "L", None)
+        R = getattr(field, "R", None)
+        if L is None or R is None:
+            L, R = cartesian_to_circular(np.asarray(field.x), np.asarray(field.y))
+        return np.asarray(L), np.asarray(R), "L", "R"
+    raise ValueError("basis must be 'cartesian' or 'circular'.")
+
+
+def _row_label(ax, text):
+    """Attach a bold row label to the leftmost axes of a row."""
+
+    ax.annotate(
+        text,
+        xy=(-0.28, 0.5),
+        xycoords="axes fraction",
+        ha="center",
+        va="center",
+        rotation=90,
+        fontsize=13,
+        fontweight="bold",
+    )
+
+
+def plot_incident_and_focal_components(
+    incident,
+    focal,
+    *,
+    basis: Literal["cartesian", "circular"] = "cartesian",
+    incident_half_size: float | None = None,
+    focal_half_size: float | None = None,
+    n_img: int = 500,
+    cmap: str = "hot",
+    component_view: str = "abs",
+    incident_label: str = "Campo incidente",
+    focal_label: str = "Plano focal",
+    title: str | None = None,
+    figsize: tuple[float, float] | None = None,
+):
+    """Stack the component maps of two fields in one figure.
+
+    The top row shows the incident field's components in ``basis`` (plus its
+    intensity), and the bottom row does the same for the focal-plane field.
+    ``basis="cartesian"`` picks ``(Ex, Ey)``; ``basis="circular"`` picks
+    ``(EL, ER)`` — for a Cartesian field the circular components are computed
+    from ``(Ex, Ey)``. The intensity column is basis-invariant.
+    """
+
+    from .view import sample_component_pair_on_cartesian_mesh
+
+    if figsize is None:
+        figsize = (14.0, 8.4)
+    fig, axes = plt.subplots(2, 3, figsize=figsize, constrained_layout=True)
+
+    rep = {"abs": np.abs, "real": np.real, "imag": np.imag}[component_view]
+    rows = (
+        (incident, incident_half_size, incident_label, 0),
+        (focal, focal_half_size, focal_label, 1),
+    )
+    for fld, half_size, row_label, row in rows:
+        c1_raw, c2_raw, lab1, lab2 = _components_in_basis(fld, basis)
+        c1, c2, extent = sample_component_pair_on_cartesian_mesh(
+            c1_raw, c2_raw, fld.grid, half_size=half_size, n_img=n_img
+        )
+        i1, i2 = rep(c1), rep(c2)
+        intensity = np.abs(c1) ** 2 + np.abs(c2) ** 2
+
+        for col, (img, label) in enumerate(((i1, lab1), (i2, lab2))):
+            ax = axes[row, col]
+            vmax = float(np.max(np.abs(img))) or 1.0
+            im = ax.imshow(np.abs(img), extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
+            ax.set_title(rf"$E_{{{label}}}$")
+            ax.set_xlabel("x")
+            ax.set_ylabel("y")
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+        vmax_int = float(np.max(intensity)) or 1.0
+        ax = axes[row, 2]
+        im = ax.imshow(intensity, extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax_int, aspect="equal")
+        ax.set_title("Intensidad")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+        _row_label(axes[row, 0], row_label)
+
+    if title:
+        fig.suptitle(title)
+    return fig, axes
+
+
+def _autocrop_row(axes_row, field, half_size, n_img, min_intensity_fraction, crop_padding):
+    from .polarization import polarization_map_from_field
+
+    xx, yy, pol = polarization_map_from_field(field, half_size=half_size, n_img=n_img)
+    valid = pol.s0 > float(min_intensity_fraction) * (float(np.nanmax(pol.s0)) + np.finfo(float).eps)
+    xmin, xmax, ymin, ymax = _autocrop_extent(xx, yy, valid, padding=crop_padding)
+    for ax in axes_row:
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+
+
+def plot_incident_and_focal_polarization_map(
+    incident,
+    focal,
+    *,
+    incident_half_size: float | None = None,
+    focal_half_size: float | None = None,
+    n_img: int = 500,
+    min_intensity_fraction: float = 0.002,
+    crop_padding: float = 1.15,
+    autocrop: bool = True,
+    incident_polarization_kwargs: Mapping[str, Any] | None = None,
+    focal_polarization_kwargs: Mapping[str, Any] | None = None,
+    incident_label: str = "Mapa de polarización del campo incidente",
+    focal_label: str = "Mapa de polarización en el plano focal",
+    title: str | None = None,
+    figsize: tuple[float, float] | None = None,
+):
+    """Place the local polarization-ellipse maps of two fields side by side.
+
+    Left panel: incident field. Right panel: focal-plane field. Each panel
+    is autocropped to its own intensity support so a diffuse pupil and a
+    compact focal spot can share the figure without one of them becoming a
+    dot. The per-panel titles (``incident_label``, ``focal_label``) describe
+    which field is shown.
+    """
+
+    if figsize is None:
+        # Side by side: each panel gets a ~8" square, wide enough for
+        # individual ellipses to read at a glance.
+        figsize = (16.0, 8.5)
+    fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
+
+    panels = (
+        (incident, incident_half_size, incident_label, incident_polarization_kwargs, 0),
+        (focal, focal_half_size, focal_label, focal_polarization_kwargs, 1),
+    )
+    for fld, half_size, panel_title, pkwargs, col in panels:
+        pkwargs = dict(pkwargs or {})
+        pkwargs.setdefault("half_size", half_size)
+        pkwargs.setdefault("n_img", n_img)
+        plot_field_polarization(fld, ax=axes[col], **pkwargs)
+        axes[col].set_title(panel_title)
+
+        if autocrop:
+            _autocrop_row([axes[col]], fld, half_size, n_img, min_intensity_fraction, crop_padding)
+
+    if title:
+        fig.suptitle(title)
+    return fig, axes
+
+
+def plot_incident_and_focal_polarization_angles(
+    incident,
+    focal,
+    *,
+    incident_half_size: float | None = None,
+    focal_half_size: float | None = None,
+    n_img: int = 500,
+    min_intensity_fraction: float = 0.002,
+    crop_padding: float = 1.15,
+    autocrop: bool = True,
+    incident_label: str = "Campo incidente",
+    focal_label: str = "Plano focal",
+    title: str | None = None,
+    figsize: tuple[float, float] | None = None,
+):
+    """Stack the ellipticity and major-axis orientation maps of two fields.
+
+    Top row: incident field. Bottom row: focal-plane field. Columns are the
+    ellipticity angle ``chi`` and the major-axis orientation ``psi`` of the
+    local polarization ellipse. Each row is autocropped to its own intensity
+    support.
+    """
+
+    if figsize is None:
+        figsize = (11.0, 10.0)
+    fig, axes = plt.subplots(2, 2, figsize=figsize, constrained_layout=True)
+
+    rows = (
+        (incident, incident_half_size, incident_label, 0),
+        (focal, focal_half_size, focal_label, 1),
+    )
+    for fld, half_size, row_label, row in rows:
+        plot_polarization_scalar_map(
+            fld, "ellipticity", half_size=half_size, n_img=n_img,
+            min_intensity_fraction=min_intensity_fraction, autocrop=False, ax=axes[row, 0],
+        )
+        axes[row, 0].set_title("Ángulo de elipticidad")
+
+        plot_polarization_scalar_map(
+            fld, "orientation", half_size=half_size, n_img=n_img,
+            min_intensity_fraction=min_intensity_fraction, autocrop=False, ax=axes[row, 1],
+        )
+        axes[row, 1].set_title("Orientación del eje mayor")
+
+        if autocrop:
+            _autocrop_row(axes[row, :], fld, half_size, n_img, min_intensity_fraction, crop_padding)
+
+        _row_label(axes[row, 0], row_label)
 
     if title:
         fig.suptitle(title)
