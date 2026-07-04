@@ -18,7 +18,10 @@ r = np.linspace(0.0, R, n_r)
 q = (ni * R / (lam * zi)) * np.linspace(0.0, 1.0, n_q) ** 2
 phi = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
 grid = Grid.from_polar(r, phi)
+
 pupil = r <= 0.95 * R
+
+
 diopter = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
 
 E0 = FieldCartesian(x=1.0 * pupil, y=0.0 * pupil, grid=grid)
