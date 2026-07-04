@@ -28,7 +28,7 @@ Each script prints the path of the files it saves.
 | Example | Purpose | Main outputs |
 | --- | --- | --- |
 | `two_diopter_imaging.py` | Two-line mask imaged by conjugate diopters: scalar vs vectorial contrast depends on the mask orientation relative to the incident polarization. | `image_gallery.png`, `profiles.png`, `image_plane_polarization.png` |
-| `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders). The polarization of each vectorial image is analyzed in three separate figures per system: component analysis (incident vs. image), polarization-ellipse maps, and the ellipse-angle maps. | `inversion_{high_index,glass}.png`, `components_{high_index,glass}.png`, `polarization_maps_{high_index,glass}.png`, `ellipse_angles_{high_index,glass}.png` |
+| `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders). The polarization of each vectorial image is analyzed in three separate figures per system: component analysis (incident vs. image), polarization-ellipse maps (incident field vs. focal plane), and the ellipse-angle maps. | `inversion_{high_index,glass}.png`, `components_{high_index,glass}.png`, `polarization_maps_{high_index,glass}.png`, `ellipse_angles_{high_index,glass}.png` |
 | `lithography.py` | Synthetic lithography diagnostic mask through two diopters, scalar vs vectorial. | `lithography_pattern_check.png` |
 
 ## Animation
