@@ -28,7 +28,7 @@ Each script prints the path of the files it saves.
 | Example | Purpose | Main outputs |
 | --- | --- | --- |
 | `two_diopter_imaging.py` | Two-line mask imaged by conjugate diopters: scalar vs vectorial contrast depends on the mask orientation relative to the incident polarization. | `image_gallery.png`, `profiles.png`, `image_plane_polarization.png` |
-| `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders). | `inversion_high_index.png`, `inversion_glass.png`, `image_plane_polarization.png` |
+| `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders), with the full polarization analysis of each vectorial image. | `inversion_high_index.png`, `inversion_glass.png`, `image_polarization_high_index.png`, `image_polarization_glass.png` |
 | `lithography.py` | Synthetic lithography diagnostic mask through two diopters, scalar vs vectorial. | `lithography_pattern_check.png` |
 
 ## Animation

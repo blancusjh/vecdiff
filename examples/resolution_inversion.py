@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 from vecdiff import CartesianSurface, FieldCartesian, Grid
 from vecdiff.fresnel import FresnelOvoid
 from vecdiff.propagation import fresnel_coefficients_on_grid
-from vecdiff.polarization_visualization import plot_field_polarization
+from vecdiff.polarization_visualization import plot_field_polarization_summary
 from _output import example_output_dir, print_saved
 
 lam = 532e-6  # mm
@@ -188,23 +188,30 @@ def run_system(tag, label, ni_glass, r_a=None):
     return E_v, lim_lam, caption
 
 
-E_v_high, lim_high, caption_high = run_system("high_index", r"alto índice ($n_i$=2.4)", 2.4, r_a=10.0)
-run_system("glass", r"vidrio ($n_i$=1.5)", 1.5)
+systems = {
+    "high_index": run_system("high_index", r"alto índice ($n_i$=2.4)", 2.4, r_a=10.0),
+    "glass": run_system("glass", r"vidrio ($n_i$=1.5)", 1.5),
+}
 
 # ---------------------------------------------------------------------
-# Polarization map on the image plane (high-index vectorial image)
+# Full polarization analysis of the vectorial image for each system:
+# Ex / Ey (cross channel) / intensity on top; polarization ellipses,
+# ellipticity chi and major-axis orientation psi on the bottom, plus the
+# Ey cross-fraction diagnostic -- via vecdiff.plot_field_polarization_summary.
 # ---------------------------------------------------------------------
 
-E_lam = FieldCartesian(x=E_v_high.x, y=E_v_high.y,
-                       grid=Grid.from_cartesian(E_v_high.grid.X / lam, E_v_high.grid.Y / lam),
-                       symmetric=False)
-ax, _ = plot_field_polarization(E_lam, half_size=lim_high, sampling="cartesian",
-                                target_ellipses=17, scale_by_intensity=True, min_ellipse_scale=0.5,
-                                min_intensity_fraction=0.01)
-ax.set(title="Mapa de polarización en el plano imagen (vectorial, alto índice)",
-       xlabel=r"$x/\lambda$", ylabel=r"$y/\lambda$")
-ax.figure.suptitle(caption_high, fontsize=8)
-path = out_dir / "image_plane_polarization.png"
-ax.figure.savefig(path, dpi=200, bbox_inches="tight")
-print_saved(path)
-plt.close(ax.figure)
+for tag, (E_v, lim, caption) in systems.items():
+    E_lam = FieldCartesian(x=E_v.x, y=E_v.y,
+                           grid=Grid.from_cartesian(E_v.grid.X / lam, E_v.grid.Y / lam),
+                           symmetric=False)
+    label = "alto índice" if tag == "high_index" else "vidrio"
+    fig, _ = plot_field_polarization_summary(
+        E_lam, half_size=lim, min_intensity_fraction=0.01, show_cross_fraction=True,
+        title=f"Polarización de la imagen vectorial ({label})\n{caption}",
+        polarization_kwargs=dict(sampling="cartesian", target_ellipses=17,
+                                 scale_by_intensity=True, min_ellipse_scale=0.5),
+    )
+    path = out_dir / f"image_polarization_{tag}.png"
+    fig.savefig(path, dpi=180)
+    print_saved(path)
+    plt.close(fig)
