@@ -41,9 +41,9 @@ fig, _ = plot_incident_and_focal_components(
 )
 save(fig, "components")
 
-# Local polarization ellipses side by side. The library defaults already give
-# the harmonic preset (uniform sizes, 45%/42 deg arrow heads always visible),
-# so no kwargs are needed here.
+# Local polarization ellipses side by side. The library defaults are set so
+# every glyph carries a visible arrowhead -- for the linear pupil the head
+# points outward along the major axis (peak field direction).
 fig, _ = plot_incident_and_focal_polarization_map(
     E0,
     E_focal,

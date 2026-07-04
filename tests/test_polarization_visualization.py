@@ -270,7 +270,7 @@ def test_polarization_map_arrowhead_scales_with_ellipticity():
     # With ``head_fade_by_ellipticity=True`` the head length grows with
     # ``sqrt(ellipticity)``: linear light drops to zero, mildly elliptical
     # light gets a proportionally shorter head than circular light.  The
-    # linear-light bidirectional marker is disabled here so we test the
+    # linear-light head marker is disabled here so we test the
     # handedness-encoding head in isolation.
     def head_length(ey):
         x = np.array([[0.0]]); yy = np.array([[0.0]])
