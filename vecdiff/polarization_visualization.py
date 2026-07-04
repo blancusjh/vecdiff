@@ -29,8 +29,10 @@ def _ellipse_glyph(ex, ey, points):
     ``head_dir`` is the tangent to the ellipse curve at the major-axis tip:
     perpendicular to the major axis for elliptical/circular light, with sign
     given by handedness (right- vs left-handed). For linear light the tangent
-    vanishes and the caller must decide how to render the head (or omit it,
-    since a linear oscillation has no handedness to indicate).
+    vanishes at the tip (the E vector reverses direction there) so ``head_dir``
+    is the zero vector; the caller is expected to substitute the outward
+    major-axis direction to mark the instantaneous field direction at the
+    peak of the oscillation.
     """
 
     ex = complex(ex)
