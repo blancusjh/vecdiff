@@ -199,6 +199,8 @@ def plot_polarization_map(
     arrow_length: float = 0.45,
     arrow_head_absolute_length: float | None = None,
     head_fade_by_ellipticity: bool = False,
+    linear_head_marker: bool = True,
+    linear_head_threshold: float = 0.02,
     curve_kwargs: Mapping[str, Any] | None = None,
     arrowhead_kwargs: Mapping[str, Any] | None = None,
     ellipse_mode: Literal["polar", "cartesian"] = "polar",
@@ -234,12 +236,21 @@ def plot_polarization_map(
     ``arrow_head_absolute_length`` to fix the head length in graph units
     instead, which decouples it from the ellipse size.
 
-    Linear light has a vanishing tangent (no handedness to point along) and
-    therefore draws no head, regardless of ``head_fade_by_ellipticity``. For
-    numerically non-linear light (any non-zero ellipticity), the toggle only
-    controls the head *length*: when ``False`` (default) the head keeps its
-    full size, when ``True`` it is scaled by ``sqrt(ellipticity)`` and hidden
-    below ``|chi| < 0.01`` -- so the head strictly encodes handedness.
+    Linear light has a vanishing curve tangent at the major-axis tip because
+    the E vector reverses direction there.  With ``linear_head_marker=True``
+    (default) the renderer falls back to the outward major-axis direction,
+    which is a genuine physical vector -- the instantaneous field direction
+    at the peak of the oscillation -- so a single arrowhead marks the sense
+    of oscillation.  Set ``linear_head_marker=False`` to drop the head for
+    linear samples.  ``linear_head_threshold`` sets the ellipticity below
+    which the fallback is used (``|chi|`` roughly equal to this ratio for
+    small values); the default of 0.02 (~1.1°) uses it only for glyphs that
+    are indistinguishable from a straight segment at plot resolution.
+
+    For numerically non-linear light (ellipticity above the threshold),
+    ``head_fade_by_ellipticity`` controls the head *length*: when ``False``
+    (default) the head keeps its full size, when ``True`` it is scaled by
+    ``sqrt(ellipticity)`` so the head magnitude encodes handedness strength.
     """
 
     if ax is None:
@@ -337,49 +348,65 @@ def plot_polarization_map(
         glyph_extent = scale * size_factor
 
         pts, head_point, head_dir, ellipticity = _ellipse_glyph(ex_i, ey_i, ellipse_points)
+
+        # Head at the major-axis tip.  For elliptical/circular light the
+        # direction is the curve tangent (encodes handedness).  For linear
+        # light the tangent vanishes at the tip -- because the E vector
+        # reverses direction there -- so we fall back to the outward
+        # major-axis direction, marking the instantaneous field direction at
+        # the peak of the oscillation.
+        linear_light = ellipticity < float(linear_head_threshold)
+        if linear_light and linear_head_marker:
+            head_pairs = [(head_point, head_point)]
+        else:
+            head_pairs = [(head_point, head_dir)]
+
         if ellipse_mode == "polar":
             pts = _polar_to_cartesian_basis(pts, cx, cy)
-            head_point = _polar_to_cartesian_basis(head_point[None, :], cx, cy)[0]
-            head_dir = _polar_to_cartesian_basis(head_dir[None, :], cx, cy)[0]
+            head_pairs = [
+                (
+                    _polar_to_cartesian_basis(hp[None, :], cx, cy)[0],
+                    _polar_to_cartesian_basis(hd[None, :], cx, cy)[0],
+                )
+                for hp, hd in head_pairs
+            ]
 
         center = np.array([cx, cy])
         curve = glyph_extent * pts + center
         segments = _curve_segments(curve)
         figure_segments.append(segments)
 
-        # Scale the head by ellipticity: none for (essentially) linear light --
-        # a clean line centred on the sample -- growing to full size for
-        # circular light, so the head reads as a handedness marker rather than
-        # a spurious travel arrow.  The sqrt keeps a *visible* head as soon as
-        # the handedness is perceptible (a bare linear factor would render the
-        # head of a chi ~ few-degree ellipse invisibly small), while the
-        # threshold below still drops it for numerically-linear samples.
+        # Head length: full ``head_base`` for linear-light markers so the
+        # tick-marks stay visible, and either full length or the
+        # sqrt-of-ellipticity fade for genuinely elliptical light -- the
+        # sqrt keeps a *visible* head as soon as handedness is perceptible.
         head_base = (
             float(arrow_head_absolute_length)
             if arrow_head_absolute_length is not None
             else arrow_length * glyph_extent
         )
-        if head_fade_by_ellipticity:
-            if ellipticity < 0.01:
-                head_length = 0.0
-            else:
-                head_length = head_base * np.sqrt(ellipticity)
+        if linear_light and linear_head_marker:
+            head_length = head_base
+        elif head_fade_by_ellipticity:
+            head_length = 0.0 if ellipticity < 0.01 else head_base * np.sqrt(ellipticity)
         else:
             head_length = head_base
-        head = _arrowhead_triangle(
-            glyph_extent * head_point + center,
-            head_dir,
-            head_length,
-            head_width_ratio * head_length,
-        )
-        if head is not None:
-            head_polys.append(head)
 
         if color_by_phase:
             c = (phase_i + np.pi) / (2.0 * np.pi)
             colors.append(np.full(segments.shape[0], c))
+
+        for head_p, head_d in head_pairs:
+            head = _arrowhead_triangle(
+                glyph_extent * head_p + center,
+                head_d,
+                head_length,
+                head_width_ratio * head_length,
+            )
             if head is not None:
-                head_colors.append(c)
+                head_polys.append(head)
+                if color_by_phase:
+                    head_colors.append(c)
 
     if not figure_segments:
         ax.set_xlim(np.min(x), np.max(x))

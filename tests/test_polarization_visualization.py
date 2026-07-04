@@ -223,10 +223,11 @@ def test_polarization_map_color_override_disables_halo():
     plt.close(fig)
 
 
-def test_polarization_map_linear_light_draws_headless_centered_line():
-    # Linear light has no handedness, so its glyph must be a clean line segment
-    # centred on the sample point with NO arrowhead (a spurious head would imply
-    # a travel/rotation direction and skew the glyph off-centre).
+def test_polarization_map_linear_light_draws_head_along_major_axis():
+    # Linear light has a vanishing curve tangent at the major-axis tip, but
+    # a well-defined instantaneous field direction at the peak of the
+    # oscillation.  The default ``linear_head_marker`` preset draws a single
+    # arrowhead at the +major-axis tip pointing outward along that axis.
     x = np.array([[0.0]])
     y = np.array([[0.0]])
     pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[0.0 + 0.0j]]))
@@ -234,27 +235,51 @@ def test_polarization_map_linear_light_draws_headless_centered_line():
     fig, ax = plt.subplots()
     plot_polarization_map(x, y, pol, scale=1.0, ellipse_points=8, ellipse_mode="cartesian", ax=ax)
 
-    # Only the line body is drawn -- no arrowhead polygon collection.
-    assert len(ax.collections) == 1
+    # Body + head polygon collection.
+    assert len(ax.collections) == 2
     body = np.vstack([seg[0] for seg in ax.collections[0].get_segments()])
-    # The line is centred on the sample point (symmetric about x=0).
     assert np.isclose(0.5 * (body[:, 0].min() + body[:, 0].max()), 0.0)
     assert np.isclose(body[:, 1].min(), 0.0) and np.isclose(body[:, 1].max(), 0.0)
+
+    # Exactly one arrowhead, apex on the +x tip of the major-axis line.
+    heads = list(ax.collections[1].get_paths())
+    assert len(heads) == 1
+    apex = np.asarray(heads[0].vertices)[0]
+    assert apex[0] > 0.0
+    assert np.isclose(apex[1], 0.0)
+    plt.close(fig)
+
+
+def test_polarization_map_linear_head_marker_can_be_disabled():
+    # Passing ``linear_head_marker=False`` recovers the older head-less line.
+    x = np.array([[0.0]])
+    y = np.array([[0.0]])
+    pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[0.0 + 0.0j]]))
+
+    fig, ax = plt.subplots()
+    plot_polarization_map(
+        x, y, pol, scale=1.0, ellipse_points=8, ellipse_mode="cartesian",
+        linear_head_marker=False, ax=ax,
+    )
+
+    assert len(ax.collections) == 1
     plt.close(fig)
 
 
 def test_polarization_map_arrowhead_scales_with_ellipticity():
-    # With head_fade_by_ellipticity enabled the head length encodes |chi|:
-    # circular light gets a full head, a mildly elliptical field a
-    # proportionally shorter one, and linear light none.  Head length must
-    # grow monotonically with |chi|.  (Under the default the head keeps a
-    # fixed size and only its presence/direction encodes handedness.)
+    # With ``head_fade_by_ellipticity=True`` the head length grows with
+    # ``sqrt(ellipticity)``: linear light drops to zero, mildly elliptical
+    # light gets a proportionally shorter head than circular light.  The
+    # linear-light bidirectional marker is disabled here so we test the
+    # handedness-encoding head in isolation.
     def head_length(ey):
         x = np.array([[0.0]]); yy = np.array([[0.0]])
         pol = polarization_from_components(np.array([[1.0 + 0.0j]]), np.array([[ey]]))
         fig, ax = plt.subplots()
-        plot_polarization_map(yy, x, pol, scale=1.0, ellipse_points=64, ellipse_mode="cartesian",
-                              head_fade_by_ellipticity=True, ax=ax)
+        plot_polarization_map(
+            yy, x, pol, scale=1.0, ellipse_points=64, ellipse_mode="cartesian",
+            head_fade_by_ellipticity=True, linear_head_marker=False, ax=ax,
+        )
         if len(ax.collections) < 2:
             plt.close(fig)
             return 0.0
