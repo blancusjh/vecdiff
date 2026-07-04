@@ -211,12 +211,13 @@ systems = {
 def component_analysis_figure(rows, title):
     """One row per field (label, field, half_size); columns are |Ex|, |Ey|, |E|^2.
 
-    Within a row, ``|Ex|`` and ``|Ey|`` share a scale (that of ``|Ex|``) so the
-    cross component's true relative weakness is visible -- the scalar image has
-    ``|Ey| = 0`` (unit transmission, no coupling) while the vectorial one grows
-    the quadrupole clover.  The intensity is peak-normalized per row so the
-    resolved-vs-fused *shape* is legible regardless of absolute brightness (the
-    fair same-scale contrast lives in the ``inversion_*`` figures).
+    Every panel is peak-normalized to ``[0, 1]`` so the scalar and vectorial
+    rows are compared on equal footing (a fair resolution comparison rests on
+    the *shape* / relative valley depth, not the absolute brightness): the
+    intensity is divided by its own peak, and ``|Ex|``/``|Ey|`` share the row's
+    ``|Ex|`` peak so the cross component's true relative weakness stays visible
+    -- the scalar image keeps ``|Ey| = 0`` (unit transmission, no coupling)
+    while the vectorial one grows the quadrupole clover.
     """
     fig, axes = plt.subplots(len(rows), 3, figsize=(13.5, 4.4 * len(rows)),
                              constrained_layout=True)
@@ -225,13 +226,13 @@ def component_analysis_figure(rows, title):
         c1, c2, extent, labels = field_cartesian_maps(field, half_size=half)
         a1, a2 = np.abs(c1), np.abs(c2)
         intensity = a1 ** 2 + a2 ** 2
-        comp_vmax = float(a1.max()) or 1.0
-        panels = ((a1, rf"$|E_{{{labels[0]}}}|$", comp_vmax),
-                  (a2, rf"$|E_{{{labels[1]}}}|$", comp_vmax),
-                  (intensity, r"Intensidad $|E|^2$", float(intensity.max()) or 1.0))
-        for ax, (img, ptitle, vmax) in zip(row_axes, panels):
+        comp_norm = float(a1.max()) or 1.0
+        panels = ((a1 / comp_norm, rf"$|E_{{{labels[0]}}}|$ (norm.)"),
+                  (a2 / comp_norm, rf"$|E_{{{labels[1]}}}|$ (norm.)"),
+                  (intensity / (float(intensity.max()) or 1.0), r"Intensidad $|E|^2$ (norm.)"))
+        for ax, (img, ptitle) in zip(row_axes, panels):
             im = ax.imshow(img, extent=extent, origin="lower", cmap="hot",
-                           vmin=0.0, vmax=vmax, aspect="equal")
+                           vmin=0.0, vmax=1.0, aspect="equal")
             ax.set_title(ptitle)
             ax.set_xlabel(r"$x/\lambda$")
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
