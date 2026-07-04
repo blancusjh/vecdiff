@@ -235,18 +235,19 @@ def component_analysis_figure(E_inc, lim_inc, E_img, lim_img, title):
     return fig
 
 
-def polarization_maps_figure(E_img, lim_img, title):
-    """Polarization ellipse glyphs and the cross-polarized fraction map."""
+def polarization_maps_figure(E_inc, lim_inc, E_img, lim_img, title):
+    """Polarization-ellipse maps of the incident field and of the focal-plane image."""
     fig, axes = plt.subplots(1, 2, figsize=(12.6, 5.9), constrained_layout=True)
     plot_field_polarization(
-        E_img, half_size=lim_img, ax=axes[0], sampling="cartesian",
+        E_inc, half_size=lim_inc, ax=axes[0], sampling="cartesian",
         target_ellipses=17, scale_by_intensity=True, min_ellipse_scale=0.5,
     )
-    axes[0].set_title("Elipses de polarización")
+    axes[0].set_title("Mapa de polarización del campo incidente")
     plot_field_polarization(
-        E_img, half_size=lim_img, ax=axes[1], background="cross_fraction", glyph="quiver",
+        E_img, half_size=lim_img, ax=axes[1], sampling="cartesian",
+        target_ellipses=17, scale_by_intensity=True, min_ellipse_scale=0.5,
     )
-    axes[1].set_title("Fracción de polarización cruzada")
+    axes[1].set_title("Mapa de polarización en el plano focal")
     fig.suptitle(title, fontsize=10)
     return fig
 
@@ -277,7 +278,7 @@ for tag, (E_v, lim, caption, E_inc, lim_inc) in systems.items():
         f"components_{tag}": component_analysis_figure(
             E_inc, lim_inc, E_lam, lim, f"Análisis por componentes — {header}"),
         f"polarization_maps_{tag}": polarization_maps_figure(
-            E_lam, lim, f"Mapas de polarización — {header}"),
+            E_inc, lim_inc, E_lam, lim, f"Mapas de polarización — {header}"),
         f"ellipse_angles_{tag}": ellipse_angles_figure(
             E_lam, lim, f"Ángulos de la elipse de polarización — {header}"),
     }
