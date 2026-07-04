@@ -8,11 +8,13 @@ concentrates the pupil energy near grazing incidence on the exit diopter,
 where the polarization-mixing ratio t-/t+ peaks.
 
 With the separation perpendicular to the incident x polarization, the mixing
-term interferes constructively in the valley between the two image spots:
-the *scalar* image (t- = 0) shows two clearly split maxima while the
-*vectorial* image fills the valley and fuses them.  The same inversion is
-shown for a high-index diopter (n_i = 2.4, diamond-like) and for ordinary
-glass (n_i = 1.5), where it is weaker but survives.
+term interferes constructively in the valley between the two image spots: the
+*scalar* image -- the classical scalar-diffraction reference, unit transmission
+ts = tp = 1 (so t- = 0 and no Fresnel apodization) -- shows two clearly split
+maxima, while the *vectorial* image (the full diopter operator with tp, ts and
+cross-coupling) fills the valley and fuses them.  The same inversion is shown
+for a high-index diopter (n_i = 2.4, diamond-like) and for ordinary glass
+(n_i = 1.5), where it is weaker but survives.
 
 The renders use a zoom FFT (a k-grid restricted to the displayed window), so
 the sub-wavelength images are densely sampled instead of inheriting the
@@ -26,7 +28,6 @@ import matplotlib.pyplot as plt
 
 from vecdiff import CartesianSurface, FieldCartesian, Grid
 from vecdiff.fresnel import FresnelOvoid
-from vecdiff.propagation import fresnel_coefficients_on_grid
 from vecdiff.view import field_cartesian_maps
 from vecdiff.polarization_visualization import (
     plot_field_polarization,
@@ -67,14 +68,6 @@ def make_system(ni_glass, r_a=None):
     return d1, d2, float(r_a)
 
 
-def scalar_limit(field, diopter):
-    """Apply the isotropic t+ = (tp+ts)/2 factor (the t- = 0 scalar limit)."""
-    support = (np.abs(field.x) > 0.0) | (np.abs(field.y) > 0.0)
-    tp, ts = fresnel_coefficients_on_grid(field.grid.R, diopter, support=support)
-    t_plus = 0.5 * (tp + ts)
-    return FieldCartesian(x=t_plus * field.x, y=t_plus * field.y, grid=field.grid, symmetric=False)
-
-
 def run_system(tag, label, ni_glass, r_a=None):
     d1, d2, r_a = make_system(ni_glass, r_a)
     alpha_max = np.arctan(r_a / abs(d1["z0"]))
@@ -102,10 +95,12 @@ def run_system(tag, label, ni_glass, r_a=None):
     kgrid_zoom = Grid.from_cartesian(KXz, KYz, domain="k")
 
     def image(vectorial):
+        # Vectorial: the full diopter operator (tp, ts with cross-coupling).
+        # Scalar: unit transmission (ts = tp = 1, so t- = 0 and no apodization),
+        # i.e. the classical scalar-diffraction reference image.
         field0 = FieldCartesian(x=mask.astype(complex), y=np.zeros_like(mask, dtype=complex),
                                 grid=grid, symmetric=False)
         transmission = "vectorial" if vectorial else "identity"
-        field0 = field0 if vectorial else scalar_limit(field0, diopter1)
         field1 = field0.propagate_through_diopter(
             diopter1.zi, diopter1, method="fft", output="focal", wavelength=lam,
             kgrid=grid.kgrid(N_K), transmission=transmission)
@@ -114,7 +109,6 @@ def run_system(tag, label, ni_glass, r_a=None):
                           (field1.grid.R / pupil_radius) ** EDGE_P, 0.0)
         field1 = FieldCartesian(x=weight * field1.x, y=weight * field1.y,
                                 grid=field1.grid, symmetric=False)
-        field1 = field1 if vectorial else scalar_limit(field1, diopter2)
         return field1.propagate_through_diopter(
             diopter2.zi, diopter2, method="fft", output="focal", wavelength=lam,
             kgrid=kgrid_zoom, transmission=transmission)
@@ -166,7 +160,7 @@ def run_system(tag, label, ni_glass, r_a=None):
                    origin="lower", cmap="gray")
     axes[0].set_title("Máscara (objeto)")
     axes[1].imshow((I_s / vmax) ** 0.8, extent=ext, origin="lower", cmap="gray", vmin=0, vmax=1)
-    axes[1].set_title(rf"Imagen escalar ($t_-=0$): C = {contrasts['escalar']:.3f}")
+    axes[1].set_title(rf"Imagen escalar ($t_s=t_p=1$): C = {contrasts['escalar']:.3f}")
     axes[2].imshow((I_v / vmax) ** 0.8, extent=ext, origin="lower", cmap="gray", vmin=0, vmax=1)
     axes[2].set_title(rf"Imagen vectorial: C = {contrasts['vectorial']:.3f}")
     for axi in axes[1:3]:
@@ -196,7 +190,7 @@ def run_system(tag, label, ni_glass, r_a=None):
     print_saved(path)
     plt.close(fig)
 
-    return E_v, lim_lam, caption, E_inc, lim_inc
+    return E_v, E_s, lim_lam, caption, E_inc, lim_inc
 
 
 systems = {
@@ -214,17 +208,28 @@ systems = {
 # ---------------------------------------------------------------------
 
 
-def component_analysis_figure(E_inc, lim_inc, E_img, lim_img, title):
-    """Incident field (top row) and vectorial image (bottom row): |Ex|, |Ey|, |E|^2."""
-    fig, axes = plt.subplots(2, 3, figsize=(13.5, 8.8), constrained_layout=True)
-    rows = (("Campo incidente", E_inc, lim_inc), ("Imagen vectorial", E_img, lim_img))
+def component_analysis_figure(rows, title):
+    """One row per field (label, field, half_size); columns are |Ex|, |Ey|, |E|^2.
+
+    Within a row, ``|Ex|`` and ``|Ey|`` share a scale (that of ``|Ex|``) so the
+    cross component's true relative weakness is visible -- the scalar image has
+    ``|Ey| = 0`` (unit transmission, no coupling) while the vectorial one grows
+    the quadrupole clover.  The intensity is peak-normalized per row so the
+    resolved-vs-fused *shape* is legible regardless of absolute brightness (the
+    fair same-scale contrast lives in the ``inversion_*`` figures).
+    """
+    fig, axes = plt.subplots(len(rows), 3, figsize=(13.5, 4.4 * len(rows)),
+                             constrained_layout=True)
+    axes = np.atleast_2d(axes)
     for row_axes, (row_label, field, half) in zip(axes, rows):
         c1, c2, extent, labels = field_cartesian_maps(field, half_size=half)
         a1, a2 = np.abs(c1), np.abs(c2)
-        panels = ((a1, rf"$|E_{{{labels[0]}}}|$"), (a2, rf"$|E_{{{labels[1]}}}|$"),
-                  (a1 ** 2 + a2 ** 2, r"Intensidad $|E|^2$"))
-        for ax, (img, ptitle) in zip(row_axes, panels):
-            vmax = float(img.max()) or 1.0
+        intensity = a1 ** 2 + a2 ** 2
+        comp_vmax = float(a1.max()) or 1.0
+        panels = ((a1, rf"$|E_{{{labels[0]}}}|$", comp_vmax),
+                  (a2, rf"$|E_{{{labels[1]}}}|$", comp_vmax),
+                  (intensity, r"Intensidad $|E|^2$", float(intensity.max()) or 1.0))
+        for ax, (img, ptitle, vmax) in zip(row_axes, panels):
             im = ax.imshow(img, extent=extent, origin="lower", cmap="hot",
                            vmin=0.0, vmax=vmax, aspect="equal")
             ax.set_title(ptitle)
@@ -267,16 +272,25 @@ def ellipse_angles_figure(E_img, lim_img, title):
     return fig
 
 
-for tag, (E_v, lim, caption, E_inc, lim_inc) in systems.items():
-    E_lam = FieldCartesian(x=E_v.x, y=E_v.y,
-                           grid=Grid.from_cartesian(E_v.grid.X / lam, E_v.grid.Y / lam),
-                           symmetric=False)
+def to_wavelengths(field):
+    return FieldCartesian(x=field.x, y=field.y,
+                          grid=Grid.from_cartesian(field.grid.X / lam, field.grid.Y / lam),
+                          symmetric=False)
+
+
+for tag, (E_v, E_s, lim, caption, E_inc, lim_inc) in systems.items():
+    E_lam = to_wavelengths(E_v)
+    E_s_lam = to_wavelengths(E_s)
     label = "alto índice" if tag == "high_index" else "vidrio"
     header = rf"imagen vectorial ({label})" + "\n" + caption
 
     figures = {
         f"components_{tag}": component_analysis_figure(
-            E_inc, lim_inc, E_lam, lim, f"Análisis por componentes — {header}"),
+            [("Campo incidente", E_inc, lim_inc),
+             (r"Imagen escalar ($t_s=t_p=1$)", E_s_lam, lim),
+             ("Imagen vectorial", E_lam, lim)],
+            f"Análisis por componentes ({label}): campo incidente, imagen escalar y vectorial"
+            + "\n" + caption),
         f"polarization_maps_{tag}": polarization_maps_figure(
             E_inc, lim_inc, E_lam, lim, f"Mapas de polarización — {header}"),
         f"ellipse_angles_{tag}": ellipse_angles_figure(
