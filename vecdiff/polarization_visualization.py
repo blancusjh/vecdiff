@@ -676,6 +676,12 @@ def plot_field_polarization(
     ``angular_spacing`` (default 1.0): values above 1 thin out the glyphs along
     each ring (larger azimuthal gaps) without changing the radial sampling,
     which leaves room to size the glyphs larger via an explicit ``scale``.
+
+    Pass ``rings`` as a list of ``(radius, n_azimuthal)`` tuples to specify ring
+    positions and azimuthal counts explicitly instead of using the automatic
+    uniform layout.  A center-point glyph at ``r=0`` is always included.  The
+    glyph scale is derived from the smallest consecutive ring spacing unless
+    overridden via ``scale``.
     """
 
     from .polarization import polarization_from_components, polarization_map_from_field
@@ -688,17 +694,31 @@ def plot_field_polarization(
     elif sampling == "polar":
         from scipy.interpolate import RegularGridInterpolator
 
+        rings_spec = kwargs.pop("rings", None)   # [(radius, n_az), ...] custom layout
         n_rings = max(1, int(kwargs.pop("n_rings", 12)))
         angular_spacing = max(float(kwargs.pop("angular_spacing", 1.0)), np.finfo(float).eps)
         r_max = float(half_size) if half_size is not None else float(np.max(np.hypot(bg_x, bg_y)))
         dr = r_max / (n_rings + 0.5)
         # Always include an on-axis (r=0) glyph, then the concentric rings.
         xg, yg = [np.array([0.0])], [np.array([0.0])]
-        for rk in dr * (np.arange(n_rings) + 1.0):
-            n_az = max(6, int(round(2.0 * np.pi * rk / (angular_spacing * dr))))
-            ang = np.linspace(0.0, 2.0 * np.pi, n_az, endpoint=False)
-            xg.append(rk * np.cos(ang))
-            yg.append(rk * np.sin(ang))
+        if rings_spec is not None:
+            for rk, n_az in rings_spec:
+                ang = np.linspace(0.0, 2.0 * np.pi, int(n_az), endpoint=False)
+                xg.append(float(rk) * np.cos(ang))
+                yg.append(float(rk) * np.sin(ang))
+            # Derive the reference spacing from successive ring radii so the
+            # glyph scale stays consistent with the densest part of the layout.
+            radii = sorted(float(r) for r, _ in rings_spec)
+            if len(radii) >= 2:
+                dr = float(np.min(np.diff(radii)))
+            elif radii:
+                dr = float(radii[0])
+        else:
+            for rk in dr * (np.arange(n_rings) + 1.0):
+                n_az = max(6, int(round(2.0 * np.pi * rk / (angular_spacing * dr))))
+                ang = np.linspace(0.0, 2.0 * np.pi, n_az, endpoint=False)
+                xg.append(rk * np.cos(ang))
+                yg.append(rk * np.sin(ang))
         xg = np.concatenate(xg)
         yg = np.concatenate(yg)
 

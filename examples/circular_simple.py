@@ -40,18 +40,52 @@ fig, _ = plot_incident_and_focal_components(
 )
 save(fig, "components")
 
-# The library defaults already carry the harmonic preset (uniform sizes,
-# 45%/42 deg arrow heads). Only the polar sampling and ring count are
-# problem-specific: polar layout respects the rotational symmetry of both
-# pupil and focal diffraction pattern.
-polarization_preset = dict(sampling="polar", n_rings=12)
+# --- Glyph layout tuning parameters ---
+# Incident pupil: sparser ring layout (it is uniformly circular, fewer rings suffice).
+n_rings_incident = 20
+angular_spacing_incident = 1.0
+
+# Focal field: n_rings=23 with focal_half_size=5.0 gives dr ≈ 0.213 λ, which
+# distributes the rings across the three Airy zones as:
+#   spot zone    (r < 0.94 λ):   4 rings  — same as before
+#   segunda zona (0.94–1.72 λ):  4 rings
+#   tercera zona (1.72–2.49 λ):  3 rings
+# max_radius clips ellipses beyond the third Airy zero.
+
+
+n_rings_focal = 23
+angular_spacing_focal = 0.75
+focal_max_radius = 2.5      # ≈ third Airy zero in focal/lambda units
+
+
+# Polarization Presets.
+
+
+#   Incident 
+incident_polarization_preset = dict(
+    sampling="polar", n_rings=n_rings_incident, angular_spacing=angular_spacing_incident,
+    scale = 0.06
+)
+
+
+#   Focal Plane
+
+focal_polarization_preset = dict(
+    sampling="polar",
+    n_rings=n_rings_focal,
+    angular_spacing=angular_spacing_focal,
+    max_radius=focal_max_radius,
+    min_intensity_fraction=0.001,
+    scale = 0.06
+)
 fig, _ = plot_incident_and_focal_polarization_map(
     E0,
     E_focal,
     incident_half_size=R,
     focal_half_size=5.0,
-    incident_polarization_kwargs=polarization_preset,
-    focal_polarization_kwargs=polarization_preset,
+    min_intensity_fraction=0.001,
+    incident_polarization_kwargs=incident_polarization_preset,
+    focal_polarization_kwargs=focal_polarization_preset,
     title="Polarización: pupila vs. plano focal (circular)",
 )
 save(fig, "polarization_map")
