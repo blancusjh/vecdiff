@@ -12,12 +12,13 @@ Archive.zip
 docs/assets/input_quiver_harmonic.gif
 docs/assets/quiver_harmonic.gif
 
-notebooks/
+/notebooks/
 
 
 # Generated figures from examples/investigations
 *.png
 *.npz
+!docs/notebooks/circuit_pattern.png
 
 examples/output/**
 !examples/output/
