@@ -129,30 +129,25 @@ norm = float(np.max(I_perp))
 
 rho_show = np.hypot(*np.meshgrid(x_win[sel], x_win[sel]))
 I_perp_map = np.interp(rho_show, s, I_perp)
+I_z_map = np.interp(rho_show, s, I_z)
 I_tot_map = np.interp(rho_show, s, I_tot)
 vmax_int = float(np.max(I_tot_map))
 
+panels = (
+    (r"transversal $|E_r|^2$", I_perp_map),
+    (r"longitudinal $|E_z|^2$", I_z_map),
+    (r"total $|E_r|^2 + |E_z|^2$", I_tot_map),
+)
 fig, axes = plt.subplots(1, 3, figsize=(14.4, 4.4), constrained_layout=True)
-for ax, img, title in (
-    (axes[0], I_perp_map, r"transversal $|E_r|^2$"),
-    (axes[1], I_tot_map, r"total $|E_r|^2 + |E_z|^2$"),
-):
-    im = ax.imshow(img, extent=extent_show, origin="lower", cmap="hot",
-                   vmin=0.0, vmax=vmax_int, aspect="equal")
+for ax, (title, img) in zip(axes, panels):
+    im = ax.imshow(img / img.max(), extent=extent_show, origin="lower",
+                   cmap="hot", vmin=0.0, vmax=1.0, aspect="equal")
     ax.set_title(title)
     ax.set_xlabel(r"$x/\lambda$")
+    ax.text(0.03, 0.97, f"máx = {float(img.max()) / vmax_int:.3f} · máx total",
+            transform=ax.transAxes, color="w", va="top", fontsize=8)
 axes[0].set_ylabel(r"$y/\lambda$")
-fig.colorbar(im, ax=axes[:2], fraction=0.03, pad=0.02)
-
-ax = axes[2]
-mask = s <= half_show
-ax.plot(s[mask], I_perp[mask] / norm, label=r"$I_\perp = |E_r|^2$")
-ax.plot(s[mask], I_z[mask] / norm, label=r"$I_z = |E_z|^2$")
-ax.plot(s[mask], I_tot[mask] / norm, "--", label=r"$I_\perp + I_z$")
-ax.set_xlabel(r"$\rho/\lambda$")
-ax.set_ylabel(r"$I \,/\, \max I_\perp$")
-ax.set_title("cortes radiales")
-ax.legend(fontsize=9)
+fig.colorbar(im, ax=axes, fraction=0.02, pad=0.02)
 fig.suptitle(
     "Incidencia radial: la componente longitudinal llena el centro oscuro\n"
     + diopter_caption
