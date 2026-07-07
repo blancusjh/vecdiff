@@ -143,10 +143,10 @@ print(f"α_obj = {case_hna['alpha_obj_deg']:.1f}°,  "
 
 fig, axs = plt.subplots(1, 2, figsize=(11.5, 5.2), constrained_layout=True)
 _, m_lin = st.plot_spot_with_radii(axs[0], case_hna, alpha=np.deg2rad(20), incidence="linear")
-axs[0].set_title(r"Vectorial, lineal $\alpha=20°$")
+axs[0].set_title(r"Vectorial, linear $\alpha=20^\circ$")
 _, m_cir = st.plot_spot_with_radii(axs[1], case_hna, incidence="circular")
-axs[1].set_title("Vectorial, incidencia circular")
-fig.suptitle(r"Radios HWHM medidos (dioptrio rápido: $n_i=2.4$, $\alpha_{\rm obj}\approx57°$)")
+axs[1].set_title("Vectorial, circular incidence")
+fig.suptitle(r"HWHM radii (fast dioptre: $n_0=1$, $n_i=2.4$, $z_0=-2$~mm, $z_i=6$~mm, $\alpha_{\rm obj}\approx57^\circ$)")
 fig.savefig(out_dir / "01_annotated_spots.png", dpi=200)
 plt.show()
 
