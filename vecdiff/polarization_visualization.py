@@ -477,10 +477,20 @@ def _autocrop_extent(xx, yy, valid, padding=1.15):
     if not np.any(valid):
         return float(np.min(xx)), float(np.max(xx)), float(np.min(yy)), float(np.max(yy))
 
-    radius = float(np.max(np.hypot(xx[valid], yy[valid]))) * padding
-    radius = min(radius, float(np.max(np.hypot(xx, yy))))
+    # The requested box is Cartesian, so its half-width is set by the largest
+    # occupied coordinate, not by the distance to a corner.  Using hypot here
+    # made a field that reached (x_max, y_max) request sqrt(2) times the actual
+    # mesh width, leaving large blank margins and shrinking the useful image.
+    radius = float(max(np.max(np.abs(xx[valid])), np.max(np.abs(yy[valid])))) * padding
+    mesh_radius = float(
+        min(
+            max(abs(float(np.min(xx))), abs(float(np.max(xx)))),
+            max(abs(float(np.min(yy))), abs(float(np.max(yy)))),
+        )
+    )
+    radius = min(radius, mesh_radius)
     if radius <= 0.0:
-        radius = float(np.max(np.hypot(xx, yy))) or 1.0
+        radius = mesh_radius or 1.0
     return -radius, radius, -radius, radius
 
 
@@ -918,10 +928,10 @@ def plot_field_polarization_summary(
     return fig, axes
 
 
-def _components_in_basis(field, basis: Literal["cartesian", "circular"]):
+def _components_in_basis(field, basis: Literal["cartesian", "circular", "polar"]):
     """Return ``(c1, c2, label1, label2)`` for a Field in the requested transverse basis."""
 
-    from .coordinate_transformation import cartesian_to_circular
+    from .coordinate_transformation import cartesian_to_circular, cartesian_to_polar
 
     if basis == "cartesian":
         return np.asarray(field.x), np.asarray(field.y), "x", "y"
@@ -931,7 +941,15 @@ def _components_in_basis(field, basis: Literal["cartesian", "circular"]):
         if L is None or R is None:
             L, R = cartesian_to_circular(np.asarray(field.x), np.asarray(field.y))
         return np.asarray(L), np.asarray(R), "L", "R"
-    raise ValueError("basis must be 'cartesian' or 'circular'.")
+    if basis == "polar":
+        Er = getattr(field, "r", None)
+        Ephi = getattr(field, "phi", None)
+        if Er is None or Ephi is None:
+            Er, Ephi = cartesian_to_polar(
+                np.asarray(field.x), np.asarray(field.y), np.asarray(field.grid.Phi)
+            )
+        return np.asarray(Er), np.asarray(Ephi), "r", r"\phi"
+    raise ValueError("basis must be 'cartesian', 'circular' or 'polar'.")
 
 
 def _row_label(ax, text):
@@ -953,12 +971,13 @@ def plot_incident_and_focal_components(
     incident,
     focal,
     *,
-    basis: Literal["cartesian", "circular"] = "cartesian",
+    basis: Literal["cartesian", "circular", "polar"] = "cartesian",
     incident_half_size: float | None = None,
     focal_half_size: float | None = None,
     n_img: int = 500,
     cmap: str = "hot",
     component_view: str = "abs",
+    component_zero_tolerance: float = 1e-12,
     incident_label: str = "Campo incidente",
     focal_label: str = "Plano focal",
     title: str | None = None,
@@ -969,8 +988,12 @@ def plot_incident_and_focal_components(
     The top row shows the incident field's components in ``basis`` (plus its
     intensity), and the bottom row does the same for the focal-plane field.
     ``basis="cartesian"`` picks ``(Ex, Ey)``; ``basis="circular"`` picks
-    ``(EL, ER)`` — for a Cartesian field the circular components are computed
-    from ``(Ex, Ey)``. The intensity column is basis-invariant.
+    ``(EL, ER)``; ``basis="polar"`` picks ``(Er, Ephi)`` — components not
+    cached on the field are computed from ``(Ex, Ey)``. The intensity column
+    is basis-invariant. Values below ``component_zero_tolerance`` times the
+    largest component amplitude in their row are treated as floating-point
+    zero. Both component panels share a color scale, preventing a vanishing
+    component from being visually amplified.
     """
 
     from .view import sample_component_pair_on_cartesian_mesh
@@ -990,12 +1013,25 @@ def plot_incident_and_focal_components(
             c1_raw, c2_raw, fld.grid, half_size=half_size, n_img=n_img
         )
         i1, i2 = rep(c1), rep(c2)
+        component_max = float(max(np.max(np.abs(i1)), np.max(np.abs(i2))))
+        zero_threshold = max(float(component_zero_tolerance), 0.0) * component_max
+        if zero_threshold > 0.0:
+            i1 = np.where(np.abs(i1) <= zero_threshold, 0.0, i1)
+            i2 = np.where(np.abs(i2) <= zero_threshold, 0.0, i2)
         intensity = np.abs(c1) ** 2 + np.abs(c2) ** 2
+        component_vmax = float(max(np.max(np.abs(i1)), np.max(np.abs(i2)))) or 1.0
 
         for col, (img, label) in enumerate(((i1, lab1), (i2, lab2))):
             ax = axes[row, col]
-            vmax = float(np.max(np.abs(img))) or 1.0
-            im = ax.imshow(np.abs(img), extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
+            im = ax.imshow(
+                np.abs(img),
+                extent=extent,
+                origin="lower",
+                cmap=cmap,
+                vmin=0.0,
+                vmax=component_vmax,
+                aspect="equal",
+            )
             ax.set_title(rf"$E_{{{label}}}$")
             ax.set_xlabel("x")
             ax.set_ylabel("y")
@@ -1004,7 +1040,7 @@ def plot_incident_and_focal_components(
         vmax_int = float(np.max(intensity)) or 1.0
         ax = axes[row, 2]
         im = ax.imshow(intensity, extent=extent, origin="lower", cmap=cmap, vmin=0.0, vmax=vmax_int, aspect="equal")
-        ax.set_title("Intensidad")
+        ax.set_title("Intensity")
         ax.set_xlabel("x")
         ax.set_ylabel("y")
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)

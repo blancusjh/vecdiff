@@ -30,15 +30,23 @@ E_focal = focal_field(E0.propagate_through_diopter(zi, diopter, q, method="hanke
 # --- Figures ---
 save = figure_saver(__file__)
 
+_dioptre_info = (rf"$n_0={n0:g}$, $n_i={ni:g}$, "
+                 rf"$z_0={z0:g}\,\mathrm{{mm}}$, $z_i={zi:g}\,\mathrm{{mm}}$, "
+                 rf"$\lambda={int(lam*1e6)}\,\mathrm{{nm}}$")
+
 # Cartesian components of the incident field (top) and focal field (bottom).
-fig, _ = plot_incident_and_focal_components(
+fig, axes = plot_incident_and_focal_components(
     E0,
     E_focal,
     basis="cartesian",
     incident_half_size=R,
     focal_half_size=20.0,
-    title="Componentes cartesianas: pupila vs. plano focal",
+    incident_label="Incident field",
+    focal_label="Focal plane",
+    title=f"Cartesian components: pupil vs. focal plane ({_dioptre_info})",
 )
+for row in (0, 1):
+    axes[row, 2].set_title("Intensity")
 save(fig, "components")
 
 # Local polarization ellipses side by side. The library defaults are set so
@@ -49,7 +57,9 @@ fig, _ = plot_incident_and_focal_polarization_map(
     E_focal,
     incident_half_size=R,
     focal_half_size=20.0,
-    title="Polarización: pupila vs. plano focal (cartesiano)",
+    incident_label="Pupil polarization map",
+    focal_label="Focal-plane polarization map",
+    title=f"Polarization: pupil vs. focal plane ({_dioptre_info})",
 )
 save(fig, "polarization_map")
 
@@ -59,7 +69,9 @@ fig, _ = plot_incident_and_focal_polarization_angles(
     E_focal,
     incident_half_size=R,
     focal_half_size=20.0,
-    title="Ángulos de la elipse: pupila vs. plano focal (cartesiano)",
+    incident_label="Incident field",
+    focal_label="Focal plane",
+    title=f"Ellipse angles: pupil vs. focal plane ({_dioptre_info})",
 )
 save(fig, "polarization_angles")
 

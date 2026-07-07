@@ -435,9 +435,9 @@ def annotate_C(ax, name, fontsize=11):
 
 
 fig, axes = plt.subplots(2, 2, figsize=(13.6, 14.0), constrained_layout=True)
-show_mask(axes[0, 0], title="máscara (entrada, $C_V = C_H = 1$)")
+show_mask(axes[0, 0], title="mask (input, $C_V = C_H = 1$)")
 draw_cuts(axes[0, 0])
-panels = [(axes[0, 1], I_esc, "escalar ($t_p = t_s = 1$)", "escalar"),
+panels = [(axes[0, 1], I_esc, "scalar ($t_p = t_s = 1$)", "escalar"),
           (axes[1, 0], I_lin["vectorial x̂ (total)"],
            r"vectorial, $\mathbf{E}_0 = T\hat{x}$ — $|E_x|^2+|E_y|^2+|E_z|^2$",
            "vectorial x̂ (total)"),
@@ -448,6 +448,7 @@ for ax, A, title, name in panels:
     show_image(ax, A, title)
     draw_cuts(ax)
     annotate_C(ax, name)
+fig.suptitle(r"ArF stigmatic lens (two conjugated dioptres): $\lambda=193$~nm, $\mathrm{NA}=0.94$, unit magnification, linear illumination")
 fig.savefig(out_dir / "07_linear_images.png", dpi=200)
 plt.show()
 
