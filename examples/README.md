@@ -15,7 +15,6 @@ Each script prints the path of the files it saves.
 | --- | --- | --- |
 | `cartesian_simple.py` | Cartesian-polarized circular pupil propagated through one diopter. | `input_field_components.png`, `propagated_field_components.png`, `input_polarization.png`, `propagated_polarization.png` |
 | `circular_simple.py` | Circular-polarized circular pupil propagated through one diopter. | `input_field_components.png`, `propagated_field_components.png`, `input_polarization.png`, `propagated_polarization.png` |
-
 ## Scalar vs vectorial focusing
 
 | Example | Purpose | Main outputs |

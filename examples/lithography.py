@@ -21,6 +21,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from vecdiff import Grid, FieldCartesian, CartesianSurface
+from vecdiff.polarization import polarization_from_components
+from vecdiff.polarization_visualization import plot_polarization_map
 from _output import example_output_dir, print_saved
 
 
@@ -381,9 +383,13 @@ def run_lithography_example(*, L=None, N=1025, Npad=1024):
         "x": x,
         "y": y,
         "T": T,
+        "Ex_in": field.x,
+        "Ey_in": field.y,
         "boxes": boxes,
         "xr": xr,
         "yr": yr,
+        "Ex_v": Ex_v,
+        "Ey_v": Ey_v,
         "Is": Is,
         "Iv": Iv,
         "Icross": Icross,
@@ -460,9 +466,177 @@ def plot_lithography_result(result):
     plt.close(fig)
 
 
+def plot_lithography_polarization_result(result):
+    """Plot input/output intensities with their local polarization ellipses."""
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.8, 5.3), constrained_layout=False)
+    panels = [
+        (
+            result["T"],
+            result["Ex_in"],
+            result["Ey_in"],
+            result["x"],
+            result["y"],
+            "Entrada: máscara y polarización incidente",
+            result["input_zoom"],
+            0.50,
+            "black",
+        ),
+        (
+            result["Iv"],
+            result["Ex_v"],
+            result["Ey_v"],
+            result["xr"],
+            result["yr"],
+            "Salida: intensidad y polarización vectorial",
+            result["output_zoom"],
+            0.018,
+            "white",
+        ),
+    ]
+
+    for ax, (intensity, ex, ey, xx, yy, title, zoom, threshold, glyph_color) in zip(axes, panels):
+        x_plot = np.asarray(xx) / lam
+        y_plot = np.asarray(yy) / lam
+        X_plot, Y_plot = np.meshgrid(x_plot, y_plot, indexing="xy")
+
+        shown_intensity = display_positive(intensity, percentile=99.7, gamma=0.72)
+        im = ax.imshow(
+            shown_intensity,
+            origin="lower",
+            extent=image_extent_over_lambda(xx, yy),
+            cmap="magma",
+            vmin=0.0,
+            vmax=1.0,
+            interpolation="nearest",
+        )
+        colorbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.035)
+        colorbar.set_label("Intensidad (escala de visualización)")
+
+        pol = polarization_from_components(ex, ey)
+        plot_polarization_map(
+            X_plot,
+            Y_plot,
+            pol,
+            target_ellipses=42,
+            max_ellipses=850,
+            min_intensity_fraction=threshold,
+            scale_by_intensity=True,
+            intensity_scale_mode="power",
+            intensity_scale_gamma=0.35,
+            min_ellipse_scale=0.42,
+            ellipse_points=48,
+            ellipse_mode="cartesian",
+            curve_kwargs={"color": glyph_color, "linewidth": 0.72, "alpha": 0.88},
+            arrowhead_kwargs={"color": glyph_color, "linewidth": 0.82, "alpha": 0.92},
+            ax=ax,
+        )
+
+        ax.set_xlim(zoom["xmin"] / lam, zoom["xmax"] / lam)
+        ax.set_ylim(zoom["ymin"] / lam, zoom["ymax"] / lam)
+        ax.set_title(title)
+        ax.set_xlabel(r"$x/\lambda$")
+        ax.set_ylabel(r"$y/\lambda$")
+        ax.set_aspect("equal")
+
+    fig.suptitle(
+        "Litografía: evolución espacial de la polarización"
+        "\n"
+        rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$, "
+        rf"$\mathrm{{NA}}={NA:.2f}$, $|M|={abs(result['lens'].magnification):.2f}$, "
+        rf"$\mathbf{{E}}_0=T\,\hat{{\mathbf{{x}}}}$",
+        y=0.975,
+    )
+    fig.subplots_adjust(left=0.065, right=0.955, bottom=0.12, top=0.83, wspace=0.34)
+
+    output_path = out_dir / "lithography_polarization_maps.png"
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    print_saved(output_path)
+    plt.close(fig)
+
+
+def plot_lithography_ellipticity_map(result):
+    """Temporarily plot output ellipticity and major-axis orientation."""
+
+    pol = polarization_from_components(result["Ex_v"], result["Ey_v"])
+    intensity = np.asarray(pol.s0, dtype=float)
+    visible = intensity >= 0.01 * float(np.nanmax(intensity))
+    chi_deg = np.degrees(pol.chi)
+    chi_visible = np.ma.masked_where(~visible, chi_deg)
+    psi_deg = np.degrees(pol.psi)
+    psi_visible = np.ma.masked_where(~visible, psi_deg)
+
+    robust_limit = float(np.percentile(np.abs(chi_deg[visible]), 99.5))
+    color_limit = max(robust_limit, 1.0e-3)
+    chi_cmap = plt.get_cmap("RdBu_r").copy()
+    chi_cmap.set_bad("black")
+    psi_cmap = plt.get_cmap("twilight_shifted").copy()
+    psi_cmap.set_bad("black")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.2, 5.4))
+    im_chi = axes[0].imshow(
+        chi_visible,
+        origin="lower",
+        extent=image_extent_over_lambda(result["xr"], result["yr"]),
+        cmap=chi_cmap,
+        vmin=-color_limit,
+        vmax=color_limit,
+        interpolation="nearest",
+    )
+    im_psi = axes[1].imshow(
+        psi_visible,
+        origin="lower",
+        extent=image_extent_over_lambda(result["xr"], result["yr"]),
+        cmap=psi_cmap,
+        vmin=-90.0,
+        vmax=90.0,
+        interpolation="nearest",
+    )
+
+    intensity_display = display_positive(intensity, percentile=99.7, gamma=0.72)
+    zoom = result["output_zoom"]
+    for ax in axes:
+        ax.contour(
+            result["xr"] / lam,
+            result["yr"] / lam,
+            intensity_display,
+            levels=(0.18, 0.45, 0.75),
+            colors="white",
+            linewidths=0.45,
+            alpha=0.38,
+        )
+        ax.set_xlim(zoom["xmin"] / lam, zoom["xmax"] / lam)
+        ax.set_ylim(zoom["ymin"] / lam, zoom["ymax"] / lam)
+        ax.set_xlabel(r"$x/\lambda$")
+        ax.set_ylabel(r"$y/\lambda$")
+        ax.set_aspect("equal")
+
+    axes[0].set_title(r"Ángulo de elipticidad $\chi$")
+    axes[1].set_title(r"Ángulo del eje mayor $\psi$")
+
+    chi_colorbar = fig.colorbar(im_chi, ax=axes[0], fraction=0.046, pad=0.035)
+    chi_colorbar.set_label(r"$\chi$ [grados]")
+    psi_colorbar = fig.colorbar(im_psi, ax=axes[1], fraction=0.046, pad=0.035)
+    psi_colorbar.set_label(r"$\psi$ [grados]")
+    psi_colorbar.set_ticks((-90.0, -45.0, 0.0, 45.0, 90.0))
+
+    fig.suptitle(
+        "Polarización vectorial de salida\n"
+        r"Contornos: intensidad; mapas visibles para $I\geq 1\%\,I_{\max}$"
+    )
+    fig.subplots_adjust(left=0.07, right=0.95, bottom=0.11, top=0.82, wspace=0.32)
+
+    output_path = out_dir / "lithography_ellipticity_map.png"
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    print_saved(output_path)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     result = run_lithography_example()
     plot_lithography_result(result)
+    plot_lithography_polarization_result(result)
+    plot_lithography_ellipticity_map(result)
 
     Is = result["Is"]
     Iv = result["Iv"]
@@ -489,3 +663,5 @@ if __name__ == "__main__":
     print(f"difference_abs_max={np.max(np.abs(Id)):.10e}")
     print(f"difference_abs_p99={np.percentile(np.abs(Id), 99):.10e}")
     print(out_dir / "lithography_pattern_check.png")
+    print(out_dir / "lithography_polarization_maps.png")
+    print(out_dir / "lithography_ellipticity_map.png")
