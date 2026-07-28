@@ -114,7 +114,7 @@ for label, kw, ni in [("vidrio base ", dict(ni=1.5, z0=-10.0), 1.5),
                       ("rápido ni=2.4", dict(ni=2.4, z0=-2.0), 2.4)]:
     cs = st.spot_case(n0=1.0, zi=6.0, lam=532e-6, a_frac=0.97,
                       s_max=12.0, n_q=2400, **kw)
-    terms = hankel_terms(cs["r"], cs["q"], cs["tp"], cs["ts"],
+    terms = hankel_terms(cs["u"], cs["q"], cs["tp"], cs["ts"],
                          e1=np.cos(alpha) * cs["P"], e2=np.sin(alpha) * cs["P"],
                          polarization="cartesian")
     Ex, Ey = reconstruct_2d_from_terms(terms, cs["s"], rho, varphi,

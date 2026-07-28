@@ -134,9 +134,15 @@ def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768):
 
     diopter1 = CartesianSurface(**lens.first)
     diopter2 = CartesianSurface(**lens.second)
-    pupil_radius = (
+    # The stigmatic oval has a finite usable aperture (its grazing radius).
+    # With this geometry the design stop overfills the second dioptre, so the
+    # effective NA is below the nominal one: light cannot pass through surface
+    # that does not exist.  Clamping here makes that explicit instead of
+    # letting the transfer operator silently zero the excess.
+    pupil_radius_design = (
         lam * lens.first["zi"] * Kc / (2.0 * np.pi * lens.first["ni"])
     )
+    pupil_radius = min(pupil_radius_design, diopter2.aperture_limit)
 
     focal_field = field.propagate_through_diopter(
         diopter1.zi,

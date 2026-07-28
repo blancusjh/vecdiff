@@ -222,7 +222,7 @@ print(f"R(ψ) mín = {radii.min():.4f} λ (en ψ=0, π)   R(ψ) máx = {radii.ma
 from vecdiff.field_reconstruction import hankel_terms, reconstruct_2d_from_terms, make_observation_grid
 
 alpha = np.radians(30.0)
-terms = hankel_terms(case["r"], case["q"], case["tp"], case["ts"],
+terms = hankel_terms(case["u"], case["q"], case["tp"], case["ts"],
                      e1=np.cos(alpha) * case["P"], e2=np.sin(alpha) * case["P"],
                      polarization="cartesian")
 

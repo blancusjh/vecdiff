@@ -31,15 +31,19 @@
 #
 # 1. **La apertura espectral está acotada por la incidencia rasante.** La
 #    identificación espectral del capítulo III da
-#    $\sin\theta_{A'} = \rho'/z_i$ para el anillo de pupila $\rho'$, de modo
-#    que la apertura efectiva es $\sin\theta_{\max} = a/z_i$. Pero el óvalo
+#    $\sin\theta_{A'} = r/\ell_i(r)$ para el anillo de pupila de radio $r$
+#    sobre la superficie, de modo que la apertura efectiva es
+#    $\sin\theta_{\max} = \sin\alpha_i(a)$. (La forma $r/z_i$ que aparecía
+#    aquí es su aproximación de superficie delgada: en $r=2$ mm difieren un
+#    25\%.) Pero el óvalo
 #    solo existe hasta el radio de incidencia rasante $r_g$: la cota
 #    $(a/z_i)_{\max} = r_g/z_i$ depende únicamente de $n_i$ y de $|z_0|/z_i$
 #    (la geometría del óvalo escala con las longitudes).
 # 2. **La apodización es la de Fresnel del óvalo**: $t_p, t_s$ exactos, que
 #    decaen hacia el borde mucho más rápido que $\sqrt{\cos\theta}$ (en el
 #    borde rasante $t\to 0$). El peso del canal longitudinal, en cambio, es el
-#    mismo $w_z = \tan\theta_{A'}$ de las integrales aplanáticas.
+#    mismo $w_z = \tan\theta_{A'}$ de las integrales aplanáticas, ahora con
+#    el ángulo exacto.
 #
 # Los canales radiales del dioptrio (capítulo III / apéndice de la tesis, y
 # `spot_tools` del estudio `central_spot`):
@@ -69,6 +73,7 @@ import numpy as np
 sys.path.insert(0, str(Path("../central_spot").resolve()))
 import spot_tools as st
 
+from vecdiff import CartesianSurface
 from vecdiff.fresnel import FresnelOvoid
 from vecdiff.longitudinal import generate_Ez_cartesian
 
@@ -93,23 +98,18 @@ ESTILO = {
 # $a = z_i$ empieza la banda evanescente).
 
 # %%
-def graze_frac(ni, z0_over_zi, zi=6.0, n_coarse=4000, n_fine=4000):
-    """r_g / z_i con refinamiento local del mínimo de cos(theta_i)."""
+def graze_frac(ni, z0_over_zi, zi=6.0):
+    """sin(theta_max) alcanzable: el seno del rayo imagen en la rasancia.
+
+    Antes esto devolvía r_g/z_i con r_g medido sobre el parámetro rho del
+    óvalo. Dos errores compuestos: rho no es el radio de apertura, y el ángulo
+    del rayo imagen no es arcsin(r/z_i) sino arcsin(r/l_i), que es mayor
+    porque el punto de la superficie está más cerca de A' que el vértice.
+    """
     z0 = -z0_over_zi * zi
-    fres = FresnelOvoid(n0=1.0, ni=ni, z0=z0, zi=zi)
-
-    def argmin_cos(rho):
-        with np.errstate(all="ignore"):
-            cos_i, _ = fres._cosines(rho)
-            finite = (np.isfinite(fres.ovoid.z(rho))
-                      & np.isfinite(fres.ovoid.r(rho)))
-            return int(np.nanargmin(np.where(finite, cos_i, np.nan)))
-
-    rho = np.linspace(1e-4, 3.0 * max(abs(z0), zi), n_coarse)
-    j = argmin_cos(rho)
-    lo, hi = rho[max(j - 2, 0)], rho[min(j + 2, n_coarse - 1)]
-    rho2 = np.linspace(lo, hi, n_fine)
-    return float(rho2[argmin_cos(rho2)] / zi)
+    surf = CartesianSurface(n0=1.0, ni=ni, z0=z0, zi=zi)
+    geom = surf.ray_geometry(np.array([surf.aperture_limit]))
+    return float(geom.sin_ai[0])
 
 
 ratios = np.geomspace(0.2, 40.0, 25)
@@ -121,8 +121,8 @@ for ni in indices:
     ax.semilogx(ratios, np.minimum(bound[ni], 1.0), label=rf"$n_i={ni}$")
 ax.axhline(1.0, color="0.5", ls=":", lw=1.0)
 ax.text(0.22, 1.005, "banda evanescente ($a=z_i$)", fontsize=8, color="0.4")
-ax.axhline(0.752, color="C3", ls="--", lw=1.0)
-ax.text(0.22, 0.77, "cruce radial anular < escalar (barrido de abajo)",
+ax.axhline(0.784, color="C3", ls="--", lw=1.0)
+ax.text(0.22, 0.80, "cruce radial anular < escalar (barrido de abajo)",
         fontsize=8, color="C3")
 marcas = [
     ("vidrio (ejemplos)", 1.5, 10.0 / 6.0),
@@ -134,7 +134,7 @@ for name, ni, x in marcas:
     ax.plot(x, y, "o", color="k", ms=5)
     ax.annotate(name, (x, y), textcoords="offset points", xytext=(6, -12),
                 fontsize=8)
-ax.set(xlabel=r"$|z_0|/z_i$", ylabel=r"$\sin\theta_{\max}$ alcanzable $= r_g/z_i$",
+ax.set(xlabel=r"$|z_0|/z_i$", ylabel=r"$\sin\theta_{\max}$ alcanzable (rasancia)",
        ylim=(0.0, 1.08),
        title="Cota rasante del dioptrio estigmático ($n_0=1$)")
 ax.grid(alpha=0.3, which="both")
@@ -174,10 +174,11 @@ def build_system(ni, z0, a_frac=0.97, n_r=1400, s_max=3.0, n_q=1500):
     radial = np.ones_like(v)
     anular = (v >= 0.9).astype(float)
     case["ell_radial"], case["ell_anular"] = radial, anular
-    case["Hr_radial"] = st.hankel_matrix(1, r, tp * radial, q)
-    case["Hz_radial"] = st.hankel_matrix(0, r, wz * tp * radial, q)
-    case["Hr_anular"] = st.hankel_matrix(1, r, tp * anular, q)
-    case["Hz_anular"] = st.hankel_matrix(0, r, wz * tp * anular, q)
+    u = case["u"]
+    case["Hr_radial"] = st.hankel_matrix(1, u, tp * radial, q)
+    case["Hz_radial"] = st.hankel_matrix(0, u, wz * tp * radial, q)
+    case["Hr_anular"] = st.hankel_matrix(1, u, tp * anular, q)
+    case["Hz_anular"] = st.hankel_matrix(0, u, wz * tp * anular, q)
     return case
 
 
@@ -186,7 +187,7 @@ sistemas = {
     "objeto lejano ($z_0=-50$ mm)": build_system(2.4, -50.0),
 }
 for name, sys_ in sistemas.items():
-    sin_max = sys_["a"] / sys_["zi"]
+    sin_max = sys_["u"][-1] / abs(sys_["zi"])
     print(f"{name:32s}: a = {sys_['a']:.3f} mm, sin_theta_max = {sin_max:.3f}, "
           f"NA en el medio = {sys_['ni'] * sin_max:.2f}, "
           f"t_p(borde) = {sys_['tp'][-1]:.3f}")
@@ -373,7 +374,7 @@ barrido = []
 for f in fracs:
     cs = build_system(2.4, -50.0, a_frac=f, n_r=800, s_max=3.5 / f, n_q=1000)
     A = half_areas(cs)
-    A["sin_max"] = cs["a"] / cs["zi"]
+    A["sin_max"] = cs["u"][-1] / abs(cs["zi"])
     barrido.append(A)
 
 sin_max = np.array([b["sin_max"] for b in barrido])
@@ -392,7 +393,7 @@ ax.axvline(cruce, color="0.5", lw=0.9, ls=":")
 ax.annotate(rf"cruce: $\sin\theta_{{\max}}\approx {cruce:.2f}$",
             (cruce, get("escalar")[0]), textcoords="offset points",
             xytext=(8, 0), fontsize=9)
-ax.set(xlabel=r"$\sin\theta_{\max} = a/z_i$",
+ax.set(xlabel=r"$\sin\theta_{\max} = \sin\alpha_i(a)$",
        ylabel=r"$A_{1/2}$ [$\lambda^2$]",
        title="Área de mitad de altura vs. apertura "
              r"(dioptrio de objeto lejano, $n_i=2.4$)")
@@ -422,9 +423,9 @@ taper = np.where(rho_w <= 12.0, 1.0, np.cos(0.5 * π * (1.0 - ramp)) ** 2)
 
 s_w = np.linspace(0.0, half_win, 3201)
 q_w = s_w / lejano["q_lambda"]
-r_l, tp_l, wz_l = lejano["r"], lejano["tp"], lejano["w_z"]
-Er_prof = st.hankel_matrix(1, r_l, tp_l * lejano["ell_anular"], q_w)
-Ez_prof = st.hankel_matrix(0, r_l, wz_l * tp_l * lejano["ell_anular"], q_w)
+u_l, tp_l, wz_l = lejano["u"], lejano["tp"], lejano["w_z"]
+Er_prof = st.hankel_matrix(1, u_l, tp_l * lejano["ell_anular"], q_w)
+Ez_prof = st.hankel_matrix(0, u_l, wz_l * tp_l * lejano["ell_anular"], q_w)
 
 Er_w = np.interp(rho_w, s_w, Er_prof, right=0.0) * taper
 Ez_fft = generate_Ez_cartesian(Er_w * np.cos(phi_w), Er_w * np.sin(phi_w),

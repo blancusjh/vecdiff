@@ -484,3 +484,78 @@ def test_pupil_mapping_round_trips():
     assert resolve_mapping(None, "none") == "identity"
     with pytest.raises(ValueError, match="mapping must be one of"):
         resolve_mapping("parabolic", "full")
+
+
+# ------------------------------------------------------------------ #
+#  Paraxial expansions                                                 #
+# ------------------------------------------------------------------ #
+
+@pytest.mark.parametrize("params", SYSTEMS)
+def test_paraxial_fresnel_matches_the_exact_coefficients(params):
+    """FresnelOvoidParax is the O(r^2) expansion of the bare coefficients.
+
+    Both channels carry ``+xi``, with n0 on p and ni on s.  The class had a
+    sign error on the s term; only the sign, not the indices.
+    """
+    from vecdiff.fresnel import FresnelOvoidParax
+
+    n0, ni, z0, zi = params
+    surface = _surface(params)
+    r = np.array([1e-4])
+    gamma_0 = 2.0 * n0 / (n0 + ni)
+
+    tp, ts = FresnelOvoid(ovoid=surface).coefficients(r)
+    parax = FresnelOvoidParax(n0, ni, z0, zi)
+    ts_par, tp_par = parax.coeffs(r)
+
+    assert (tp[0] - gamma_0) / r[0] ** 2 == pytest.approx(
+        (tp_par[0] - gamma_0) / r[0] ** 2, rel=1e-4
+    )
+    assert (ts[0] - gamma_0) / r[0] ** 2 == pytest.approx(
+        (ts_par[0] - gamma_0) / r[0] ** 2, rel=1e-4
+    )
+
+
+@pytest.mark.parametrize("params", SYSTEMS)
+def test_paraxial_channel_weights_match_the_exact_weights(params):
+    """The expansion of the effective weights, geometry and Jacobian included.
+
+    The geometric factors multiply gamma_0 rather than one, so they enter the
+    quadratic coefficient weighted by it -- which is why the bare-Fresnel
+    expansion alone does not reproduce these.
+    """
+    from vecdiff.transfer import focal_channel_weights, paraxial_channel_weights
+
+    surface = _surface(params)
+    r = np.array([1e-4])
+
+    w_p, w_s, _, _ = focal_channel_weights(surface, r)
+    p_p, p_s = paraxial_channel_weights(surface, r)
+    gamma_0 = 2.0 * params[0] / (params[0] + params[1])
+
+    assert (w_p[0] - gamma_0) / r[0] ** 2 == pytest.approx(
+        (p_p[0] - gamma_0) / r[0] ** 2, rel=1e-4
+    )
+    assert (w_s[0] - gamma_0) / r[0] ** 2 == pytest.approx(
+        (p_s[0] - gamma_0) / r[0] ** 2, rel=1e-4
+    )
+
+
+@pytest.mark.parametrize("params", SYSTEMS)
+def test_focal_channel_weights_agree_with_the_propagator(params):
+    """The convenience helper must not drift from what the propagator applies."""
+    from vecdiff.propagation import transfer_weights_on_grid
+    from vecdiff.pupil_mapping import pupil_weight
+    from vecdiff.transfer import focal_channel_weights
+
+    surface = _surface(params)
+    r = _pupil(surface, n=101)
+
+    w_p, w_s, w_z, u = focal_channel_weights(surface, r)
+    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r, surface)
+    weight = pupil_weight(surface.ray_geometry(r), "sine")
+
+    assert np.allclose(w_p, lam_r * weight)
+    assert np.allclose(w_s, lam_phi * weight)
+    assert np.allclose(w_z, lam_z * weight)
+    assert np.allclose(u, abs(surface.zi) * surface.ray_geometry(r).sin_ai)
