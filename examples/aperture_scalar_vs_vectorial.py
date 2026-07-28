@@ -17,7 +17,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from vecdiff.fresnel import FresnelOvoid
+from vecdiff import CartesianSurface, focal_channel_weights
 from vecdiff.field_reconstruction import hankel_terms, reconstruct_2d_from_terms, make_observation_grid
 from vecdiff import FieldCartesian, Grid
 from vecdiff.polarization_visualization import plot_field_polarization
@@ -30,26 +30,23 @@ from _output import example_output_dir, print_saved
 
 n0, ni, z0, zi = 1.0, 1.5, -10.0, 6.0
 lam = 532e-6  # mm
-a = 3.7  # mm, aperture radius (grazing limit for this diopter is ~3.76 mm)
+surface = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
+a = 0.97 * surface.aperture_limit  # mm, just inside grazing incidence
 
 n_r, n_q = 1200, 900
 r = np.linspace(0.0, a, n_r)
 q = (ni * a / (lam * zi)) * np.linspace(0.0, 1.0, n_q) ** 2  # focus-refined grid
 
-fresnel = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-with np.errstate(divide="ignore", invalid="ignore"):
-    tp = np.asarray(fresnel.tp(r), dtype=float)
-    ts = np.asarray(fresnel.ts(r), dtype=float)
-for t in (tp, ts):  # repair the r=0 indeterminacy by interpolation
-    bad = ~np.isfinite(t)
-    t[bad] = np.interp(r[bad], r[~bad], t[~bad])
+# Transfer eigenvalues times the pupil-mapping Jacobian, and the variable the
+# focal transform integrates over.
+tp, ts, _, u = focal_channel_weights(surface, r)
 t_plus = 0.5 * (tp + ts)
 
 pupil = np.ones_like(r)
 
 # Vectorial: exact (tp, ts).  Scalar: t- = 0, i.e. tp = ts = t_plus.
-terms_vec = hankel_terms(r, q, tp, ts, e1=pupil, e2=np.zeros_like(pupil), polarization="cartesian")
-terms_sca = hankel_terms(r, q, t_plus, t_plus, e1=pupil, e2=np.zeros_like(pupil), polarization="cartesian")
+terms_vec = hankel_terms(u, q, tp, ts, e1=pupil, e2=np.zeros_like(pupil), polarization="cartesian")
+terms_sca = hankel_terms(u, q, t_plus, t_plus, e1=pupil, e2=np.zeros_like(pupil), polarization="cartesian")
 
 half_size = 1.2  # focal-plane half-window, wavelengths
 xx, yy, rho, varphi, extent = make_observation_grid(half_size, 500)

@@ -25,8 +25,11 @@ import numpy as np
 from scipy.integrate import cumulative_trapezoid, simpson
 from scipy.special import jv
 
+from vecdiff.CartesianSurfaces import CartesianSurface
 from vecdiff.field_reconstruction import make_observation_grid
 from vecdiff.fresnel import FresnelOvoid
+from vecdiff.pupil_mapping import pupil_coordinate, pupil_transform
+from vecdiff.transfer import sphere_transfer_eigenvalues
 
 π = np.pi
 
@@ -38,27 +41,43 @@ AIRY_HWHM = 1.6163399689        # half max of [2 J1(x)/x]^2
 # System construction
 # ---------------------------------------------------------------------
 
-def grazing_radius(n0, ni, z0, zi, n_probe=4000):
-    """Pupil radius where the incidence on the Cartesian oval becomes grazing."""
-    rho = np.linspace(1e-4, 3.0 * abs(z0), n_probe)
-    fresnel = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-    with np.errstate(all="ignore"):
-        cos_i, _ = fresnel._cosines(rho)
-        finite = np.isfinite(fresnel.ovoid.z(rho)) & np.isfinite(fresnel.ovoid.r(rho))
-    return float(rho[np.nanargmin(np.where(finite, cos_i, np.nan))])
+def surface(n0, ni, z0, zi):
+    """The stigmatic oval as a vecdiff surface."""
+    return CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
+
+
+def grazing_radius(n0, ni, z0, zi, n_probe=None):
+    """Pupil radius where the incidence on the Cartesian oval becomes grazing.
+
+    This is a *transverse* radius on the surface, which is the aperture
+    coordinate.  It used to be reported in the oval's own parameter rho, a
+    different and larger number -- 3.758 against 2.397 for the base system --
+    so apertures quoted as a fraction of it reached past the usable surface.
+    """
+    return surface(n0, ni, z0, zi).aperture_limit
 
 
 def fresnel_coefficients(n0, ni, z0, zi, r):
-    """Exact (tp, ts) on the stigmatic diopter, with the r=0 indeterminacy repaired."""
-    fresnel = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        tp = np.asarray(fresnel.tp(r), dtype=float)
-        ts = np.asarray(fresnel.ts(r), dtype=float)
-    for t in (tp, ts):
-        bad = ~np.isfinite(t)
-        if bad.any():
-            t[bad] = np.interp(r[bad], r[~bad], t[~bad])
-    return tp, ts
+    """Exact (tp, ts) on the stigmatic diopter, at pupil radius r."""
+    fresnel = FresnelOvoid(ovoid=surface(n0, ni, z0, zi))
+    return fresnel.coefficients(np.asarray(r, dtype=float))
+
+
+def channel_weights(n0, ni, z0, zi, r):
+    """Effective (p, s, longitudinal) weights the focal transform applies.
+
+    These are the transfer eigenvalues of Eqs. (62)-(63) -- Fresnel times the
+    geometric factor A(Q), with the meridional projection on the radial channel
+    -- times the 1/cos(alpha_i) Jacobian of the sine pupil mapping.  They are
+    what multiplies the pupil inside the Hankel integrals, so every downstream
+    combination t_plus = (tp+ts)/2, t_minus = (tp-ts)/2 stays valid as written.
+    """
+    r = np.asarray(r, dtype=float)
+    surf = surface(n0, ni, z0, zi)
+    geom = surf.ray_geometry(r)
+    lam_r, lam_phi, lam_z = sphere_transfer_eigenvalues(surf, r)
+    _, weight = pupil_transform(geom, "sine")
+    return lam_r * weight, lam_phi * weight, lam_z * weight
 
 
 def hankel_matrix(order, r, f_r, q):
@@ -78,18 +97,24 @@ def spot_case(n0=1.0, ni=1.5, z0=-10.0, zi=6.0, lam=532e-6,
     array.  The q grid maps to a uniform focal grid s = q*q_lambda in [0, s_max]
     wavelengths.
     """
-    r_graze = grazing_radius(n0, ni, z0, zi)
+    surf = surface(n0, ni, z0, zi)
+    r_graze = surf.aperture_limit
     if a is None:
         a = (0.97 if a_frac is None else a_frac) * r_graze
     if a >= r_graze:
         raise ValueError(f"aperture a={a:g} exceeds grazing radius {r_graze:g}")
 
     r = np.linspace(0.0, a, n_r)
+    geom = surf.ray_geometry(r)
     q_lambda = zi / (2.0 * π * ni)
     q = np.linspace(0.0, s_max / q_lambda, n_q)
     s = q * q_lambda
 
-    tp, ts = fresnel_coefficients(n0, ni, z0, zi, r)
+    # The focal transform integrates over the sine-mapped pupil coordinate,
+    # not over r; see vecdiff.pupil_mapping.
+    u = pupil_coordinate(geom, "sine")
+    tp, ts, w_z_tp = channel_weights(n0, ni, z0, zi, r)
+
     if pupil is None:
         P = np.ones_like(r)
     elif callable(pupil):
@@ -97,24 +122,23 @@ def spot_case(n0=1.0, ni=1.5, z0=-10.0, zi=6.0, lam=532e-6,
     else:
         P = np.asarray(pupil)
 
-    # Longitudinal channel from Maxwell transversality (EZ = -k_t E_p / k_z):
-    # each pupil annulus maps to k_t = k r / zi, so w_z = k_t/k_z depends only
-    # on r/zi; only the p-polarized part f0+f2 = 2 tp P contributes.
-    if a >= zi:
-        raise ValueError("aperture reaches the evanescent band (a >= zi)")
-    w_z = (r / zi) / np.sqrt(1.0 - (r / zi) ** 2)
+    # Longitudinal channel, exact rather than the small-angle tan(theta) weight
+    # this used to carry: lam_z of Eq. (63) already is A tp sin(ai)/cos(a0).
+    with np.errstate(divide="ignore", invalid="ignore"):
+        w_z = np.divide(w_z_tp, tp, out=np.zeros_like(tp), where=np.abs(tp) > 0.0)
 
     return {
         "n0": n0, "ni": ni, "z0": z0, "zi": zi, "lam": lam,
         "a": a, "r_graze": r_graze,
         "alpha_obj_deg": float(np.degrees(np.arctan(a / abs(z0)))),
+        "NA_image": float(ni * geom.sin_ai[-1]),
         "q_lambda": q_lambda,
-        "r": r, "P": P, "tp": tp, "ts": ts, "w_z": w_z,
+        "r": r, "u": u, "geom": geom, "P": P, "tp": tp, "ts": ts, "w_z": w_z,
         "q": q, "s": s,
-        "H0": hankel_matrix(0, r, (tp + ts) * P, q),
-        "H2": hankel_matrix(2, r, (tp - ts) * P, q),
-        "Hz": hankel_matrix(1, r, w_z * tp * P, q),
-        "H0_ideal": hankel_matrix(0, r, 2.0 * P, q),
+        "H0": hankel_matrix(0, u, (tp + ts) * P, q),
+        "H2": hankel_matrix(2, u, (tp - ts) * P, q),
+        "Hz": hankel_matrix(1, u, w_z_tp * P, q),
+        "H0_ideal": hankel_matrix(0, u, 2.0 * P, q),
     }
 
 
@@ -255,21 +279,50 @@ def encircled_radius(s, I, fraction=0.5):
 
 
 def band_energies(case):
-    """Exact (co, cross) channel energies of the focal field via Parseval:
-    integral of |H_m[f]|^2 q dq over the full band equals integral of
-    |f|^2 r dr, so no q grid (and no truncation/oscillation error) is needed."""
-    r, P = case["r"], case["P"]
-    e0 = simpson(np.abs((case["tp"] + case["ts"]) * P) ** 2 * r, x=r)
-    e2 = simpson(np.abs((case["tp"] - case["ts"]) * P) ** 2 * r, x=r)
+    """Exact (co, cross) channel weights of the focal field via Parseval.
+
+    The Hankel identity is integral |H_m[f](q)|^2 q dq = integral |f(u)|^2 u du
+    over the transform variable, so the measure is u du -- not r dr as it was
+    before the pupil mapping went in.  With the Debye prefactor this is exactly
+    the focal-plane integral of |E|^2, which is a well-defined shape measure but
+    not by itself a power; use :func:`transmission` for power.
+    """
+    u, P = case["u"], case["P"]
+    e0 = simpson(np.abs((case["tp"] + case["ts"]) * P) ** 2 * u, x=u)
+    e2 = simpson(np.abs((case["tp"] - case["ts"]) * P) ** 2 * u, x=u)
     return float(e0), float(e2)
 
 
 def transmission(case):
-    """Transmitted focal energy relative to the incident pupil energy (the
-    tp=ts=1 field carries exactly the incident energy)."""
-    e0, e2 = band_energies(case)
-    e_in = simpson(np.abs(2.0 * case["P"]) ** 2 * case["r"], x=case["r"])
-    return (e0 + e2) / e_in
+    """Transmitted power relative to the incident power, across the pupil.
+
+    Computed as a genuine flux ratio between the two reference spheres rather
+    than from the focal |E|^2 integral: the rays reach the focal plane
+    obliquely, so integrating |E|^2 over it is not the power crossing it.  The
+    solid angle a surface annulus subtends from each focus is
+    cos(theta) dS / l^2, which is what weights each channel here.
+    """
+    geom = case["geom"]
+    n0, ni = case["n0"], case["ni"]
+    P = case["P"]
+
+    dS = geom.area_element_per_r
+    domega_0 = geom.cos_t0 * dS / geom.l0**2
+    domega_i = geom.cos_ti * dS / geom.li**2
+
+    surf = surface(n0, ni, case["z0"], case["zi"])
+    lam_r, lam_phi, _ = sphere_transfer_eigenvalues(surf, case["r"])
+    # Undo the meridional projection to recover the amplitude on G'.
+    lam_p = lam_r * geom.cos_a0 / geom.cos_ai
+
+    # Unpolarized-average over the two channels of a homogeneously polarized
+    # pupil: each carries half the incident power.
+    inc = n0 * np.abs(P) ** 2 * abs(case["z0"]) ** 2 * domega_0
+    out = 0.5 * ni * (np.abs(lam_p * P) ** 2 + np.abs(lam_phi * P) ** 2)
+    out = out * abs(case["zi"]) ** 2 * domega_i
+
+    r = case["r"]
+    return float(simpson(out, x=r) / simpson(inc, x=r))
 
 
 def cross_fraction(case):
@@ -279,10 +332,9 @@ def cross_fraction(case):
 
 
 def z_energy(case):
-    """Exact longitudinal-channel energy via Parseval (m=1), normalized so
-    that the total focal energy is e0 + e2 + ez."""
-    r, P = case["r"], case["P"]
-    return float(2.0 * simpson(np.abs(case["w_z"] * case["tp"] * P) ** 2 * r, x=r))
+    """Exact longitudinal-channel weight via Parseval (m=1), on the u measure."""
+    u, P = case["u"], case["P"]
+    return float(2.0 * simpson(np.abs(case["w_z"] * case["tp"] * P) ** 2 * u, x=u))
 
 
 def z_fraction(case):

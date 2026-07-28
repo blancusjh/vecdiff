@@ -45,13 +45,13 @@ out_dir = example_output_dir(__file__)
 
 
 def grazing_radius(diopter_params):
-    """Pupil radius where incidence on the oval becomes grazing (cos_i -> 0)."""
-    fresnel = FresnelOvoid(**diopter_params)
-    rho = np.linspace(1e-4, 3.0 * abs(diopter_params["z0"]), 4000)
-    with np.errstate(all="ignore"):
-        cos_i, _ = fresnel._cosines(rho)
-        finite = np.isfinite(fresnel.ovoid.z(rho)) & np.isfinite(fresnel.ovoid.r(rho))
-    return float(rho[np.nanargmin(np.where(finite, cos_i, np.nan))])
+    """Pupil radius where incidence on the oval becomes grazing (cos_i -> 0).
+
+    A transverse radius on the surface, which is the aperture coordinate.  This
+    used to be reported in the oval's own parameter rho, a larger number, so the
+    pupil it sized reached past the usable surface.
+    """
+    return CartesianSurface(**diopter_params).aperture_limit
 
 
 def make_system(ni_glass, r_a=None):

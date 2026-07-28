@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 from .fresnel import FresnelOvoid
@@ -100,6 +102,17 @@ def transfer_weights_on_grid(
     r_active = R[active]
     operator = interface_operator(diopter, r_active, geometry=geometry)
     a_r, a_phi, a_z = operator.eigenvalues()
+
+    lost = int(np.count_nonzero(~operator.geom.valid))
+    if lost:
+        warnings.warn(
+            f"{lost} of {r_active.size} illuminated pupil samples lie past the surface's "
+            f"usable aperture (r > {diopter.aperture_limit:.6g}); they transmit nothing. "
+            "Reduce the aperture, or check whether the radius being passed is the "
+            "cylindrical radius on the refracting surface.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     lam_r[active] = _sanitize_fresnel(r_active, a_r)
     lam_phi[active] = _sanitize_fresnel(r_active, a_phi)

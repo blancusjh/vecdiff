@@ -30,6 +30,7 @@ from .hankel import HankelTransform, HT_N
 from .transfer import (
     InterfaceOperator,
     channel_transmittance,
+    focal_channel_weights,
     interface_operator,
     sphere_transfer_eigenvalues,
 )

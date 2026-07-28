@@ -167,3 +167,30 @@ def channel_transmittance(surface, r):
     exactly this -- is the test that pins ``A`` down.
     """
     return FresnelOvoid(ovoid=surface).transmittances(r)
+
+
+def focal_channel_weights(surface, r, *, geometry: str = "full", mapping: str | None = None):
+    """Return ``(w_p, w_s, w_z, u)`` ready to feed the focal Hankel channels.
+
+    A convenience for code that drives the radial path by hand rather than
+    through :func:`~vecdiff.propagation.propagate_to_focal_plane_through_diopter`.
+    The three weights are the transfer eigenvalues times the pupil-mapping
+    Jacobian, and ``u`` is the variable the transform integrates over -- pass it
+    where the pupil radius used to go.
+
+    ``w_p`` and ``w_s`` slot straight into the existing ``t_plus = (w_p+w_s)/2``
+    and ``t_minus = (w_p-w_s)/2`` combinations, so downstream algebra is
+    unchanged.
+    """
+    from .pupil_mapping import pupil_transform, resolve_mapping
+
+    r = np.asarray(r, dtype=float)
+    mapping = resolve_mapping(mapping, geometry)
+    operator = interface_operator(surface, r, geometry=geometry)
+    lam_r, lam_phi, lam_z = operator.eigenvalues()
+    u, weight = pupil_transform(operator.geom, mapping)
+    if geometry == "none":
+        # ``interface_operator`` flattens the geometry in this mode; the pupil
+        # coordinate must still come from the real one.
+        u, weight = pupil_transform(surface.ray_geometry(r), mapping)
+    return lam_r * weight, lam_phi * weight, lam_z * weight, u

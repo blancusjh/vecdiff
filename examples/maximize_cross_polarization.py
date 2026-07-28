@@ -16,7 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from vecdiff.fresnel import FresnelOvoid
+from vecdiff import CartesianSurface, focal_channel_weights
 from vecdiff.field_reconstruction import hankel_terms, reconstruct_2d_from_terms, make_observation_grid
 from vecdiff import FieldCartesian, Grid
 from vecdiff.polarization_visualization import plot_field_polarization
@@ -34,26 +34,16 @@ n_r, n_q = 1200, 900
 
 # t- = (tp-ts)/2 peaks at grazing incidence (cos_i -> 0), well before the
 # Cartesian oval's parametrization stops being finite (which happens further
-# out, on its closed back branch).  Probe cos_i directly and stay just inside
-# that true grazing radius, not the surface's overall validity range.
-rho_probe = np.linspace(1e-4, 3.0 * abs(z0), 4000)
-fresnel_probe = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-with np.errstate(all="ignore"):
-    cos_i, _ = fresnel_probe._cosines(rho_probe)
-    finite = np.isfinite(fresnel_probe.ovoid.z(rho_probe)) & np.isfinite(fresnel_probe.ovoid.r(rho_probe))
-r_graze = float(rho_probe[np.nanargmin(np.where(finite, cos_i, np.nan))])
+# out, on its closed back branch).  aperture_limit is that true grazing radius,
+# expressed in the transverse aperture coordinate.
+surface = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
+r_graze = surface.aperture_limit
 a = 0.97 * r_graze
 
 r = np.linspace(0.0, a, n_r)
 q = (ni * a / (lam * zi)) * np.linspace(0.0, 1.0, n_q) ** 2
 
-fresnel = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-with np.errstate(divide="ignore", invalid="ignore"):
-    tp = np.asarray(fresnel.tp(r), dtype=float)
-    ts = np.asarray(fresnel.ts(r), dtype=float)
-for t in (tp, ts):
-    bad = ~np.isfinite(t)
-    t[bad] = np.interp(r[bad], r[~bad], t[~bad])
+tp, ts, _, u = focal_channel_weights(surface, r)
 
 pupil_uniform = np.ones_like(r)
 pupil_edge = (r / a) ** edge_p
@@ -68,7 +58,7 @@ print(f"a = {a:.2f} mm, edge_p = {edge_p:g}, techo asintótico (anillo rasante) 
 
 
 def cross_fraction(pupil):
-    terms = hankel_terms(r, q, tp, ts, e1=pupil, e2=np.zeros_like(pupil), polarization="cartesian")
+    terms = hankel_terms(u, q, tp, ts, e1=pupil, e2=np.zeros_like(pupil), polarization="cartesian")
     e_total = np.trapezoid((np.abs(terms["H0x"]) ** 2 + np.abs(terms["H2x"]) ** 2) * q, q)
     e_cross = np.trapezoid(np.abs(terms["H2x"]) ** 2 * q, q)
     return float(e_cross / e_total), terms
@@ -89,7 +79,7 @@ q_lambda = zi / (2.0 * np.pi * ni)
 
 Ex_v, Ey_v = reconstruct_2d_from_terms(terms_edge, q * q_lambda, rho, varphi, polarization="cartesian")
 t_plus = 0.5 * (tp + ts)
-terms_sca = hankel_terms(r, q, t_plus, t_plus, e1=pupil_edge, e2=np.zeros_like(pupil_edge), polarization="cartesian")
+terms_sca = hankel_terms(u, q, t_plus, t_plus, e1=pupil_edge, e2=np.zeros_like(pupil_edge), polarization="cartesian")
 Ex_s, Ey_s = reconstruct_2d_from_terms(terms_sca, q * q_lambda, rho, varphi, polarization="cartesian")
 
 I_scalar = np.abs(Ex_s) ** 2 + np.abs(Ey_s) ** 2
@@ -134,7 +124,7 @@ plt.close(fig)
 # component, e2 the R component.  The induced cross channel E_R is then
 # purely radial (E_R = exp(-2i*phi)*E_RL, a unit-magnitude phase factor times
 # a Hankel transform of order 2 that vanishes at q=0) -- a clean vortex ring.
-terms_circ = hankel_terms(r, q, tp, ts, e1=pupil_edge, e2=np.zeros_like(pupil_edge), polarization="circular")
+terms_circ = hankel_terms(u, q, tp, ts, e1=pupil_edge, e2=np.zeros_like(pupil_edge), polarization="circular")
 _, E_R = reconstruct_2d_from_terms(terms_circ, q * q_lambda, rho, varphi, polarization="circular")
 I_R = np.abs(E_R) ** 2
 
