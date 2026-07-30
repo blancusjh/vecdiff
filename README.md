@@ -71,4 +71,5 @@ vecdiff/          Python package
 examples/         Runnable scripts and generated-output conventions
 tests/            Unit tests
 docs/assets/      README and documentation media
+docs/roadmap/     Planned work and open design debt
 ```
