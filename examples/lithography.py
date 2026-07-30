@@ -48,7 +48,7 @@ N_WATER = 1.437
 
 D1 = dict(n0=1.0, ni=N_LUAG, z0=-4.0, zi=8.0)
 xi = 50.000
-D2 = dict(n0=N_LUAG, ni=N_WATER, z0=D1["zi"] - xi, zi=0.8)
+D2 = dict(n0=N_LUAG, ni=N_WATER, z0=D1["zi"] - xi, zi=2.0)
 
 # The aperture is a result of the design, not an input.  Three things can stop
 # a ray -- the two faces meeting, grazing incidence on the first surface, and
@@ -75,6 +75,15 @@ d_Airy = 2.0 * r_Airy
 # high-NA vectorial transfer mixes a substantial cross-polarized component.
 Pattern_sep = 0.95 * d_Airy
 Pattern_theta = 0.25 * np.pi
+
+# How far the feature groups sit from the axis, as a fraction of the original
+# layout.  A stigmatic pair is stigmatic for *one* conjugate point: the axial
+# one.  Off axis it aberrates, and measurably so -- with this design the point
+# image stays diffraction limited only out to roughly 29 wavelengths of object
+# height, past which the spot widens and the peak collapses.  The mask has to
+# live inside that field or the picture reports aberration rather than the
+# polarization physics it is meant to isolate.
+Layout_spread = 0.55
 
 out_dir = example_output_dir(__file__)
 
@@ -230,6 +239,7 @@ def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
     The full pattern is scaled by scale_sep, so relative distances are preserved.
     """
     s = scale_sep
+    S = Layout_spread
     cr = 0.18 * d_Airy
     w = 2.0 * cr
     ux = np.cos(theta)
@@ -256,8 +266,8 @@ def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
     boxes["diagonal_pair"] = (-0.5 * s - cr, 0.5 * s + cr, -0.5 * s - cr, 0.5 * s + cr)
 
     # 2. Diagonal line-space grating with near-resolution pitch.
-    gcx = -5.8 * s * ux + 2.3 * s * vx
-    gcy = -5.8 * s * uy + 2.3 * s * vy
+    gcx = -5.8 * S * s * ux + 2.3 * S * s * vx
+    gcy = -5.8 * S * s * uy + 2.3 * S * s * vy
 
     for m in range(4):
         cx = gcx + (m - 1.5) * s * ux
@@ -267,8 +277,8 @@ def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
     boxes["diagonal_grating"] = (gcx - 3.0 * s, gcx + 3.0 * s, gcy - 3.0 * s, gcy + 3.0 * s)
 
     # 3. Diagonal contact array.
-    cx0 = -1.0 * s * ux - 4.6 * s * vx
-    cy0 = -1.0 * s * uy - 4.6 * s * vy
+    cx0 = -1.0 * s * ux - 4.6 * S * s * vx
+    cy0 = -1.0 * s * uy - 4.6 * S * s * vy
 
     for i in range(3):
         for j in range(3):
@@ -279,16 +289,16 @@ def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
     boxes["diagonal_contact_array"] = (cx0 - 2.4 * s, cx0 + 2.4 * s, cy0 - 2.4 * s, cy0 + 2.4 * s)
 
     # 4. Diagonal L-shaped corner / line-end structures.
-    lx = 5.4 * s * ux + 1.8 * s * vx
-    ly = 5.4 * s * uy + 1.8 * s * vy
+    lx = 5.4 * S * s * ux + 1.8 * S * s * vx
+    ly = 5.4 * S * s * uy + 1.8 * S * s * vy
 
     add_rotated_rect(lx + 1.35 * s * ux, ly + 1.35 * s * uy, 2.7 * s, w, theta)
     add_rotated_rect(lx + 1.35 * s * vx, ly + 1.35 * s * vy, 2.7 * s, w, theta + 0.5 * np.pi)
 
     boxes["diagonal_L"] = (lx - 0.6 * s, lx + 2.8 * s, ly - 0.6 * s, ly + 2.8 * s)
 
-    mx = 5.8 * s * ux - 4.4 * s * vx
-    my = 5.8 * s * uy - 4.4 * s * vy
+    mx = 5.8 * S * s * ux - 4.4 * S * s * vx
+    my = 5.8 * S * s * uy - 4.4 * S * s * vy
 
     add_rotated_rect(mx - 1.25 * s * ux, my - 1.25 * s * uy, 2.5 * s, w, theta)
     add_rotated_rect(mx + 1.35 * s * vx, my + 1.35 * s * vy, 2.7 * s, w, theta + 0.5 * np.pi)
@@ -486,14 +496,14 @@ def plot_lithography_result(result):
     fig.suptitle(
         "Patrón de litografía a través de lente"
         "\n"
-        rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$: vacío $\rightarrow$ sílice fundida $\rightarrow$ vacío"
+        rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$: vacío $\rightarrow$ LuAG $\rightarrow$ agua de inmersión"
         "\n"
-        rf"$n_0={D1['n0']:.2f}$, $n_1={D1['ni']:.3f}$, $n_2={D2['ni']:.2f}$  |  "
+        rf"$n_0={D1['n0']:.2f}$, $n_1={D1['ni']:.3f}$, $n_2={D2['ni']:.3f}$  |  "
         rf"$z_{{0,1}}={D1['z0']:.1f}\,\mathrm{{mm}}$, $z_{{i,1}}={D1['zi']:.1f}\,\mathrm{{mm}}$, "
         rf"$\xi={xi:.1f}\,\mathrm{{mm}}$, $z_{{i,2}}={D2['zi']:.3f}\,\mathrm{{mm}}$"
         "\n"
-        rf"$r_a={r_a:.2f}\,\mathrm{{mm}}$, $\alpha_\mathrm{{max}}={np.degrees(alpha_max):.1f}^\circ$, $\mathrm{{NA}}={NA:.2f}$, "
-        rf"$|M|={abs(result['lens'].magnification):.2f}$  |  "
+        rf"$r_a={r_a:.2f}\,\mathrm{{mm}}$, $\mathrm{{NA}}_\mathrm{{obj}}={NA:.3f}$, "
+        rf"$\mathrm{{NA}}_\mathrm{{img}}={NA_IMAGE:.3f}$, reducción $={REDUCTION:.2f}\times$  |  "
         rf"$\mathbf{{E}}_0 = T\,\hat{{\mathbf{{x}}}}$",
     )
     fig.subplots_adjust(left=0.038, right=0.975, bottom=0.16, top=0.76, wspace=0.48)
@@ -582,7 +592,7 @@ def plot_lithography_polarization_result(result):
         "Litografía: evolución espacial de la polarización"
         "\n"
         rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$, "
-        rf"$\mathrm{{NA}}={NA:.2f}$, $|M|={abs(result['lens'].magnification):.2f}$, "
+        rf"$\mathrm{{NA}}_\mathrm{{img}}={NA_IMAGE:.3f}$, reducción $={REDUCTION:.2f}\times$, "
         rf"$\mathbf{{E}}_0=T\,\hat{{\mathbf{{x}}}}$",
         y=0.975,
     )
