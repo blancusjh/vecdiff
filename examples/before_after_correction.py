@@ -7,8 +7,9 @@ measurable rather than remembered:
 1. **Focal spot** of the glass dioptre at a near-grazing pupil, with the
    Franz / Stratton-Chu reference overlaid so it is clear which of the two is
    right rather than merely which is different.
-2. **Lithography relay**: the circuit-mask image through the two-dioptre ArF
-   system, where the change is a resolution change rather than a scale change.
+2. **Feature layout**: a set of features of different shape and orientation
+   imaged through the corrected chain and the old one, where the change is a
+   change in what resolves rather than a change of scale.
 
 Run from the repository root::
 
@@ -179,87 +180,75 @@ def focal_comparison(out_dir):
 
 
 # ------------------------------------------------------------------ #
-#  Lithography relay                                                   #
+#  Feature layout                                                      #
 # ------------------------------------------------------------------ #
 
-def lithography_comparison(out_dir):
-    import lithography as litho
+def layout_comparison(out_dir):
+    """The same feature layout under the old and the corrected weighting."""
+    import resolved_features as rf
 
-    results = {}
+    n, oversample = 1536, 10.0
+    dx = rf.PITCH_CUT / oversample
+    obj, groups = rf.feature_layout((n, n), dx, rf.PITCH_CUT)
+
+    images = {}
     for tag, geometry in (("antes", "none"), ("después", "full")):
-        print(f"   relevo de litografía, {tag} ...")
-        results[tag] = litho.run_lithography_example(geometry=geometry)
-
-    ref = results["después"]
-    xr, yr = ref["xr"], ref["yr"]
-    win = ref["output_zoom"]
-    extent = litho.image_extent_over_lambda(xr, yr)
-
-    fig, axes = plt.subplots(2, 3, figsize=(15.0, 9.4))
-    for row, tag in enumerate(("antes", "después")):
-        res = results[tag]
-        panels = (
-            ("Is", "escalar ($t_p=t_s$)"),
-            ("Iv", r"vectorial $\hat{x}$"),
-            ("Icross", r"canal cruzado $|E_y|^2$"),
+        images[tag] = rf.total_intensity(
+            rf.image_fields(obj, dx, model="vectorial", geometry=geometry)
         )
-        for col, (key, title) in enumerate(panels):
-            ax = axes[row, col]
-            ax.imshow(litho.display_positive(res[key]), extent=extent,
-                      origin="lower", cmap="inferno")
-            ax.set_title(f"{title} — {tag}", fontsize=10)
-            ax.set_xlim(win["xmin"] / litho.lam, win["xmax"] / litho.lam)
-            ax.set_ylim(win["ymin"] / litho.lam, win["ymax"] / litho.lam)
-            ax.set_xlabel(r"$x/\lambda$")
-            if col == 0:
-                ax.set_ylabel(r"$y/\lambda$")
+    peak = max(I.max() for I in images.values())
+    images = {k: I / peak for k, I in images.items()}
 
-    for tag in ("antes", "después"):
-        print(f"   {tag:<8} f_cross = {results[tag]['cross_fraction']:.5f}")
+    print(f"   {'grupo':<28} {'antes':>8} {'después':>9}")
+    for name, box in groups.items():
+        ca = rf.group_contrast(images["antes"], dx, box)
+        cd = rf.group_contrast(images["después"], dx, box)
+        print(f"   {name:<28} {ca:>8.4f} {cd:>9.4f}")
+
+    span = max(
+        max(abs(cx) + 0.5 * w for cx, _, w, _, _ in groups.values()),
+        max(abs(cy) + 0.5 * h for _, cy, _, h, _ in groups.values()),
+    ) / rf.lam * 1.12
+    half = n // 2 * dx / rf.lam
+    extent = [-half, half, -half, half]
+
+    fig, axes = plt.subplots(1, 3, figsize=(16.5, 5.6))
+    for ax, tag in zip(axes[:2], ("antes", "después")):
+        ax.imshow(images[tag], extent=extent, origin="lower", cmap="inferno",
+                  vmin=0.0, vmax=1.0)
+        ax.set_title(f"imagen vectorial — {tag}", fontsize=11)
+    diff = images["después"] - images["antes"]
+    lim = float(np.abs(diff).max())
+    im = axes[2].imshow(diff, extent=extent, origin="lower", cmap="RdBu_r",
+                        vmin=-lim, vmax=lim)
+    axes[2].set_title("después − antes", fontsize=11)
+    fig.colorbar(im, ax=axes[2], fraction=0.046)
+
+    for ax in axes:
+        ax.set_xlabel(r"$x/\lambda$")
+        ax.set_xlim(-span, span)
+        ax.set_ylim(-span, span)
+        ax.set_aspect("equal")
+    axes[0].set_ylabel(r"$y/\lambda$")
 
     fig.suptitle(
-        "Relevo de litografía ArF (193 nm, dos dioptrios): máscara de circuito en el plano imagen",
+        "«antes» = pesos de Fresnel desnudos, sin mapeo;  "
+        "«después» = $A(Q)$ + proyección meridional + mapeo seno",
         fontsize=11,
     )
-    fig.tight_layout()
-    path = out_dir / "lithography_before_after.png"
-    fig.savefig(path, dpi=140)
+    fig.tight_layout(rect=(0.0, 0.03, 1.0, 0.94))
+    path = out_dir / "layout_before_after.png"
+    fig.savefig(path, dpi=150)
     print_saved(path)
-
-    # Radial-average power spectrum: where the resolution actually went.
-    fig, ax = plt.subplots(figsize=(7.4, 5.2))
-    for tag in ("antes", "después"):
-        res = results[tag]
-        I = res["Iv"] - res["Iv"].mean()
-        S = np.abs(np.fft.fftshift(np.fft.fft2(I))) ** 2
-        ny, nx = S.shape
-        ky = np.fft.fftshift(np.fft.fftfreq(ny, d=abs(res["yr"][1] - res["yr"][0])))
-        kx = np.fft.fftshift(np.fft.fftfreq(nx, d=abs(res["xr"][1] - res["xr"][0])))
-        KX, KY = np.meshgrid(kx, ky)
-        K = np.hypot(KX, KY) * litho.lam
-        bins = np.linspace(0.0, 2.0, 90)
-        idx = np.digitize(K.ravel(), bins)
-        prof = np.array([S.ravel()[idx == i].mean() if np.any(idx == i) else np.nan
-                         for i in range(1, len(bins))])
-        centers = 0.5 * (bins[1:] + bins[:-1])
-        ax.semilogy(centers, prof / np.nanmax(prof), lw=1.6, label=tag)
-    ax.set(xlabel=r"frecuencia espacial $k\lambda/2\pi$",
-           ylabel="potencia radialmente promediada (normalizada)",
-           title="Contenido espectral de la imagen vectorial")
-    ax.grid(alpha=0.3, which="both")
-    ax.legend(fontsize=9)
-    fig.tight_layout()
-    path = out_dir / "lithography_spectrum_before_after.png"
-    fig.savefig(path, dpi=140)
-    print_saved(path)
+    plt.close(fig)
 
 
 def main():
     out_dir = example_output_dir(__file__)
     print("punto focal:")
     focal_comparison(out_dir)
-    print("litografía:")
-    lithography_comparison(out_dir)
+    print("conjunto de features:")
+    layout_comparison(out_dir)
 
 
 if __name__ == "__main__":

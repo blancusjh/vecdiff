@@ -120,7 +120,7 @@ como deuda de ese trabajo:
   seno. Medido contra la referencia a NA_i = 0.91, el mapeo perspectivo da
   14 % de error en amplitud y el seno 2e-8. Conviene corregir el documento.
 - [ ] **Ejemplos de imagen encadenada.** `two_diopter_imaging`,
-  `resolution_inversion` y `lithography` aplican el operador de pupila sobre
+  `resolution_inversion` aplica el operador de pupila sobre
   coordenadas de plano que no son radios de pupila. Hoy no truncan (el aviso
   de apertura no salta), pero el modelo mezcla dos geometrías; se arregla con
   el soporte de entrada sobre plano objeto de la Fase 3.

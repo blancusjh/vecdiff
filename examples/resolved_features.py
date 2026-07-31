@@ -1,13 +1,13 @@
-"""Vectorial projection printing: what scalar theory resolves and vectorial theory does not.
+"""Which features survive vectorial imaging, and which ones scalar theory only thinks it resolves.
 
-Scalar diffraction theory says the image of a line/space grating depends on its
-pitch and on the numerical aperture, and on nothing else.  Vectorial theory says
-it also depends on how the lines are oriented with respect to the illumination
-polarization, and near the resolution limit the difference is not a correction:
-it is a factor of four.
+Scalar diffraction theory says whether a periodic feature is resolved depends on
+its period and on the numerical aperture, and on nothing else.  Vectorial theory
+says it also depends on how the feature is oriented with respect to the
+illumination polarization, and near the resolution limit the difference is not a
+correction: it is a factor of four.
 
-The mechanism is interference geometry, not Fresnel transmission.  A grating of
-pitch ``p`` sends its two first orders into the image at ``+-theta`` with
+The mechanism is interference geometry, not Fresnel transmission.  A periodic
+feature of period ``p`` sends its two first orders into the image at ``+-theta`` with
 ``sin(theta) = lambda / (n p)``.  With the field polarized along the lines the
 two orders stay parallel (TE, s) and interfere at full contrast.  Polarized
 across them, the two electric vectors are tilted apart by ``2 theta`` (TM, p),
@@ -17,7 +17,7 @@ system with ``NA = 0.88`` in water that is ``cos(75.8 deg) = 0.24``.
 
 Model
 -----
-Coherent projection imaging with a vectorial pupil.  The mask spectrum is laid
+Coherent imaging with a vectorial pupil.  The object spectrum is laid
 on the pupil of the stigmatic exit surface, weighted by the transfer operator
 of :mod:`vecdiff.transfer`, and transformed to the image.  The pupil coordinate
 is the sine-mapped one the Debye reduction integrates over, so a spatial
@@ -30,7 +30,7 @@ confounding it with pupil weighting.
 
 Run from the repository root::
 
-    uv run python examples/lithography.py
+    uv run python examples/resolved_features.py
 """
 
 import numpy as np
@@ -52,10 +52,11 @@ from _output import example_output_dir, print_saved
 
 lam = 193e-6  # mm, ArF
 
-# Immersion exit surface, with the materials 193 nm hyper-NA lithography uses:
-# a LuAG last element (n ~ 2.14) into water (n ~ 1.437).  A silica-to-air exit
-# cannot reach here -- a dense-to-rare stigmatic surface runs into the critical
-# angle and saturates near NA 0.74.
+# A high-aperture immersion configuration: a LuAG last element (n ~ 2.14) into
+# water (n ~ 1.437).  A silica-to-air exit cannot reach this aperture -- a
+# dense-to-rare stigmatic surface runs into the critical angle and saturates
+# near NA 0.74 -- so the high-index element and the immersion medium are what
+# make the regime reachable at all.
 N_LUAG = 2.14
 N_WATER = 1.437
 LENS = dict(n0=N_LUAG, ni=N_WATER, z0=-42.0, zi=2.0)
@@ -88,7 +89,7 @@ def _radius_from_sine(sin_ai, n_table=200_001):
 _PUPIL_CACHE: dict = {}
 
 
-def pupil_weights(NUX, NUY):
+def pupil_weights(NUX, NUY, *, geometry="full"):
     """Return ``(w_plus, w_minus, w_z, inside)`` on a spatial-frequency grid.
 
     ``w_plus`` and ``w_minus`` are the mean and half-difference of the radial
@@ -97,7 +98,7 @@ def pupil_weights(NUX, NUY):
     """
     # The weights depend only on the grid, and the sweep reuses one grid, so
     # rebuilding them per pitch would dominate the run time.
-    key = (NUX.shape, float(NUX[0, 1] - NUX[0, 0]), float(NUY[1, 0] - NUY[0, 0]))
+    key = (NUX.shape, float(NUX[0, 1] - NUX[0, 0]), float(NUY[1, 0] - NUY[0, 0]), geometry)
     cached = _PUPIL_CACHE.get(key)
     if cached is not None:
         return cached
@@ -107,11 +108,14 @@ def pupil_weights(NUX, NUY):
     inside = sin_ai <= SIN_MAX
 
     r = _radius_from_sine(np.where(inside, sin_ai, 0.0))
-    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r, SURFACE)
+    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r, SURFACE, geometry=geometry)
 
     geom = SURFACE.ray_geometry(r)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        jac = np.where(geom.cos_ai > 0.0, 1.0 / geom.cos_ai, 0.0)
+    if geometry == "none":
+        jac = np.ones_like(geom.cos_ai)
+    else:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            jac = np.where(geom.cos_ai > 0.0, 1.0 / geom.cos_ai, 0.0)
 
     zero = np.zeros_like(lam_r)
     result = (
@@ -124,19 +128,19 @@ def pupil_weights(NUX, NUY):
     return result
 
 
-def image_fields(mask, dx, polarization=(1.0, 0.0), *, model="vectorial"):
-    """Return ``(Ex, Ey, Ez)`` in the image plane for a mask in image coordinates.
+def image_fields(obj, dx, polarization=(1.0, 0.0), *, model="vectorial", geometry="full"):
+    """Return ``(Ex, Ey, Ez)`` in the image plane for an object in image coordinates.
 
     ``model`` is ``"vectorial"`` (the full operator), ``"scalar"`` (the same
     amplitude apodization with the polarization mixing removed) or ``"flat"``
     (an unapodized scalar pupil, the textbook reference).
     """
-    ny, nx = mask.shape
+    ny, nx = obj.shape
     NUX, NUY = np.meshgrid(
         np.fft.fftfreq(nx, d=dx), np.fft.fftfreq(ny, d=dx), indexing="xy"
     )
 
-    spectrum = np.fft.fft2(mask.astype(complex))
+    spectrum = np.fft.fft2(obj.astype(complex))
     px, py = polarization
     Sx, Sy = px * spectrum, py * spectrum
 
@@ -144,7 +148,7 @@ def image_fields(mask, dx, polarization=(1.0, 0.0), *, model="vectorial"):
         inside = np.hypot(NUX, NUY) <= NU_CUT
         return np.fft.ifft2(Sx * inside), np.fft.ifft2(Sy * inside), np.zeros_like(Sx)
 
-    w_plus, w_minus, w_z, _ = pupil_weights(NUX, NUY)
+    w_plus, w_minus, w_z, _ = pupil_weights(NUX, NUY, geometry=geometry)
     if model == "scalar":
         w_minus = np.zeros_like(w_minus)
         w_z = np.zeros_like(w_z)
@@ -212,8 +216,8 @@ def total_intensity(fields):
 # A layout, not just a grating
 # ---------------------------------------------------------------------
 
-def lithographic_pattern(shape, dx, unit):
-    """A small circuit-like layout, with everything sized against ``unit``.
+def feature_layout(shape, dx, unit):
+    """A set of features of different shape and orientation, sized against ``unit``.
 
     ``unit`` is the coherent cutoff pitch, so every feature here sits within a
     factor of two of the resolution limit -- the regime where the vectorial
@@ -305,10 +309,9 @@ def group_contrast(intensity, dx, box):
 # Study
 # ---------------------------------------------------------------------
 
-#: Below this fringe contrast a grating does not print with a usable process
-#: window.  This is a printability criterion, not Rayleigh's: the orders sit
-#: inside the pupil at every pitch swept here, so what fails is the modulation,
-#: not the collection.
+#: Below this fringe contrast a feature is not usefully resolved.  This is a
+#: modulation criterion, not Rayleigh's: the orders sit inside the pupil at
+#: every period swept here, so what fails is the modulation, not the collection.
 CONTRAST_THRESHOLD = 0.5
 
 ORIENTATIONS = {
@@ -331,17 +334,17 @@ def run_pitch_sweep(n=1024, oversample=8.0):
         rows = {"pitch": [], "flat": [], "scalar": [], "vectorial": []}
         for f in factors:
             pitch = snap_pitch(f * PITCH_CUT, dx)
-            mask = grating(shape, dx, pitch, orientation)
+            obj = grating(shape, dx, pitch, orientation)
             for model in ("flat", "scalar", "vectorial"):
-                I = total_intensity(image_fields(mask, dx, model=model))
+                I = total_intensity(image_fields(obj, dx, model=model))
                 rows[model].append(contrast(I, dx, pitch, orientation))
             rows["pitch"].append(pitch / PITCH_CUT)
         results[meta["key"]] = {k: np.asarray(v) for k, v in rows.items()}
     return results, dx, shape
 
 
-def printable_limit(factors, contrasts):
-    """Smallest pitch factor whose contrast clears the printability threshold."""
+def resolved_limit(factors, contrasts):
+    """Smallest period factor whose contrast clears the resolution threshold."""
     ok = contrasts >= CONTRAST_THRESHOLD
     if not np.any(ok):
         return np.nan
@@ -366,12 +369,12 @@ def main():
 
     results, dx, shape = run_pitch_sweep()
 
-    print("Paso mínimo imprimible (contraste ≥ "
+    print("Período mínimo resuelto (contraste ≥ "
           f"{CONTRAST_THRESHOLD:.2f}), en unidades del paso de corte:")
     limits = {}
     for key, data in results.items():
         limits[key] = {
-            m: printable_limit(data["pitch"], data[m]) for m in ("scalar", "vectorial")
+            m: resolved_limit(data["pitch"], data[m]) for m in ("scalar", "vectorial")
         }
         ratio = limits[key]["vectorial"] / limits[key]["scalar"]
         print(f"   {key}:  escalar {limits[key]['scalar']:.3f}   "
@@ -395,7 +398,7 @@ def main():
         lo = tm["pitch"][window].min() * PITCH_CUT * 1e6
         hi = tm["pitch"][window].max() * PITCH_CUT * 1e6
         print("Ventana donde la teoría escalar resuelve y la vectorial NO (TM): "
-              f"{lo:.0f}–{hi:.0f} nm de paso")
+              f"período {lo:.0f}–{hi:.0f} nm")
     else:
         print("No hay ventana en la que escalar resuelva y vectorial no.")
     print()
@@ -428,18 +431,18 @@ def _figure_contrast(results):
                            alpha=0.15, label="escalar resuelve,\nvectorial no")
         label = next(m["label"] for m in ORIENTATIONS.values() if m["key"] == key)
         ax.set_title(label)
-        ax.set_xlabel("paso de la rejilla [nm]")
+        ax.set_xlabel("período [nm]")
         ax.grid(alpha=0.3)
         ax.legend(fontsize=8, loc="lower right")
     axes[0].set_ylabel("contraste de franjas")
     axes[0].set_ylim(-0.02, 1.05)
     fig.suptitle(
-        f"Contraste de imagen aérea, NA={NA:.2f} en agua, λ=193 nm  |  "
+        f"Contraste de imagen, NA={NA:.2f} en agua, λ=193 nm  |  "
         f"paso de corte {PITCH_CUT * 1e6:.0f} nm",
         fontsize=11,
     )
     fig.tight_layout()
-    path = out_dir / "lithography_contrast_vs_pitch.png"
+    path = out_dir / "resolved_features_contrast.png"
     fig.savefig(path, dpi=150)
     print_saved(path)
     plt.close(fig)
@@ -448,11 +451,11 @@ def _figure_contrast(results):
 def _figure_pattern(n=1536, oversample=10.0):
     """The layout printed by both theories, side by side."""
     dx = PITCH_CUT / oversample
-    mask, groups = lithographic_pattern((n, n), dx, PITCH_CUT)
+    obj, groups = feature_layout((n, n), dx, PITCH_CUT)
 
     images = {}
     for model in ("scalar", "vectorial"):
-        images[model] = total_intensity(image_fields(mask, dx, model=model))
+        images[model] = total_intensity(image_fields(obj, dx, model=model))
 
     peak = max(I.max() for I in images.values())
     images = {k: I / peak for k, I in images.items()}
@@ -471,8 +474,8 @@ def _figure_pattern(n=1536, oversample=10.0):
     extent = [-half, half, -half, half]
     fig, axes = plt.subplots(1, 4, figsize=(21.0, 5.6))
 
-    axes[0].imshow(mask, extent=extent, origin="lower", cmap="gray")
-    axes[0].set_title("máscara", fontsize=11)
+    axes[0].imshow(obj, extent=extent, origin="lower", cmap="gray")
+    axes[0].set_title("objeto", fontsize=11)
 
     for ax, model, title in (
         (axes[1], "scalar", "imagen escalar"),
@@ -510,14 +513,14 @@ def _figure_pattern(n=1536, oversample=10.0):
     summary = "   ".join(f"{name}: {cs:.2f} → {cv:.2f}" for name, cs, cv in rows)
 
     fig.suptitle(
-        f"Layout impreso a NA={NA:.2f} en agua, λ=193 nm, iluminación $\\hat{{x}}$  |  "
+        f"Conjunto de features imagenado a NA={NA:.2f} en agua, λ=193 nm, iluminación $\\hat{{x}}$  |  "
         f"paso de corte {PITCH_CUT * 1e6:.0f} nm.  "
         "Misma apodización en ambas imágenes: la única diferencia es la polarización.\n"
         f"contraste escalar → vectorial por grupo —   {summary}",
         fontsize=10,
     )
-    fig.tight_layout(rect=(0.0, 0.03, 1.0, 0.92))
-    path = out_dir / "lithography_pattern.png"
+    fig.tight_layout(rect=(0.0, 0.06, 1.0, 0.92))
+    path = out_dir / "resolved_features_layout.png"
     fig.savefig(path, dpi=150)
     print_saved(path)
     plt.close(fig)
@@ -531,7 +534,7 @@ def _figure_aerial(dx, shape):
     fig, axes = plt.subplots(3, len(pitches), figsize=(4.6 * len(pitches), 11.6))
     for col, f in enumerate(pitches):
         pitch = snap_pitch(f * PITCH_CUT, dx)
-        mask = grating(shape, dx, pitch, "vertical")
+        obj = grating(shape, dx, pitch, "vertical")
         span = 3.0 * pitch
         half = max(int(span / dx), 8)
         sl = slice(n // 2 - half, n // 2 + half)
@@ -540,7 +543,7 @@ def _figure_aerial(dx, shape):
 
         profiles = {}
         for row, model in enumerate(("scalar", "vectorial")):
-            I = total_intensity(image_fields(mask, dx, model=model))
+            I = total_intensity(image_fields(obj, dx, model=model))
             c = contrast(I, dx, pitch, "vertical")
             profiles[model] = (I[n // 2, sl] / I.max(), c)
             ax = axes[row, col]
@@ -564,12 +567,12 @@ def _figure_aerial(dx, shape):
             ax.set_ylabel("intensidad normalizada")
 
     fig.suptitle(
-        "Imagen aérea, líneas ⊥ a la polarización (TM), iluminación $\\hat{x}$\n"
+        "Imagen de una rejilla, líneas ⊥ a la polarización (TM), iluminación $\\hat{x}$\n"
         "misma apodización en ambos: la única diferencia es la mezcla de polarización",
         fontsize=11,
     )
     fig.tight_layout()
-    path = out_dir / "lithography_aerial_images.png"
+    path = out_dir / "resolved_features_images.png"
     fig.savefig(path, dpi=150)
     print_saved(path)
     plt.close(fig)
@@ -586,8 +589,8 @@ def _figure_mechanism(dx, shape):
     fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8))
 
     for ax, orientation in zip(axes[:2], ("vertical", "horizontal")):
-        mask = grating(shape, dx, pitch, orientation)
-        Ex, Ey, Ez = image_fields(mask, dx, model="vectorial")
+        obj = grating(shape, dx, pitch, orientation)
+        Ex, Ey, Ez = image_fields(obj, dx, model="vectorial")
         Sx, Sy, Sz = np.abs(Ex) ** 2, np.abs(Ey) ** 2, np.abs(Ez) ** 2
         norm = float((Sx + Sy + Sz).max())
         cut = (lambda A: A[n // 2, sl]) if orientation == "vertical" else (lambda A: A[sl, n // 2])
@@ -628,7 +631,7 @@ def _figure_mechanism(dx, shape):
         fontsize=11,
     )
     fig.tight_layout()
-    path = out_dir / "lithography_mechanism.png"
+    path = out_dir / "resolved_features_mechanism.png"
     fig.savefig(path, dpi=150)
     print_saved(path)
     plt.close(fig)
