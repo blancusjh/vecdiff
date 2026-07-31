@@ -1,7 +1,7 @@
 # vecdiff
 
 Radial Hankel and Fresnel field-propagation utilities for vector diffraction
-experiments. The project contains a small Python package, runnable examples, and
+calculations. The project contains a small Python package, runnable examples, and
 tests for working with sampled electromagnetic fields in Cartesian, polar, and
 circular representations.
 
