@@ -89,7 +89,7 @@ def _radius_from_sine(sin_ai, n_table=200_001):
 _PUPIL_CACHE: dict = {}
 
 
-def pupil_weights(NUX, NUY, *, geometry="full"):
+def pupil_weights(NUX, NUY):
     """Return ``(w_plus, w_minus, w_z, inside)`` on a spatial-frequency grid.
 
     ``w_plus`` and ``w_minus`` are the mean and half-difference of the radial
@@ -98,7 +98,7 @@ def pupil_weights(NUX, NUY, *, geometry="full"):
     """
     # The weights depend only on the grid, and the sweep reuses one grid, so
     # rebuilding them per pitch would dominate the run time.
-    key = (NUX.shape, float(NUX[0, 1] - NUX[0, 0]), float(NUY[1, 0] - NUY[0, 0]), geometry)
+    key = (NUX.shape, float(NUX[0, 1] - NUX[0, 0]), float(NUY[1, 0] - NUY[0, 0]))
     cached = _PUPIL_CACHE.get(key)
     if cached is not None:
         return cached
@@ -108,14 +108,11 @@ def pupil_weights(NUX, NUY, *, geometry="full"):
     inside = sin_ai <= SIN_MAX
 
     r = _radius_from_sine(np.where(inside, sin_ai, 0.0))
-    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r, SURFACE, geometry=geometry)
+    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r, SURFACE)
 
     geom = SURFACE.ray_geometry(r)
-    if geometry == "none":
-        jac = np.ones_like(geom.cos_ai)
-    else:
-        with np.errstate(divide="ignore", invalid="ignore"):
-            jac = np.where(geom.cos_ai > 0.0, 1.0 / geom.cos_ai, 0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        jac = np.where(geom.cos_ai > 0.0, 1.0 / geom.cos_ai, 0.0)
 
     zero = np.zeros_like(lam_r)
     result = (
@@ -128,12 +125,14 @@ def pupil_weights(NUX, NUY, *, geometry="full"):
     return result
 
 
-def image_fields(obj, dx, polarization=(1.0, 0.0), *, model="vectorial", geometry="full"):
+def image_fields(obj, dx, polarization=(1.0, 0.0), *, model="vectorial"):
     """Return ``(Ex, Ey, Ez)`` in the image plane for an object in image coordinates.
 
     ``model`` is ``"vectorial"`` (the full operator), ``"scalar"`` (the same
     amplitude apodization with the polarization mixing removed) or ``"flat"``
-    (an unapodized scalar pupil, the textbook reference).
+    (an unapodized scalar pupil, the textbook reference).  The scalar variants
+    exist so the comparison isolates polarization; they are references, not
+    alternative models of the surface.
     """
     ny, nx = obj.shape
     NUX, NUY = np.meshgrid(
@@ -148,7 +147,7 @@ def image_fields(obj, dx, polarization=(1.0, 0.0), *, model="vectorial", geometr
         inside = np.hypot(NUX, NUY) <= NU_CUT
         return np.fft.ifft2(Sx * inside), np.fft.ifft2(Sy * inside), np.zeros_like(Sx)
 
-    w_plus, w_minus, w_z, _ = pupil_weights(NUX, NUY, geometry=geometry)
+    w_plus, w_minus, w_z, _ = pupil_weights(NUX, NUY)
     if model == "scalar":
         w_minus = np.zeros_like(w_minus)
         w_z = np.zeros_like(w_z)

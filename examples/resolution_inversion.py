@@ -47,9 +47,8 @@ out_dir = example_output_dir(__file__)
 def grazing_radius(diopter_params):
     """Pupil radius where incidence on the oval becomes grazing (cos_i -> 0).
 
-    A transverse radius on the surface, which is the aperture coordinate.  This
-    used to be reported in the oval's own parameter rho, a larger number, so the
-    pupil it sized reached past the usable surface.
+    A transverse radius on the surface, which is the aperture coordinate --
+    not the oval's own parameter rho, which is larger at the same point.
     """
     return CartesianSurface(**diopter_params).aperture_limit
 

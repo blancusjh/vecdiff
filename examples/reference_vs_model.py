@@ -52,7 +52,7 @@ def model_focal_cut(surface, wavelength, pupil, variant, rho, *, aperture, n_r=6
     """
     r = np.linspace(0.0, aperture, int(n_r))
     w_p, w_s, w_z, u = focal_channel_weights(
-        surface, r, geometry=variant["geometry"], mapping=variant["mapping"]
+        surface, r, mapping=variant["mapping"]
     )
 
     f = np.asarray(pupil(r), dtype=complex)
@@ -78,10 +78,8 @@ def model_focal_cut(surface, wavelength, pupil, variant, rho, *, aperture, n_r=6
 
 
 VARIANTS = {
-    "actual (sin A, sin mapeo)": dict(geometry="none", mapping="identity"),
-    "+A (sin mapeo)": dict(geometry="full", mapping="identity"),
-    "+A + mapeo seno": dict(geometry="full", mapping="sine"),
-    "+A + mapeo tangente": dict(geometry="full", mapping="tangent"),
+    "mapeo seno (Debye)": dict(mapping="sine"),
+    "mapeo tangente (perspectivo)": dict(mapping="tangent"),
 }
 
 

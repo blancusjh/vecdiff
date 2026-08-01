@@ -27,8 +27,8 @@ with the geometric amplitude factor of Eq. (47)
     ``A(Q) = |z0| * l_i(Q) / (|zi| * l_0(Q))`` .
 
 ``A`` is what conserves the mean Poynting flux between the two reference
-spheres; dropping it, as the package used to, costs a factor of about two in
-amplitude at the edge of a high-aperture pupil while leaving the axis exact.
+spheres.  It equals one on axis and falls to about one half at the edge of a
+high-aperture pupil, so it is a pure high-aperture apodization.
 """
 
 from dataclasses import dataclass
@@ -37,16 +37,6 @@ import numpy as np
 
 from .fresnel import FresnelOvoid
 from .geometry import RayGeometry
-
-#: Accepted values of the ``geometry`` switch carried by the propagators.
-GEOMETRY_MODES = ("full", "none")
-
-
-def _check_mode(geometry: str) -> bool:
-    if geometry not in GEOMETRY_MODES:
-        raise ValueError(f"geometry must be one of {GEOMETRY_MODES}; got {geometry!r}.")
-    return geometry == "full"
-
 
 @dataclass(frozen=True)
 class InterfaceOperator:
@@ -103,60 +93,21 @@ class InterfaceOperator:
         return 0.5 * (lam_r + lam_phi), 0.5 * (lam_r - lam_phi), lam_z
 
 
-def interface_operator(surface, r, *, geometry: str = "full") -> InterfaceOperator:
-    """Build the :class:`InterfaceOperator` of ``surface`` on the pupil grid ``r``.
-
-    ``geometry="none"`` drops both the amplitude factor ``A`` and the
-    meridional projection, recovering the bare ``t_p``/``t_s`` weighting the
-    package used before this correction.  It exists so that tests which pin
-    plumbing rather than physics keep a stable target; it is not a physical
-    model.
-    """
-    geometric = _check_mode(geometry)
-    geom = surface.ray_geometry(r)
-    return interface_operator_from_geometry(surface, geom, geometry=geometry)
+def interface_operator(surface, r) -> InterfaceOperator:
+    """Build the :class:`InterfaceOperator` of ``surface`` on the pupil grid ``r``."""
+    return interface_operator_from_geometry(surface, surface.ray_geometry(r))
 
 
-def interface_operator_from_geometry(surface, geom, *, geometry: str = "full") -> InterfaceOperator:
+def interface_operator_from_geometry(surface, geom) -> InterfaceOperator:
     """As :func:`interface_operator`, reusing an already-built geometry."""
-    geometric = _check_mode(geometry)
     fresnel = FresnelOvoid(ovoid=surface)
     t_p, t_s = fresnel.coefficients_from_geometry(geom)
-
-    if geometric:
-        A = geom.A
-        return InterfaceOperator(geom=geom, t_p=t_p, t_s=t_s, A=A)
-
-    # Legacy weighting: no flux factor, no meridional projection.  Faking
-    # cos_ai == cos_a0 is what removes the projection from ``eigenvalues``.
-    flat = RayGeometry(
-        r=geom.r,
-        rho=geom.rho,
-        z=geom.z,
-        dz_dr=geom.dz_dr,
-        l0=geom.l0,
-        li=geom.li,
-        sin_a0=geom.sin_a0,
-        cos_a0=np.ones_like(geom.r),
-        sin_ai=geom.sin_ai,
-        cos_ai=np.ones_like(geom.r),
-        cos_t0=geom.cos_t0,
-        cos_ti=geom.cos_ti,
-        normal_r=geom.normal_r,
-        normal_z=geom.normal_z,
-        A=np.ones_like(geom.r),
-        valid=geom.valid,
-        n0=geom.n0,
-        ni=geom.ni,
-        z0=geom.z0,
-        zi=geom.zi,
-    )
-    return InterfaceOperator(geom=flat, t_p=t_p, t_s=t_s, A=np.ones_like(geom.r))
+    return InterfaceOperator(geom=geom, t_p=t_p, t_s=t_s, A=geom.A)
 
 
-def sphere_transfer_eigenvalues(surface, r, *, geometry: str = "full"):
+def sphere_transfer_eigenvalues(surface, r):
     """Return ``(lam_r, lam_phi, lam_z)`` on the pupil grid ``r``."""
-    return interface_operator(surface, r, geometry=geometry).eigenvalues()
+    return interface_operator(surface, r).eigenvalues()
 
 
 def channel_transmittance(surface, r):
@@ -169,30 +120,24 @@ def channel_transmittance(surface, r):
     return FresnelOvoid(ovoid=surface).transmittances(r)
 
 
-def focal_channel_weights(surface, r, *, geometry: str = "full", mapping: str | None = None):
+def focal_channel_weights(surface, r, *, mapping: str | None = None):
     """Return ``(w_p, w_s, w_z, u)`` ready to feed the focal Hankel channels.
 
     A convenience for code that drives the radial path by hand rather than
     through :func:`~vecdiff.propagation.propagate_to_focal_plane_through_diopter`.
     The three weights are the transfer eigenvalues times the pupil-mapping
-    Jacobian, and ``u`` is the variable the transform integrates over -- pass it
-    where the pupil radius used to go.
+    Jacobian, and ``u`` is the variable the transform integrates over.
 
-    ``w_p`` and ``w_s`` slot straight into the existing ``t_plus = (w_p+w_s)/2``
-    and ``t_minus = (w_p-w_s)/2`` combinations, so downstream algebra is
-    unchanged.
+    ``w_p`` and ``w_s`` slot straight into the ``t_plus = (w_p+w_s)/2`` and
+    ``t_minus = (w_p-w_s)/2`` combinations the Cartesian form consumes.
     """
     from .pupil_mapping import pupil_transform, resolve_mapping
 
     r = np.asarray(r, dtype=float)
-    mapping = resolve_mapping(mapping, geometry)
-    operator = interface_operator(surface, r, geometry=geometry)
+    mapping = resolve_mapping(mapping)
+    operator = interface_operator(surface, r)
     lam_r, lam_phi, lam_z = operator.eigenvalues()
     u, weight = pupil_transform(operator.geom, mapping)
-    if geometry == "none":
-        # ``interface_operator`` flattens the geometry in this mode; the pupil
-        # coordinate must still come from the real one.
-        u, weight = pupil_transform(surface.ray_geometry(r), mapping)
     return lam_r * weight, lam_phi * weight, lam_z * weight, u
 
 

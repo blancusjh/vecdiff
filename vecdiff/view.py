@@ -347,11 +347,6 @@ def plot_results(
     return fig, axes
 
 
-def plot_transmission_comparison(*args, **kwargs):
-    """Backward-compatible alias for plot_results."""
-    return plot_results(*args, **kwargs)
-
-
 def plot_field_2d_components(
     component1,
     component2,

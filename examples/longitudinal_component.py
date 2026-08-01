@@ -18,9 +18,8 @@ from _common import focal_field, figure_saver
 n0, ni, z0, zi = 1.0, 1.5, -10.0, 6.0
 lam = 532e-6
 diopter_for_aperture = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
-# Just inside grazing incidence.  This used to read 2.6 mm, which is past the
-# surface's usable aperture of 2.397 mm -- the old value came from the oval's
-# rho parametrisation rather than the transverse radius.
+# Just inside grazing incidence, in the transverse radius on the surface --
+# which is the aperture coordinate.
 R = 0.97 * diopter_for_aperture.aperture_limit
 n_r, n_q, n_phi = 1000, 4800, 256
 
@@ -44,9 +43,9 @@ diopter_caption = (
     rf"$\lambda$={lam * 1e6:.0f} nm  ·  $R$={R:g} mm"
 )
 
-# The longitudinal channel is exact rather than the small-angle tan(theta)
-# weight this used to carry: lam_z of Eq. (63) is A tp sin(alpha_i)/cos(alpha_0),
-# and transversality on the image sphere gives E_z = tan(alpha_i) E_r.
+# The longitudinal channel is exact: lam_z of Eq. (63) is
+# A tp sin(alpha_i)/cos(alpha_0), and transversality on the image sphere gives
+# E_z = tan(alpha_i) E_r.
 tp, ts, wz_tp, u = focal_channel_weights(diopter, r)
 with np.errstate(divide="ignore", invalid="ignore"):
     w_z = np.divide(wz_tp, tp, out=np.zeros_like(tp), where=np.abs(tp) > 0.0)
