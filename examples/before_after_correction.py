@@ -196,8 +196,13 @@ def layout_comparison(out_dir):
         images[tag] = rf.total_intensity(
             rf.image_fields(obj, dx, model="vectorial", geometry=geometry)
         )
-    peak = max(I.max() for I in images.values())
-    images = {k: I / peak for k, I in images.items()}
+    # Normalise each image to its own peak.  The corrected weighting amplifies
+    # the pupil edge heavily, so on a shared scale the difference map shows the
+    # level change and hides the contrast change, which is the interesting one.
+    peaks = {k: float(I.max()) for k, I in images.items()}
+    peak_ratio = peaks["después"] / peaks["antes"]
+    images = {k: I / peaks[k] for k, I in images.items()}
+    print(f"   pico absoluto después/antes = {peak_ratio:.2f}x")
 
     print(f"   {'grupo':<28} {'antes':>8} {'después':>9}")
     for name, box in groups.items():
@@ -233,8 +238,10 @@ def layout_comparison(out_dir):
 
     fig.suptitle(
         "«antes» = pesos de Fresnel desnudos, sin mapeo;  "
-        "«después» = $A(Q)$ + proyección meridional + mapeo seno",
-        fontsize=11,
+        "«después» = $A(Q)$ + proyección meridional + mapeo seno\n"
+        f"cada imagen normalizada a su propio pico (el pico absoluto sube {peak_ratio:.1f}×): "
+        "lo que se ve es el cambio de contraste",
+        fontsize=10,
     )
     fig.tight_layout(rect=(0.0, 0.03, 1.0, 0.94))
     path = out_dir / "layout_before_after.png"
