@@ -30,6 +30,13 @@ Each script prints the path of the files it saves.
 | `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders). The polarization of each vectorial image is analyzed in three separate figures per system: component analysis (incident vs. image), polarization-ellipse maps (incident field vs. focal plane), and the ellipse-angle maps. | `inversion_{high_index,glass}.png`, `components_{high_index,glass}.png`, `polarization_maps_{high_index,glass}.png`, `ellipse_angles_{high_index,glass}.png` |
 | `resolved_features.py` | Which features scalar theory resolves and vectorial theory does not: period sweep, feature layout, and the longitudinal channel that carries off the lost contrast. | `resolved_features_layout.png` |
 
+## Validation
+
+| Example | Purpose | Main outputs |
+| --- | --- | --- |
+| `reference_vs_model.py` | The package's focal field against the Franz / Stratton-Chu integral, an exact Maxwell field, in absolute amplitude and phase; and the two pupil mappings against it. | `reference_vs_model.png` |
+| `aperture_limits.py` | What stops a ray through a two-surface stigmatic element -- the faces meeting, grazing incidence, the critical angle -- for a dry and an immersion configuration, each checked against the exact field. | `aperture_limits.png` |
+
 ## Animation
 
 | Example | Purpose | Main outputs |
@@ -51,6 +58,8 @@ examples/output/
   two_diopter_imaging/
   resolution_inversion/
   resolved_features/
+  aperture_limits/
+  reference_vs_model/
   harmonic_field_animation/
 ```
 

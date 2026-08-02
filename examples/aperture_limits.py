@@ -1,24 +1,29 @@
-"""The redesigned lithography relay, checked against the exact field.
+"""What limits the aperture of a two-surface stigmatic element, and whether the model holds there.
 
-The original two-surface ArF relay could not deliver its nominal aperture.  Its
-exit surface went from fused silica to air, and a dense-to-rare stigmatic
-surface runs into the critical angle: ``sin(theta_i) -> 1`` at
-``sin(theta_0) = ni / n0``, beyond which no oval exists that would send the ray
-to the image point.  That capped it near ``NA = 0.74`` in principle and at
-``0.57`` as built, against a nominal ``0.94``.
+Three things can stop a ray through such an element, and which one binds decides
+what the design can deliver:
 
-The redesign keeps the two-surface architecture and changes the materials to
-the ones hyper-NA lithography actually uses -- a LuAG last element and water
-immersion -- which moves the critical angle out far enough to reach
-``NA = 0.95``.
+* the two faces meeting, which is set by the axial separation and, through the
+  sags, by the conjugates;
+* grazing incidence on the entrance surface, where the incidence angle reaches
+  ninety degrees at a finite radius;
+* the critical angle on the exit surface, where the *transmitted* angle reaches
+  ninety degrees first, at ``sin(theta_0) = ni / n0``.
 
-The point of this script is not the design but the check: at that aperture the
-ray-optical chain has no right to be believed on its own, so it is compared
-against the Franz / Stratton-Chu integral, which is an exact Maxwell field.
+The third is the hard one.  Past it no oval exists that would send the ray to
+the image point -- Snell has no real solution -- so a dense-to-rare exit surface
+cannot be continued however the conjugates are chosen.  A fused-silica-to-air
+exit saturates near ``NA = 0.74``; reaching beyond that needs a higher-index
+last element and an immersion medium, which is what the second configuration
+here uses.
+
+At those apertures the ray-optical chain has no right to be believed on its
+own, so both exit surfaces are checked against the Franz / Stratton-Chu
+integral, which is an exact Maxwell field in the image medium.
 
 Run from the repository root::
 
-    uv run python examples/lithography_redesign.py
+    uv run python examples/aperture_limits.py
 """
 
 import sys
@@ -49,14 +54,14 @@ LAM = 193e-6
 N_LUAG = 2.14
 N_WATER = 1.437
 
-OLD = dict(
-    label="original: sílice → aire",
+DRY = dict(
+    label="sílice → aire (seco)",
     first=dict(n0=1.0, ni=1.5602, z0=-4.0, zi=2.0),
     second=dict(n0=1.5602, ni=1.0, z0=2.0 - 5.0, zi=0.25 * 2.0 / 1.5602),
     separation=5.0,
 )
-NEW = dict(
-    label="rediseño: LuAG → agua",
+IMMERSION = dict(
+    label="LuAG → agua (inmersión)",
     first=dict(n0=1.0, ni=N_LUAG, z0=-4.0, zi=8.0),
     second=dict(n0=N_LUAG, ni=N_WATER, z0=8.0 - 50.0, zi=0.8),
     separation=50.0,
@@ -96,7 +101,7 @@ def main():
     print(f"{'':<28} {'NA obj':>8} {'NA img':>8} {'reducción':>10}  limita")
     print("-" * 78)
     designs = {}
-    for key, design in (("old", OLD), ("new", NEW)):
+    for key, design in (("dry", DRY), ("immersion", IMMERSION)):
         s1, s2, t = analyse(design)
         designs[key] = (design, s1, s2, t)
         print(
@@ -145,7 +150,7 @@ def main():
     s = rho / LAM
 
     ax = axes[0]
-    for key, style in (("old", "--"), ("new", "-")):
+    for key, style in (("dry", "--"), ("immersion", "-")):
         R = results[key]
         ax.plot(s, np.abs(R["ref"]) ** 2, "k", ls=style, lw=3.0, alpha=0.3)
         ax.plot(s, np.abs(R["model"]) ** 2, ls=style, lw=1.6,
@@ -156,18 +161,18 @@ def main():
     ax.grid(alpha=0.3)
 
     ax = axes[1]
-    for key, style in (("old", "--"), ("new", "-")):
+    for key, style in (("dry", "--"), ("immersion", "-")):
         R = results[key]
         prof = np.abs(R["model"]) ** 2
         ax.plot(s, prof / prof.max(), ls=style, lw=1.6,
                 label=f"{R['label']}  (NA={R['na']:.2f})")
     ax.set(xlabel=r"$\rho/\lambda$", ylabel="intensidad normalizada",
-           title="Resolución: el rediseño concentra más", yscale="log", ylim=(1e-5, 2.0))
+           title="La inmersión concentra más", yscale="log", ylim=(1e-5, 2.0))
     ax.legend(fontsize=8)
     ax.grid(alpha=0.3)
 
     ax = axes[2]
-    for key, style in (("old", "--"), ("new", "-")):
+    for key, style in (("dry", "--"), ("immersion", "-")):
         R = results[key]
         ax.plot(s, np.abs(R["model"]) / np.abs(R["ref"]), ls=style, lw=1.6,
                 label=f"{R['label']}  (NA={R['na']:.2f})")
@@ -178,12 +183,12 @@ def main():
     ax.grid(alpha=0.3)
 
     fig.suptitle(
-        "Relevo de litografía ArF (193 nm): superficie de salida, "
-        "diseño original vs. rediseño con inmersión",
+        "Superficie de salida estigmática a 193 nm: qué apertura alcanza cada "
+        "configuración, y si el modelo la describe",
         fontsize=11,
     )
     fig.tight_layout()
-    path = out_dir / "lithography_redesign.png"
+    path = out_dir / "aperture_limits.png"
     fig.savefig(path, dpi=140)
     print_saved(path)
     return path
