@@ -15,8 +15,32 @@ from .fourier import (
     KGRID3,
     frequency_grid,
 )
+from .geometry import (
+    RayGeometry,
+    ReferenceSphere,
+    TangentPlane,
+    grazing_radius,
+    image_sphere,
+    incident_sphere,
+    ray_geometry,
+    ray_geometry_from_rho,
+)
 from .grid import Grid
 from .hankel import HankelTransform, HT_N
+from .system import (
+    ApertureBudget,
+    element_aperture,
+    relay_throughput,
+    surface_intersection_radius,
+)
+from .transfer import (
+    InterfaceOperator,
+    channel_transmittance,
+    focal_channel_weights,
+    interface_operator,
+    paraxial_channel_weights,
+    sphere_transfer_eigenvalues,
+)
 from .longitudinal import (
     generate_Ez_cartesian,
     generate_Ez_field,
@@ -25,9 +49,19 @@ from .longitudinal import (
 )
 from .propagation import (
     fresnel_coefficients_on_grid,
+    incident_field_on_sphere,
     propagate_to_focal_plane_through_diopter,
     propagate_to_focal_plane_through_diopter_fft,
+    transfer_weights_on_grid,
     transverse_diopter_operator,
+)
+from .pupil_mapping import (
+    debye_prefactor,
+    pupil_coordinate,
+    pupil_extent,
+    pupil_transform,
+    pupil_weight,
+    radius_from_pupil_coordinate,
 )
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 from .polarization import (

@@ -25,9 +25,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from vecdiff.fresnel import FresnelOvoid
 from vecdiff.field_reconstruction import hankel_terms, reconstruct_2d_from_terms, make_observation_grid
-from vecdiff import CartesianSurface, FieldCartesian, FieldCircular, Grid
+from vecdiff import (
+    CartesianSurface,
+    FieldCartesian,
+    FieldCircular,
+    Grid,
+    focal_channel_weights,
+)
 from vecdiff import animate_harmonic_field, save_animation
 from _output import example_output_dir, print_saved
 
@@ -43,28 +48,13 @@ readme_gif = assets / "quiver_harmonic_readme.gif"          # Cartesian hero
 readme_gif_circular = assets / "quiver_harmonic_circular.gif"  # circular companion
 
 
-def grazing_aperture():
-    """Aperture at 0.97x the grazing radius, where t-/t+ is largest."""
-    rho = np.linspace(1e-4, 3.0 * abs(z0), 4000)
-    fr = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-    with np.errstate(all="ignore"):
-        cos_i, _ = fr._cosines(rho)
-        finite = np.isfinite(fr.ovoid.z(rho)) & np.isfinite(fr.ovoid.r(rho))
-    return 0.97 * float(rho[np.nanargmin(np.where(finite, cos_i, np.nan))])
-
-
-a = grazing_aperture()
+surface = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
+a = 0.97 * surface.aperture_limit  # where t-/t+ is largest
 n_r, n_q = 1200, 900
 r = np.linspace(0.0, a, n_r)
 q = (ni * a / (lam * zi)) * np.linspace(0.0, 1.0, n_q) ** 2
 
-fresnel = FresnelOvoid(n0=n0, ni=ni, z0=z0, zi=zi)
-with np.errstate(divide="ignore", invalid="ignore"):
-    tp = np.asarray(fresnel.tp(r), dtype=float)
-    ts = np.asarray(fresnel.ts(r), dtype=float)
-for t in (tp, ts):  # repair the r=0 indeterminacy by interpolation
-    bad = ~np.isfinite(t)
-    t[bad] = np.interp(r[bad], r[~bad], t[~bad])
+tp, ts, _, u = focal_channel_weights(surface, r)
 
 pupil_edge = (r / a) ** edge_p
 alpha_obj = np.degrees(np.arctan(a / abs(z0)))
@@ -80,7 +70,7 @@ caption = (rf"dioptrio estigmático: $n_0$={n0:g}, $n_i$={ni:g}, $z_0$={z0:g}, $
 
 half_size = 1.4  # focal-plane half-window, wavelengths
 xx, yy, rho2d, varphi2d, _ = make_observation_grid(half_size, 420)
-terms_cart = hankel_terms(r, q, tp, ts, e1=pupil_edge, e2=np.zeros_like(pupil_edge), polarization="cartesian")
+terms_cart = hankel_terms(u, q, tp, ts, e1=pupil_edge, e2=np.zeros_like(pupil_edge), polarization="cartesian")
 Ex, Ey = reconstruct_2d_from_terms(terms_cart, q * q_lambda, rho2d, varphi2d, polarization="cartesian")
 E_cart = FieldCartesian(x=Ex, y=Ey, grid=Grid.from_cartesian(xx, yy), symmetric=False)
 

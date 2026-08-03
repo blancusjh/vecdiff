@@ -1,16 +1,26 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from vecdiff import CartesianSurface, FieldCartesian, FieldCircular, FieldPolar, Grid
+from vecdiff import (
+    CartesianSurface,
+    FieldCartesian,
+    FieldCircular,
+    FieldPolar,
+    Grid,
+    focal_channel_weights,
+)
 from vecdiff.hankel import HankelTransform
 from vecdiff.longitudinal import generate_Ez_cartesian
-from vecdiff.propagation import fresnel_coefficients_on_grid
 from vecdiff.view import sample_component_pair_on_cartesian_mesh
 from _common import focal_field, figure_saver
 
 # --- Setup: same diopter as polar_simple / circular_simple ---
 n0, ni, z0, zi = 1.0, 1.5, -10.0, 6.0
-lam, R = 532e-6, 2.6
+lam = 532e-6
+diopter_for_aperture = CartesianSurface(n0=n0, ni=ni, z0=z0, zi=zi)
+# Just inside grazing incidence, in the transverse radius on the surface --
+# which is the aperture coordinate.
+R = 0.97 * diopter_for_aperture.aperture_limit
 n_r, n_q, n_phi = 1000, 4800, 256
 
 r = np.linspace(0.0, R, n_r)
@@ -33,17 +43,20 @@ diopter_caption = (
     rf"$\lambda$={lam * 1e6:.0f} nm  ·  $R$={R:g} mm"
 )
 
-# Each pupil annulus r maps to a plane wave with sin(theta) = r / zi, so the
-# transversality condition E_z = -tan(theta) E_p weights the p-channel by w_z.
-sin_th = r / zi
-w_z = sin_th / np.sqrt(1.0 - sin_th**2)
-tp, ts = fresnel_coefficients_on_grid(r, diopter, support=pupil)
+# The longitudinal channel is exact: lam_z of Eq. (63) is
+# A tp sin(alpha_i)/cos(alpha_0), and transversality on the image sphere gives
+# E_z = tan(alpha_i) E_r.
+tp, ts, wz_tp, u = focal_channel_weights(diopter, r)
+with np.errstate(divide="ignore", invalid="ignore"):
+    w_z = np.divide(wz_tp, tp, out=np.zeros_like(tp), where=np.abs(tp) > 0.0)
+tp = tp * pupil
+ts = ts * pupil
 
 s = q * zi / (2.0 * np.pi * ni)  # focal radius in units of lambda
 
 
 def HT(order, f_r):
-    return HankelTransform.transform_array(order, r, f_r, q)
+    return HankelTransform.transform_array(order, u, f_r, q)
 
 
 cases = {

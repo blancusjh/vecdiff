@@ -2,6 +2,15 @@ import numpy as np
 
 
 class Grid:
+    """Sampled coordinates, optionally tagged with the surface they live on.
+
+    ``reference`` is the second half of the pair ``(r, E(r))``: it records
+    whether the samples sit on a reference sphere or on a tangent plane, so the
+    propagators can stop guessing.  ``None`` means the samples are labelled by
+    the surface radius directly, which for a pupil field is the same as living
+    on the incident sphere ``G``.
+    """
+
     def __init__(
         self,
         X: np.ndarray,
@@ -9,12 +18,14 @@ class Grid:
         *,
         domain: str = "space",
         dual: "Grid | None" = None,
+        reference=None,
     ):
         self.X = np.asarray(X, dtype=float)
         self.Y = np.asarray(Y, dtype=float)
         self.type = "cartesian"
         self.domain = domain
         self.dual = dual
+        self.reference = reference
         self.generate_polar_from_cartesian()
 
     @classmethod
@@ -25,8 +36,9 @@ class Grid:
         *,
         domain: str = "space",
         dual: "Grid | None" = None,
+        reference=None,
     ) -> "Grid":
-        return cls(X, Y, domain=domain, dual=dual)
+        return cls(X, Y, domain=domain, dual=dual, reference=reference)
 
     @classmethod
     def from_axes(
@@ -36,10 +48,11 @@ class Grid:
         *,
         domain: str = "space",
         dual: "Grid | None" = None,
+        reference=None,
     ) -> "Grid":
         """Return a Cartesian grid from one-dimensional x and y axes."""
         X, Y = np.meshgrid(np.asarray(x, dtype=float), np.asarray(y, dtype=float), indexing="xy")
-        return cls(X, Y, domain=domain, dual=dual)
+        return cls(X, Y, domain=domain, dual=dual, reference=reference)
 
     @classmethod
     def from_spacing(
@@ -50,16 +63,17 @@ class Grid:
         *,
         domain: str = "space",
         dual: "Grid | None" = None,
+        reference=None,
     ) -> "Grid":
         """Return a centered Cartesian grid with sample spacings ``dx`` and ``dy``."""
         ny, nx = shape
         x = (np.arange(nx) - nx//2)*dx
         y = (np.arange(ny) - ny//2)*dy
         X, Y = np.meshgrid(x, y, indexing="xy")
-        return cls(X, Y, domain=domain, dual=dual)
+        return cls(X, Y, domain=domain, dual=dual, reference=reference)
 
     @classmethod
-    def from_polar(cls, r: np.ndarray, varphi: np.ndarray | None = None) -> "Grid":
+    def from_polar(cls, r: np.ndarray, varphi: np.ndarray | None = None, *, reference=None) -> "Grid":
         r = np.asarray(r, dtype=float)
         grid = cls.__new__(cls)
         if varphi is None:
@@ -75,6 +89,7 @@ class Grid:
         grid.type = "polar"
         grid.domain = "space"
         grid.dual = None
+        grid.reference = reference
         grid.generate_cartesian_from_polar()
         return grid
 
@@ -117,7 +132,7 @@ class Grid:
             ky = np.fft.fftshift(ky)
 
         KX, KY = np.meshgrid(kx, ky, indexing="xy")
-        return Grid.from_cartesian(KX, KY, domain="k", dual=self)
+        return Grid.from_cartesian(KX, KY, domain="k", dual=self, reference=self.reference)
 
     def generate_cartesian_from_polar(self) -> None:
         self.X = self.R * np.cos(self.Phi)

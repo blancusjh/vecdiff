@@ -235,27 +235,36 @@ for cs, name in [(case_g, "vidrio"), (case_h, "alto índice")]:
 # %% [markdown]
 # ### Nota: signo erróneo en `vecdiff.fresnel.FresnelOvoidParax`
 #
-# La clase paraxial del paquete produce $t_s = \gamma_0 - n_i\,\xi\,r^2$; el
-# desarrollo correcto (confirmado por el ajuste del Fresnel exacto de arriba)
-# requiere $t_s = \gamma_0 + n_i\,\xi\,r^2$. El efecto del signo es
-# intercambiar los pesos: la clase predice pendientes $(n_0{-}n_i)\xi/2$ para
-# $t_+$ y $(n_0{+}n_i)\xi/2$ para $t_-$ — exactamente al revés, lo que
-# sobreestima el canal cruzado paraxial en un factor
-# $[(n_0{+}n_i)/(n_0{-}n_i)]^2$ (25 para vidrio).
+# Aquí hay que comparar cosa con cosa. `FresnelOvoidParax` desarrolla los
+# coeficientes de Fresnel **desnudos**, mientras que los canales que ve la
+# transformada focal llevan además $A(Q)$ y el jacobiano del mapeo. Los dos
+# desarrollos se comprueban por separado contra sus respectivos exactos.
 
 # %%
-from vecdiff.fresnel import FresnelOvoidParax
+from vecdiff.fresnel import FresnelOvoid, FresnelOvoidParax
+from vecdiff.transfer import paraxial_channel_weights
 
-par = FresnelOvoidParax(case_g["n0"], case_g["ni"], case_g["z0"], case_g["zi"])
+surf_g = st.surface(case_g["n0"], case_g["ni"], case_g["z0"], case_g["zi"])
 rr = case_g["r"]
-ts_par, tp_par = par.coeffs(rr)
-tp_pkg, tm_pkg = 0.5 * (tp_par + ts_par), 0.5 * (tp_par - ts_par)
-fit = st.fit_aberration_coefficients(case_g)
 
-print("pendiente cuadrática de t+ : paquete "
-      f"{np.polyfit(rr**2, tp_pkg, 1)[0]:+.5f} | exacto {fit['c2']:+.5f}")
-print("pendiente cuadrática de t- : paquete "
-      f"{np.polyfit(rr**2, tm_pkg, 1)[0]:+.5f} | exacto {fit['d2']:+.5f}")
+# (a) coeficientes desnudos: paraxial del paquete vs. Fresnel exacto
+ts_par, tp_par = FresnelOvoidParax(*[case_g[k] for k in ("n0", "ni", "z0", "zi")]).coeffs(rr)
+tp_ex, ts_ex = FresnelOvoid(ovoid=surf_g).coefficients(rr)
+small = rr < 0.3 * rr[-1]
+print("t_p desnudo, pendiente r²: paraxial "
+      f"{np.polyfit(rr[small]**2, tp_par[small], 1)[0]:+.5f} | exacto "
+      f"{np.polyfit(rr[small]**2, tp_ex[small], 1)[0]:+.5f}")
+print("t_s desnudo, pendiente r²: paraxial "
+      f"{np.polyfit(rr[small]**2, ts_par[small], 1)[0]:+.5f} | exacto "
+      f"{np.polyfit(rr[small]**2, ts_ex[small], 1)[0]:+.5f}")
+
+# (b) pesos efectivos: expansión completa vs. ajuste del caso
+wp_par, ws_par = paraxial_channel_weights(surf_g, rr)
+fit = st.fit_aberration_coefficients(case_g)
+print("t_+ efectivo, pendiente r²: paraxial "
+      f"{np.polyfit(rr**2, 0.5 * (wp_par + ws_par), 1)[0]:+.5f} | ajuste {fit['c2']:+.5f}")
+print("t_- efectivo, pendiente r²: paraxial "
+      f"{np.polyfit(rr**2, 0.5 * (wp_par - ws_par), 1)[0]:+.5f} | ajuste {fit['d2']:+.5f}")
 
 # %% [markdown]
 # ## De la pupila al foco: predicción paraxial de la anisotropía
@@ -332,10 +341,12 @@ for ni in (1.5, 2.4):
 #    - la anisotropía del lóbulo es $A \simeq \kappa\,D_2 a^2/2$ con
 #      $\kappa = 2J_3(u_h)/(u_h J_2(u_h)) \approx 0.353$: primer orden en la
 #      diatenuación, evaluada en el borde de la pupila.
-# 3. El régimen paraxial (fórmulas de $\xi$) reproduce el ajuste exacto de
-#    $(γ_0, c_2, d_2)$; `FresnelOvoidParax` del paquete tiene un signo erróneo
-#    en $t_s$ que intercambia los coeficientes de $t_+$ y $t_-$ (pendiente de
-#    corrección en el paquete).
+# 3. El régimen paraxial reproduce el ajuste exacto de $(γ_0, c_2, d_2)$, pero
+#    la expansión tiene que incluir el factor geométrico $A(Q)$ y el jacobiano
+#    del mapeo, no solo los coeficientes de Fresnel: el canal cruzado gana un
+#    término puramente geométrico $γ_0(1/z_0^2 - 1/z_i^2)/4$. El signo erróneo
+#    que `FresnelOvoidParax` tenía en $t_s$ ya está corregido en el paquete —
+#    era solo el signo, los índices estaban bien.
 #
 # **Referencia**: J. P. McGuire, R. A. Chipman, "Polarization aberrations. 1.
 # Rotationally symmetric optical systems", JOSA A **7**, 1614–1626 (1990).

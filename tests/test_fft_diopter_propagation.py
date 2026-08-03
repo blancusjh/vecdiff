@@ -12,6 +12,25 @@ def _cartesian_grid(n=17, half_size=1.0):
     return Grid.from_cartesian(X, Y)
 
 
+
+def _bypass_pupil_stage(monkeypatch):
+    """Reduce the propagator to a bare transform, to pin the FFT plumbing.
+
+    The physics stages -- the transfer weights and the pupil warp -- are
+    replaced by identities here so the remaining assertions are about grids,
+    padding and k-space bookkeeping only.  What the weights *are* is pinned by
+    tests/test_geometry_and_transfer.py.
+    """
+    monkeypatch.setattr(
+        propagation,
+        "transfer_weights_on_grid",
+        lambda R, diopter, support=None: (np.ones_like(R), np.ones_like(R), np.zeros_like(R)),
+    )
+    monkeypatch.setattr(propagation, "_warp_to_pupil_grid", lambda f, d, m: (f, f.grid.R))
+    monkeypatch.setattr(propagation, "pupil_transform", lambda geom, m: (geom.r, np.ones_like(geom.r)))
+    monkeypatch.setattr(propagation, "incident_field_on_sphere", lambda f, d: f)
+
+
 def test_transverse_operator_matches_projector_identity(monkeypatch):
     grid = _cartesian_grid()
     rng = np.random.default_rng(123)
@@ -22,10 +41,10 @@ def test_transverse_operator_matches_projector_identity(monkeypatch):
     tp = 1.2 + 0.1 * grid.R
     ts = 0.7 + 0.05 * grid.R
 
-    def fake_coefficients(R, diopter, support=None):
-        return tp, ts
+    def fake_weights(R, diopter, support=None, *, geometry="full"):
+        return tp, ts, np.zeros_like(R)
 
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
     Ux, Uy = propagation.transverse_diopter_operator(field, object())
 
     rho_x = np.cos(grid.Phi)
@@ -49,10 +68,10 @@ def test_transverse_operator_reduces_to_scalar_limit(monkeypatch):
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     t = 0.8 + 0.2 * grid.R
 
-    def fake_coefficients(R, diopter, support=None):
-        return t, t
+    def fake_weights(R, diopter, support=None, *, geometry="full"):
+        return t, t, np.zeros_like(grid.R)
 
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
     Ux, Uy = propagation.transverse_diopter_operator(field, object())
 
     assert np.allclose(Ux, t * Ex)
@@ -103,10 +122,7 @@ def test_fft_propagation_uses_centered_ft2(monkeypatch):
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
 
-    def fake_coefficients(R, diopter, support=None):
-        return np.ones_like(R), np.ones_like(R)
-
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    _bypass_pupil_stage(monkeypatch)
     out = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
     expected_x, expected_grid = FT2(Ex, grid, physical=True)
     expected_y, _ = FT2(Ey, grid, physical=True)
@@ -126,7 +142,9 @@ def test_fft_propagation_identity_transmission_skips_diopter_operator(monkeypatc
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
 
-    def fail_if_called(field, diopter):
+    _bypass_pupil_stage(monkeypatch)
+
+    def fail_if_called(field, diopter, *, radius=None):
         raise AssertionError("identity transmission should not apply the vectorial operator")
 
     monkeypatch.setattr(propagation, "transverse_diopter_operator", fail_if_called)
@@ -153,12 +171,11 @@ def test_fft_propagation_zero_padding_refines_k_grid(monkeypatch):
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
 
-    def fake_coefficients(R, diopter, support=None):
-        return np.ones_like(R), np.ones_like(R)
-
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    _bypass_pupil_stage(monkeypatch)
     unpadded = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
-    padded = field.propagate_through_diopter(diopter.zi, diopter, method="fft", pad_factor=3)
+    padded = field.propagate_through_diopter(
+        diopter.zi, diopter, method="fft", pad_factor=3
+    )
 
     assert padded.x.shape == (3 * grid.shape[0], 3 * grid.shape[1])
     assert padded.y.shape == padded.x.shape
@@ -178,10 +195,7 @@ def test_fft_propagation_accepts_custom_kgrid(monkeypatch):
     KX, KY = np.meshgrid(kx, ky, indexing="xy")
     kgrid = Grid.from_cartesian(KX, KY, domain="k")
 
-    def fake_coefficients(R, diopter, support=None):
-        return np.ones_like(R), np.ones_like(R)
-
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    _bypass_pupil_stage(monkeypatch)
     out = field.propagate_through_diopter(
         diopter.zi,
         diopter,
@@ -211,10 +225,7 @@ def test_fft_propagation_accepts_custom_kgrid_with_padding(monkeypatch):
     KX, KY = np.meshgrid(kx, ky, indexing="xy")
     kgrid = Grid.from_cartesian(KX, KY, domain="k")
 
-    def fake_coefficients(R, diopter, support=None):
-        return np.ones_like(R), np.ones_like(R)
-
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    _bypass_pupil_stage(monkeypatch)
     out = field.propagate_through_diopter(
         diopter.zi,
         diopter,
@@ -251,12 +262,12 @@ def test_fft_propagation_rejects_invalid_pad_factor():
         field.propagate_through_diopter(diopter.zi, diopter, method="fft", pad_factor=1.5)
 
 
-def test_legacy_positional_call_still_uses_hankel_branch():
+def test_keyword_construction_routes_to_the_hankel_branch():
     r = np.linspace(0.0, 0.8, 12)
     phi = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
     q = np.linspace(0.0, 4.0, 10)
     grid = Grid.from_polar(r, phi)
-    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=5.0, zi=10.0)
+    diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-5.0, zi=10.0)
     field = FieldCartesian(np.exp(-r**2), np.zeros_like(r), grid=grid)
 
     out = field.propagate_through_diopter(diopter.zi, diopter, q)
@@ -274,10 +285,7 @@ def test_fft_propagation_converts_polar_grid_to_cartesian(monkeypatch, capsys):
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
     field = FieldCartesian(np.exp(-r**2), np.zeros_like(r), grid=grid)
 
-    def fake_coefficients(R, diopter, support=None):
-        return np.ones_like(R), np.ones_like(R)
-
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    _bypass_pupil_stage(monkeypatch)
     out = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
     captured = capsys.readouterr()
 
@@ -299,10 +307,10 @@ def test_cross_component_is_governed_by_sin_two_phi(monkeypatch):
     tp = 1.0 + 0.1 * grid.R
     ts = 0.6 + 0.05 * grid.R
 
-    def fake_coefficients(R, diopter, support=None):
-        return tp, ts
+    def fake_weights(R, diopter, support=None, *, geometry="full"):
+        return tp, ts, np.zeros_like(R)
 
-    monkeypatch.setattr(propagation, "fresnel_coefficients_on_grid", fake_coefficients)
+    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
     _, Uy = propagation.transverse_diopter_operator(field, object())
 
     expected_y = 0.5 * (tp - ts) * np.sin(2.0 * grid.Phi) * Ex
