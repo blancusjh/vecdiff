@@ -60,13 +60,16 @@
 #
 # Los tres modos de pupila:
 #
-# - **escalar**: pupila circular sin apodizar, $t_p = t_s = 1$. No depende de
-#   la superficie: es la imagen de libro de texto y la referencia.
-# - **escalar apodizado**: la misma apodización de amplitud
-#   $A(Q)/\cos\alpha_i$ que el vectorial, sin la mezcla de polarización.
-#   Aísla la polarización de la apodización.
-# - **vectorial**: el operador de transferencia completo
-#   (Ecs. 62–63), con canal longitudinal $E_z$ incluido en la suma de Abbe.
+# - **escalar (lente ideal)**: pupila circular sin apodizar, $t_p = t_s = 1$.
+#   No resuelve ninguna interfaz: es la referencia de resolución de libro.
+# - **escalar físico (canal s)**: la solución exacta del **problema escalar de
+#   contorno** de la refracción — Helmholtz en ambos medios con $U$ y
+#   $\partial_n U$ continuas, cuya transmisión local es exactamente $t_s$ y
+#   cuyo transporte de energía da el mismo $A(Q)$. Verificado contra la
+#   integral de Helmholtz–Kirchhoff sobre la superficie real:
+#   $|U|/\mathrm{ref} = 1.000000$, RMS del perfil $1.6\times 10^{-8}$.
+# - **vectorial**: el operador de transferencia completo (Ecs. 62–63), con
+#   canal longitudinal $E_z$ incluido en la suma de Abbe.
 #
 # En litografía de inmersión hiper-NA este efecto es célebre: el contraste de
 # los órdenes TM se degrada como el coseno del ángulo mutuo y obliga a
@@ -285,27 +288,33 @@ _zero = np.zeros_like(_lam_r)
 W_PLUS = np.where(_INSIDE, 0.5 * (_lam_r + _lam_phi) * _jac, _zero)
 W_MINUS = np.where(_INSIDE, 0.5 * (_lam_r - _lam_phi) * _jac, _zero)
 W_Z = np.where(_INSIDE, _lam_z * _jac, _zero)
+# El canal s es la solución exacta del problema ESCALAR de contorno: Helmholtz
+# en ambos medios con U y dU/dn continuas da t_s como transmisión local, y la
+# conservación de flujo el mismo A(Q).  Verificado contra la integral de
+# Helmholtz-Kirchhoff sobre la superficie: |U|/ref = 1.000000, RMS 1.6e-8.
+W_S = np.where(_INSIDE, _lam_phi * _jac, _zero)
 
 
 def pupil_amplitudes(model):
     """Pesos de pupila de cada modo.
 
-    ``"scalar"``            pupila circular sin apodizar, t_p = t_s = 1.  Es la
-                            imagen coherente de libro y no depende de la
-                            superficie: la referencia contra la que se mide todo.
-    ``"scalar_apodizado"``  la misma apodización de amplitud que el vectorial,
-                            sin la mezcla de polarización.  Aísla la
-                            polarización de la apodización.
-    ``"vectorial"``         el operador completo, con canal longitudinal.
+    ``"scalar"``         pupila circular sin apodizar, t_p = t_s = 1: la lente
+                         ideal de libro.  No resuelve ninguna interfaz -- es la
+                         referencia de resolución, no una solución de contorno.
+    ``"scalar_fisico"``  el canal s del operador, A(Q) t_s(theta) con el
+                         jacobiano del mapeo: la solución exacta del problema
+                         escalar de la refracción (Helmholtz + continuidad de
+                         U y dU/dn, que es el problema TE).
+    ``"vectorial"``      el operador completo, con canal longitudinal.
     """
     if model == "scalar":
         one = _INSIDE.astype(float)
         return one, np.zeros_like(one), np.zeros_like(one)
-    if model == "scalar_apodizado":
-        return W_PLUS, np.zeros_like(W_MINUS), np.zeros_like(W_Z)
+    if model == "scalar_fisico":
+        return W_S, np.zeros_like(W_MINUS), np.zeros_like(W_Z)
     if model == "vectorial":
         return W_PLUS, W_MINUS, W_Z
-    raise ValueError("model debe ser 'scalar', 'scalar_apodizado' o 'vectorial'.")
+    raise ValueError("model debe ser 'scalar', 'scalar_fisico' o 'vectorial'.")
 
 
 def _source_offsets(sigma, stride=2):
@@ -369,7 +378,7 @@ def image_intensity(Ex0, Ey0, model="vectorial", sigma=None):
 
 Z0 = np.zeros_like(T)
 I_flat, _, _ = image_intensity(T, Z0, "scalar")
-I_apod, _, _ = image_intensity(T, Z0, "scalar_apodizado")
+I_fis, _, _ = image_intensity(T, Z0, "scalar_fisico")
 I_vx, Iz_vx, Icross_vx = image_intensity(T, Z0, "vectorial")
 I_vy, Iz_vy, _ = image_intensity(Z0, T, "vectorial")
 I_ci, Iz_ci, _ = image_intensity(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0), "vectorial")
@@ -403,12 +412,12 @@ img_ci, Ez_c = coherent_fields(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0))
 # Dos referencias escalares distintas, y la diferencia importa:
 #   I_flat  pupila circular sin apodizar, t_p = t_s = 1 -- la imagen de libro
 #           de texto, que no depende de la superficie;
-#   I_apod  la misma apodización de amplitud que el caso vectorial, sin la
-#           mezcla de polarización -- aísla la polarización de la apodización,
-#           pero no es "escalar puro".
+#   I_fis   el canal s (A·t_s·jac): la solución exacta del problema escalar
+#           de contorno en la interfaz, verificada a 1.6e-8 contra la
+#           integral de Helmholtz-Kirchhoff.
 I_esc = I_flat
 I_lin = {
-    "escalar apodizado": I_apod,
+    "escalar físico (canal s)": I_fis,
     "vectorial x̂ (transversal)": I_vx - Iz_vx,
     "vectorial x̂ (total)": I_vx,
     "vectorial ŷ (total)": I_vy,
