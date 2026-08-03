@@ -94,7 +94,7 @@ from PIL import Image
 from scipy import ndimage
 
 from vecdiff import Grid, FieldCartesian, CartesianSurface
-from vecdiff.longitudinal import generate_Ez_cartesian
+from vecdiff.propagation import transfer_weights_on_grid
 from vecdiff.polarization_visualization import plot_field_polarization
 
 π = np.pi
@@ -102,30 +102,30 @@ out_dir = Path("output")
 out_dir.mkdir(exist_ok=True)
 
 lam = 193e-6  # mm
-D1 = dict(n0=1.0, ni=1.5602, z0=-4.0, zi=2.0)
-xi = 5.0
-D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=D1["zi"] / D1["ni"])  # M = -1
 
-r_a = 4.0 * np.tan(np.deg2rad(70.0))
-alpha_max = np.arctan(r_a / abs(D1["z0"]))
-NA = D1["n0"] * np.sin(alpha_max)
-Kc = 2.0 * π / lam * NA
+# Superficie de salida de inmersión: último elemento de LuAG (n ≈ 2.14 a
+# 193 nm) hacia agua (n ≈ 1.437).  Una salida de sílice a aire no llega aquí:
+# una superficie estigmática de denso a raro choca con el ángulo crítico y
+# satura cerca de NA 0.74.
+N_LUAG, N_WATER = 2.14, 1.437
+LENS = dict(n0=N_LUAG, ni=N_WATER, z0=-42.0, zi=2.0)
+SURFACE = CartesianSurface(**LENS)
+APERTURE = SURFACE.aperture_limit
+
+# La apertura útil fija el corte coherente.  Nada de esto se postula: sale de
+# la geometría de la superficie.
+_edge = SURFACE.ray_geometry(np.array([APERTURE * (1.0 - 1e-6)]))
+SIN_MAX = float(_edge.sin_ai[0])
+NA = LENS["ni"] * SIN_MAX
+NU_CUT = NA / lam                 # corte coherente, ciclos/mm
+PITCH_CUT = 1.0 / NU_CUT
+Kc = 2.0 * π * NA / lam
 d_Airy = 2.0 * 3.8317059702075125 / Kc
-M_nominal = -(D1["ni"] * D2["zi"]) / (D2["ni"] * D1["zi"])
-pupil_radius = lam * D1["zi"] * Kc / (2.0 * π * D1["ni"])
-# El óvalo estigmático tiene una apertura útil finita (radio de incidencia
-# rasante). Con esta geometría el radio de stop de diseño excede la superficie
-# del segundo dioptrio, de modo que la NA efectiva es menor que la nominal:
-# no se puede pasar luz por superficie que no existe.
-pupil_radius_design = pupil_radius
-_d2_limit = CartesianSurface(**D2).aperture_limit
-pupil_radius = min(pupil_radius, _d2_limit)
-NA_effective = NA * pupil_radius / pupil_radius_design
 
-print(f"NA nominal = {NA:.3f}   d_Airy = {d_Airy / lam:.3f} λ   M nominal = {M_nominal:.3f}")
-print(f"r_stop de diseño = {pupil_radius_design:.4f} mm   apertura útil de D2 = {_d2_limit:.4f} mm")
-print(f"r_stop efectivo  = {pupil_radius:.4f} mm   ->  NA efectiva = {NA_effective:.3f}")
-print(f"k_t/k_z máximo en la apertura: {NA / np.sqrt(1 - NA**2):.2f}")
+print(f"superficie de salida: LuAG (n={N_LUAG}) → agua (n={N_WATER})")
+print(f"apertura útil r = {APERTURE:.4f} mm,  sin(αi) máx = {SIN_MAX:.4f}")
+print(f"NA = {NA:.4f}   d_Airy = {d_Airy / lam:.3f} λ   paso de corte = {PITCH_CUT / lam:.3f} λ")
+print(f"k_t/k_z máximo en la apertura: {SIN_MAX / np.sqrt(1 - SIN_MAX**2):.2f}")
 
 # %% [markdown]
 # ## Máscara: recorte del patrón de circuito
@@ -258,38 +258,90 @@ plt.show()
 # y $T(\hat{x}+i\hat{y})/\sqrt{2}$.
 
 # %%
-d1 = CartesianSurface(**D1)
-d2 = CartesianSurface(**D2)
+def _radius_from_sine(sin_ai, n_table=100_001):
+    """Invertir sin(αi)(r) sobre la superficie: devuelve el radio de pupila r."""
+    r_table = np.linspace(0.0, APERTURE * (1.0 - 1e-9), n_table)
+    s_table = SURFACE.ray_geometry(r_table).sin_ai
+    order = np.argsort(s_table)
+    return np.interp(np.clip(sin_ai, 0.0, s_table.max()), s_table[order], r_table[order])
 
 
-def propagate(Ex0, Ey0, vectorial, Npad=1024):
-    tr = "vectorial" if vectorial else "identity"
-    f = FieldCartesian(np.asarray(Ex0, dtype=complex),
-                       np.asarray(Ey0, dtype=complex), grid=grid, symmetric=False)
-    foc = f.propagate_through_diopter(
-        d1.zi, d1, method="fft", output="focal", wavelength=lam,
-        kgrid=f.grid.kgrid(Npad), transmission=tr,
-    ).with_circular_aperture(pupil_radius)
-    tan2 = foc.propagate_in_medium(xi - D1["zi"], wavelength=lam, n=D1["ni"])
-    return tan2.propagate_through_diopter(
-        d2.zi, d2, method="fft", output="focal", wavelength=lam,
-        kgrid=tan2.grid.kgrid(Npad), transmission=tr,
-    )
+_NUX, _NUY = np.meshgrid(
+    np.fft.fftfreq(grid.shape[1], d=float(grid.dx)),
+    np.fft.fftfreq(grid.shape[0], d=float(grid.dy)),
+    indexing="xy",
+)
+_NU = np.hypot(_NUX, _NUY)
+_PHI = np.arctan2(_NUY, _NUX)
+_INSIDE = lam * _NU / LENS["ni"] <= SIN_MAX
+
+_r_pupil = _radius_from_sine(np.where(_INSIDE, lam * _NU / LENS["ni"], 0.0))
+_lam_r, _lam_phi, _lam_z = transfer_weights_on_grid(_r_pupil, SURFACE)
+_geom = SURFACE.ray_geometry(_r_pupil)
+with np.errstate(divide="ignore", invalid="ignore"):
+    _jac = np.where(_geom.cos_ai > 0.0, 1.0 / _geom.cos_ai, 0.0)
+_zero = np.zeros_like(_lam_r)
+W_PLUS = np.where(_INSIDE, 0.5 * (_lam_r + _lam_phi) * _jac, _zero)
+W_MINUS = np.where(_INSIDE, 0.5 * (_lam_r - _lam_phi) * _jac, _zero)
+W_Z = np.where(_INSIDE, _lam_z * _jac, _zero)
+
+
+def propagate(Ex0, Ey0, model="vectorial"):
+    """Imagen coherente a través de la pupila del dioptrio.
+
+    El espectro del objeto se apoya sobre la pupila de la superficie de salida:
+    una frecuencia espacial ν llega con sin(αi) = λν/nᵢ, de modo que el borde
+    de la pupila cae exactamente sobre el corte coherente NA/λ.  Ahí actúa el
+    operador de transferencia, y la imagen es la transformada inversa.
+
+    ``model`` es ``"vectorial"`` (operador completo), ``"scalar"`` (la misma
+    apodización de amplitud sin la mezcla de polarización) o ``"flat"`` (pupila
+    circular sin apodizar, la referencia escalar de libro de texto).
+    """
+    Sx = np.fft.fft2(np.asarray(Ex0, dtype=complex))
+    Sy = np.fft.fft2(np.asarray(Ey0, dtype=complex))
+
+    if model == "flat":
+        return (np.fft.ifft2(Sx * _INSIDE), np.fft.ifft2(Sy * _INSIDE),
+                np.zeros_like(Sx))
+
+    w_plus, w_minus, w_z = W_PLUS, W_MINUS, W_Z
+    if model == "scalar":
+        w_minus = np.zeros_like(w_minus)
+        w_z = np.zeros_like(w_z)
+    elif model != "vectorial":
+        raise ValueError("model debe ser 'vectorial', 'scalar' o 'flat'.")
+
+    c2, s2 = np.cos(2.0 * _PHI), np.sin(2.0 * _PHI)
+    Px = (w_plus + w_minus * c2) * Sx + (w_minus * s2) * Sy
+    Py = (w_minus * s2) * Sx + (w_plus - w_minus * c2) * Sy
+    Pz = w_z * (np.cos(_PHI) * Sx + np.sin(_PHI) * Sy)
+    return np.fft.ifft2(Px), np.fft.ifft2(Py), np.fft.ifft2(Pz)
 
 
 Z0 = np.zeros_like(T)
-img_esc = propagate(T, Z0, vectorial=False)                        # escalar
-img_vx = propagate(T, Z0, vectorial=True)                          # lineal x̂
-img_vy = propagate(Z0, T, vectorial=True)                          # lineal ŷ
-img_ci = propagate(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0), True)  # circular
-xr = img_vx.grid.X[0, :]
-yr = img_vx.grid.Y[:, 0]
+Ex_f, Ey_f, _ = propagate(T, Z0, "flat")                              # escalar puro
+Ex_s, Ey_s, _ = propagate(T, Z0, "scalar")                            # misma apodización
+Ex_x, Ey_x, Ez_x = propagate(T, Z0, "vectorial")                      # lineal x̂
+Ex_y, Ey_y, Ez_y = propagate(Z0, T, "vectorial")                      # lineal ŷ
+Ex_c, Ey_c, Ez_c = propagate(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0), "vectorial")
 
-Ez_x = generate_Ez_cartesian(img_vx.x, img_vx.y, img_vx.grid, lam, n=D2["ni"])
-Ez_y = generate_Ez_cartesian(img_vy.x, img_vy.y, img_vy.grid, lam, n=D2["ni"])
-Ez_c = generate_Ez_cartesian(img_ci.x, img_ci.y, img_ci.grid, lam, n=D2["ni"])
+img_esc = FieldCartesian(Ex_s, Ey_s, grid=grid, symmetric=False)
+img_vx = FieldCartesian(Ex_x, Ey_x, grid=grid, symmetric=False)
+img_vy = FieldCartesian(Ex_y, Ey_y, grid=grid, symmetric=False)
+img_ci = FieldCartesian(Ex_c, Ey_c, grid=grid, symmetric=False)
+xr = grid.X[0, :]
+yr = grid.Y[:, 0]
 
-I_esc = np.abs(img_esc.x) ** 2 + np.abs(img_esc.y) ** 2
+# Dos referencias escalares distintas, y la diferencia importa:
+#   I_flat  pupila circular sin apodizar, t_p = t_s = 1 -- la imagen coherente
+#           de libro de texto, que no depende de la superficie;
+#   I_apod  la misma apodización de amplitud que el caso vectorial, sin la
+#           mezcla de polarización -- aísla la polarización, pero no es "escalar
+#           puro".
+I_flat = np.abs(Ex_f) ** 2 + np.abs(Ey_f) ** 2
+I_apod = np.abs(img_esc.x) ** 2 + np.abs(img_esc.y) ** 2
+I_esc = I_flat
 I_lin = {
     "vectorial x̂ (transversal)": np.abs(img_vx.x) ** 2 + np.abs(img_vx.y) ** 2,
     "vectorial x̂ (total)": (np.abs(img_vx.x) ** 2 + np.abs(img_vx.y) ** 2
@@ -327,27 +379,24 @@ two = (((X - sep_chk / 2) ** 2 + Y ** 2 <= r_c ** 2)
        | ((X + sep_chk / 2) ** 2 + Y ** 2 <= r_c ** 2)).astype(float)
 one = ((X ** 2 + Y ** 2) <= r_c ** 2).astype(float)
 
-img2 = propagate(two, Z0, vectorial=False)
-I2 = np.abs(img2.x) ** 2 + np.abs(img2.y) ** 2
+Ex2, Ey2, _ = propagate(two, Z0, "scalar")
+I2 = np.abs(Ex2) ** 2 + np.abs(Ey2) ** 2
 row = I2[np.argmax(I2.max(axis=1))]
 n_half = len(xr) // 2
 sep_img = (xr[n_half:][np.argmax(row[n_half:])]
            - xr[:n_half][np.argmax(row[:n_half])])
 M_meas = sep_img / sep_chk
-print(f"|M| medido = {M_meas:.4f} (nominal 4f {abs(M_nominal):.4f})")
-# El valor nominal sale de suponer que cada etapa es una transformada sobre el
-# radio de plano, con escala lineal lam*zi/(2 pi ni).  La reducción de Debye
-# integra sobre u = zi sin(alpha_i), que no es lineal en r, así que el relevo
-# tiene distorsión a esta apertura y no hay una magnificación única.  La cota
-# de abajo solo detecta rupturas gruesas.
-assert 0.7 < M_meas < 1.5, M_meas
+print(f"|M| medido = {M_meas:.4f}")
+# El modelo de pupila es invariante ante traslación, así que la imagen sale en
+# las coordenadas del objeto y la magnificación es exactamente uno: no hay
+# distorsión que medir, y esta cota solo detecta rupturas gruesas.
+assert 0.9 < M_meas < 1.1, M_meas
 
-img_p = propagate(one, Z0, vectorial=True)
-Ez_p = generate_Ez_cartesian(img_p.x, img_p.y, img_p.grid, lam, n=D2["ni"])
-I_tr = np.abs(img_p.x) ** 2 + np.abs(img_p.y) ** 2
+Ex_p, Ey_p, Ez_p = propagate(one, Z0, "vectorial")
+I_tr = np.abs(Ex_p) ** 2 + np.abs(Ey_p) ** 2
 I_to = I_tr + np.abs(Ez_p) ** 2
-img_ps = propagate(one, Z0, vectorial=False)
-I_sc = np.abs(img_ps.x) ** 2 + np.abs(img_ps.y) ** 2
+Ex_pf, Ey_pf, _ = propagate(one, Z0, "flat")
+I_sc = np.abs(Ex_pf) ** 2 + np.abs(Ey_pf) ** 2
 
 
 def hwhm_cut(I2d, along_x):
@@ -451,7 +500,7 @@ def annotate_C(ax, name, fontsize=11):
 fig, axes = plt.subplots(2, 2, figsize=(13.6, 14.0), constrained_layout=True)
 show_mask(axes[0, 0], title="mask (input, $C_V = C_H = 1$)")
 draw_cuts(axes[0, 0])
-panels = [(axes[0, 1], I_esc, "scalar ($t_p = t_s = 1$)", "escalar"),
+panels = [(axes[0, 1], I_flat, "escalar puro ($t_p = t_s = 1$, sin apodizar)", "escalar"),
           (axes[1, 0], I_lin["vectorial x̂ (total)"],
            r"vectorial, $\mathbf{E}_0 = T\hat{x}$ — $|E_x|^2+|E_y|^2+|E_z|^2$",
            "vectorial x̂ (total)"),
