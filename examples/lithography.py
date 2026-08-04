@@ -129,7 +129,14 @@ def display_positive(I, percentile=99.6, gamma=0.85):
 # Propagation through a lens
 # ---------------------------------------------------------------------
 
-def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768):
+def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768,
+                           geometry="full"):
+    """Relay the field through the two dioptres.
+
+    ``geometry`` selects the transfer weighting; ``"none"`` reproduces what the
+    package computed before the geometric factor and the pupil mapping went in,
+    which is what the before/after comparison uses.
+    """
     transmission = "vectorial" if vectorial else "identity"
 
     diopter1 = CartesianSurface(**lens.first)
@@ -152,6 +159,7 @@ def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768):
         wavelength=lam,
         kgrid=field.grid.kgrid(Npad1),
         transmission=transmission,
+        geometry=geometry,
     ).with_circular_aperture(
         pupil_radius
     )
@@ -170,6 +178,7 @@ def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768):
         wavelength=lam,
         kgrid=second_tangent_field.grid.kgrid(Npad2),
         transmission=transmission,
+        geometry=geometry,
     )
 
     Ex2 = image_field.x
@@ -333,7 +342,7 @@ def mask_window_size():
     return 18.0 * Pattern_sep
 
 
-def run_lithography_example(*, L=None, N=1025, Npad=1024):
+def run_lithography_example(*, L=None, N=1025, Npad=1024, geometry="full"):
     if L is None:
         L = mask_window_size()
 
@@ -359,6 +368,7 @@ def run_lithography_example(*, L=None, N=1025, Npad=1024):
         vectorial=False,
         Npad1=Npad,
         Npad2=Npad,
+        geometry=geometry,
     )
 
     Ex_v, Ey_v, _, _ = propagate_through_lens(
@@ -367,6 +377,7 @@ def run_lithography_example(*, L=None, N=1025, Npad=1024):
         vectorial=True,
         Npad1=Npad,
         Npad2=Npad,
+        geometry=geometry,
     )
 
     Is = mean_normalize(np.abs(Ex_s)**2 + np.abs(Ey_s)**2)
