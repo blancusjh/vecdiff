@@ -103,21 +103,37 @@ def transfer_weights_on_grid(
     operator = interface_operator(diopter, r_active, geometry=geometry)
     a_r, a_phi, a_z = operator.eigenvalues()
 
-    lost = int(np.count_nonzero(~operator.geom.valid))
-    if lost:
-        warnings.warn(
-            f"{lost} of {r_active.size} illuminated pupil samples lie past the surface's "
-            f"usable aperture (r > {diopter.aperture_limit:.6g}); they transmit nothing. "
-            "Reduce the aperture, or check whether the radius being passed is the "
-            "cylindrical radius on the refracting surface.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-
     lam_r[active] = _sanitize_fresnel(r_active, a_r)
     lam_phi[active] = _sanitize_fresnel(r_active, a_phi)
     lam_z[active] = _sanitize_fresnel(r_active, a_z)
     return lam_r, lam_phi, lam_z
+
+
+def _warn_if_aperture_clips(Ex, Ey, R, diopter, *, tolerance: float = 1e-4) -> None:
+    """Warn when a meaningful share of the field falls past the usable aperture.
+
+    Measured in energy rather than in sample count: after a free-space
+    propagation step the field is numerically non-zero across the whole grid,
+    so counting non-zero samples outside the aperture reports almost the entire
+    grid and says nothing about whether anything was actually lost.
+    """
+    limit = getattr(diopter, "aperture_limit", None)
+    if limit is None:
+        return  # weights are being injected; there is no surface to clip against
+    energy = np.abs(Ex) ** 2 + np.abs(Ey) ** 2
+    total = float(energy.sum())
+    if total <= 0.0:
+        return
+    outside = float(energy[R > limit].sum()) / total
+    if outside > tolerance:
+        warnings.warn(
+            f"{100.0 * outside:.1f}% of the incident energy lies past the surface's usable "
+            f"aperture (r > {limit:.6g}) and cannot be transmitted. "
+            "Reduce the aperture, or check whether the radius being passed is the "
+            "cylindrical radius on the refracting surface.",
+            RuntimeWarning,
+            stacklevel=3,
+        )
 
 
 def transverse_diopter_operator(
@@ -148,6 +164,7 @@ def transverse_diopter_operator(
         raise ValueError("radius must have the same shape as the field components.")
 
     support = (np.abs(Ex) > 0.0) | (np.abs(Ey) > 0.0)
+    _warn_if_aperture_clips(Ex, Ey, R, diopter)
     lam_r, lam_phi, _ = transfer_weights_on_grid(
         R, diopter, support=support, geometry=geometry
     )

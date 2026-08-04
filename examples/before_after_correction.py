@@ -208,8 +208,8 @@ def lithography_comparison(out_dir):
             ax.imshow(litho.display_positive(res[key]), extent=extent,
                       origin="lower", cmap="inferno")
             ax.set_title(f"{title} — {tag}", fontsize=10)
-            ax.set_xlim(win[0] / litho.lam, win[1] / litho.lam)
-            ax.set_ylim(win[2] / litho.lam, win[3] / litho.lam)
+            ax.set_xlim(win["xmin"] / litho.lam, win["xmax"] / litho.lam)
+            ax.set_ylim(win["ymin"] / litho.lam, win["ymax"] / litho.lam)
             ax.set_xlabel(r"$x/\lambda$")
             if col == 0:
                 ax.set_ylabel(r"$y/\lambda$")
