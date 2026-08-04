@@ -1,716 +1,466 @@
+"""Vectorial projection printing: what scalar theory resolves and vectorial theory does not.
 
+Scalar diffraction theory says the image of a line/space grating depends on its
+pitch and on the numerical aperture, and on nothing else.  Vectorial theory says
+it also depends on how the lines are oriented with respect to the illumination
+polarization, and near the resolution limit the difference is not a correction:
+it is a factor of four.
+
+The mechanism is interference geometry, not Fresnel transmission.  A grating of
+pitch ``p`` sends its two first orders into the image at ``+-theta`` with
+``sin(theta) = lambda / (n p)``.  With the field polarized along the lines the
+two orders stay parallel (TE, s) and interfere at full contrast.  Polarized
+across them, the two electric vectors are tilted apart by ``2 theta`` (TM, p),
+the fringe contrast falls as ``cos(2 theta)``, and a longitudinal component
+``E_z`` carries off the difference.  At the coherent cutoff of an immersion
+system with ``NA = 0.88`` in water that is ``cos(75.8 deg) = 0.24``.
+
+Model
+-----
+Coherent projection imaging with a vectorial pupil.  The mask spectrum is laid
+on the pupil of the stigmatic exit surface, weighted by the transfer operator
+of :mod:`vecdiff.transfer`, and transformed to the image.  The pupil coordinate
+is the sine-mapped one the Debye reduction integrates over, so a spatial
+frequency ``nu`` lands at ``sin(alpha_i) = lambda nu / n_i`` and the pupil edge
+falls exactly on the coherent cutoff ``NA / lambda``.
+
+The scalar reference keeps the *same* amplitude apodization and drops only the
+polarization mixing, so the comparison isolates polarization instead of
+confounding it with pupil weighting.
+
+Run from the repository root::
+
+    uv run python examples/lithography.py
 """
-Circular-pupil lithography-pattern example using vecdiff.
-
-This example propagates a synthetic lithography diagnostic mask through two
-diopters, comparing the scalar approximation tp=ts=1 against the vectorial
-transverse diopter operator.
-
-Repository API assumed:
-    github.com/blancusjh/vecdiff
-
-Core imports:
-    from vecdiff import CartesianSurface, FieldCartesian, Grid
-"""
-
-from dataclasses import dataclass
 
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from vecdiff import Grid, FieldCartesian, CartesianSurface, relay_throughput
-from vecdiff.polarization import polarization_from_components
-from vecdiff.polarization_visualization import plot_polarization_map
+from vecdiff import CartesianSurface
+from vecdiff.propagation import transfer_weights_on_grid
+
 from _output import example_output_dir, print_saved
 
+π = np.pi
 
 # ---------------------------------------------------------------------
 # Optical configuration
 # ---------------------------------------------------------------------
 
-lam = 193e-6
+lam = 193e-6  # mm, ArF
 
-# Immersion configuration, with the materials 193 nm hyper-NA lithography
-# actually uses.  The earlier fused-silica-to-air design could not work: a
-# dense-to-rare stigmatic exit surface hits the critical angle, sin(theta_i) ->
-# 1, and saturates near NA = 0.74 however the conjugates are chosen -- that one
-# reached only 0.57.  Two changes lift the ceiling:
-#
-#   * a high-index last element (LuAG, Lu3Al5O12, n ~ 2.14 at 193 nm), which
-#     pushes the critical angle out to sin(theta_0) = n_water / n_LuAG;
-#   * water immersion (n ~ 1.437 at 193 nm) instead of an air gap.
-#
-# Losses and dispersion are neglected: the diopter model takes real indices.
+# Immersion exit surface, with the materials 193 nm hyper-NA lithography uses:
+# a LuAG last element (n ~ 2.14) into water (n ~ 1.437).  A silica-to-air exit
+# cannot reach here -- a dense-to-rare stigmatic surface runs into the critical
+# angle and saturates near NA 0.74.
 N_LUAG = 2.14
 N_WATER = 1.437
+LENS = dict(n0=N_LUAG, ni=N_WATER, z0=-42.0, zi=2.0)
 
-D1 = dict(n0=1.0, ni=N_LUAG, z0=-4.0, zi=8.0)
-xi = 50.000
-D2 = dict(n0=N_LUAG, ni=N_WATER, z0=D1["zi"] - xi, zi=2.0)
+SURFACE = CartesianSurface(**LENS)
+APERTURE = SURFACE.aperture_limit
 
-# The aperture is a result of the design, not an input.  Three things can stop
-# a ray -- the two faces meeting, grazing incidence on the first surface, and
-# the critical angle on the second -- and ``relay_throughput`` reports which
-# one binds.  Sizing the stop by hand is what previously produced a nominal
-# NA of 0.94 on a system that could deliver 0.57.
-_surface1 = CartesianSurface(**D1)
-_surface2 = CartesianSurface(**D2)
-THROUGHPUT = relay_throughput(_surface1, _surface2, xi)
-if THROUGHPUT is None:
-    raise RuntimeError("this configuration passes no light at all")
-
-r_a = THROUGHPUT["radius_first"]
-NA = THROUGHPUT["na_object"]
-NA_IMAGE = THROUGHPUT["na_image"]
-REDUCTION = THROUGHPUT["reduction"]
-alpha_max = np.arcsin(NA / D1["n0"])
-Kc = (2.0 * np.pi / lam) * NA
-r_Airy = 3.8317059702075125 / Kc
-d_Airy = 2.0 * r_Airy
-
-# Near-resolution feature scale for the polarization-transfer diagnostic.
-# This separation keeps the scalar contacts and grating resolved, while the
-# high-NA vectorial transfer mixes a substantial cross-polarized component.
-Pattern_sep = 0.95 * d_Airy
-Pattern_theta = 0.25 * np.pi
-
-# How far the feature groups sit from the axis, as a fraction of the original
-# layout.  A stigmatic pair is stigmatic for *one* conjugate point: the axial
-# one.  Off axis it aberrates, and measurably so -- with this design the point
-# image stays diffraction limited only out to roughly 29 wavelengths of object
-# height, past which the spot widens and the peak collapses.  The mask has to
-# live inside that field or the picture reports aberration rather than the
-# polarization physics it is meant to isolate.
-Layout_spread = 0.55
+# The usable aperture sets the coherent cutoff; nothing here is asserted.
+_edge = SURFACE.ray_geometry(np.array([APERTURE * (1.0 - 1e-6)]))
+SIN_MAX = float(_edge.sin_ai[0])
+NA = LENS["ni"] * SIN_MAX
+NU_CUT = NA / lam                     # coherent cutoff, cycles per mm
+PITCH_CUT = 1.0 / NU_CUT              # smallest pitch that reaches the pupil edge
 
 out_dir = example_output_dir(__file__)
 
 
-@dataclass(frozen=True)
-class Lens:
-    radius: float
-    first: dict
-    second: dict
-    xi: float
-
-    @property
-    def distance_from_first_focus_to_second_vertex(self):
-        return self.xi - self.first["zi"]
-
-    @property
-    def magnification(self):
-        """Transverse scale of the two focal-plane Fourier maps."""
-        return -(
-            self.first["ni"] * self.second["zi"]
-            / (self.second["ni"] * self.first["zi"])
-        )
-
-
 # ---------------------------------------------------------------------
-# Numerical utilities
+# Vectorial pupil
 # ---------------------------------------------------------------------
 
-
-def orient_field_axes(Ex, Ey, x, y):
-    Ex = np.asarray(Ex)
-    Ey = np.asarray(Ey)
-    x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
-
-    if x[0] > x[-1]:
-        x = x[::-1]
-        Ex = Ex[:, ::-1]
-        Ey = Ey[:, ::-1]
-
-    if y[0] > y[-1]:
-        y = y[::-1]
-        Ex = Ex[::-1, :]
-        Ey = Ey[::-1, :]
-
-    return Ex, Ey, x, y
+def _radius_from_sine(sin_ai, n_table=200_001):
+    """Invert ``sin(alpha_i)(r)`` on the surface, returning the pupil radius ``r``."""
+    r_table = np.linspace(0.0, APERTURE * (1.0 - 1e-9), n_table)
+    s_table = SURFACE.ray_geometry(r_table).sin_ai
+    order = np.argsort(s_table)
+    return np.interp(np.clip(sin_ai, 0.0, s_table.max()), s_table[order], r_table[order])
 
 
-def mean_normalize(I):
-    I = np.asarray(I, dtype=float)
-    positive = I[I > 0]
-    return I / positive.mean() if positive.size else I
+_PUPIL_CACHE: dict = {}
 
 
-def image_extent_over_lambda(x, y):
-    return [
-        float(x[0] / lam),
-        float(x[-1] / lam),
-        float(y[0] / lam),
-        float(y[-1] / lam),
-    ]
+def pupil_weights(NUX, NUY):
+    """Return ``(w_plus, w_minus, w_z, inside)`` on a spatial-frequency grid.
 
-
-def display_positive(I, percentile=99.6, gamma=0.85):
-    I = np.asarray(I, dtype=float)
-    vals = I[np.isfinite(I) & (I > 0)]
-
-    vmax = np.percentile(vals, percentile) if vals.size else 1.0
-    vmax = max(vmax, 1.0e-14)
-
-    return np.clip(I / vmax, 0.0, 1.0) ** gamma
-
-
-# ---------------------------------------------------------------------
-# Propagation through a lens
-# ---------------------------------------------------------------------
-
-def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768,
-                           geometry="full"):
-    """Relay the field through the two dioptres.
-
-    ``geometry`` selects the transfer weighting; ``"none"`` reproduces what the
-    package computed before the geometric factor and the pupil mapping went in,
-    which is what the before/after comparison uses.
+    ``w_plus`` and ``w_minus`` are the mean and half-difference of the radial
+    and azimuthal transfer eigenvalues, including the sine-mapping Jacobian --
+    exactly the pair the Cartesian form of the operator consumes.
     """
-    transmission = "vectorial" if vectorial else "identity"
+    # The weights depend only on the grid, and the sweep reuses one grid, so
+    # rebuilding them per pitch would dominate the run time.
+    key = (NUX.shape, float(NUX[0, 1] - NUX[0, 0]), float(NUY[1, 0] - NUY[0, 0]))
+    cached = _PUPIL_CACHE.get(key)
+    if cached is not None:
+        return cached
 
-    diopter1 = CartesianSurface(**lens.first)
-    diopter2 = CartesianSurface(**lens.second)
-    # The stop sits at the intermediate focus and is sized so the marginal ray
-    # arrives at the second surface exactly at its usable edge -- the radius
-    # ``relay_throughput`` reported.  Nothing is clamped away at run time
-    # because the design already respects every aperture in the chain.
-    pupil_radius = min(
-        lam * lens.first["zi"] * Kc / (2.0 * np.pi * lens.first["ni"]),
-        diopter2.aperture_limit,
+    NU = np.hypot(NUX, NUY)
+    sin_ai = lam * NU / LENS["ni"]
+    inside = sin_ai <= SIN_MAX
+
+    r = _radius_from_sine(np.where(inside, sin_ai, 0.0))
+    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r, SURFACE)
+
+    geom = SURFACE.ray_geometry(r)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        jac = np.where(geom.cos_ai > 0.0, 1.0 / geom.cos_ai, 0.0)
+
+    zero = np.zeros_like(lam_r)
+    result = (
+        np.where(inside, 0.5 * (lam_r + lam_phi) * jac, zero),
+        np.where(inside, 0.5 * (lam_r - lam_phi) * jac, zero),
+        np.where(inside, lam_z * jac, zero),
+        inside,
+    )
+    _PUPIL_CACHE[key] = result
+    return result
+
+
+def image_fields(mask, dx, polarization=(1.0, 0.0), *, model="vectorial"):
+    """Return ``(Ex, Ey, Ez)`` in the image plane for a mask in image coordinates.
+
+    ``model`` is ``"vectorial"`` (the full operator), ``"scalar"`` (the same
+    amplitude apodization with the polarization mixing removed) or ``"flat"``
+    (an unapodized scalar pupil, the textbook reference).
+    """
+    ny, nx = mask.shape
+    NUX, NUY = np.meshgrid(
+        np.fft.fftfreq(nx, d=dx), np.fft.fftfreq(ny, d=dx), indexing="xy"
     )
 
-    focal_field = field.propagate_through_diopter(
-        diopter1.zi,
-        diopter1,
-        method="fft",
-        output="focal",
-        wavelength=lam,
-        kgrid=field.grid.kgrid(Npad1),
-        transmission=transmission,
-        geometry=geometry,
-    ).with_circular_aperture(
-        pupil_radius
-    )
+    spectrum = np.fft.fft2(mask.astype(complex))
+    px, py = polarization
+    Sx, Sy = px * spectrum, py * spectrum
 
-    second_tangent_field = focal_field.propagate_in_medium(
-        lens.distance_from_first_focus_to_second_vertex,
-        wavelength=lam,
-        n=lens.first["ni"],
-    )
+    if model == "flat":
+        inside = np.hypot(NUX, NUY) <= NU_CUT
+        return np.fft.ifft2(Sx * inside), np.fft.ifft2(Sy * inside), np.zeros_like(Sx)
 
-    image_field = second_tangent_field.propagate_through_diopter(
-        diopter2.zi,
-        diopter2,
-        method="fft",
-        output="focal",
-        wavelength=lam,
-        kgrid=second_tangent_field.grid.kgrid(Npad2),
-        transmission=transmission,
-        geometry=geometry,
-    )
+    w_plus, w_minus, w_z, _ = pupil_weights(NUX, NUY)
+    if model == "scalar":
+        w_minus = np.zeros_like(w_minus)
+        w_z = np.zeros_like(w_z)
+    elif model != "vectorial":
+        raise ValueError("model must be 'vectorial', 'scalar' or 'flat'.")
 
-    Ex2 = image_field.x
-    Ey2 = image_field.y
-    xr = image_field.grid.X[0, :]
-    yr = image_field.grid.Y[:, 0]
+    phi = np.arctan2(NUY, NUX)
+    c2, s2 = np.cos(2.0 * phi), np.sin(2.0 * phi)
 
-    Ex2, Ey2, xr, yr = orient_field_axes(Ex2, Ey2, xr, yr)
+    Px = (w_plus + w_minus * c2) * Sx + (w_minus * s2) * Sy
+    Py = (w_minus * s2) * Sx + (w_plus - w_minus * c2) * Sy
+    Pz = w_z * (np.cos(phi) * Sx + np.sin(phi) * Sy)
 
-    return Ex2, Ey2, xr, yr
+    return np.fft.ifft2(Px), np.fft.ifft2(Py), np.fft.ifft2(Pz)
 
 
 # ---------------------------------------------------------------------
-# Lithography diagnostic mask
+# Gratings and contrast
 # ---------------------------------------------------------------------
 
-def build_lithography_mask(X, Y, scale_sep, theta=Pattern_theta):
+def snap_pitch(pitch, dx):
+    """Round a pitch to a whole number of samples.
+
+    The grating has to be exactly periodic on the grid: otherwise the sampled
+    duty cycle wobbles from pitch to pitch and the contrast curve picks up
+    jitter that has nothing to do with the optics.
     """
-    Build a separated diagnostic lithography pattern.
-
-    It includes:
-        1. A calibrated two-contact pair at the origin.
-        2. A line-space grating.
-        3. A 3x3 contact array.
-        4. Two L-shaped corner / line-end structures.
-
-    The full pattern is scaled by scale_sep, so relative distances are preserved.
-    """
-    s = scale_sep
-    S = Layout_spread
-    cr = 0.18 * d_Airy
-    w = 2.0 * cr
-    ux = np.cos(theta)
-    uy = np.sin(theta)
-    vx = -uy
-    vy = ux
-
-    T = np.zeros_like(X, dtype=float)
-    boxes = {}
-
-    def add_rotated_rect(cx, cy, length, width, angle):
-        ca = np.cos(angle)
-        sa = np.sin(angle)
-        u = (X - cx) * ca + (Y - cy) * sa
-        v = -(X - cx) * sa + (Y - cy) * ca
-        T[(np.abs(u) <= 0.5 * length) & (np.abs(v) <= 0.5 * width)] = 1.0
-
-    # 1. Diagonal contact pair, placed where sin(2 phi) maximizes cross-polarization.
-    for sign in (-1.0, +1.0):
-        cx = sign * 0.5 * s * ux
-        cy = sign * 0.5 * s * uy
-        T[(X - cx)**2 + (Y - cy)**2 <= cr**2] = 1.0
-
-    boxes["diagonal_pair"] = (-0.5 * s - cr, 0.5 * s + cr, -0.5 * s - cr, 0.5 * s + cr)
-
-    # 2. Diagonal line-space grating with near-resolution pitch.
-    gcx = -5.8 * S * s * ux + 2.3 * S * s * vx
-    gcy = -5.8 * S * s * uy + 2.3 * S * s * vy
-
-    for m in range(4):
-        cx = gcx + (m - 1.5) * s * ux
-        cy = gcy + (m - 1.5) * s * uy
-        add_rotated_rect(cx, cy, 3.2 * s, w, theta + 0.5 * np.pi)
-
-    boxes["diagonal_grating"] = (gcx - 3.0 * s, gcx + 3.0 * s, gcy - 3.0 * s, gcy + 3.0 * s)
-
-    # 3. Diagonal contact array.
-    cx0 = -1.0 * s * ux - 4.6 * S * s * vx
-    cy0 = -1.0 * s * uy - 4.6 * S * s * vy
-
-    for i in range(3):
-        for j in range(3):
-            cx = cx0 + i * s * ux + j * s * vx
-            cy = cy0 + i * s * uy + j * s * vy
-            T[(X - cx)**2 + (Y - cy)**2 <= cr**2] = 1.0
-
-    boxes["diagonal_contact_array"] = (cx0 - 2.4 * s, cx0 + 2.4 * s, cy0 - 2.4 * s, cy0 + 2.4 * s)
-
-    # 4. Diagonal L-shaped corner / line-end structures.
-    lx = 5.4 * S * s * ux + 1.8 * S * s * vx
-    ly = 5.4 * S * s * uy + 1.8 * S * s * vy
-
-    add_rotated_rect(lx + 1.35 * s * ux, ly + 1.35 * s * uy, 2.7 * s, w, theta)
-    add_rotated_rect(lx + 1.35 * s * vx, ly + 1.35 * s * vy, 2.7 * s, w, theta + 0.5 * np.pi)
-
-    boxes["diagonal_L"] = (lx - 0.6 * s, lx + 2.8 * s, ly - 0.6 * s, ly + 2.8 * s)
-
-    mx = 5.8 * S * s * ux - 4.4 * S * s * vx
-    my = 5.8 * S * s * uy - 4.4 * S * s * vy
-
-    add_rotated_rect(mx - 1.25 * s * ux, my - 1.25 * s * uy, 2.5 * s, w, theta)
-    add_rotated_rect(mx + 1.35 * s * vx, my + 1.35 * s * vy, 2.7 * s, w, theta + 0.5 * np.pi)
-
-    boxes["mirrored_diagonal_L"] = (mx - 2.8 * s, mx + 0.7 * s, my - 2.8 * s, my + 0.7 * s)
-
-    return T, boxes
+    return max(int(round(pitch / dx)), 2) * dx
 
 
-def bbox_union(boxes):
-    xs, ys = [], []
-
-    for xmin, xmax, ymin, ymax in boxes.values():
-        xs.extend([xmin, xmax])
-        ys.extend([ymin, ymax])
-
-    return min(xs), max(xs), min(ys), max(ys)
-
-
-def padded_window_from_box(xmin, xmax, ymin, ymax, padding=0.18):
-    cx = 0.5 * (xmin + xmax)
-    cy = 0.5 * (ymin + ymax)
-    span = max(xmax - xmin, ymax - ymin)
-    half_window = 0.5 * span * (1.0 + padding)
-    return {
-        "xmin": cx - half_window,
-        "xmax": cx + half_window,
-        "ymin": cy - half_window,
-        "ymax": cy + half_window,
-    }
+def grating(shape, dx, pitch, orientation):
+    """Binary line/space grating with a 1:1 duty cycle, in image coordinates."""
+    ny, nx = shape
+    x = (np.arange(nx) - nx // 2) * dx
+    y = (np.arange(ny) - ny // 2) * dx
+    X, Y = np.meshgrid(x, y, indexing="xy")
+    coord = X if orientation == "vertical" else Y
+    return (np.mod(coord, pitch) < 0.5 * pitch).astype(float)
 
 
-def clamp_window_to_axes(window, x, y):
-    return {
-        "xmin": max(float(window["xmin"]), float(min(x[0], x[-1]))),
-        "xmax": min(float(window["xmax"]), float(max(x[0], x[-1]))),
-        "ymin": max(float(window["ymin"]), float(min(y[0], y[-1]))),
-        "ymax": min(float(window["ymax"]), float(max(y[0], y[-1]))),
-    }
+def contrast(intensity, dx, pitch, orientation):
+    """Fringe contrast measured over the central few periods."""
+    ny, nx = intensity.shape
+    if orientation == "vertical":
+        profile = intensity[ny // 2, :]
+        axis = (np.arange(nx) - nx // 2) * dx
+    else:
+        profile = intensity[:, nx // 2]
+        axis = (np.arange(ny) - ny // 2) * dx
+
+    core = np.abs(axis) <= 2.5 * pitch
+    if np.count_nonzero(core) < 8:
+        core = np.ones_like(axis, dtype=bool)
+    values = profile[core]
+    hi, lo = float(values.max()), float(values.min())
+    return (hi - lo) / (hi + lo) if hi + lo > 0 else 0.0
 
 
-def signal_window(arrays, x, y, threshold=0.035, padding=0.18):
-    combined = np.zeros_like(np.asarray(arrays[0], dtype=float))
-
-    for A in arrays:
-        A = np.asarray(A, dtype=float)
-        scale = float(np.nanmax(np.abs(A)))
-        if scale > 0.0:
-            combined = np.maximum(combined, np.abs(A) / scale)
-
-    active = combined >= threshold
-    if not np.any(active):
-        return clamp_window_to_axes({
-            "xmin": float(x[0]),
-            "xmax": float(x[-1]),
-            "ymin": float(y[0]),
-            "ymax": float(y[-1]),
-        }, x, y)
-
-    yy, xx = np.nonzero(active)
-    xmin = float(x[max(int(xx.min()) - 1, 0)])
-    xmax = float(x[min(int(xx.max()) + 1, len(x) - 1)])
-    ymin = float(y[max(int(yy.min()) - 1, 0)])
-    ymax = float(y[min(int(yy.max()) + 1, len(y) - 1)])
-    return clamp_window_to_axes(
-        padded_window_from_box(xmin, xmax, ymin, ymax, padding=padding),
-        x,
-        y,
-    )
+def total_intensity(fields):
+    Ex, Ey, Ez = fields
+    return np.abs(Ex) ** 2 + np.abs(Ey) ** 2 + np.abs(Ez) ** 2
 
 
-def mask_window_size():
-    return 18.0 * Pattern_sep
+# ---------------------------------------------------------------------
+# Study
+# ---------------------------------------------------------------------
+
+#: Below this fringe contrast a grating does not print with a usable process
+#: window.  This is a printability criterion, not Rayleigh's: the orders sit
+#: inside the pupil at every pitch swept here, so what fails is the modulation,
+#: not the collection.
+CONTRAST_THRESHOLD = 0.5
+
+ORIENTATIONS = {
+    # x-polarized illumination.  Vertical lines run along y, across the
+    # polarization: their orders separate along x and the field is p (TM).
+    "vertical": dict(label="líneas ⊥ a la polarización (TM)", key="TM"),
+    # Horizontal lines run along x, with the polarization: the orders separate
+    # along y and the field stays s (TE).
+    "horizontal": dict(label="líneas ∥ a la polarización (TE)", key="TE"),
+}
 
 
-def run_lithography_example(*, L=None, N=1025, Npad=1024, geometry="full"):
-    if L is None:
-        L = mask_window_size()
+def run_pitch_sweep(n=1024, oversample=8.0):
+    dx = PITCH_CUT / oversample
+    shape = (n, n)
+    factors = np.linspace(1.005, 3.0, 28)
 
-    x = np.linspace(-L / 2.0, L / 2.0, N)
-    y = np.linspace(-L / 2.0, L / 2.0, N)
-    grid = Grid.from_axes(x, y)
-    X, Y = grid.X, grid.Y
-
-    T, boxes = build_lithography_mask(X, Y, Pattern_sep)
-
-    field = FieldCartesian(
-        T.astype(complex),
-        np.zeros_like(T, dtype=complex),
-        grid=grid,
-        symmetric=False,
-    )
-
-    lens = Lens(radius=r_a, first=D1, second=D2, xi=xi)
-
-    Ex_s, Ey_s, xr, yr = propagate_through_lens(
-        field,
-        lens,
-        vectorial=False,
-        Npad1=Npad,
-        Npad2=Npad,
-        geometry=geometry,
-    )
-
-    Ex_v, Ey_v, _, _ = propagate_through_lens(
-        field,
-        lens,
-        vectorial=True,
-        Npad1=Npad,
-        Npad2=Npad,
-        geometry=geometry,
-    )
-
-    Is = mean_normalize(np.abs(Ex_s)**2 + np.abs(Ey_s)**2)
-    Iv = mean_normalize(np.abs(Ex_v)**2 + np.abs(Ey_v)**2)
-    Icross = mean_normalize(np.abs(Ey_v)**2)
-    Id = Iv - Is
-    Id_abs = np.abs(Id)
-    cross_fraction = float(
-        np.sum(np.abs(Ey_v)**2) / (np.sum(np.abs(Ex_v)**2 + np.abs(Ey_v)**2) + 1.0e-30)
-    )
-    xmin, xmax, ymin, ymax = bbox_union(boxes)
-    input_zoom = clamp_window_to_axes(
-        padded_window_from_box(xmin, xmax, ymin, ymax, padding=0.22),
-        x,
-        y,
-    )
-    output_zoom = signal_window([Is, Iv, Id_abs], xr, yr, threshold=0.035, padding=0.18)
-
-    return {
-        "x": x,
-        "y": y,
-        "T": T,
-        "Ex_in": field.x,
-        "Ey_in": field.y,
-        "boxes": boxes,
-        "xr": xr,
-        "yr": yr,
-        "Ex_v": Ex_v,
-        "Ey_v": Ey_v,
-        "Is": Is,
-        "Iv": Iv,
-        "Icross": Icross,
-        "Id": Id,
-        "Id_abs": Id_abs,
-        "input_zoom": input_zoom,
-        "output_zoom": output_zoom,
-        "cross_fraction": cross_fraction,
-        "lens": lens,
-    }
+    results = {}
+    for orientation, meta in ORIENTATIONS.items():
+        rows = {"pitch": [], "flat": [], "scalar": [], "vectorial": []}
+        for f in factors:
+            pitch = snap_pitch(f * PITCH_CUT, dx)
+            mask = grating(shape, dx, pitch, orientation)
+            for model in ("flat", "scalar", "vectorial"):
+                I = total_intensity(image_fields(mask, dx, model=model))
+                rows[model].append(contrast(I, dx, pitch, orientation))
+            rows["pitch"].append(pitch / PITCH_CUT)
+        results[meta["key"]] = {k: np.asarray(v) for k, v in rows.items()}
+    return results, dx, shape
 
 
-def plot_lithography_result(result):
-    fig, axes = plt.subplots(1, 5, figsize=(20.3, 5.1), constrained_layout=False)
+def printable_limit(factors, contrasts):
+    """Smallest pitch factor whose contrast clears the printability threshold."""
+    ok = contrasts >= CONTRAST_THRESHOLD
+    if not np.any(ok):
+        return np.nan
+    idx = int(np.flatnonzero(ok)[0])
+    if idx == 0:
+        return float(factors[0])
+    f0, f1 = factors[idx - 1], factors[idx]
+    c0, c1 = contrasts[idx - 1], contrasts[idx]
+    return float(f0 + (f1 - f0) * (CONTRAST_THRESHOLD - c0) / (c1 - c0))
 
-    panels = [
-        (result["T"], result["x"], result["y"], "Máscara de entrada", result["input_zoom"]),
-        (result["Is"], result["xr"], result["yr"], "Intensidad - Escalar", result["output_zoom"]),
-        (result["Iv"], result["xr"], result["yr"], "Intensidad - Vectorial", result["output_zoom"]),
-        (
-            result["Icross"],
-            result["xr"],
-            result["yr"],
-            r"Intensidad - $E_y$ cruzado",
-            result["output_zoom"],
-        ),
-        (
-            result["Id_abs"],
-            result["xr"],
-            result["yr"],
-            r"$|\mathrm{Vectorial} - \mathrm{Escalar}|$",
-            result["output_zoom"],
-        ),
-    ]
 
-    for j, (A, xx, yy, title, zoom) in enumerate(panels):
-        im = axes[j].imshow(
-            display_positive(A),
-            origin="lower",
-            extent=image_extent_over_lambda(xx, yy),
-            cmap="gray",
-            vmin=0,
-            vmax=1,
-            interpolation="nearest",
-        )
-        fig.colorbar(im, ax=axes[j], fraction=0.046, pad=0.04)
-        axes[j].set_xlim(zoom["xmin"] / lam, zoom["xmax"] / lam)
-        axes[j].set_ylim(zoom["ymin"] / lam, zoom["ymax"] / lam)
+def main():
+    print(f"superficie de salida: LuAG (n={N_LUAG}) → agua (n={N_WATER}), "
+          f"z0={LENS['z0']} mm, zi={LENS['zi']} mm")
+    print(f"apertura útil r = {APERTURE:.4f} mm,  sin(alpha_i) max = {SIN_MAX:.4f}")
+    print(f"NA = {NA:.4f},  corte coherente = {NU_CUT:.1f} ciclos/mm,  "
+          f"paso de corte = {PITCH_CUT * 1e6:.1f} nm = {PITCH_CUT / lam:.3f} λ")
+    sin_th = min(NA / LENS["ni"], 1.0)
+    print(f"a ese paso los órdenes salen a ±{np.degrees(np.arcsin(sin_th)):.1f}°, "
+          f"y cos(2θ) = {np.cos(2 * np.arcsin(sin_th)):+.4f}")
+    print()
 
-        axes[j].set_title(title)
-        axes[j].set_xlabel(r"$x/\lambda$")
-        axes[j].set_ylabel(r"$y/\lambda$")
-        axes[j].set_aspect("equal")
+    results, dx, shape = run_pitch_sweep()
 
+    print("Paso mínimo imprimible (contraste ≥ "
+          f"{CONTRAST_THRESHOLD:.2f}), en unidades del paso de corte:")
+    limits = {}
+    for key, data in results.items():
+        limits[key] = {
+            m: printable_limit(data["pitch"], data[m]) for m in ("scalar", "vectorial")
+        }
+        ratio = limits[key]["vectorial"] / limits[key]["scalar"]
+        print(f"   {key}:  escalar {limits[key]['scalar']:.3f}   "
+              f"vectorial {limits[key]['vectorial']:.3f}   ({ratio:.2f}x)")
+    print()
+
+    print("Contraste cerca del corte:")
+    print(f"   {'paso/corte':>10}  {'TM escalar':>11}  {'TM vect.':>10}  "
+          f"{'TE vect.':>10}  {'TM vect/esc':>12}")
+    for i, f in enumerate(results["TM"]["pitch"]):
+        if f > 1.7 or i % 3:
+            continue
+        ts, tv = results["TM"]["scalar"][i], results["TM"]["vectorial"][i]
+        ev = results["TE"]["vectorial"][i]
+        print(f"   {f:>10.3f}  {ts:>11.4f}  {tv:>10.4f}  {ev:>10.4f}  {tv / ts:>12.3f}")
+    print()
+
+    tm = results["TM"]
+    window = (tm["scalar"] >= CONTRAST_THRESHOLD) & (tm["vectorial"] < CONTRAST_THRESHOLD)
+    if np.any(window):
+        lo = tm["pitch"][window].min() * PITCH_CUT * 1e6
+        hi = tm["pitch"][window].max() * PITCH_CUT * 1e6
+        print("Ventana donde la teoría escalar resuelve y la vectorial NO (TM): "
+              f"{lo:.0f}–{hi:.0f} nm de paso")
+    else:
+        print("No hay ventana en la que escalar resuelva y vectorial no.")
+    print()
+
+    _figure_contrast(results)
+    _figure_aerial(dx, shape)
+    _figure_mechanism(dx, shape)
+
+
+# ---------------------------------------------------------------------
+# Figures
+# ---------------------------------------------------------------------
+
+def _figure_contrast(results):
+    fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.2), sharey=True)
+    for ax, (key, data) in zip(axes, results.items()):
+        p_nm = data["pitch"] * PITCH_CUT * 1e6
+        ax.plot(p_nm, data["flat"], "^-", ms=3.5, lw=1.2, alpha=0.6,
+                label="escalar, pupila plana")
+        ax.plot(p_nm, data["scalar"], "o-", ms=3.5, lw=1.6,
+                label="escalar (misma apodización)")
+        ax.plot(p_nm, data["vectorial"], "s-", ms=3.5, lw=1.6, label="vectorial")
+        ax.axhline(CONTRAST_THRESHOLD, color="k", ls=":", lw=1.2)
+        ax.text(p_nm[-1], CONTRAST_THRESHOLD, " umbral", va="bottom", ha="right", fontsize=8)
+        if key == "TM":
+            band = (data["scalar"] >= CONTRAST_THRESHOLD) & (data["vectorial"] < CONTRAST_THRESHOLD)
+            if np.any(band):
+                ax.axvspan(p_nm[band].min(), p_nm[band].max(), color="crimson",
+                           alpha=0.15, label="escalar resuelve,\nvectorial no")
+        label = next(m["label"] for m in ORIENTATIONS.values() if m["key"] == key)
+        ax.set_title(label)
+        ax.set_xlabel("paso de la rejilla [nm]")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8, loc="lower right")
+    axes[0].set_ylabel("contraste de franjas")
+    axes[0].set_ylim(-0.02, 1.05)
     fig.suptitle(
-        "Patrón de litografía a través de lente"
-        "\n"
-        rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$: vacío $\rightarrow$ LuAG $\rightarrow$ agua de inmersión"
-        "\n"
-        rf"$n_0={D1['n0']:.2f}$, $n_1={D1['ni']:.3f}$, $n_2={D2['ni']:.3f}$  |  "
-        rf"$z_{{0,1}}={D1['z0']:.1f}\,\mathrm{{mm}}$, $z_{{i,1}}={D1['zi']:.1f}\,\mathrm{{mm}}$, "
-        rf"$\xi={xi:.1f}\,\mathrm{{mm}}$, $z_{{i,2}}={D2['zi']:.3f}\,\mathrm{{mm}}$"
-        "\n"
-        rf"$r_a={r_a:.2f}\,\mathrm{{mm}}$, $\mathrm{{NA}}_\mathrm{{obj}}={NA:.3f}$, "
-        rf"$\mathrm{{NA}}_\mathrm{{img}}={NA_IMAGE:.3f}$, reducción $={REDUCTION:.2f}\times$  |  "
-        rf"$\mathbf{{E}}_0 = T\,\hat{{\mathbf{{x}}}}$",
+        f"Contraste de imagen aérea, NA={NA:.2f} en agua, λ=193 nm  |  "
+        f"paso de corte {PITCH_CUT * 1e6:.0f} nm",
+        fontsize=11,
     )
-    fig.subplots_adjust(left=0.038, right=0.975, bottom=0.16, top=0.76, wspace=0.48)
-
-    output_path = out_dir / "lithography_pattern_check.png"
-    fig.savefig(output_path, dpi=150)
-    print_saved(output_path)
-
+    fig.tight_layout()
+    path = out_dir / "lithography_contrast_vs_pitch.png"
+    fig.savefig(path, dpi=150)
+    print_saved(path)
     plt.close(fig)
 
 
-def plot_lithography_polarization_result(result):
-    """Plot input/output intensities with their local polarization ellipses."""
+def _figure_aerial(dx, shape):
+    """Aerial images at the pitches where the two theories disagree."""
+    pitches = [1.0, 1.15, 1.5]
+    n = shape[0]
 
-    fig, axes = plt.subplots(1, 2, figsize=(11.8, 5.3), constrained_layout=False)
-    panels = [
-        (
-            result["T"],
-            result["Ex_in"],
-            result["Ey_in"],
-            result["x"],
-            result["y"],
-            "Entrada: máscara y polarización incidente",
-            result["input_zoom"],
-            0.50,
-            "black",
-        ),
-        (
-            result["Iv"],
-            result["Ex_v"],
-            result["Ey_v"],
-            result["xr"],
-            result["yr"],
-            "Salida: intensidad y polarización vectorial",
-            result["output_zoom"],
-            0.018,
-            "white",
-        ),
-    ]
+    fig, axes = plt.subplots(3, len(pitches), figsize=(4.6 * len(pitches), 11.6))
+    for col, f in enumerate(pitches):
+        pitch = snap_pitch(f * PITCH_CUT, dx)
+        mask = grating(shape, dx, pitch, "vertical")
+        span = 3.0 * pitch
+        half = max(int(span / dx), 8)
+        sl = slice(n // 2 - half, n // 2 + half)
+        extent = [-half * dx / lam, half * dx / lam, -half * dx / lam, half * dx / lam]
+        axis = (np.arange(n) - n // 2)[sl] * dx / lam
 
-    for ax, (intensity, ex, ey, xx, yy, title, zoom, threshold, glyph_color) in zip(axes, panels):
-        x_plot = np.asarray(xx) / lam
-        y_plot = np.asarray(yy) / lam
-        X_plot, Y_plot = np.meshgrid(x_plot, y_plot, indexing="xy")
+        profiles = {}
+        for row, model in enumerate(("scalar", "vectorial")):
+            I = total_intensity(image_fields(mask, dx, model=model))
+            c = contrast(I, dx, pitch, "vertical")
+            profiles[model] = (I[n // 2, sl] / I.max(), c)
+            ax = axes[row, col]
+            ax.imshow(I[sl, sl] / I.max(), extent=extent, origin="lower",
+                      cmap="inferno", vmin=0.0, vmax=1.0)
+            ax.set_title(f"{'escalar' if model == 'scalar' else 'vectorial'} — "
+                         f"paso {pitch * 1e6:.0f} nm,  C = {c:.3f}", fontsize=10)
+            ax.set_xlabel(r"$x/\lambda$")
+            if col == 0:
+                ax.set_ylabel(r"$y/\lambda$")
 
-        shown_intensity = display_positive(intensity, percentile=99.7, gamma=0.72)
-        im = ax.imshow(
-            shown_intensity,
-            origin="lower",
-            extent=image_extent_over_lambda(xx, yy),
-            cmap="magma",
-            vmin=0.0,
-            vmax=1.0,
-            interpolation="nearest",
-        )
-        colorbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.035)
-        colorbar.set_label("Intensidad (escala de visualización)")
-
-        pol = polarization_from_components(ex, ey)
-        plot_polarization_map(
-            X_plot,
-            Y_plot,
-            pol,
-            target_ellipses=42,
-            max_ellipses=850,
-            min_intensity_fraction=threshold,
-            scale_by_intensity=True,
-            intensity_scale_mode="power",
-            intensity_scale_gamma=0.35,
-            min_ellipse_scale=0.42,
-            ellipse_points=48,
-            ellipse_mode="cartesian",
-            curve_kwargs={"color": glyph_color, "linewidth": 0.72, "alpha": 0.88},
-            arrowhead_kwargs={"color": glyph_color, "linewidth": 0.82, "alpha": 0.92},
-            ax=ax,
-        )
-
-        ax.set_xlim(zoom["xmin"] / lam, zoom["xmax"] / lam)
-        ax.set_ylim(zoom["ymin"] / lam, zoom["ymax"] / lam)
-        ax.set_title(title)
+        ax = axes[2, col]
+        for model, style in (("scalar", "-"), ("vectorial", "-")):
+            prof, c = profiles[model]
+            ax.plot(axis, prof, style, lw=1.8,
+                    label=f"{'escalar' if model == 'scalar' else 'vectorial'} (C={c:.3f})")
         ax.set_xlabel(r"$x/\lambda$")
-        ax.set_ylabel(r"$y/\lambda$")
-        ax.set_aspect("equal")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8)
+        if col == 0:
+            ax.set_ylabel("intensidad normalizada")
 
     fig.suptitle(
-        "Litografía: evolución espacial de la polarización"
-        "\n"
-        rf"$\lambda={lam * 1.0e6:.0f}\,\mathrm{{nm}}$, "
-        rf"$\mathrm{{NA}}_\mathrm{{img}}={NA_IMAGE:.3f}$, reducción $={REDUCTION:.2f}\times$, "
-        rf"$\mathbf{{E}}_0=T\,\hat{{\mathbf{{x}}}}$",
-        y=0.975,
+        "Imagen aérea, líneas ⊥ a la polarización (TM), iluminación $\\hat{x}$\n"
+        "misma apodización en ambos: la única diferencia es la mezcla de polarización",
+        fontsize=11,
     )
-    fig.subplots_adjust(left=0.065, right=0.955, bottom=0.12, top=0.83, wspace=0.34)
-
-    output_path = out_dir / "lithography_polarization_maps.png"
-    fig.savefig(output_path, dpi=180, bbox_inches="tight")
-    print_saved(output_path)
+    fig.tight_layout()
+    path = out_dir / "lithography_aerial_images.png"
+    fig.savefig(path, dpi=150)
+    print_saved(path)
     plt.close(fig)
 
 
-def plot_lithography_ellipticity_map(result):
-    """Temporarily plot output ellipticity and major-axis orientation."""
+def _figure_mechanism(dx, shape):
+    """Where the lost contrast goes: the longitudinal component."""
+    pitch = snap_pitch(1.1 * PITCH_CUT, dx)
+    n = shape[0]
+    half = max(int(2.0 * pitch / dx), 8)
+    sl = slice(n // 2 - half, n // 2 + half)
+    axis = (np.arange(n) - n // 2)[sl] * dx / lam
 
-    pol = polarization_from_components(result["Ex_v"], result["Ey_v"])
-    intensity = np.asarray(pol.s0, dtype=float)
-    visible = intensity >= 0.01 * float(np.nanmax(intensity))
-    chi_deg = np.degrees(pol.chi)
-    chi_visible = np.ma.masked_where(~visible, chi_deg)
-    psi_deg = np.degrees(pol.psi)
-    psi_visible = np.ma.masked_where(~visible, psi_deg)
+    fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8))
 
-    robust_limit = float(np.percentile(np.abs(chi_deg[visible]), 99.5))
-    color_limit = max(robust_limit, 1.0e-3)
-    chi_cmap = plt.get_cmap("RdBu_r").copy()
-    chi_cmap.set_bad("black")
-    psi_cmap = plt.get_cmap("twilight_shifted").copy()
-    psi_cmap.set_bad("black")
+    for ax, orientation in zip(axes[:2], ("vertical", "horizontal")):
+        mask = grating(shape, dx, pitch, orientation)
+        Ex, Ey, Ez = image_fields(mask, dx, model="vectorial")
+        Sx, Sy, Sz = np.abs(Ex) ** 2, np.abs(Ey) ** 2, np.abs(Ez) ** 2
+        norm = float((Sx + Sy + Sz).max())
+        cut = (lambda A: A[n // 2, sl]) if orientation == "vertical" else (lambda A: A[sl, n // 2])
+        ax.plot(axis, cut(Sx) / norm, lw=1.8, label=r"$|E_x|^2$")
+        ax.plot(axis, cut(Sy) / norm, lw=1.8, label=r"$|E_y|^2$")
+        ax.plot(axis, cut(Sz) / norm, lw=1.8, label=r"$|E_z|^2$")
+        ax.plot(axis, cut(Sx + Sy + Sz) / norm, "k--", lw=1.2, label="total")
+        meta = ORIENTATIONS[orientation]
+        ax.set_title(meta["label"], fontsize=10)
+        ax.set_xlabel(r"posición$/\lambda$")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8)
+    axes[0].set_ylabel("intensidad normalizada")
 
-    fig, axes = plt.subplots(1, 2, figsize=(12.2, 5.4))
-    im_chi = axes[0].imshow(
-        chi_visible,
-        origin="lower",
-        extent=image_extent_over_lambda(result["xr"], result["yr"]),
-        cmap=chi_cmap,
-        vmin=-color_limit,
-        vmax=color_limit,
-        interpolation="nearest",
-    )
-    im_psi = axes[1].imshow(
-        psi_visible,
-        origin="lower",
-        extent=image_extent_over_lambda(result["xr"], result["yr"]),
-        cmap=psi_cmap,
-        vmin=-90.0,
-        vmax=90.0,
-        interpolation="nearest",
-    )
-
-    intensity_display = display_positive(intensity, percentile=99.7, gamma=0.72)
-    zoom = result["output_zoom"]
-    for ax in axes:
-        ax.contour(
-            result["xr"] / lam,
-            result["yr"] / lam,
-            intensity_display,
-            levels=(0.18, 0.45, 0.75),
-            colors="white",
-            linewidths=0.45,
-            alpha=0.38,
-        )
-        ax.set_xlim(zoom["xmin"] / lam, zoom["xmax"] / lam)
-        ax.set_ylim(zoom["ymin"] / lam, zoom["ymax"] / lam)
-        ax.set_xlabel(r"$x/\lambda$")
-        ax.set_ylabel(r"$y/\lambda$")
-        ax.set_aspect("equal")
-
-    axes[0].set_title(r"Ángulo de elipticidad $\chi$")
-    axes[1].set_title(r"Ángulo del eje mayor $\psi$")
-
-    chi_colorbar = fig.colorbar(im_chi, ax=axes[0], fraction=0.046, pad=0.035)
-    chi_colorbar.set_label(r"$\chi$ [grados]")
-    psi_colorbar = fig.colorbar(im_psi, ax=axes[1], fraction=0.046, pad=0.035)
-    psi_colorbar.set_label(r"$\psi$ [grados]")
-    psi_colorbar.set_ticks((-90.0, -45.0, 0.0, 45.0, 90.0))
+    ax = axes[2]
+    nu = np.linspace(0.0, NU_CUT * 0.9999, 400)
+    sin_ai = lam * nu / LENS["ni"]
+    r = _radius_from_sine(sin_ai)
+    lam_r, _lam_phi, lam_z = transfer_weights_on_grid(r, SURFACE)
+    theta = np.arcsin(np.clip(sin_ai, 0.0, 1.0))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        model_ratio = np.where(lam_r > 0, lam_z / lam_r, 0.0)
+    ax.plot(nu / NU_CUT, np.tan(theta), lw=3.2, alpha=0.35, color="k",
+            label=r"$\tan\theta$  (proyección $p$ del orden inclinado)")
+    ax.plot(nu / NU_CUT, model_ratio, lw=1.8,
+            label=r"$\lambda_z/\lambda_r$  (operador de vecdiff)")
+    ax.plot(nu / NU_CUT, np.cos(2.0 * theta), lw=1.8,
+            label=r"$\cos 2\theta$  (contraste TM de dos haces)")
+    ax.axhline(0.0, color="k", lw=0.8)
+    ax.set(xlabel=r"frecuencia espacial $\nu/\nu_{\rm corte}$",
+           title="El peso longitudinal del operador es exactamente "
+                 r"$\tan\theta$")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8, loc="upper left")
 
     fig.suptitle(
-        "Polarización vectorial de salida\n"
-        r"Contornos: intensidad; mapas visibles para $I\geq 1\%\,I_{\max}$"
+        "El contraste que pierde TM reaparece como componente longitudinal $E_z$",
+        fontsize=11,
     )
-    fig.subplots_adjust(left=0.07, right=0.95, bottom=0.11, top=0.82, wspace=0.32)
-
-    output_path = out_dir / "lithography_ellipticity_map.png"
-    fig.savefig(output_path, dpi=180, bbox_inches="tight")
-    print_saved(output_path)
+    fig.tight_layout()
+    path = out_dir / "lithography_mechanism.png"
+    fig.savefig(path, dpi=150)
+    print_saved(path)
     plt.close(fig)
 
 
 if __name__ == "__main__":
-    result = run_lithography_example()
-    plot_lithography_result(result)
-    plot_lithography_polarization_result(result)
-    plot_lithography_ellipticity_map(result)
-
-    Is = result["Is"]
-    Iv = result["Iv"]
-    Id = result["Id"]
-
-    print("OK")
-    print(f"r_a={r_a:.10f}")
-    print(f"alpha_max_deg={np.degrees(alpha_max):.10f}")
-    print(f"NA={NA:.10f}")
-    print(f"Kc={Kc:.10f}")
-    print(f"xi={xi:.10f}")
-    print(f"first_focus_to_second_vertex={xi - D1['zi']:.10f}")
-    print(f"transverse_magnification={result['lens'].magnification:.10f}")
-    print(f"r_Airy={r_Airy:.10f}")
-    print(f"d_Airy={d_Airy:.10f}")
-    print(f"Pattern_sep={Pattern_sep:.10f} ({Pattern_sep / d_Airy:.4f} d_Airy)")
-    print(f"second_diopter_z0={D2['z0']:.10f}")
-    print(f"conjugacy_error=xi_minus_D1_zi_plus_D2_z0={xi - D1['zi'] + D2['z0']:.10e}")
-    print(f"scalar_shape={Is.shape}")
-    print(f"vectorial_shape={Iv.shape}")
-    print(f"scalar_finite={np.isfinite(Is).all()}")
-    print(f"vectorial_finite={np.isfinite(Iv).all()}")
-    print(f"cross_pol_fraction={result['cross_fraction']:.10e}")
-    print(f"difference_abs_max={np.max(np.abs(Id)):.10e}")
-    print(f"difference_abs_p99={np.percentile(np.abs(Id), 99):.10e}")
-    print(out_dir / "lithography_pattern_check.png")
-    print(out_dir / "lithography_polarization_maps.png")
-    print(out_dir / "lithography_ellipticity_map.png")
+    main()
