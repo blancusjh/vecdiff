@@ -318,3 +318,169 @@ def test_franz_integral_keeps_the_focus_linearly_polarized_at_low_na():
 
     assert abs(E[0, 1]) / abs(E[0, 0]) < 1e-12
     assert abs(E[0, 2]) / abs(E[0, 0]) < 1e-12
+
+
+# ------------------------------------------------------------------ #
+#  End to end: the package against the exact field                     #
+# ------------------------------------------------------------------ #
+
+def _uniform_pupil_field(surface, aperture, n_r=2001):
+    from vecdiff import Field, Grid
+
+    r = np.linspace(0.0, aperture, n_r)
+    grid = Grid.from_polar(r, np.array([0.0]))
+    return Field.from_cartesian(
+        np.ones_like(r, dtype=complex), np.zeros_like(r, dtype=complex), grid, symmetric=True
+    )
+
+
+def test_package_reproduces_the_exact_focal_field():
+    """The whole chain, default settings, against the Franz reference.
+
+    This is the test the geometric factor and the pupil mapping exist for: at
+    NA_i = 0.91 the corrected package matches an exact Maxwell field in
+    absolute amplitude, phase and shape, while the old weighting is 30 percent
+    low and misshapen.
+    """
+    from vecdiff.pupil_mapping import debye_prefactor
+    from vecdiff.reference import focal_field_reference
+
+    lam = 532e-6
+    surface = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    aperture = 0.999 * surface.aperture_limit
+    k_i = 2.0 * np.pi * surface.ni / lam
+
+    rho = np.linspace(0.0, 2.0, 41) * lam
+    q = k_i * rho / abs(surface.zi)
+    q[0] = 1e-9  # the propagator wants a strictly increasing q
+
+    field = _uniform_pupil_field(surface, aperture)
+    scale = debye_prefactor(surface, lam) / (2.0 * np.pi)
+    Ex_full = field.propagate_through_diopter(surface.zi, surface, q).x[0] * scale
+    Ex_legacy = (
+        field.propagate_through_diopter(surface.zi, surface, q, geometry="none").x[0] * scale
+    )
+
+    obs = np.stack([rho, np.zeros_like(rho), np.full_like(rho, surface.zi)], axis=-1)
+    _, E_ref = focal_field_reference(
+        surface, lam, lambda r: np.ones_like(r),
+        aperture=aperture, observation=obs, n_r=1200, n_phi=128, chunk=24_000,
+    )
+    Ex_ref = E_ref[:, 0]
+
+    reference_profile = np.abs(Ex_ref) / np.abs(Ex_ref).max()
+    full_profile = np.abs(Ex_full) / np.abs(Ex_full).max()
+
+    assert abs(Ex_full[0] / Ex_ref[0]) == pytest.approx(1.0, abs=1e-5)
+    assert abs(np.angle(Ex_full[0] / Ex_ref[0])) < 1e-3
+    assert np.sqrt(np.mean((full_profile - reference_profile) ** 2)) < 1e-6
+
+    # And the weighting the package used before is decisively worse.
+    assert abs(Ex_legacy[0] / Ex_ref[0]) < 0.8
+
+
+def test_hankel_and_fft_branches_agree():
+    """Cross-check the two propagation paths -- a long-standing roadmap gap.
+
+    They share no code beyond the transfer weights: one integrates over a
+    non-uniform pupil abscissa with Simpson, the other warps onto a uniform
+    grid and calls an FFT.
+    """
+    from vecdiff import Field, Grid
+
+    lam = 532e-6
+    surface = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    aperture = 0.90 * surface.aperture_limit
+    k_i = 2.0 * np.pi * surface.ni / lam
+
+    rho = np.linspace(0.0, 3.0, 41) * lam
+    q = k_i * rho / abs(surface.zi)
+    q[0] = 1e-9
+    hankel = _uniform_pupil_field(surface, aperture).propagate_through_diopter(
+        surface.zi, surface, q
+    ).x[0]
+
+    n = 1024
+    axis = np.linspace(-1.15 * aperture, 1.15 * aperture, n)
+    grid = Grid.from_axes(axis, axis)
+    mask = (grid.R <= aperture).astype(complex)
+    field = Field.from_cartesian(mask, np.zeros(grid.shape, dtype=complex), grid, symmetric=False)
+    kx = k_i * rho / abs(surface.zi)
+    kgrid = Grid.from_axes(kx, np.array([-1e-9, 0.0, 1e-9]), domain="k")
+    fft = field.propagate_through_diopter(
+        surface.zi, surface, method="fft", wavelength=lam, kgrid=kgrid, output="k"
+    ).x[1]
+
+    assert abs(fft[0] / hankel[0]) == pytest.approx(1.0, abs=1e-3)
+    profile_h = np.abs(hankel) / np.abs(hankel).max()
+    profile_f = np.abs(fft) / np.abs(fft).max()
+    assert np.sqrt(np.mean((profile_h - profile_f) ** 2)) < 1e-3
+
+
+def test_plane_referenced_input_is_remapped_onto_the_sphere():
+    """Eqs. (85)-(86): a field given on the tangent plane P is not a field on G."""
+    from vecdiff import Field, Grid
+    from vecdiff.geometry import TangentPlane
+    from vecdiff.propagation import incident_field_on_sphere
+
+    surface = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    geom = surface.ray_geometry(np.linspace(0.0, 0.9 * surface.aperture_limit, 33))
+    r_plane = geom.r_tan_obj
+
+    grid = Grid.from_polar(r_plane, np.array([0.0]), reference=TangentPlane(0.0))
+    field = Field.from_cartesian(
+        np.ones_like(r_plane, dtype=complex), np.zeros_like(r_plane, dtype=complex),
+        grid, symmetric=True,
+    )
+
+    on_sphere = incident_field_on_sphere(field, surface)
+
+    # The samples land back on the surface radii they came from ...
+    assert np.allclose(on_sphere.grid.r, geom.r, atol=1e-6)
+    # ... carrying the 1 / |cos(alpha_0)| flux factor.
+    assert np.allclose(np.abs(on_sphere.x[0]), 1.0 / np.abs(geom.cos_a0), rtol=1e-5)
+
+
+def test_sphere_referenced_input_passes_through_untouched():
+    from vecdiff import Field, Grid
+    from vecdiff.geometry import ReferenceSphere, incident_sphere
+    from vecdiff.propagation import incident_field_on_sphere
+
+    surface = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    r = np.linspace(0.0, 0.9 * surface.aperture_limit, 17)
+    grid = Grid.from_polar(r, np.array([0.0]), reference=incident_sphere(surface))
+    field = Field.from_cartesian(
+        np.ones_like(r, dtype=complex), np.zeros_like(r, dtype=complex), grid, symmetric=True
+    )
+
+    assert incident_field_on_sphere(field, surface) is field
+
+    wrong = Grid.from_polar(r, np.array([0.0]), reference=ReferenceSphere(center_z=-3.0, radius=3.0))
+    stray = Field.from_cartesian(
+        np.ones_like(r, dtype=complex), np.zeros_like(r, dtype=complex), wrong, symmetric=True
+    )
+    with pytest.raises(ValueError, match="not the incident sphere"):
+        incident_field_on_sphere(stray, surface)
+
+
+def test_pupil_mapping_round_trips():
+    from vecdiff.pupil_mapping import (
+        pupil_coordinate,
+        radius_from_pupil_coordinate,
+        resolve_mapping,
+    )
+
+    surface = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    r = np.linspace(0.0, 0.99 * surface.aperture_limit, 501)
+    geom = surface.ray_geometry(r)
+
+    for mapping in ("identity", "sine", "tangent"):
+        u = pupil_coordinate(geom, mapping)
+        back, valid = radius_from_pupil_coordinate(surface, u, mapping)
+        assert valid.all()
+        assert np.max(np.abs(back - r)) < 1e-4 * surface.aperture_limit
+
+    assert resolve_mapping(None, "full") == "sine"
+    assert resolve_mapping(None, "none") == "identity"
+    with pytest.raises(ValueError, match="mapping must be one of"):
+        resolve_mapping("parabolic", "full")

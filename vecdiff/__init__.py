@@ -41,9 +41,19 @@ from .longitudinal import (
 )
 from .propagation import (
     fresnel_coefficients_on_grid,
+    incident_field_on_sphere,
     propagate_to_focal_plane_through_diopter,
     propagate_to_focal_plane_through_diopter_fft,
+    transfer_weights_on_grid,
     transverse_diopter_operator,
+)
+from .pupil_mapping import (
+    debye_prefactor,
+    pupil_coordinate,
+    pupil_extent,
+    pupil_transform,
+    pupil_weight,
+    radius_from_pupil_coordinate,
 )
 from .coordinate_transformation import polar_grid_to_cartesian_grid
 from .polarization import (

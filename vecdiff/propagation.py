@@ -5,6 +5,12 @@ from .fourier import FT2
 from .hankel import HankelTransform
 from .fields import Field
 from .grid import Grid
+from .pupil_mapping import (
+    pupil_transform,
+    radius_from_pupil_coordinate,
+    resolve_mapping,
+)
+from .transfer import interface_operator
 
 exp = np.exp
 π = np.pi
@@ -32,10 +38,15 @@ def _build_output_grid(field: Field, q: np.ndarray, varphi: np.ndarray) -> Grid:
 
 
 def fresnel_coefficients_on_grid(R: np.ndarray, diopter, support=None) -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(tp, ts)`` Fresnel coefficients sampled on a Cartesian radial grid.
+    """Return ``(tp, ts)`` Fresnel coefficients sampled on a pupil radius grid.
 
-    If ``support`` is provided, coefficients are evaluated only where the support
-    mask is true and are set to zero elsewhere.
+    ``R`` is the cylindrical radius of the point on the refracting surface --
+    the physical aperture coordinate.  If ``support`` is provided, coefficients
+    are evaluated only where the support mask is true and are zero elsewhere.
+
+    These are the bare interface coefficients.  The weights the propagators
+    actually apply also carry the geometric factor of Eq. (47) and the
+    meridional projection; see :func:`transfer_weights_on_grid`.
     """
     R = np.asarray(R, dtype=float)
     tp = np.zeros_like(R, dtype=float)
@@ -61,8 +72,56 @@ def fresnel_coefficients_on_grid(R: np.ndarray, diopter, support=None) -> tuple[
     return tp, ts
 
 
-def transverse_diopter_operator(field: Field, diopter) -> tuple[np.ndarray, np.ndarray]:
-    """Apply the local transverse diopter operator to a Cartesian field."""
+def transfer_weights_on_grid(
+    R: np.ndarray, diopter, support=None, *, geometry: str = "full"
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return ``(lam_r, lam_phi, lam_z)`` sampled on a pupil radius grid.
+
+    These are the eigenvalues of Eqs. (62)-(63): the Fresnel coefficients times
+    the geometric amplitude factor ``A(Q)``, with the meridional projection
+    ``cos(alpha_i) / cos(alpha_0)`` on the radial channel.  ``geometry="none"``
+    strips both and leaves the bare ``(t_p, t_s, 0)``.
+    """
+    R = np.asarray(R, dtype=float)
+    lam_r = np.zeros_like(R, dtype=float)
+    lam_phi = np.zeros_like(R, dtype=float)
+    lam_z = np.zeros_like(R, dtype=float)
+
+    if support is None:
+        active = np.ones(R.shape, dtype=bool)
+    else:
+        active = np.asarray(support, dtype=bool)
+        if active.shape != R.shape:
+            raise ValueError("support must have the same shape as R.")
+
+    if not np.any(active):
+        return lam_r, lam_phi, lam_z
+
+    r_active = R[active]
+    operator = interface_operator(diopter, r_active, geometry=geometry)
+    a_r, a_phi, a_z = operator.eigenvalues()
+
+    lam_r[active] = _sanitize_fresnel(r_active, a_r)
+    lam_phi[active] = _sanitize_fresnel(r_active, a_phi)
+    lam_z[active] = _sanitize_fresnel(r_active, a_z)
+    return lam_r, lam_phi, lam_z
+
+
+def transverse_diopter_operator(
+    field: Field, diopter, *, geometry: str = "full", radius: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply the local transverse diopter operator to a Cartesian field.
+
+    The algebra is Eq. (67): a scalar part plus a ``cos 2phi`` / ``sin 2phi``
+    quadrupole.  What changed with the geometric correction is the pair of
+    eigenvalues feeding it, not the shape of the operator.
+
+    ``radius`` overrides where the transfer weights are sampled.  It is needed
+    once the field has been warped onto the transform variable ``u``: the
+    samples then sit at ``u``, but the weights still belong to the surface
+    radius ``r`` the sample came from.  The warp is purely radial, so the
+    azimuth the quadrupole uses is unaffected.
+    """
     if field.grid.type != "cartesian":
         raise ValueError("transverse_diopter_operator requires a Cartesian grid.")
 
@@ -71,10 +130,16 @@ def transverse_diopter_operator(field: Field, diopter) -> tuple[np.ndarray, np.n
     if Ex.shape != Ey.shape or Ex.shape != field.grid.shape:
         raise ValueError("field components must match the Cartesian grid shape.")
 
+    R = field.grid.R if radius is None else np.asarray(radius, dtype=float)
+    if R.shape != Ex.shape:
+        raise ValueError("radius must have the same shape as the field components.")
+
     support = (np.abs(Ex) > 0.0) | (np.abs(Ey) > 0.0)
-    tp, ts = fresnel_coefficients_on_grid(field.grid.R, diopter, support=support)
-    t_plus = 0.5 * (tp + ts)
-    t_minus = 0.5 * (tp - ts)
+    lam_r, lam_phi, _ = transfer_weights_on_grid(
+        R, diopter, support=support, geometry=geometry
+    )
+    t_plus = 0.5 * (lam_r + lam_phi)
+    t_minus = 0.5 * (lam_r - lam_phi)
 
     c2 = np.cos(2.0 * field.grid.Phi)
     s2 = np.sin(2.0 * field.grid.Phi)
@@ -134,6 +199,72 @@ def _field_with_cartesian_grid_for_fft(field: Field) -> Field:
     return Field.from_cartesian(Ex, Ey, cart_grid, symmetric=False, Ez=Ez)
 
 
+def _warp_to_pupil_grid(field: Field, diopter, mapping: str) -> tuple[Field, np.ndarray]:
+    """Resample a Cartesian pupil field onto the transform variable ``u``.
+
+    The Debye reduction integrates over ``u = |zi| sin(alpha_i)``, which is a
+    non-linear function of the surface radius ``r``.  The Hankel path can
+    integrate over a non-uniform abscissa directly; the FFT path cannot, so the
+    field is warped radially onto a uniform ``u`` grid first.  The warp is
+    purely radial, so it is a one-dimensional lookup applied to the sample
+    positions.
+
+    Returns the warped field together with the surface radius each ``u`` sample
+    came from, which is where the transfer weights must be evaluated.
+    """
+    from scipy.interpolate import RegularGridInterpolator
+
+    if mapping == "identity":
+        return field, field.grid.R
+
+    grid = field.grid
+    x_axis = np.asarray(grid.X[0, :], dtype=float)
+    y_axis = np.asarray(grid.Y[:, 0], dtype=float)
+
+    support = (np.abs(field.x) > 0.0) | (np.abs(field.y) > 0.0)
+    r_support = float(np.max(grid.R[support])) if np.any(support) else float(np.max(grid.R))
+    r_max = min(r_support, diopter.aperture_limit)
+
+    geom_edge = diopter.ray_geometry(np.array([r_max]))
+    u_max = float(pupil_transform(geom_edge, mapping)[0][0])
+
+    ny, nx = grid.shape
+    # Keep the sample count, span the mapped aperture.
+    ux = np.linspace(-u_max, u_max, nx)
+    uy = np.linspace(-u_max, u_max, ny)
+    u_grid = Grid.from_axes(ux, uy, domain=grid.domain, reference=grid.reference)
+
+    r_of_u, inside = radius_from_pupil_coordinate(diopter, u_grid.R, mapping)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        stretch = np.divide(
+            r_of_u,
+            u_grid.R,
+            out=np.ones_like(u_grid.R),
+            where=u_grid.R > 0.0,
+        )
+    X_src = stretch * u_grid.X
+    Y_src = stretch * u_grid.Y
+    points = np.column_stack((Y_src.ravel(), X_src.ravel()))
+
+    def resample(component):
+        if component is None:
+            return None
+        interp = RegularGridInterpolator(
+            (y_axis, x_axis), np.asarray(component, dtype=complex),
+            bounds_error=False, fill_value=0.0,
+        )
+        return np.where(inside, interp(points).reshape(u_grid.shape), 0.0)
+
+    warped = Field.from_cartesian(
+        resample(field.x),
+        resample(field.y),
+        u_grid,
+        symmetric=field.symmetry == "cartesian",
+        Ez=resample(field.z),
+    )
+    return warped, np.where(inside, r_of_u, np.inf)
+
+
 def _validate_pad_factor(pad_factor: int) -> int:
     if isinstance(pad_factor, bool) or not hasattr(pad_factor, "__index__"):
         raise TypeError("pad_factor must be an integer greater than or equal to 1.")
@@ -183,11 +314,20 @@ def propagate_to_focal_plane_through_diopter_fft(
     kgrid: Grid | None = None,
     ft_method: str = "auto",
     transmission: str = "vectorial",
+    geometry: str = "full",
+    mapping: str | None = None,
 ) -> Field:
     """Propagate an arbitrary Cartesian field through a diopter using FFT2.
 
     ``pad_factor`` zero-pads the post-diopter field before the FFT, refining
     the sampled k/focal grid without changing the input sampling interval.
+
+    ``geometry`` selects the transfer weighting -- ``"full"`` applies the
+    geometric amplitude factor and the meridional projection, ``"none"`` the
+    bare Fresnel coefficients.  ``mapping`` selects the pupil variable the
+    transform integrates over and defaults to the one that pairs with
+    ``geometry``: the Debye sine mapping for ``"full"``, the raw pupil radius
+    for ``"none"``.  See :mod:`vecdiff.pupil_mapping`.
     """
     field = _field_with_cartesian_grid_for_fft(field)
     pad_factor = _validate_pad_factor(pad_factor)
@@ -199,15 +339,30 @@ def propagate_to_focal_plane_through_diopter_fft(
         raise ValueError("wavelength is required when include_prefactor=True.")
     if transmission not in {"vectorial", "identity"}:
         raise ValueError("transmission must be either 'vectorial' or 'identity'.")
+    mapping = resolve_mapping(mapping, geometry)
 
     # Validates that the grid is uniform and obtains the physical sampling.
     field.grid.spacing()
 
+    field = incident_field_on_sphere(field, diopter)
+    field, r_of_sample = _warp_to_pupil_grid(field, diopter, mapping)
+    reachable = np.isfinite(r_of_sample)
+    r_weights = np.where(reachable, r_of_sample, 0.0)
+
     if transmission == "vectorial":
-        Ux, Uy = transverse_diopter_operator(field, diopter)
+        Ux, Uy = transverse_diopter_operator(
+            field, diopter, geometry=geometry, radius=r_weights
+        )
     else:
         Ux = np.asarray(field.x, dtype=complex)
         Uy = np.asarray(field.y, dtype=complex)
+
+    if mapping != "identity":
+        _, weight = pupil_transform(diopter.ray_geometry(r_weights), mapping)
+        weight = np.where(reachable, weight, 0.0)
+        Ux = weight * Ux
+        Uy = weight * Uy
+
     fft_grid = _center_padded_grid(field.grid, pad_factor)
     Ux_fft = _center_pad_array(Ux, pad_factor)
     Uy_fft = _center_pad_array(Uy, pad_factor)
@@ -216,9 +371,9 @@ def propagate_to_focal_plane_through_diopter_fft(
     Ey_out, _ = FT2(Uy_fft, fft_grid, kgrid=requested_kgrid, physical=True, method=ft_method)
 
     if include_prefactor:
-        k0 = 2.0 * π / wavelength
-        prefactor = diopter.ni * exp(1.0j * diopter.ni * k0 * diopter.zi)
-        prefactor /= 1.0j * wavelength * diopter.zi * diopter.z0
+        from .pupil_mapping import debye_prefactor
+
+        prefactor = debye_prefactor(diopter, wavelength) / (2.0 * π)
         Ex_out = prefactor * Ex_out
         Ey_out = prefactor * Ey_out
 
@@ -236,10 +391,118 @@ def propagate_to_focal_plane_through_diopter_fft(
     return Field.from_cartesian(Ex_out, Ey_out, grid_out, symmetric=False)
 
 # ------------------------------------------------------------------ #
+#  Input geometry                                                      #
+# ------------------------------------------------------------------ #
+
+def incident_field_on_sphere(field: Field, diopter) -> Field:
+    """Return the field re-expressed on the incident reference sphere ``G``.
+
+    A field is the pair ``(r, E(r))``, and the propagators need to know which
+    surface the samples live on; ``Grid.reference`` carries that.
+
+    * ``None`` (the default) or the incident sphere ``G``: the samples are
+      already labelled by the surface radius ``r``, which is the same thing --
+      a point of ``G`` is labelled by its ray, and rays are labelled by ``r``.
+      Returned unchanged.
+    * The tangent plane ``P``: the rays from ``A`` cross ``P`` at
+      ``r_P = |z0| tan(alpha_0)`` (Eq. 85), and equating the flux through the
+      plane with the flux through ``G`` gives ``E_G = E_P / |cos(alpha_0)|``
+      (Eq. 86).  Both the radial remap and the factor are applied.
+
+    Unlike the focal-plane step, this one genuinely is a plane-to-sphere flux
+    relation, so the perspective mapping is the right one here.
+    """
+    from .geometry import ReferenceSphere, TangentPlane
+
+    reference = getattr(field.grid, "reference", None)
+    if reference is None:
+        return field
+
+    if isinstance(reference, ReferenceSphere):
+        expected = ReferenceSphere(center_z=float(diopter.z0), radius=abs(float(diopter.z0)))
+        if reference == expected:
+            return field
+        raise ValueError(
+            f"field lives on {reference}, which is not the incident sphere {expected} "
+            "of this diopter."
+        )
+
+    if isinstance(reference, TangentPlane):
+        return _tangent_plane_to_incident_sphere(field, diopter)
+
+    raise ValueError(f"unsupported grid reference: {reference!r}")
+
+
+def _tangent_plane_to_incident_sphere(field: Field, diopter) -> Field:
+    """Remap ``r_P -> r`` and apply the ``1/|cos(alpha_0)|`` flux factor."""
+    grid = field.grid
+    if grid.type == "polar":
+        r_plane = np.asarray(grid.r, dtype=float)
+    else:
+        r_plane = np.asarray(grid.R, dtype=float)
+
+    r_surface, inside = _object_plane_radius_to_surface(diopter, r_plane)
+    geom = diopter.ray_geometry(np.where(inside, r_surface, 0.0))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        factor = np.divide(
+            1.0,
+            np.abs(geom.cos_a0),
+            out=np.zeros_like(geom.r),
+            where=np.abs(geom.cos_a0) > 0.0,
+        )
+    factor = np.where(inside & geom.valid, factor, 0.0)
+
+    if grid.type == "polar":
+        new_grid = Grid.from_polar(r_surface, grid.varphi)
+        broadcast = factor if factor.ndim == 2 else factor[None, :]
+    else:
+        raise NotImplementedError(
+            "plane-referenced input is currently supported on polar grids only."
+        )
+
+    return Field.from_cartesian(
+        field.x * broadcast,
+        field.y * broadcast,
+        new_grid,
+        symmetric=field.symmetry == "cartesian",
+        Ez=None if field.z is None else field.z * broadcast,
+    )
+
+
+def _object_plane_radius_to_surface(diopter, r_plane, *, n_table: int = 20_001):
+    """Invert ``r_P = |z0| tan(alpha_0)`` for the surface radius ``r``."""
+    r_plane = np.asarray(r_plane, dtype=float)
+    r_table = np.linspace(0.0, diopter.aperture_limit, int(n_table))
+    geom = diopter.ray_geometry(r_table)
+    plane_table = geom.r_tan_obj
+
+    keep = np.concatenate(([True], np.diff(plane_table) > 0.0))
+    plane_table, r_table = plane_table[keep], r_table[keep]
+
+    inside = (r_plane >= 0.0) & (r_plane <= plane_table[-1])
+    r = np.interp(np.clip(r_plane, 0.0, plane_table[-1]), plane_table, r_table)
+    return r, inside
+
+
+# ------------------------------------------------------------------ #
 #  Propagation                                                         #
 # ------------------------------------------------------------------ #
 
-def propagate_to_focal_plane_through_diopter(field: Field, diopter, q: np.ndarray) -> Field:
+def propagate_to_focal_plane_through_diopter(
+    field: Field,
+    diopter,
+    q: np.ndarray,
+    *,
+    geometry: str = "full",
+    mapping: str | None = None,
+) -> Field:
+    """Propagate an axially symmetric pupil field to the focal plane by Hankel transform.
+
+    The pupil grid carries the surface radius ``r``; the transform integrates
+    over ``u(r)`` set by ``mapping``.  Unlike the FFT path this needs no
+    resampling: the quadrature accepts a non-uniform abscissa, so ``u(r)`` is
+    passed straight in as the integration variable.
+    """
     q = np.asarray(q, dtype=float)
     if q.ndim != 1:
         raise ValueError("q must be a 1D array of output radial samples.")
@@ -249,6 +512,9 @@ def propagate_to_focal_plane_through_diopter(field: Field, diopter, q: np.ndarra
         raise ValueError("q must be strictly increasing.")
     if field.grid.type != "polar":
         raise NotImplementedError("Focal-plane Hankel propagation requires a polar input grid.")
+    mapping = resolve_mapping(mapping, geometry)
+
+    field = incident_field_on_sphere(field, diopter)
 
     r = np.asarray(getattr(field.grid, "r", field.grid.R), dtype=float).ravel()
     varphi = np.asarray(getattr(field.grid, "varphi", np.array([0.0])), dtype=float).ravel()
@@ -258,34 +524,38 @@ def propagate_to_focal_plane_through_diopter(field: Field, diopter, q: np.ndarra
         raise ValueError("field.grid must provide at least one angular sample.")
     varphi_col = varphi.reshape(-1, 1)
 
-    fresnel = FresnelOvoid(ovoid=diopter)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        tp = _sanitize_fresnel(r, fresnel.tp(r))
-        ts = _sanitize_fresnel(r, fresnel.ts(r))
+    operator = interface_operator(diopter, r, geometry=geometry)
+    lam_r, lam_phi, _ = operator.eigenvalues()
+    lam_r = _sanitize_fresnel(r, lam_r)
+    lam_phi = _sanitize_fresnel(r, lam_phi)
+
+    u, weight = pupil_transform(diopter.ray_geometry(r), mapping)
+    tp = lam_r * weight
+    ts = lam_phi * weight
 
     grid_out = _build_output_grid(field, q, varphi)
 
     if field.symmetry == 'circular':
-        h0L = HT(0, r, (tp + ts) * field.L, q)
-        h2L = HT(2, r, (tp - ts) * field.R, q)
-        h0R = HT(0, r, (tp + ts) * field.R, q)
-        h2R = HT(2, r, (tp - ts) * field.L, q)
+        h0L = HT(0, u, (tp + ts) * field.L, q)
+        h2L = HT(2, u, (tp - ts) * field.R, q)
+        h0R = HT(0, u, (tp + ts) * field.R, q)
+        h2R = HT(2, u, (tp - ts) * field.L, q)
         E_L = (π*h0L)[None, :] - π*exp( 2.0j * varphi_col) * h2L[None, :]
         E_R = (π*h0R)[None, :] - π*exp(-2.0j * varphi_col) * h2R[None, :]
         return Field.from_circular(E_L, E_R, grid_out, symmetric=True)
 
     if field.symmetry == 'polar':
-        h1r   = HT(1, r, tp * field.r,   q)
-        h1phi = HT(1, r, ts * field.phi, q)
+        h1r   = HT(1, u, tp * field.r,   q)
+        h1phi = HT(1, u, ts * field.phi, q)
         E_r   = np.broadcast_to((-2.0j*π*h1r  )[None, :], (len(varphi), len(q))).copy()
         E_phi = np.broadcast_to((-2.0j*π*h1phi)[None, :], (len(varphi), len(q))).copy()
         return Field.from_polar(E_r, E_phi, grid_out, symmetric=True)
 
     if field.symmetry == 'cartesian':
-        h0x = HT(0, r, (tp + ts) * field.x, q)
-        h2x = HT(2, r, (tp - ts) * field.x, q)
-        h0y = HT(0, r, (tp + ts) * field.y, q)
-        h2y = HT(2, r, (tp - ts) * field.y, q)
+        h0x = HT(0, u, (tp + ts) * field.x, q)
+        h2x = HT(2, u, (tp - ts) * field.x, q)
+        h0y = HT(0, u, (tp + ts) * field.y, q)
+        h2y = HT(2, u, (tp - ts) * field.y, q)
         c2  = np.cos(2 * varphi_col)
         s2  = np.sin(2 * varphi_col)
         E_x = π * (h0x[None, :] - c2 * h2x[None, :] - s2 * h2y[None, :])
