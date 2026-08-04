@@ -209,6 +209,99 @@ def total_intensity(fields):
 
 
 # ---------------------------------------------------------------------
+# A layout, not just a grating
+# ---------------------------------------------------------------------
+
+def lithographic_pattern(shape, dx, unit):
+    """A small circuit-like layout, with everything sized against ``unit``.
+
+    ``unit`` is the coherent cutoff pitch, so every feature here sits within a
+    factor of two of the resolution limit -- the regime where the vectorial
+    answer parts company with the scalar one.
+
+    Nothing about this layout needs to sit near the axis.  The pupil model is
+    shift invariant, so a feature ten microns off axis is imaged by the same
+    pupil as one on it; the aberration that made the old two-surface relay
+    unusable for extended masks simply does not arise here.
+    """
+    ny, nx = shape
+    x = (np.arange(nx) - nx // 2) * dx
+    y = (np.arange(ny) - ny // 2) * dx
+    X, Y = np.meshgrid(x, y, indexing="xy")
+    T = np.zeros_like(X)
+    groups = {}
+
+    def rect(cx, cy, w, h):
+        T[(np.abs(X - cx) <= 0.5 * w) & (np.abs(Y - cy) <= 0.5 * h)] = 1.0
+
+    def disc(cx, cy, r):
+        T[(X - cx) ** 2 + (Y - cy) ** 2 <= r * r] = 1.0
+
+    # 1. Dense vertical lines: orders separate along x, so this group is TM
+    #    under x-polarized illumination and is the one that suffers.
+    p_dense = 1.05 * unit
+    cx, cy = -9.0 * unit, 6.5 * unit
+    for m in range(-2, 3):
+        rect(cx + m * p_dense, cy, 0.5 * p_dense, 7.0 * unit)
+    groups["líneas verticales (TM)"] = (cx, cy, 6.0 * unit, 4.5 * unit, "x")
+
+    # 2. The same pitch rotated: TE, and it should survive untouched.
+    cx, cy = 6.0 * unit, 6.5 * unit
+    for m in range(-2, 3):
+        rect(cx, cy + m * p_dense, 7.0 * unit, 0.5 * p_dense)
+    groups["líneas horizontales (TE)"] = (cx, cy, 6.0 * unit, 4.5 * unit, "y")
+
+    # 3. Contact array.
+    p_contact = 1.7 * unit
+    cx, cy = -9.0 * unit, -6.0 * unit
+    for i in range(-1, 2):
+        for j in range(-1, 2):
+            disc(cx + i * p_contact, cy + j * p_contact, 0.34 * unit)
+    groups["contactos"] = (cx, cy, 3.8 * unit, 3.8 * unit, "x")
+
+    # 4. Elbows and line ends: the features that show corner rounding and
+    #    pull-back, which is what a layout engineer actually looks at.
+    cx, cy = 5.5 * unit, -6.0 * unit
+    arm, wid = 5.0 * unit, 0.55 * unit
+    rect(cx - 0.5 * arm + 0.5 * wid, cy + 2.0 * unit, arm, wid)
+    rect(cx - 0.5 * arm + 0.5 * wid, cy + 2.0 * unit - 0.5 * arm + 0.5 * wid, wid, arm)
+    rect(cx + 2.2 * unit, cy - 2.0 * unit, 3.2 * unit, wid)
+    rect(cx + 2.2 * unit + 3.2 * unit + 1.3 * unit, cy - 2.0 * unit, 3.2 * unit, wid)
+    groups["codos y extremos"] = (cx + 4.3 * unit, cy - 2.0 * unit, 9.0 * unit, 1.0 * unit, "x")
+
+    return T, groups
+
+
+def group_contrast(intensity, dx, box):
+    """Contrast along the direction the group's features repeat.
+
+    Measured on a cut through the group centre rather than over its whole box:
+    isolated features sit on zero background, so a box-wide min/max reports 1.0
+    whatever the optics did.  What matters is how deep the valley *between*
+    neighbouring features is.
+    """
+    ny, nx = intensity.shape
+    cx, cy, w, h, direction = box
+    x = (np.arange(nx) - nx // 2) * dx
+    y = (np.arange(ny) - ny // 2) * dx
+    ix = np.abs(x - cx) <= 0.5 * w
+    iy = np.abs(y - cy) <= 0.5 * h
+
+    if direction == "x":
+        profile = intensity[np.argmin(np.abs(y - cy)), ix]
+    elif direction == "y":
+        profile = intensity[iy, np.argmin(np.abs(x - cx))]
+    else:
+        patch = intensity[np.ix_(iy, ix)]
+        row = patch[patch.shape[0] // 2, :]
+        col = patch[:, patch.shape[1] // 2]
+        profile = row if row.ptp() >= col.ptp() else col
+
+    hi, lo = float(profile.max()), float(profile.min())
+    return (hi - lo) / (hi + lo) if hi + lo > 0 else 0.0
+
+
+# ---------------------------------------------------------------------
 # Study
 # ---------------------------------------------------------------------
 
@@ -308,6 +401,7 @@ def main():
     print()
 
     _figure_contrast(results)
+    _figure_pattern()
     _figure_aerial(dx, shape)
     _figure_mechanism(dx, shape)
 
@@ -346,6 +440,84 @@ def _figure_contrast(results):
     )
     fig.tight_layout()
     path = out_dir / "lithography_contrast_vs_pitch.png"
+    fig.savefig(path, dpi=150)
+    print_saved(path)
+    plt.close(fig)
+
+
+def _figure_pattern(n=1536, oversample=10.0):
+    """The layout printed by both theories, side by side."""
+    dx = PITCH_CUT / oversample
+    mask, groups = lithographic_pattern((n, n), dx, PITCH_CUT)
+
+    images = {}
+    for model in ("scalar", "vectorial"):
+        images[model] = total_intensity(image_fields(mask, dx, model=model))
+
+    peak = max(I.max() for I in images.values())
+    images = {k: I / peak for k, I in images.items()}
+
+    print("Contraste por grupo de features:")
+    print(f"   {'grupo':<28} {'escalar':>9} {'vectorial':>10} {'razón':>7}")
+    rows = []
+    for name, box in groups.items():
+        cs = group_contrast(images["scalar"], dx, box)
+        cv = group_contrast(images["vectorial"], dx, box)
+        rows.append((name, cs, cv))
+        print(f"   {name:<28} {cs:>9.4f} {cv:>10.4f} {cv / cs if cs else 0:>7.3f}")
+    print()
+
+    half = n // 2 * dx / lam
+    extent = [-half, half, -half, half]
+    fig, axes = plt.subplots(1, 4, figsize=(21.0, 5.6))
+
+    axes[0].imshow(mask, extent=extent, origin="lower", cmap="gray")
+    axes[0].set_title("máscara", fontsize=11)
+
+    for ax, model, title in (
+        (axes[1], "scalar", "imagen escalar"),
+        (axes[2], "vectorial", "imagen vectorial"),
+    ):
+        ax.imshow(images[model], extent=extent, origin="lower", cmap="inferno",
+                  vmin=0.0, vmax=1.0)
+        ax.set_title(title, fontsize=11)
+
+    diff = images["vectorial"] - images["scalar"]
+    lim = float(np.abs(diff).max())
+    im = axes[3].imshow(diff, extent=extent, origin="lower", cmap="RdBu_r",
+                        vmin=-lim, vmax=lim)
+    axes[3].set_title("vectorial − escalar", fontsize=11)
+    fig.colorbar(im, ax=axes[3], fraction=0.046)
+
+    for box in groups.values():
+        cx, cy, w, h, _ = box
+        for ax in axes:
+            ax.add_patch(plt.Rectangle(
+                ((cx - 0.5 * w) / lam, (cy - 0.5 * h) / lam), w / lam, h / lam,
+                fill=False, ec="lime", lw=0.9, ls="--", alpha=0.8))
+
+    span = max(
+        max(abs(cx) + 0.5 * w for cx, _, w, _, _ in groups.values()),
+        max(abs(cy) + 0.5 * h for _, cy, _, h, _ in groups.values()),
+    ) / lam * 1.12
+    for ax in axes:
+        ax.set_xlabel(r"$x/\lambda$")
+        ax.set_xlim(-span, span)
+        ax.set_ylim(-span, span)
+        ax.set_aspect("equal")
+    axes[0].set_ylabel(r"$y/\lambda$")
+
+    summary = "   ".join(f"{name}: {cs:.2f} → {cv:.2f}" for name, cs, cv in rows)
+
+    fig.suptitle(
+        f"Layout impreso a NA={NA:.2f} en agua, λ=193 nm, iluminación $\\hat{{x}}$  |  "
+        f"paso de corte {PITCH_CUT * 1e6:.0f} nm.  "
+        "Misma apodización en ambas imágenes: la única diferencia es la polarización.\n"
+        f"contraste escalar → vectorial por grupo —   {summary}",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0.0, 0.03, 1.0, 0.92))
+    path = out_dir / "lithography_pattern.png"
     fig.savefig(path, dpi=150)
     print_saved(path)
     plt.close(fig)
