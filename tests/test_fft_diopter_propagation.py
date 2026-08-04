@@ -12,6 +12,25 @@ def _cartesian_grid(n=17, half_size=1.0):
     return Grid.from_cartesian(X, Y)
 
 
+
+def _bypass_pupil_stage(monkeypatch):
+    """Reduce the propagator to a bare transform, to pin the FFT plumbing.
+
+    The physics stages -- the transfer weights and the pupil warp -- are
+    replaced by identities here so the remaining assertions are about grids,
+    padding and k-space bookkeeping only.  What the weights *are* is pinned by
+    tests/test_geometry_and_transfer.py.
+    """
+    monkeypatch.setattr(
+        propagation,
+        "transfer_weights_on_grid",
+        lambda R, diopter, support=None: (np.ones_like(R), np.ones_like(R), np.zeros_like(R)),
+    )
+    monkeypatch.setattr(propagation, "_warp_to_pupil_grid", lambda f, d, m: (f, f.grid.R))
+    monkeypatch.setattr(propagation, "pupil_transform", lambda geom, m: (geom.r, np.ones_like(geom.r)))
+    monkeypatch.setattr(propagation, "incident_field_on_sphere", lambda f, d: f)
+
+
 def test_transverse_operator_matches_projector_identity(monkeypatch):
     grid = _cartesian_grid()
     rng = np.random.default_rng(123)
@@ -103,11 +122,8 @@ def test_fft_propagation_uses_centered_ft2(monkeypatch):
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
 
-    def fake_weights(R, diopter, support=None, *, geometry="full"):
-        return np.ones_like(R), np.ones_like(R), np.zeros_like(R)
-
-    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
-    out = field.propagate_through_diopter(diopter.zi, diopter, method="fft", geometry="none")
+    _bypass_pupil_stage(monkeypatch)
+    out = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
     expected_x, expected_grid = FT2(Ex, grid, physical=True)
     expected_y, _ = FT2(Ey, grid, physical=True)
 
@@ -126,7 +142,9 @@ def test_fft_propagation_identity_transmission_skips_diopter_operator(monkeypatc
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
 
-    def fail_if_called(field, diopter, *, geometry="full"):
+    _bypass_pupil_stage(monkeypatch)
+
+    def fail_if_called(field, diopter, *, radius=None):
         raise AssertionError("identity transmission should not apply the vectorial operator")
 
     monkeypatch.setattr(propagation, "transverse_diopter_operator", fail_if_called)
@@ -135,7 +153,6 @@ def test_fft_propagation_identity_transmission_skips_diopter_operator(monkeypatc
         diopter,
         method="fft",
         transmission="identity",
-        geometry="none",
     )
     expected_x, expected_grid = FT2(Ex, grid, physical=True)
     expected_y, _ = FT2(Ey, grid, physical=True)
@@ -154,15 +171,10 @@ def test_fft_propagation_zero_padding_refines_k_grid(monkeypatch):
     field = FieldCartesian(Ex, Ey, grid=grid, symmetric=False)
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
 
-    def fake_weights(R, diopter, support=None, *, geometry="full"):
-        return np.ones_like(R), np.ones_like(R), np.zeros_like(R)
-
-    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
-    unpadded = field.propagate_through_diopter(
-        diopter.zi, diopter, method="fft", geometry="none"
-    )
+    _bypass_pupil_stage(monkeypatch)
+    unpadded = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
     padded = field.propagate_through_diopter(
-        diopter.zi, diopter, method="fft", pad_factor=3, geometry="none"
+        diopter.zi, diopter, method="fft", pad_factor=3
     )
 
     assert padded.x.shape == (3 * grid.shape[0], 3 * grid.shape[1])
@@ -183,16 +195,12 @@ def test_fft_propagation_accepts_custom_kgrid(monkeypatch):
     KX, KY = np.meshgrid(kx, ky, indexing="xy")
     kgrid = Grid.from_cartesian(KX, KY, domain="k")
 
-    def fake_weights(R, diopter, support=None, *, geometry="full"):
-        return np.ones_like(R), np.ones_like(R), np.zeros_like(R)
-
-    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
+    _bypass_pupil_stage(monkeypatch)
     out = field.propagate_through_diopter(
         diopter.zi,
         diopter,
         method="fft",
         kgrid=kgrid,
-        geometry="none",
     )
     expected_x, expected_grid = FT2(Ex, grid, kgrid=kgrid)
     expected_y, _ = FT2(Ey, grid, kgrid=kgrid)
@@ -217,17 +225,13 @@ def test_fft_propagation_accepts_custom_kgrid_with_padding(monkeypatch):
     KX, KY = np.meshgrid(kx, ky, indexing="xy")
     kgrid = Grid.from_cartesian(KX, KY, domain="k")
 
-    def fake_weights(R, diopter, support=None, *, geometry="full"):
-        return np.ones_like(R), np.ones_like(R), np.zeros_like(R)
-
-    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
+    _bypass_pupil_stage(monkeypatch)
     out = field.propagate_through_diopter(
         diopter.zi,
         diopter,
         method="fft",
         kgrid=kgrid,
         pad_factor=2,
-        geometry="none",
     )
 
     padded_grid = propagation._center_padded_grid(grid, 2)
@@ -258,7 +262,7 @@ def test_fft_propagation_rejects_invalid_pad_factor():
         field.propagate_through_diopter(diopter.zi, diopter, method="fft", pad_factor=1.5)
 
 
-def test_legacy_positional_call_still_uses_hankel_branch():
+def test_keyword_construction_routes_to_the_hankel_branch():
     r = np.linspace(0.0, 0.8, 12)
     phi = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
     q = np.linspace(0.0, 4.0, 10)
@@ -281,11 +285,8 @@ def test_fft_propagation_converts_polar_grid_to_cartesian(monkeypatch, capsys):
     diopter = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
     field = FieldCartesian(np.exp(-r**2), np.zeros_like(r), grid=grid)
 
-    def fake_weights(R, diopter, support=None, *, geometry="full"):
-        return np.ones_like(R), np.ones_like(R), np.zeros_like(R)
-
-    monkeypatch.setattr(propagation, "transfer_weights_on_grid", fake_weights)
-    out = field.propagate_through_diopter(diopter.zi, diopter, method="fft", geometry="none")
+    _bypass_pupil_stage(monkeypatch)
+    out = field.propagate_through_diopter(diopter.zi, diopter, method="fft")
     captured = capsys.readouterr()
 
     assert "A Cartesian Grid is preferable" in captured.out

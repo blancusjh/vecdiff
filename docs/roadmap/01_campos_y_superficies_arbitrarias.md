@@ -59,7 +59,7 @@ de pupila sobre radios de plano que no son radios de pupila).
 - [ ] Implementaciones: esfera, cónica con asfericidad, plano y sag *freeform*
   (Zernike o spline) — estas últimas rompen la parametrización por `rho` y
   exigen normales de `∂z/∂x, ∂z/∂y`.
-- [x] ~~Cerrar el TODO viejo de `vecdiff/fresnel.py` ("calculo de las
+- [x] ~~Cerrar el TODO de `vecdiff/fresnel.py` ("calculo de las
   bases")~~ — hecho: `RayGeometry.local_frame(phi)` devuelve `(ŝ, p̂₀, p̂ᵢ)`
   explícitos y el operador de `vecdiff/transfer.py` es puntual en ese marco,
   con `t±` como especialización a revolución. Falta el proveedor de marcos
@@ -101,12 +101,11 @@ de pupila sobre radios de plano que no son radios de pupila).
 Trazado de rayos, dispersión cromática, campos no monocromáticos y
 propagación en medios inhomogéneos.
 
-## Cerrado por la corrección de la transferencia
+## Deuda abierta de la transferencia
 
 La matriz de transferencia G → G′ y el factor geométrico de conservación de
-energía ya están implementados y arbitrados contra un campo de Maxwell exacto
-(integral de Franz/Stratton–Chu, `vecdiff/reference/`). Lo que queda anotado
-como deuda de ese trabajo:
+energía están implementados y arbitrados contra un campo de Maxwell exacto
+(integral de Franz/Stratton–Chu, `vecdiff/reference/`). Queda:
 
 - [ ] **BEM riguroso.** La referencia usa corrientes de óptica física (reparto
   de Fresnel local), la misma hipótesis que el desarrollo analítico. Un solve
@@ -119,8 +118,8 @@ como deuda de ese trabajo:
   plano focal: esa es una reducción de Debye y su jacobiano es el del mapeo
   seno. Medido contra la referencia a NA_i = 0.91, el mapeo perspectivo da
   14 % de error en amplitud y el seno 2e-8. Conviene corregir el documento.
-- [ ] **Ejemplos de imagen encadenada.** `two_diopter_imaging`,
-  `resolution_inversion` aplica el operador de pupila sobre
-  coordenadas de plano que no son radios de pupila. Hoy no truncan (el aviso
-  de apertura no salta), pero el modelo mezcla dos geometrías; se arregla con
-  el soporte de entrada sobre plano objeto de la Fase 3.
+- [ ] **Ejemplos de imagen encadenada.** `two_diopter_imaging` y
+  `resolution_inversion` aplican el operador de pupila sobre coordenadas de
+  plano que no son radios de pupila. No truncan (el aviso de apertura no
+  salta), pero el modelo mezcla dos geometrías; se resuelve con el soporte de
+  entrada sobre plano objeto.

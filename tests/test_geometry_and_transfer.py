@@ -104,7 +104,7 @@ def test_geometry_is_paraxially_trivial_on_axis(params):
 
 @pytest.mark.parametrize("params", SYSTEMS)
 def test_grazing_bounds_the_usable_aperture(params):
-    """Past grazing the oval branch continues onto a sheet A no longer lights."""
+    """Past grazing the oval branch continues onto a sheet A does not light."""
     surface = _surface(params)
     limit = surface.aperture_limit
 
@@ -192,27 +192,6 @@ def test_transversality_on_the_image_sphere(params):
     residual = -geom.sin_ai * lam_r + geom.cos_ai * lam_z
 
     assert np.max(np.abs(residual)) < 1e-12
-
-
-@pytest.mark.parametrize("params", SYSTEMS)
-def test_geometry_none_reproduces_the_bare_fresnel_weighting(params):
-    """The legacy switch must be exactly t_p / t_s, with no factor sneaking in."""
-    surface = _surface(params)
-    r = _pupil(surface)
-    fresnel = FresnelOvoid(ovoid=surface)
-    tp, ts = fresnel.coefficients(r)
-
-    lam_r, lam_phi, _ = sphere_transfer_eigenvalues(surface, r, geometry="none")
-
-    assert np.allclose(lam_r, tp, atol=0.0, rtol=0.0)
-    assert np.allclose(lam_phi, ts, atol=0.0, rtol=0.0)
-
-
-def test_interface_operator_rejects_unknown_geometry_mode():
-    surface = _surface(SYSTEMS[0])
-
-    with pytest.raises(ValueError, match="geometry must be one of"):
-        interface_operator(surface, np.array([0.1]), geometry="sometimes")
 
 
 @pytest.mark.parametrize("params", SYSTEMS)
@@ -357,9 +336,6 @@ def test_package_reproduces_the_exact_focal_field():
     field = _uniform_pupil_field(surface, aperture)
     scale = debye_prefactor(surface, lam) / (2.0 * np.pi)
     Ex_full = field.propagate_through_diopter(surface.zi, surface, q).x[0] * scale
-    Ex_legacy = (
-        field.propagate_through_diopter(surface.zi, surface, q, geometry="none").x[0] * scale
-    )
 
     obs = np.stack([rho, np.zeros_like(rho), np.full_like(rho, surface.zi)], axis=-1)
     _, E_ref = focal_field_reference(
@@ -374,9 +350,6 @@ def test_package_reproduces_the_exact_focal_field():
     assert abs(Ex_full[0] / Ex_ref[0]) == pytest.approx(1.0, abs=1e-5)
     assert abs(np.angle(Ex_full[0] / Ex_ref[0])) < 1e-3
     assert np.sqrt(np.mean((full_profile - reference_profile) ** 2)) < 1e-6
-
-    # And the weighting the package used before is decisively worse.
-    assert abs(Ex_legacy[0] / Ex_ref[0]) < 0.8
 
 
 def test_hankel_and_fft_branches_agree():
@@ -465,6 +438,7 @@ def test_sphere_referenced_input_passes_through_untouched():
 
 def test_pupil_mapping_round_trips():
     from vecdiff.pupil_mapping import (
+        MAPPINGS,
         pupil_coordinate,
         radius_from_pupil_coordinate,
         resolve_mapping,
@@ -474,16 +448,15 @@ def test_pupil_mapping_round_trips():
     r = np.linspace(0.0, 0.99 * surface.aperture_limit, 501)
     geom = surface.ray_geometry(r)
 
-    for mapping in ("identity", "sine", "tangent"):
+    for mapping in MAPPINGS:
         u = pupil_coordinate(geom, mapping)
         back, valid = radius_from_pupil_coordinate(surface, u, mapping)
         assert valid.all()
         assert np.max(np.abs(back - r)) < 1e-4 * surface.aperture_limit
 
-    assert resolve_mapping(None, "full") == "sine"
-    assert resolve_mapping(None, "none") == "identity"
+    assert resolve_mapping(None) == "sine"
     with pytest.raises(ValueError, match="mapping must be one of"):
-        resolve_mapping("parabolic", "full")
+        resolve_mapping("parabolic")
 
 
 # ------------------------------------------------------------------ #

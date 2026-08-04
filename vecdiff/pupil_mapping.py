@@ -14,10 +14,8 @@ and substituting the *sine* mapping ``u = |zi| sin(alpha_i)``, for which
            * int [E_G' / cos(alpha_i)] e^{i q u cos(phi - phi_P)} u du dphi
 
 with ``q = k_i rho_P / |zi|``.  So the transform integrates over
-``u = |zi| sin(alpha_i)`` and the integrand carries ``1 / cos(alpha_i)``.  That
-``q`` is exactly the package's long-standing output scaling
-``rho_P = lambda zi q / (2 pi ni)``, and it is the weighting the Debye-Wolf
-benchmark notebook already uses.
+``u = |zi| sin(alpha_i)``, the integrand carries ``1 / cos(alpha_i)``, and the
+focal coordinate comes out as ``rho_P = lambda zi q / (2 pi ni)``.
 
 The perspective mapping ``|zi| tan(alpha_i)`` with a ``cos(alpha_i)`` weight is
 also available.  It is the correct *plane-to-sphere flux* relation -- the field
@@ -27,27 +25,21 @@ costs about 14 percent in focal amplitude at high aperture.  Measured against
 the Franz reference at NA_i = 0.91: the sine mapping reproduces the exact
 Maxwell field to a relative RMS of 2e-8, the perspective mapping to 4e-2.
 
-``identity`` reproduces the behaviour the package had before pupil mapping
-existed: integrate over the raw pupil radius with no weight.  It is kept so
-that tests pinning plumbing have a stable target, and is not a physical model.
 """
 
 import numpy as np
 
-#: Accepted pupil mappings.
-MAPPINGS = ("sine", "tangent", "identity")
+#: Accepted pupil mappings.  ``sine`` is the Debye reduction and the default.
+MAPPINGS = ("sine", "tangent")
 
-#: Which mapping pairs with which ``geometry`` mode when none is given.
-_DEFAULT_FOR_GEOMETRY = {"full": "sine", "none": "identity"}
+#: Mapping used when none is given.
+DEFAULT_MAPPING = "sine"
 
 
-def resolve_mapping(mapping: str | None, geometry: str) -> str:
-    """Return the mapping to use, defaulting from the ``geometry`` mode."""
+def resolve_mapping(mapping: str | None) -> str:
+    """Return the mapping to use, defaulting to the Debye reduction."""
     if mapping is None:
-        try:
-            return _DEFAULT_FOR_GEOMETRY[geometry]
-        except KeyError:
-            raise ValueError(f"unknown geometry mode {geometry!r}.") from None
+        return DEFAULT_MAPPING
     if mapping not in MAPPINGS:
         raise ValueError(f"mapping must be one of {MAPPINGS}; got {mapping!r}.")
     return mapping
@@ -56,8 +48,6 @@ def resolve_mapping(mapping: str | None, geometry: str) -> str:
 def pupil_coordinate(geom, mapping: str) -> np.ndarray:
     """Return the transform variable ``u`` on the pupil grid."""
     zi = abs(geom.zi)
-    if mapping == "identity":
-        return geom.r
     if mapping == "sine":
         return zi * geom.sin_ai
     if mapping == "tangent":
@@ -73,8 +63,6 @@ def pupil_coordinate(geom, mapping: str) -> np.ndarray:
 
 def pupil_weight(geom, mapping: str) -> np.ndarray:
     """Return the Jacobian weight the integrand carries under ``mapping``."""
-    if mapping == "identity":
-        return np.ones_like(geom.r)
     if mapping == "sine":
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.divide(

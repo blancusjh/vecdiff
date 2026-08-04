@@ -75,14 +75,13 @@ def fresnel_coefficients_on_grid(R: np.ndarray, diopter, support=None) -> tuple[
 
 
 def transfer_weights_on_grid(
-    R: np.ndarray, diopter, support=None, *, geometry: str = "full"
+    R: np.ndarray, diopter, support=None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return ``(lam_r, lam_phi, lam_z)`` sampled on a pupil radius grid.
 
     These are the eigenvalues of Eqs. (62)-(63): the Fresnel coefficients times
     the geometric amplitude factor ``A(Q)``, with the meridional projection
-    ``cos(alpha_i) / cos(alpha_0)`` on the radial channel.  ``geometry="none"``
-    strips both and leaves the bare ``(t_p, t_s, 0)``.
+    ``cos(alpha_i) / cos(alpha_0)`` on the radial channel.
     """
     R = np.asarray(R, dtype=float)
     lam_r = np.zeros_like(R, dtype=float)
@@ -100,7 +99,7 @@ def transfer_weights_on_grid(
         return lam_r, lam_phi, lam_z
 
     r_active = R[active]
-    operator = interface_operator(diopter, r_active, geometry=geometry)
+    operator = interface_operator(diopter, r_active)
     a_r, a_phi, a_z = operator.eigenvalues()
 
     lam_r[active] = _sanitize_fresnel(r_active, a_r)
@@ -137,7 +136,7 @@ def _warn_if_aperture_clips(Ex, Ey, R, diopter, *, tolerance: float = 1e-4) -> N
 
 
 def transverse_diopter_operator(
-    field: Field, diopter, *, geometry: str = "full", radius: np.ndarray | None = None
+    field: Field, diopter, *, radius: np.ndarray | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply the local transverse diopter operator to a Cartesian field.
 
@@ -166,7 +165,7 @@ def transverse_diopter_operator(
     support = (np.abs(Ex) > 0.0) | (np.abs(Ey) > 0.0)
     _warn_if_aperture_clips(Ex, Ey, R, diopter)
     lam_r, lam_phi, _ = transfer_weights_on_grid(
-        R, diopter, support=support, geometry=geometry
+        R, diopter, support=support
     )
     t_plus = 0.5 * (lam_r + lam_phi)
     t_minus = 0.5 * (lam_r - lam_phi)
@@ -243,9 +242,6 @@ def _warp_to_pupil_grid(field: Field, diopter, mapping: str) -> tuple[Field, np.
     came from, which is where the transfer weights must be evaluated.
     """
     from scipy.interpolate import RegularGridInterpolator
-
-    if mapping == "identity":
-        return field, field.grid.R
 
     grid = field.grid
     x_axis = np.asarray(grid.X[0, :], dtype=float)
@@ -344,7 +340,6 @@ def propagate_to_focal_plane_through_diopter_fft(
     kgrid: Grid | None = None,
     ft_method: str = "auto",
     transmission: str = "vectorial",
-    geometry: str = "full",
     mapping: str | None = None,
 ) -> Field:
     """Propagate an arbitrary Cartesian field through a diopter using FFT2.
@@ -352,12 +347,8 @@ def propagate_to_focal_plane_through_diopter_fft(
     ``pad_factor`` zero-pads the post-diopter field before the FFT, refining
     the sampled k/focal grid without changing the input sampling interval.
 
-    ``geometry`` selects the transfer weighting -- ``"full"`` applies the
-    geometric amplitude factor and the meridional projection, ``"none"`` the
-    bare Fresnel coefficients.  ``mapping`` selects the pupil variable the
-    transform integrates over and defaults to the one that pairs with
-    ``geometry``: the Debye sine mapping for ``"full"``, the raw pupil radius
-    for ``"none"``.  See :mod:`vecdiff.pupil_mapping`.
+    ``mapping`` selects the pupil variable the transform integrates over and
+    defaults to the Debye sine mapping.  See :mod:`vecdiff.pupil_mapping`.
     """
     field = _field_with_cartesian_grid_for_fft(field)
     pad_factor = _validate_pad_factor(pad_factor)
@@ -369,7 +360,7 @@ def propagate_to_focal_plane_through_diopter_fft(
         raise ValueError("wavelength is required when include_prefactor=True.")
     if transmission not in {"vectorial", "identity"}:
         raise ValueError("transmission must be either 'vectorial' or 'identity'.")
-    mapping = resolve_mapping(mapping, geometry)
+    mapping = resolve_mapping(mapping)
 
     # Validates that the grid is uniform and obtains the physical sampling.
     field.grid.spacing()
@@ -381,17 +372,16 @@ def propagate_to_focal_plane_through_diopter_fft(
 
     if transmission == "vectorial":
         Ux, Uy = transverse_diopter_operator(
-            field, diopter, geometry=geometry, radius=r_weights
+            field, diopter, radius=r_weights
         )
     else:
         Ux = np.asarray(field.x, dtype=complex)
         Uy = np.asarray(field.y, dtype=complex)
 
-    if mapping != "identity":
-        _, weight = pupil_transform(diopter.ray_geometry(r_weights), mapping)
-        weight = np.where(reachable, weight, 0.0)
-        Ux = weight * Ux
-        Uy = weight * Uy
+    _, weight = pupil_transform(diopter.ray_geometry(r_weights), mapping)
+    weight = np.where(reachable, weight, 0.0)
+    Ux = weight * Ux
+    Uy = weight * Uy
 
     fft_grid = _center_padded_grid(field.grid, pad_factor)
     Ux_fft = _center_pad_array(Ux, pad_factor)
@@ -523,7 +513,6 @@ def propagate_to_focal_plane_through_diopter(
     diopter,
     q: np.ndarray,
     *,
-    geometry: str = "full",
     mapping: str | None = None,
 ) -> Field:
     """Propagate an axially symmetric pupil field to the focal plane by Hankel transform.
@@ -542,7 +531,7 @@ def propagate_to_focal_plane_through_diopter(
         raise ValueError("q must be strictly increasing.")
     if field.grid.type != "polar":
         raise NotImplementedError("Focal-plane Hankel propagation requires a polar input grid.")
-    mapping = resolve_mapping(mapping, geometry)
+    mapping = resolve_mapping(mapping)
 
     field = incident_field_on_sphere(field, diopter)
 
@@ -554,7 +543,7 @@ def propagate_to_focal_plane_through_diopter(
         raise ValueError("field.grid must provide at least one angular sample.")
     varphi_col = varphi.reshape(-1, 1)
 
-    operator = interface_operator(diopter, r, geometry=geometry)
+    operator = interface_operator(diopter, r)
     lam_r, lam_phi, _ = operator.eigenvalues()
     lam_r = _sanitize_fresnel(r, lam_r)
     lam_phi = _sanitize_fresnel(r, lam_phi)

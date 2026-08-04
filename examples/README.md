@@ -54,7 +54,3 @@ examples/output/
   harmonic_field_animation/
 ```
 
-Older local runs may still have legacy generated files in `examples/output/`,
-`examples/vecdiff_results/`, top-level `output/`, or
-`output_circular_pupil_resolution/`. Those are historical artifacts, not the
-current convention.

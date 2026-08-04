@@ -45,22 +45,15 @@ class FresnelOvoid:
     All public methods take ``r``, the *cylindrical* radius of the surface
     point -- the physical aperture coordinate.  The surface's own parameter
     ``rho`` (the spherical radius from the vertex) is derived internally via
-    :meth:`CartesianSurface.rho_from_r`.  Conflating the two is a real error:
-    for ``z0 = -10, zi = 6`` grazing incidence sits at ``r = 2.397`` but at
+    :meth:`CartesianSurface.rho_from_r`.  The two are not interchangeable: for
+    ``z0 = -10, zi = 6`` grazing incidence sits at ``r = 2.397`` but at
     ``rho = 3.758``.
     """
 
-    def __init__(self, ovoid=None, n0=None, z0=None, ni=None, zi=None, no=None, zo=None):
-
-        if ovoid is not None:
-            self.ovoid = ovoid
-        else:
-            # Backward compatibility for legacy parameter names no/zo.
-            if n0 is None and no is not None:
-                n0 = no
-            if z0 is None and zo is not None:
-                z0 = zo
-            self.ovoid = CartesianSurface(n0=n0, z0=z0, ni=ni, zi=zi)
+    def __init__(self, ovoid=None, n0=None, z0=None, ni=None, zi=None):
+        self.ovoid = ovoid if ovoid is not None else CartesianSurface(
+            n0=n0, z0=z0, ni=ni, zi=zi
+        )
 
     # -- geometry --------------------------------------------------- #
 

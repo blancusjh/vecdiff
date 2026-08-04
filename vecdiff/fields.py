@@ -149,14 +149,12 @@ class Field:
         kgrid=None,
         ft_method: str = "auto",
         transmission: str = "vectorial",
-        geometry: str = "full",
         mapping: str | None = None,
     ) -> "Field":
         """Propagate the field through a refractive diopter to an observation plane.
 
-        ``geometry`` selects the transfer weighting and ``mapping`` the pupil
-        variable the focal-plane transform integrates over; see
-        :mod:`vecdiff.transfer` and :mod:`vecdiff.pupil_mapping`.
+        ``mapping`` selects the pupil variable the focal-plane transform
+        integrates over; see :mod:`vecdiff.pupil_mapping`.
         """
         if np.isclose(float(z), float(ovoid.zi)):
             if method not in {"auto", "hankel", "fft"}:
@@ -172,7 +170,7 @@ class Field:
                     raise ValueError("q is required for method='hankel'.")
                 from .propagation import propagate_to_focal_plane_through_diopter
                 return propagate_to_focal_plane_through_diopter(
-                    self, diopter=ovoid, q=q, geometry=geometry, mapping=mapping
+                    self, diopter=ovoid, q=q, mapping=mapping
                 )
 
             from .propagation import propagate_to_focal_plane_through_diopter_fft
@@ -186,7 +184,6 @@ class Field:
                 kgrid=kgrid,
                 ft_method=ft_method,
                 transmission=transmission,
-                geometry=geometry,
                 mapping=mapping,
             )
         else:
