@@ -27,6 +27,12 @@ from .geometry import (
 )
 from .grid import Grid
 from .hankel import HankelTransform, HT_N
+from .system import (
+    ApertureBudget,
+    element_aperture,
+    relay_throughput,
+    surface_intersection_radius,
+)
 from .transfer import (
     InterfaceOperator,
     channel_transmittance,

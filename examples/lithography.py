@@ -20,7 +20,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from vecdiff import Grid, FieldCartesian, CartesianSurface
+from vecdiff import Grid, FieldCartesian, CartesianSurface, relay_throughput
 from vecdiff.polarization import polarization_from_components
 from vecdiff.polarization_visualization import plot_polarization_map
 from _output import example_output_dir, print_saved
@@ -32,17 +32,40 @@ from _output import example_output_dir, print_saved
 
 lam = 193e-6
 
-# Synthetic fused silica is used in 193 nm ArF projection optics.  Its index
-# is approximately 1.560 at this wavelength; losses are neglected because the
-# diopter model currently accepts real refractive indices only.
-# Light propagates from vacuum through fused silica, then exits back to vacuum.
-D1 = dict(n0=1.0, ni=1.5602, z0=-4.0, zi=2.0)
-xi = 5.000
-D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=0.25 * D1["zi"] / D1["ni"])
+# Immersion configuration, with the materials 193 nm hyper-NA lithography
+# actually uses.  The earlier fused-silica-to-air design could not work: a
+# dense-to-rare stigmatic exit surface hits the critical angle, sin(theta_i) ->
+# 1, and saturates near NA = 0.74 however the conjugates are chosen -- that one
+# reached only 0.57.  Two changes lift the ceiling:
+#
+#   * a high-index last element (LuAG, Lu3Al5O12, n ~ 2.14 at 193 nm), which
+#     pushes the critical angle out to sin(theta_0) = n_water / n_LuAG;
+#   * water immersion (n ~ 1.437 at 193 nm) instead of an air gap.
+#
+# Losses and dispersion are neglected: the diopter model takes real indices.
+N_LUAG = 2.14
+N_WATER = 1.437
 
-r_a = 4.0 * np.tan(np.deg2rad(70.0))
-alpha_max = np.arctan(r_a / abs(D1["z0"]))
-NA = D1["n0"] * np.sin(alpha_max)
+D1 = dict(n0=1.0, ni=N_LUAG, z0=-4.0, zi=8.0)
+xi = 50.000
+D2 = dict(n0=N_LUAG, ni=N_WATER, z0=D1["zi"] - xi, zi=0.8)
+
+# The aperture is a result of the design, not an input.  Three things can stop
+# a ray -- the two faces meeting, grazing incidence on the first surface, and
+# the critical angle on the second -- and ``relay_throughput`` reports which
+# one binds.  Sizing the stop by hand is what previously produced a nominal
+# NA of 0.94 on a system that could deliver 0.57.
+_surface1 = CartesianSurface(**D1)
+_surface2 = CartesianSurface(**D2)
+THROUGHPUT = relay_throughput(_surface1, _surface2, xi)
+if THROUGHPUT is None:
+    raise RuntimeError("this configuration passes no light at all")
+
+r_a = THROUGHPUT["radius_first"]
+NA = THROUGHPUT["na_object"]
+NA_IMAGE = THROUGHPUT["na_image"]
+REDUCTION = THROUGHPUT["reduction"]
+alpha_max = np.arcsin(NA / D1["n0"])
 Kc = (2.0 * np.pi / lam) * NA
 r_Airy = 3.8317059702075125 / Kc
 d_Airy = 2.0 * r_Airy
@@ -141,15 +164,14 @@ def propagate_through_lens(field, lens, *, vectorial, Npad1=768, Npad2=768,
 
     diopter1 = CartesianSurface(**lens.first)
     diopter2 = CartesianSurface(**lens.second)
-    # The stigmatic oval has a finite usable aperture (its grazing radius).
-    # With this geometry the design stop overfills the second dioptre, so the
-    # effective NA is below the nominal one: light cannot pass through surface
-    # that does not exist.  Clamping here makes that explicit instead of
-    # letting the transfer operator silently zero the excess.
-    pupil_radius_design = (
-        lam * lens.first["zi"] * Kc / (2.0 * np.pi * lens.first["ni"])
+    # The stop sits at the intermediate focus and is sized so the marginal ray
+    # arrives at the second surface exactly at its usable edge -- the radius
+    # ``relay_throughput`` reported.  Nothing is clamped away at run time
+    # because the design already respects every aperture in the chain.
+    pupil_radius = min(
+        lam * lens.first["zi"] * Kc / (2.0 * np.pi * lens.first["ni"]),
+        diopter2.aperture_limit,
     )
-    pupil_radius = min(pupil_radius_design, diopter2.aperture_limit)
 
     focal_field = field.propagate_through_diopter(
         diopter1.zi,
