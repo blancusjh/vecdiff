@@ -13,6 +13,14 @@ dependencies = [
   "matplotlib",
 ]
 
+[dependency-groups]
+dev = [
+  "pytest",
+  "jupytext",
+  "ipykernel",
+  "nbformat",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["vecdiff*"]

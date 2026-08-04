@@ -15,8 +15,24 @@ from .fourier import (
     KGRID3,
     frequency_grid,
 )
+from .geometry import (
+    RayGeometry,
+    ReferenceSphere,
+    TangentPlane,
+    grazing_radius,
+    image_sphere,
+    incident_sphere,
+    ray_geometry,
+    ray_geometry_from_rho,
+)
 from .grid import Grid
 from .hankel import HankelTransform, HT_N
+from .transfer import (
+    InterfaceOperator,
+    channel_transmittance,
+    interface_operator,
+    sphere_transfer_eigenvalues,
+)
 from .longitudinal import (
     generate_Ez_cartesian,
     generate_Ez_field,
