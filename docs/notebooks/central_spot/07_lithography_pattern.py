@@ -26,10 +26,9 @@
 #
 # ## Sistema estigmático
 #
-# El relevo es el del ejemplo `examples/lithography.py` (vacío → sílice
-# fundida → vacío, apertura en el plano focal común), con una diferencia
-# deliberada: **aumento unitario** ($z_{i,2} = z_{i,1}/n_1 \Rightarrow M=-1$)
-# en lugar de la reducción 4×. Con $|M|=1$ todo el espectro de la imagen se
+# El relevo es un par de dioptrios conjugados (vacío → sílice fundida → vacío,
+# apertura en el plano focal común) con **aumento unitario**
+# ($z_{i,2} = z_{i,1}/n_1 \Rightarrow M=-1$). Con $|M|=1$ todo el espectro de la imagen se
 # mantiene propagante ($k_t \le \mathrm{NA}\,k < k$), de modo que la
 # componente longitudinal y la intensidad total quedan bien definidas en el
 # plano imagen; la reducción 4× del ejemplo empuja el contenido geométrico de
