@@ -24,13 +24,14 @@ class FresnelOvoidParax:
         )
 
     def t_s(self, r):
-        # The s channel curves the other way from p: expanding the exact
-        # coefficients to O(r^2) gives -n0*xi for s and +ni*xi for p.  The
-        # indices were swapped here, which flipped the sign of t_+ - t_-.
-        return self.gamma_0 - self.n0 * self.xi * r**2
+        # Expanding the exact coefficients to O(r^2) gives +ni*xi on the s
+        # channel and +n0*xi on the p channel -- both with a plus sign.  The
+        # minus here was the documented bug; it flipped t_+ against t_-.
+        # Checked against the exact coefficients at r -> 0.
+        return self.gamma_0 + self.ni * self.xi * r**2
 
     def t_p(self, r):
-        return self.gamma_0 + self.ni * self.xi * r**2
+        return self.gamma_0 + self.n0 * self.xi * r**2
 
     def coeffs(self, r):
         return self.t_s(r), self.t_p(r)

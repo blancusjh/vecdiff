@@ -17,15 +17,21 @@ la rama FFT, que muestrea en cartesiano y pierde la ventaja radial.
 
 **Superficies.** Existe una sola superficie, `CartesianSurface`
 (`vecdiff/CartesianSurfaces.py`): el óvalo estigmático definido por
-`(n0, ni, z0, zi)` vía los parámetros G, O, T, S. Es de revolución, se
-parametriza por un único `rho`, y expone `z`, `dz`, `r` — no una normal 2D.
-`FresnelOvoid._cosines` (`vecdiff/fresnel.py:62`) depende de esa
-parametrización, y los coeficientes son transmisión dieléctrica real
-(sin reflexión, sin `n` compleja, sin recubrimientos ni birrefringencia).
-El encadenado de superficies se hace a mano en el ejemplo
-(`examples/two_diopter_imaging.py:89`), no hay objeto sistema. Como el óvalo es
-estigmático por construcción, la fase de camino óptico de la superficie nunca
-se necesitó explícitamente: para superficies arbitrarias sí.
+`(n0, ni, z0, zi)` vía los parámetros G, O, T, S. Es de revolución y los
+coeficientes son transmisión dieléctrica real (sin recubrimientos ni
+birrefringencia; ya hay `rs`/`rp` para el balance energético, pero no una rama
+reflejada propagable). El encadenado de superficies se hace a mano en el
+ejemplo (`examples/two_diopter_imaging.py:89`), no hay objeto sistema. Como el
+óvalo es estigmático por construcción, la fase de camino óptico de la
+superficie nunca se necesitó explícitamente: para superficies arbitrarias sí.
+
+**Geometría del campo.** `Grid.reference` ya distingue esfera de referencia de
+plano tangente, y los propagadores despachan sobre él. Pero la rama de entrada
+sobre plano solo está implementada para mallas polares
+(`vecdiff/propagation.py`, `_tangent_plane_to_incident_sphere`), y no hay
+soporte para dar el campo sobre el plano objeto real en `z0` (que es lo que
+suponen implícitamente los ejemplos de imagen encadenada: aplican el operador
+de pupila sobre radios de plano que no son radios de pupila).
 
 ## TODO
 
@@ -47,18 +53,26 @@ se necesitó explícitamente: para superficies arbitrarias sí.
 ### Superficies arbitrarias
 - [ ] Protocolo `Surface`: `sag(x, y)` (o `sag(rho)` cuando sea de revolución),
   `normal(...)` y marco local s/p; `CartesianSurface` lo implementa sin
-  cambiar su API.
+  cambiar su API. Buena parte ya existe para el óvalo:
+  `CartesianSurface.sag(r)`, `ray_geometry(r)` y `RayGeometry.local_frame`
+  (`vecdiff/geometry.py`); falta generalizarlo a sag no de revolución.
 - [ ] Implementaciones: esfera, cónica con asfericidad, plano y sag *freeform*
   (Zernike o spline) — estas últimas rompen la parametrización por `rho` y
   exigen normales de `∂z/∂x, ∂z/∂y`.
-- [ ] Cerrar el TODO viejo de `vecdiff/fresnel.py:115` ("calculo de las
-  bases"): devolver los versores s/p explícitos, que es lo que permite el
-  operador fuera de eje y sin simetría.
+- [x] ~~Cerrar el TODO viejo de `vecdiff/fresnel.py` ("calculo de las
+  bases")~~ — hecho: `RayGeometry.local_frame(phi)` devuelve `(ŝ, p̂₀, p̂ᵢ)`
+  explícitos y el operador de `vecdiff/transfer.py` es puntual en ese marco,
+  con `t±` como especialización a revolución. Falta el proveedor de marcos
+  para superficies sin simetría de revolución.
 - [ ] Operador de interfaz como Jones genérico: añadir reflexión (`rs`, `rp`),
   índice complejo (absorbente/metálico) y, si aparece la necesidad, apilado
   multicapa y birrefringencia.
-- [ ] Fase de camino óptico y factor de oblicuidad derivados del sag, para
-  superficies no estigmáticas (el óvalo queda como el caso de fase nula).
+- [x] ~~Factor de oblicuidad~~ — hecho para el óvalo: el factor geométrico
+  `A(Q)` de conservación de flujo, la proyección meridional y el jacobiano del
+  mapeo de pupila están en `vecdiff/transfer.py` y `vecdiff/pupil_mapping.py`,
+  arbitrados contra la referencia de Maxwell (`examples/reference_vs_model.py`).
+- [ ] Fase de camino óptico derivada del sag, para superficies no estigmáticas
+  (el óvalo queda como el caso de fase nula).
 - [ ] Objeto sistema `System([surface, ...])` que encadene superficies y
   aperturas, con el ejemplo de dos dioptrios reescrito sobre él.
 
@@ -68,9 +82,10 @@ se necesitó explícitamente: para superficies arbitrarias sí.
   orden y vectorizar sobre órdenes y armónicos.
 - [ ] `HT_N` tiene la malla `q` cableada (`q = linspace(1e-3, 10, 500)`):
   derivarla del muestreo de entrada.
-- [ ] Tests de consistencia armónico↔FFT: para cada generalización, verificar
-  que ambos caminos coinciden y que el caso simétrico reproduce los
-  resultados actuales a precisión de máquina.
+- [x] ~~Tests de consistencia Hankel↔FFT~~ — hecho:
+  `tests/test_geometry_and_transfer.py::test_hankel_and_fft_branches_agree`
+  (coinciden a 7e-6 y convergen con el muestreo). Falta extenderlo a cada
+  generalización armónica.
 
 ## Orden sugerido
 
@@ -85,3 +100,27 @@ se necesitó explícitamente: para superficies arbitrarias sí.
 
 Trazado de rayos, dispersión cromática, campos no monocromáticos y
 propagación en medios inhomogéneos.
+
+## Cerrado por la corrección de la transferencia
+
+La matriz de transferencia G → G′ y el factor geométrico de conservación de
+energía ya están implementados y arbitrados contra un campo de Maxwell exacto
+(integral de Franz/Stratton–Chu, `vecdiff/reference/`). Lo que queda anotado
+como deuda de ese trabajo:
+
+- [ ] **BEM riguroso.** La referencia usa corrientes de óptica física (reparto
+  de Fresnel local), la misma hipótesis que el desarrollo analítico. Un solve
+  de contorno Müller/PMCHWT sobre cuerpo de revolución la eliminaría; la
+  interfaz ya está separada (`vecdiff/reference/currents.py`,
+  `SurfaceCurrents`), así que es sustituir el proveedor de corrientes.
+- [ ] **Sec. 12 del documento.** El mapeo perspectivo `r_P = |z₀| tan α₀` con
+  factores `1/|cos α₀|` y `|cos αᵢ|` es correcto como relación de flujo entre
+  plano y esfera, pero **no** es el cambio de variable de la transformada al
+  plano focal: esa es una reducción de Debye y su jacobiano es el del mapeo
+  seno. Medido contra la referencia a NA_i = 0.91, el mapeo perspectivo da
+  14 % de error en amplitud y el seno 2e-8. Conviene corregir el documento.
+- [ ] **Ejemplos de imagen encadenada.** `two_diopter_imaging`,
+  `resolution_inversion` y `lithography` aplican el operador de pupila sobre
+  coordenadas de plano que no son radios de pupila. Hoy no truncan (el aviso
+  de apertura no salta), pero el modelo mezcla dos geometrías; se arregla con
+  el soporte de entrada sobre plano objeto de la Fase 3.

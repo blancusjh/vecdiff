@@ -29,7 +29,7 @@ from vecdiff.CartesianSurfaces import CartesianSurface
 from vecdiff.field_reconstruction import make_observation_grid
 from vecdiff.fresnel import FresnelOvoid
 from vecdiff.pupil_mapping import pupil_coordinate, pupil_transform
-from vecdiff.transfer import sphere_transfer_eigenvalues
+from vecdiff.transfer import paraxial_channel_weights, sphere_transfer_eigenvalues
 
 π = np.pi
 
@@ -400,8 +400,13 @@ def anisotropy_prediction(case, total=False):
 
 
 def airy_reference(case):
-    """Analytic Airy radii (in lambda) of the uniform-pupil ideal scalar field."""
-    scale = case["q_lambda"] / case["a"]
+    """Analytic Airy radii (in lambda) of the uniform-pupil ideal scalar field.
+
+    The scale is set by the extent of the *transform variable*, u = zi sin(ai),
+    not by the pupil radius a.  Those coincide only in the thin-surface limit;
+    here u_max/a = 1.45, and the numerical profile follows u.
+    """
+    scale = case["q_lambda"] / case["u"][-1]
     return {"s_hwhm": AIRY_HWHM * scale, "s_zero": AIRY_FIRST_ZERO * scale}
 
 
@@ -509,30 +514,35 @@ def diattenuation(case):
 
 
 def diattenuation_rms(case, weight="transmitted"):
-    """RMS diattenuation over the pupil.  weight='incident' uses |P|^2 r dr;
-    'transmitted' uses t_+^2 |P|^2 r dr (the co-channel intensity)."""
+    """RMS diattenuation over the pupil.  weight='incident' uses |P|^2 u du;
+    'transmitted' uses t_+^2 |P|^2 u du (the co-channel intensity).
+
+    The measure is u du, matching :func:`band_energies`, so the identity in
+    :func:`cross_fraction_from_diattenuation` stays exact.  D itself is
+    unchanged by the mapping: it is a ratio, and the Jacobian is common to
+    both channels."""
     D = diattenuation(case)
-    r, P = case["r"], case["P"]
-    w = np.abs(P) ** 2 * r
+    u, P = case["u"], case["P"]
+    w = np.abs(P) ** 2 * u
     if weight == "transmitted":
         w = w * (0.5 * (case["tp"] + case["ts"])) ** 2
-    return float(np.sqrt(simpson(D ** 2 * w, x=r) / simpson(w, x=r)))
+    return float(np.sqrt(simpson(D ** 2 * w, x=u) / simpson(w, x=u)))
 
 
 def cross_fraction_from_diattenuation(case):
     """Exact identity: with eps = t_-/t_+ one has, pointwise,
     eps^2/(1+eps^2) = (1 - sqrt(1-D^2))/2, so the Parseval cross fraction is
 
-        f_cross = < (1 - sqrt(1-D^2))/2 >_w ,  w = (t_+^2 + t_-^2)|P|^2 r dr,
+        f_cross = < (1 - sqrt(1-D^2))/2 >_w ,  w = (t_+^2 + t_-^2)|P|^2 u du,
 
     whose leading order is <D^2>/4 (diattenuation-defocus squared)."""
     D = diattenuation(case)
-    r, P = case["r"], case["P"]
+    u, P = case["u"], case["P"]
     t_plus = 0.5 * (case["tp"] + case["ts"])
     t_minus = 0.5 * (case["tp"] - case["ts"])
-    w = (t_plus ** 2 + t_minus ** 2) * np.abs(P) ** 2 * r
+    w = (t_plus ** 2 + t_minus ** 2) * np.abs(P) ** 2 * u
     frac = 0.5 * (1.0 - np.sqrt(np.maximum(0.0, 1.0 - D ** 2)))
-    return float(simpson(frac * w, x=r) / simpson(w, x=r))
+    return float(simpson(frac * w, x=u) / simpson(w, x=u))
 
 
 def fit_aberration_coefficients(case, fit_frac=0.3):
@@ -554,17 +564,28 @@ def fit_aberration_coefficients(case, fit_frac=0.3):
 
 
 def paraxial_theory(case):
-    """Analytic second-order coefficients of the stigmatic diopter:
+    """Analytic second-order coefficients of the *effective* pupil weights.
 
-        xi  = n0 (z0-zi)^2 / (z0^2 zi^2 (n0^2-ni^2))
-        t_+ = g0 + (n0+ni) (xi/2) r^2 ,   t_- = (n0-ni) (xi/2) r^2
+    The channels the focal transform sees are not the bare Fresnel
+    coefficients: they carry the geometric factor A(Q) and the sine-mapping
+    Jacobian.  Expanding those too (vecdiff.transfer.paraxial_channel_weights)
+    gives
 
-    (matches quadratic fits of the exact FresnelOvoid; note that
-    vecdiff.fresnel.FresnelOvoidParax carries a sign error in the r^2 term of
-    t_s, which swaps/flips these coefficients)."""
+        t_+ = g0 + c2 r^2 ,  c2 = (n0+ni) xi/2 + g0 [A' + 1/(4 z0^2) + 1/(4 zi^2)]
+        t_- =      d2 r^2 ,  d2 = (n0-ni) xi/2 + g0 [1/(4 z0^2) - 1/(4 zi^2)]
+
+    so the cross channel picks up a purely geometric contribution that the
+    bare-Fresnel expansion does not have.  Here xi is the coefficient of
+    FresnelOvoidParax and A' the quadratic coefficient of A(Q).
+    """
     n0, ni, z0, zi = case["n0"], case["ni"], case["z0"], case["zi"]
-    g0 = 2.0 * n0 / (n0 + ni)
+    surf = surface(n0, ni, z0, zi)
     xi = n0 * (z0 - zi) ** 2 / (z0 ** 2 * zi ** 2 * (n0 ** 2 - ni ** 2))
-    c2 = 0.5 * (n0 + ni) * xi
-    d2 = 0.5 * (n0 - ni) * xi
+
+    # The expansion is exactly quadratic, so two samples recover it exactly.
+    probe = np.array([0.0, 1.0e-3])
+    w_p, w_s = paraxial_channel_weights(surf, probe)
+    g0 = float(w_p[0])
+    c2 = float((0.5 * (w_p[1] + w_s[1]) - g0) / probe[1] ** 2)
+    d2 = float(0.5 * (w_p[1] - w_s[1]) / probe[1] ** 2)
     return {"g0": g0, "xi": xi, "c2": c2, "d2": d2, "D2": 2.0 * d2 / g0}

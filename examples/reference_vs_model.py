@@ -28,9 +28,10 @@ from scipy.special import jv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from vecdiff.CartesianSurfaces import CartesianSurface  # noqa: E402
-from vecdiff.fresnel import FresnelOvoid  # noqa: E402
+from vecdiff import CartesianSurface  # noqa: E402
+from vecdiff.pupil_mapping import debye_prefactor  # noqa: E402
 from vecdiff.reference import focal_field_reference  # noqa: E402
+from vecdiff.transfer import focal_channel_weights  # noqa: E402
 
 π = np.pi
 
@@ -38,84 +39,49 @@ OUTPUT = Path(__file__).resolve().parent / "output"
 
 
 # ------------------------------------------------------------------ #
-#  Model variants                                                      #
+#  Model variants, driven through the package itself                   #
 # ------------------------------------------------------------------ #
 
-def eigenvalues(surface, geom, *, geometric: bool):
-    """Radial, azimuthal and longitudinal eigenvalues, Eqs. (62)-(63)."""
-    fresnel = FresnelOvoid(ovoid=surface)
-    tp, ts = fresnel.coefficients_from_geometry(geom)
-    A = geom.A if geometric else np.ones_like(geom.r)
-    projection = geom.cos_ai / geom.cos_a0 if geometric else np.ones_like(geom.r)
-    lam_r = A * tp * projection
-    lam_phi = A * ts
-    lam_z = A * tp * geom.sin_ai / geom.cos_a0
-    return lam_r, lam_phi, lam_z
-
-
-def mapping_of(name, geom):
-    """Return ``(u, du/dr, jacobian weight)`` for a pupil mapping."""
-    zi = abs(geom.zi)
-    if name == "identity":
-        u = geom.r
-        du_dr = np.ones_like(geom.r)
-        weight = np.ones_like(geom.r)
-    elif name == "sine":
-        u = zi * geom.sin_ai
-        du_dr = np.gradient(u, geom.r)
-        weight = 1.0 / geom.cos_ai
-    elif name == "tangent":
-        u = zi * geom.sin_ai / geom.cos_ai
-        du_dr = np.gradient(u, geom.r)
-        weight = geom.cos_ai
-    else:
-        raise ValueError(f"unknown mapping {name!r}")
-    return u, du_dr, weight
-
-
-def model_focal_cut(surface, wavelength, pupil, variant, rho, *, n_r=6001):
+def model_focal_cut(surface, wavelength, pupil, variant, rho, *, aperture, n_r=6001):
     """Focal-plane cut along x predicted by one model variant.
 
-    Returns ``(Ex, Ez)`` with the absolute Debye prefactor applied, so the
-    comparison against the reference is in amplitude as well as shape.
+    Goes through :func:`vecdiff.transfer.focal_channel_weights`, so what is
+    plotted is the package's own weighting rather than a parallel
+    reimplementation.  The absolute Debye prefactor is applied, which puts the
+    comparison on amplitude and phase, not just shape.
     """
-    geometric = variant["geometric"]
-    mapping = variant["mapping"]
+    r = np.linspace(0.0, aperture, int(n_r))
+    w_p, w_s, w_z, u = focal_channel_weights(
+        surface, r, geometry=variant["geometry"], mapping=variant["mapping"]
+    )
 
-    a = 0.999 * surface.aperture_limit
-    r = np.linspace(0.0, a, int(n_r))
-    geom = surface.ray_geometry(r)
-
-    lam_r, lam_phi, lam_z = eigenvalues(surface, geom, geometric=geometric)
-    u, du_dr, weight = mapping_of(mapping, geom)
-
-    f = np.asarray(pupil(r), dtype=complex) * weight
-    lam_plus = 0.5 * (lam_r + lam_phi)
-    lam_minus = 0.5 * (lam_r - lam_phi)
+    f = np.asarray(pupil(r), dtype=complex)
+    lam_plus = 0.5 * (w_p + w_s)
+    lam_minus = 0.5 * (w_p - w_s)
 
     k_i = 2.0 * π * surface.ni / wavelength
     zi = abs(surface.zi)
     q = k_i * np.asarray(rho, dtype=float) / zi
 
     def hankel(order, g):
-        integrand = g[None, :] * jv(order, q[:, None] * u[None, :]) * (u * du_dr)[None, :]
-        return simpson(integrand, x=r, axis=1)
+        integrand = g[None, :] * jv(order, q[:, None] * u[None, :]) * u[None, :]
+        return simpson(integrand, x=u, axis=1)
 
     h0 = hankel(0, lam_plus * f)
     h2 = hankel(2, lam_minus * f)
-    h1 = hankel(1, lam_z * f)
+    h1 = hankel(1, w_z * f)
 
-    prefactor = np.exp(1j * k_i * zi) * (-1j * k_i / zi)
+    prefactor = debye_prefactor(surface, wavelength)
     Ex = prefactor * (h0 - h2)          # phi_P = 0 on the x cut
-    Ez = np.exp(1j * k_i * zi) * (k_i / zi) * h1
+    Ez = 1j * prefactor * h1
     return Ex, Ez
 
 
 VARIANTS = {
-    "actual (sin A, sin mapeo)": dict(geometric=False, mapping="identity"),
-    "+A (sin mapeo)": dict(geometric=True, mapping="identity"),
-    "+A + mapeo seno": dict(geometric=True, mapping="sine"),
-    "+A + mapeo tangente": dict(geometric=True, mapping="tangent"),
+    "actual (sin A, sin mapeo)": dict(geometry="none", mapping="identity"),
+    "+A (sin mapeo)": dict(geometry="full", mapping="identity"),
+    "+A + mapeo seno": dict(geometry="full", mapping="sine"),
+    "+A + mapeo tangente": dict(geometry="full", mapping="tangent"),
 }
 
 
@@ -171,7 +137,7 @@ def main():
 
     results = {}
     for name, variant in VARIANTS.items():
-        results[name] = model_focal_cut(surface, lam, pupil, variant, rho)
+        results[name] = model_focal_cut(surface, lam, pupil, variant, rho, aperture=a)
 
     # -- report -------------------------------------------------- #
     print(f"{'variante':<28} {'|Ex(0)|/ref':>12} {'fase(0)':>10} {'RMS perfil':>12}")
@@ -185,9 +151,18 @@ def main():
         print(f"{name:<28} {abs(ratio):>12.5f} {np.degrees(np.angle(ratio)):>9.2f}d {rms:>12.2e}")
     print()
 
+    # The longitudinal channel is an independent check: it comes from a
+    # different Hankel order and never enters the transverse comparison.
+    peak_z = np.abs(Ez_ref).max()
+    print(f"{'variante':<28} {'max|Ez| / ref':>14}")
+    print("-" * 44)
+    for name, (_Ex, Ez) in results.items():
+        print(f"{name:<28} {np.abs(Ez).max() / peak_z:>14.5f}")
+    print()
+
     # -- figure ---------------------------------------------------- #
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    fig, axes = plt.subplots(1, 3, figsize=(16.5, 5.0))
+    fig, axes = plt.subplots(1, 4, figsize=(21.0, 5.0))
     s = rho / lam
 
     ax = axes[0]
@@ -219,6 +194,15 @@ def main():
     ax.set_ylabel(r"$|E_x^{\rm modelo}| \; / \; |E_x^{\rm ref}|$")
     ax.set_title("Cociente contra la referencia exacta")
     ax.set_ylim(0.0, 2.0)
+    ax.grid(alpha=0.3)
+
+    ax = axes[3]
+    ax.plot(s, np.abs(Ez_ref) ** 2, "k", lw=3.0, alpha=0.35, label="referencia (Franz)")
+    for name, (_, Ez) in results.items():
+        ax.plot(s, np.abs(Ez) ** 2, lw=1.4, label=name)
+    ax.set_xlabel(r"$\rho/\lambda$")
+    ax.set_ylabel(r"$|E_z|^2$  (escala absoluta)")
+    ax.set_title("Canal longitudinal (comprobación independiente)")
     ax.grid(alpha=0.3)
 
     fig.suptitle(

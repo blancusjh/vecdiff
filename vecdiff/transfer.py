@@ -194,3 +194,36 @@ def focal_channel_weights(surface, r, *, geometry: str = "full", mapping: str | 
         # coordinate must still come from the real one.
         u, weight = pupil_transform(surface.ray_geometry(r), mapping)
     return lam_r * weight, lam_phi * weight, lam_z * weight, u
+
+
+def paraxial_channel_weights(surface, r):
+    """Return the O(r^2) expansion of ``(w_p, w_s)`` from :func:`focal_channel_weights`.
+
+    Useful as an analytic reference for aberration fits.  Expanding each factor
+    of ``w_p = A t_p / cos(alpha_0)`` and ``w_s = A t_s / cos(alpha_i)``:
+
+        w_p = gamma_0 + [ n0 xi + gamma_0 (A' + 1/(2 z0^2)) ] r^2
+        w_s = gamma_0 + [ ni xi + gamma_0 (A' + 1/(2 zi^2)) ] r^2
+
+    with ``gamma_0 = 2 n0/(n0+ni)``, ``xi`` the coefficient of
+    :class:`~vecdiff.fresnel.FresnelOvoidParax`, and
+
+        A' = -(O/2)(1/|zi| + 1/|z0|) + (1/2)(1/zi^2 - 1/z0^2)
+
+    the quadratic coefficient of the geometric factor, where ``O`` is the
+    vertex curvature parameter of the oval.  Note the factors multiply
+    ``gamma_0``, not one, so the geometric slopes enter weighted by it.
+    """
+    r = np.asarray(r, dtype=float)
+    n0, ni = float(surface.n0), float(surface.ni)
+    z0, zi = float(surface.z0), float(surface.zi)
+
+    gamma_0 = 2.0 * n0 / (n0 + ni)
+    xi = n0 * (z0 - zi) ** 2 / (z0**2 * zi**2 * (n0**2 - ni**2))
+    A_slope = -0.5 * surface.O * (1.0 / abs(zi) + 1.0 / abs(z0)) + 0.5 * (
+        1.0 / zi**2 - 1.0 / z0**2
+    )
+
+    w_p = gamma_0 + (n0 * xi + gamma_0 * (A_slope + 0.5 / z0**2)) * r**2
+    w_s = gamma_0 + (ni * xi + gamma_0 * (A_slope + 0.5 / zi**2)) * r**2
+    return w_p, w_s

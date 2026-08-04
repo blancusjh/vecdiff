@@ -32,6 +32,7 @@ from .transfer import (
     channel_transmittance,
     focal_channel_weights,
     interface_operator,
+    paraxial_channel_weights,
     sphere_transfer_eigenvalues,
 )
 from .longitudinal import (
