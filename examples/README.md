@@ -35,6 +35,7 @@ Each script prints the path of the files it saves.
 | Example | Purpose | Main outputs |
 | --- | --- | --- |
 | `reference_vs_model.py` | The package's focal field against the Franz / Stratton-Chu integral, an exact Maxwell field, in absolute amplitude and phase; and the two pupil mappings against it. | `reference_vs_model.png` |
+| `scalar_reference_check.py` | The s channel of the transfer operator against the exact Helmholtz-Kirchhoff scalar field: which pupil weighting actually solves the scalar refraction problem. | terminal table |
 | `aperture_limits.py` | What stops a ray through a two-surface stigmatic element -- the faces meeting, grazing incidence, the critical angle -- for a dry and an immersion configuration, each checked against the exact field. | `aperture_limits.png` |
 
 ## Animation

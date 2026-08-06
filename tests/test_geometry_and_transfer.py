@@ -532,3 +532,59 @@ def test_focal_channel_weights_agree_with_the_propagator(params):
     assert np.allclose(w_s, lam_phi * weight)
     assert np.allclose(w_z, lam_z * weight)
     assert np.allclose(u, abs(surface.zi) * surface.ray_geometry(r).sin_ai)
+
+def test_pupil_fields_are_divergence_free():
+    """The spectral image field satisfies k . E = 0 at machine precision.
+
+    This pins the longitudinal weight through the whole pipeline: lam_z of
+    Eq. (63) equals lam_r tan(alpha_i) exactly, which is the statement that
+    every plane-wave mode of the image field is transverse to its propagation
+    direction -- the image field is a superposition of Maxwell plane waves,
+    and its scalar restriction a superposition of Helmholtz solutions.
+    """
+    from vecdiff.propagation import transfer_weights_on_grid
+
+    lam = 193e-6
+    surface = CartesianSurface(n0=2.14, ni=1.437, z0=-42.0, zi=2.0)
+    k = 2.0 * np.pi * surface.ni / lam
+
+    edge = surface.ray_geometry(np.array([surface.aperture_limit * (1 - 1e-6)]))
+    sin_max = float(edge.sin_ai[0])
+
+    n_grid, dx = 96, lam / 3.0
+    kx = 2.0 * np.pi * np.fft.fftfreq(n_grid, d=dx)
+    KX, KY = np.meshgrid(kx, kx, indexing="xy")
+    KT = np.hypot(KX, KY)
+    inside = KT <= 0.999 * k * sin_max
+    KZ = np.sqrt(np.maximum(k**2 - KT**2, 0.0))
+
+    r_table = np.linspace(0.0, surface.aperture_limit * (1 - 1e-9), 20001)
+    s_table = surface.ray_geometry(r_table).sin_ai
+    order = np.argsort(s_table)
+    r_pupil = np.interp(
+        np.clip(np.where(inside, KT / k, 0.0), 0.0, s_table.max()),
+        s_table[order],
+        r_table[order],
+    )
+
+    lam_r, lam_phi, lam_z = transfer_weights_on_grid(r_pupil, surface)
+    geom = surface.ray_geometry(r_pupil)
+    jac = np.where(geom.cos_ai > 0.0, 1.0 / np.maximum(geom.cos_ai, 1e-12), 0.0)
+    zero = np.zeros_like(lam_r)
+    w_plus = np.where(inside, 0.5 * (lam_r + lam_phi) * jac, zero)
+    w_minus = np.where(inside, 0.5 * (lam_r - lam_phi) * jac, zero)
+    w_z = np.where(inside, lam_z * jac, zero)
+
+    rng = np.random.default_rng(7)
+    Sx = (rng.normal(size=(n_grid, n_grid)) + 1j * rng.normal(size=(n_grid, n_grid)))
+    Sy = (rng.normal(size=(n_grid, n_grid)) + 1j * rng.normal(size=(n_grid, n_grid)))
+
+    phi = np.arctan2(KY, KX)
+    c2, s2 = np.cos(2.0 * phi), np.sin(2.0 * phi)
+    Px = (w_plus + w_minus * c2) * Sx + (w_minus * s2) * Sy
+    Py = (w_minus * s2) * Sx + (w_plus - w_minus * c2) * Sy
+    Pz = w_z * (np.cos(phi) * Sx + np.sin(phi) * Sy)
+
+    magnitude = k * np.sqrt(np.abs(Px) ** 2 + np.abs(Py) ** 2 + np.abs(Pz) ** 2).max()
+    divergence = np.abs(KX * Px + KY * Py - KZ * Pz).max()
+    assert divergence / magnitude < 1e-9
