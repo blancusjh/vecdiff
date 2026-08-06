@@ -1,0 +1,442 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noquoting]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage[margin=2.6cm]{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
+
+\newcommand{\ux}{\hat{\mathbf{u}}}
+\newcommand{\nhat}{\hat{\mathbf{N}}}
+\newcommand{\rhat}{\hat{\mathbf{r}}}
+\newcommand{\phihat}{\hat{\boldsymbol{\varphi}}}
+\newcommand{\zhat}{\hat{\mathbf{z}}}
+\newcommand{\thhat}{\hat{\boldsymbol{\theta}}}
+\newcommand{\E}{\mathbf{E}}
+
+\title{Refracción en un sistema estigmático simple:\\
+transferencia vectorial, flujo energético y reducción al plano focal}
+\author{Jhonatan S. Blanco}
+\date{Versión verificada numéricamente}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Se deriva la transferencia vectorial y energética de un campo electromagnético
+monocromático a través de un dioptrio estigmático simple que separa dos medios
+dieléctricos, homogéneos, isótropos y no magnéticos, de índices $n_0$ y $n_i$.
+El campo incidente se prescribe sobre una esfera $\mathcal{G}$ centrada en el
+punto objeto $A$; el transmitido se evalúa sobre una esfera $\mathcal{G}'$
+centrada en el punto imagen $A'$. La conservación del flujo medio de Poynting
+determina el factor geométrico de amplitud
+\begin{equation}
+  \mathcal{A}(Q) \;=\; \frac{|z_0|}{|z_i|}\,\frac{\ell_i(Q)}{\ell_0(Q)} .
+  \label{eq:A}
+\end{equation}
+Respecto de versiones anteriores de esta nota, aquí se corrigen o se agregan
+cinco puntos: \emph{(i)} la superficie se parametriza por el radio cilíndrico
+$r$ del punto $Q$, que es la coordenada de apertura, y no por el radio
+esférico $\rho$ desde el vértice; \emph{(ii)} se caracterizan los dos
+mecanismos distintos que acotan la apertura útil ---incidencia rasante y
+ángulo crítico---; \emph{(iii)} el paso de $\mathcal{G}'$ al plano focal se
+identifica como una reducción de Debye, cuyo cambio de variable es el
+\emph{mapeo seno} $u=|z_i|\sin\alpha_i$ con jacobiano $1/\cos\alpha_i$, y no
+el mapeo perspectivo; \emph{(iv)} se establece cuál es la versión escalar
+correcta del problema, que resulta ser el canal $s$; \emph{(v)} todos los
+resultados se contrastan contra dos referencias exactas independientes ---la
+integral de Franz para Maxwell y la de Helmholtz--Kirchhoff para el problema
+escalar---, con acuerdo a $10^{-8}$ en amplitud absoluta y fase.
+\end{abstract}
+
+\section{Geometría del sistema}
+
+Sea $\Sigma\subset\mathbb{R}^3$ una superficie refractora de revolución
+alrededor del eje $z$, con vértice en el origen $O$. El sistema es
+exactamente estigmático para el par
+\begin{equation}
+  A=(0,0,z_0),\qquad A'=(0,0,z_i),\qquad z_0,z_i\in\mathbb{R}\setminus\{0\},
+\end{equation}
+y las esferas de referencia tangentes al plano $z=0$ en $O$ son
+\begin{equation}
+  \mathcal{G}=\{X: \|X-A\|=|z_0|\},\qquad
+  \mathcal{G}'=\{X: \|X-A'\|=|z_i|\}.
+\end{equation}
+
+\subsection{Parametrización: el radio cilíndrico, no el esférico}
+\label{sec:param}
+
+Un punto $Q\in\Sigma$ admite dos radios naturales: el cilíndrico
+$r=\sqrt{Q_x^2+Q_y^2}$ y el esférico desde el vértice
+$\rho=\|Q-O\|$, ligados por
+\begin{equation}
+  \rho^2 = r^2 + z(r)^2 .
+  \label{eq:rho_r}
+\end{equation}
+La forma cerrada del óvalo cartesiano se escribe naturalmente en $\rho$, pero
+\textbf{la coordenada física de apertura es $r$}: es el radio del diafragma
+sobre el dioptrio y el que fija sin ambigüedad el rayo. Confundirlas no es un
+detalle de notación. Para $n_0=1$, $n_i=1{,}5$, $z_0=\SI{-10}{\milli\meter}$,
+$z_i=\SI{6}{\milli\meter}$, la incidencia rasante ocurre en $r=2{,}397$ pero
+en $\rho=3{,}758$: una apertura citada como fracción de $\rho$ se sale de la
+superficie útil en un $57\%$.
+
+La inversión $r\mapsto\rho$ requiere resolver una cuártica. En la práctica
+conviene hacerla numéricamente ---tabla monótona densa refinada por Newton
+sobre $r(\rho)-r$---, lo que alcanza precisión de máquina ($2\times10^{-15}$
+en las verificaciones de la Sec.~\ref{sec:verif}).
+
+\subsection{Distancias y ángulos}
+
+Para cada $Q$ se definen las distancias positivas
+$\ell_0(Q)=\|Q-A\|$, $\ell_i(Q)=\|A'-Q\|$, y con
+$z\equiv z(r)$,
+\begin{equation}
+  \ell_0=\sqrt{r^2+[z-z_0]^2},\qquad
+  \ell_i=\sqrt{r^2+[z_i-z]^2}.
+\end{equation}
+Las direcciones físicas de propagación son
+$\ux_0=(Q-A)/\ell_0$ y $\ux_i=(A'-Q)/\ell_i$, que en la base cilíndrica
+$(\rhat,\phihat,\zhat)$ se escriben
+\begin{equation}
+  \ux_0=\sin\alpha_0\,\rhat+\cos\alpha_0\,\zhat,\qquad
+  \ux_i=-\sin\alpha_i\,\rhat+\cos\alpha_i\,\zhat,
+\end{equation}
+con
+\begin{equation}
+  \sin\alpha_0=\frac{r}{\ell_0},\quad
+  \cos\alpha_0=\frac{z-z_0}{\ell_0},\qquad
+  \sin\alpha_i=\frac{r}{\ell_i},\quad
+  \cos\alpha_i=\frac{z_i-z}{\ell_i}.
+\end{equation}
+Los senos son no negativos para $r\ge0$; los cosenos conservan el signo de la
+proyección axial, lo que describe las distintas posiciones de $A$ y $A'$ sin
+fijar de antemano los signos de $z_0$ y $z_i$.
+
+Sea $\nhat$ la normal unitaria a $\Sigma$ orientada hacia el medio incidente.
+Los cosenos de incidencia y transmisión son
+\begin{equation}
+  \cos\theta_0=-\ux_0\cdot\nhat,\qquad \cos\theta_i=-\ux_i\cdot\nhat,
+  \label{eq:cosines}
+\end{equation}
+y rige la ley de Snell $n_0\sin\theta_0=n_i\sin\theta_i$.
+
+\begin{quote}\small
+\textbf{Nota de implementación.} La orientación de $\nhat$ debe fijarse de
+forma global (por el lado en que está $A$), no por un test construido con el
+rayo incidente: cualquier criterio del tipo $\operatorname{sign}(\ux_0\cdot\nhat)$
+degenera exactamente en la rasancia, que es el único lugar donde importa.
+\end{quote}
+
+La condición estigmática, dado que $O\in\Sigma$ y las esferas pasan por $O$,
+adopta la forma
+\begin{equation}
+  n_0\,\ell_0(Q)+n_i\,\ell_i(Q)=n_0|z_0|+n_i|z_i|,\qquad Q\in\Sigma .
+  \label{eq:stigmatic}
+\end{equation}
+
+\section{Límites de la apertura útil}
+\label{sec:apertura}
+
+La superficie no se extiende indefinidamente: hay dos mecanismos distintos que
+la acotan, y cuál manda depende del contraste de índices.
+
+\paragraph{Rasancia ($n_0<n_i$).} El ángulo de incidencia crece con $r$ y
+alcanza $90^\circ$ a radio finito: $\cos\theta_0\to0$. Más allá, la forma
+cerrada continúa sobre una hoja del óvalo que $A$ ya no ilumina.
+
+\paragraph{Ángulo crítico ($n_0>n_i$).} Aquí es el ángulo \emph{transmitido}
+el que alcanza $90^\circ$ primero, en $\sin\theta_0=n_i/n_0$. Pasado ese
+radio la ley de Snell no tiene solución real: \textbf{no existe óvalo} que
+envíe el rayo al punto imagen. El límite es intrínseco y no se corre eligiendo
+conjugados.
+
+Esta asimetría tiene una consecuencia de diseño fuerte. Una superficie de
+salida denso$\to$raro satura: con sílice a aire, la apertura numérica imagen no
+pasa de $\mathrm{NA}\approx0{,}74$ aunque el objeto intermedio se aleje
+arbitrariamente. Superarlo exige subir el índice del último elemento o
+introducir un medio de inmersión ---que es la ruta que tomó la litografía de
+alta apertura.
+
+Además, cerca del ángulo crítico los coeficientes de Fresnel permanecen
+finitos ($t_s,t_p\to$ valores del orden de $2$) mientras
+$\mathcal{A}$ crece sin freno, de modo que el peso de pupila
+\emph{diverge} hacia el borde. Para superficies raro$\to$denso ocurre lo
+contrario: $t_{s,p}\to0$ en la rasancia y la pupila se apaga suavemente. Es
+una diferencia cualitativa entre ambos tipos de superficie, no un matiz.
+
+\section{Bases esféricas y flujo en un tubo de rayos}
+
+La base esférica incidente centrada en $A$ es $(\ux_0,\thhat_0,\phihat)$ con
+$\thhat_0=\phihat\times\ux_0=\cos\alpha_0\,\rhat-\sin\alpha_0\,\zhat$, y la
+final centrada en $A'$ es $(\ux_i,\thhat_i,\phihat)$ con
+$\thhat_i=\cos\alpha_i\,\rhat+\sin\alpha_i\,\zhat$. En una superficie de
+revolución $\phihat$ coincide con la dirección $s$ de Fresnel y $\thhat_{0,i}$
+son las direcciones meridionales $p$. La transversalidad deja dos amplitudes
+independientes sobre cada esfera.
+
+Con dependencia temporal $e^{-i\omega t}$ y $k=2\pi/\lambda$ en el vacío, una
+onda localmente plana y transversal en un medio de índice real $n$ transporta
+$\langle\mathbf{S}\rangle=(n/2Z_{\rm vac})\|\E\|^2\ux$. Igualando la potencia
+sobre $\mathcal{G}$, sobre la interfaz y sobre $\mathcal{G}'$, y usando las
+identidades geométricas $\cos\theta_0\,dS_\Sigma=\ell_0^2\,d\Omega_0$ y
+$\cos\theta_i\,dS_\Sigma=\ell_i^2\,d\Omega_i$, se obtiene la transferencia
+completa
+\begin{equation}
+  \E_{\mathcal{G}'}
+  =\mathcal{A}(Q)\Bigl[t_p(Q)\,E_{\mathcal{G}}^{\theta_0}\,\thhat_i
+  +t_s(Q)\,E_{\mathcal{G}}^{\varphi}\,\phihat\Bigr],
+  \label{eq:transfer}
+\end{equation}
+con $\mathcal{A}$ dada por \eqref{eq:A} y los coeficientes dieléctricos
+\begin{equation}
+  t_s=\frac{2n_0\cos\theta_0}{n_0\cos\theta_0+n_i\cos\theta_i},\qquad
+  t_p=\frac{2n_0\cos\theta_0}{n_i\cos\theta_0+n_0\cos\theta_i}.
+  \label{eq:fresnel}
+\end{equation}
+La condición estigmática elimina la fase geométrica relativa entre las dos
+esferas. Las transmitancias de potencia asociadas,
+\begin{equation}
+  T_q=\frac{n_i\cos\theta_i}{n_0\cos\theta_0}|t_q|^2,\qquad R_q+T_q=1,
+  \label{eq:T}
+\end{equation}
+verifican el balance
+\begin{equation}
+  \frac{d\Phi_{\mathcal{G}',q}}{d\Phi_{\mathcal{G},q}}=T_q ,
+  \label{eq:balance}
+\end{equation}
+que es la identidad que fija $\mathcal{A}$ de forma independiente de todo lo
+demás.
+
+\section{Matriz de transferencia}
+
+Eliminando la componente longitudinal por transversalidad sobre $\mathcal{G}$
+($E_{\mathcal{G}}^{\theta_0}=E_{\mathcal{G}}^{r}/\cos\alpha_0$) se obtiene la
+forma reducida, diagonal en la base cilíndrica:
+\begin{equation}
+  \lambda_r=\mathcal{A}\,t_p\,\frac{\cos\alpha_i}{\cos\alpha_0},\qquad
+  \lambda_\varphi=\mathcal{A}\,t_s,\qquad
+  \lambda_z=\mathcal{A}\,t_p\,\frac{\sin\alpha_i}{\cos\alpha_0}.
+  \label{eq:eigen}
+\end{equation}
+En la base cartesiana, con $\phi$ el azimut de pupila,
+\begin{equation}
+  \mathsf{T}_\perp=
+  \frac{\lambda_r+\lambda_\varphi}{2}\,\sigma_0
+  +\frac{\lambda_r-\lambda_\varphi}{2}
+  \bigl(\cos2\phi\,\sigma_1+\sin2\phi\,\sigma_2\bigr),
+  \label{eq:cartesian}
+\end{equation}
+y $E_{\mathcal{G}'}^{z}=\lambda_z\,(E_{\mathcal{G}}^{x}\cos\phi+E_{\mathcal{G}}^{y}\sin\phi)$.
+
+\paragraph{Generalidad.} Toda la derivación es \emph{puntual}: tubo de rayos
+local y reparto de Fresnel local en $Q$. En ningún paso interviene la
+estructura azimutal de $\E_{\mathcal{G}}$, de modo que \eqref{eq:transfer} vale
+para campo incidente arbitrario ---cualquier polarización, cualquier
+dependencia en $\varphi$. Lo único atado a la superficie de revolución es la
+identificación $s\equiv\phihat$, $p\equiv\thhat$. Para una superficie general
+basta reemplazar el proveedor de marcos locales; la física no cambia.
+
+\paragraph{Transversalidad.} De \eqref{eq:eigen} se sigue
+\begin{equation}
+  \frac{\lambda_z}{\lambda_r}=\tan\alpha_i ,
+  \label{eq:transversality}
+\end{equation}
+que es exactamente la condición $\mathbf{k}\cdot\E=0$ para cada modo del
+espectro angular. La transversalidad sobre $\mathcal{G}'$ y la condición de
+divergencia nula en el espacio espectral son el mismo enunciado.
+
+\section{De $\mathcal{G}'$ al plano focal: la reducción de Debye}
+\label{sec:debye}
+
+Esta sección reemplaza el tratamiento perspectivo de versiones anteriores.
+
+El campo en el plano focal es la integral de Debye sobre la esfera de salida,
+\begin{equation}
+  \E(P)=e^{ik_i|z_i|}\,\frac{-ik_i|z_i|}{2\pi}
+  \int\!\!\int \E_{\mathcal{G}'}(\hat{\mathbf{s}})\,
+  e^{ik_i\hat{\mathbf{s}}\cdot\mathbf{r}_P}\,d\Omega ,
+  \qquad k_i=\frac{2\pi n_i}{\lambda}.
+  \label{eq:debye}
+\end{equation}
+Es una superposición de ondas planas con $|\mathbf{k}|=n_ik_0$ \emph{exacto}:
+espectro angular, no una aproximación de Fresnel.
+
+Sustituyendo el \textbf{mapeo seno}
+\begin{equation}
+  u=|z_i|\sin\alpha_i,\qquad
+  d\Omega=\frac{u\,du\,d\phi}{|z_i|^2\cos\alpha_i},
+  \label{eq:sine}
+\end{equation}
+la integral queda
+\begin{equation}
+  \E(P)=e^{ik_i|z_i|}\,\frac{-ik_i}{2\pi|z_i|}
+  \int\!\!\int \frac{\E_{\mathcal{G}'}}{\cos\alpha_i}\,
+  e^{iq\,u\cos(\phi-\phi_P)}\,u\,du\,d\phi ,
+  \qquad q=\frac{k_i\rho_P}{|z_i|}.
+\end{equation}
+Es decir: \textbf{la transformada integra sobre $u=|z_i|\sin\alpha_i$ y el
+integrando lleva el jacobiano $1/\cos\alpha_i$}. La coordenada focal resulta
+$\rho_P=\lambda z_i q/(2\pi n_i)$, y el prefactor absoluto es
+\begin{equation}
+  \mathcal{P}=e^{ik_i|z_i|}\,\frac{-ik_i}{|z_i|} ,
+  \label{eq:prefactor}
+\end{equation}
+una vez absorbido el $2\pi$ de la reducción azimutal.
+
+\paragraph{Qué estaba mal.} El mapeo perspectivo $r_P=|z_i|\tan\alpha_i$ con
+peso $\cos\alpha_i$ es \emph{correcto como relación de flujo entre el plano
+tangente y la esfera} ---el campo sobre el plano realmente es $\cos\alpha_i$
+veces el campo sobre la esfera---, pero \textbf{no es el cambio de variable de
+esta transformada}. Usarlo cuesta un $14\%$ de error en amplitud focal a
+apertura alta. La distinción es, en el fondo, la misma que separa espectro
+angular de Fresnel: en el borde de una pupila con
+$\sin\alpha_i=0{,}614$, los dos mapeos difieren un $26{,}7\%$
+($\tan$ contra $\sin$).
+
+\section{El problema escalar}
+\label{sec:escalar}
+
+¿Cuál es la versión escalar correcta de este dioptrio? El problema escalar bien
+planteado es la ecuación de Helmholtz en ambos medios con $U$ y $\partial U/\partial n$
+continuas sobre $\Sigma$. Para una onda localmente plana, esa continuidad da
+como coeficiente de transmisión
+\begin{equation}
+  t=\frac{2n_0\cos\theta_0}{n_0\cos\theta_0+n_i\cos\theta_i}=t_s ,
+\end{equation}
+es decir, \textbf{el problema escalar es el problema TE}. Y como el transporte
+de flujo en el tubo de rayos es ciego a la polarización, $\mathcal{A}(Q)$ y el
+mapeo seno se trasladan sin cambio. Por lo tanto:
+
+\begin{equation}
+  \boxed{\;\text{versión escalar correcta}\;=\;
+  \text{canal } s:\quad w_s=\mathcal{A}\,t_s\,\frac{1}{\cos\alpha_i}\;}
+\end{equation}
+
+sin mezcla de polarización y sin $E_z$. Conviene subrayar dos alternativas que
+\emph{no} lo son:
+\begin{itemize}
+  \item el promedio $(\lambda_r+\lambda_\varphi)/2$ arrastra la proyección
+    meridional $\cos\alpha_i/\cos\alpha_0$, que es un objeto vectorial sin
+    lugar en un problema escalar;
+  \item la pupila plana $t\equiv1$ no resuelve ninguna interfaz: es un modelo
+    de lente ideal, útil como referencia de resolución pero no como solución.
+\end{itemize}
+
+\section{Verificación numérica}
+\label{sec:verif}
+
+Todos los resultados anteriores se contrastaron contra dos referencias
+exactas construidas de forma independiente del modelo de rayos.
+
+\paragraph{Árbitro vectorial.} La integral de Franz/Stratton--Chu sobre la
+superficie real, con datos de contorno de óptica física. Es un campo de
+Maxwell exacto en el semiespacio imagen. Calibración: reproduce el patrón de
+Airy a $1{,}1\times10^{-3}$ y la amplitud de Debye con residuo
+$\to \mathrm{NA}^2/8$ exacto al bajar la apertura ($0{,}1295\to0{,}1251$).
+
+\paragraph{Árbitro escalar.} La integral de Helmholtz--Kirchhoff sobre la misma
+superficie, con $U^+=t_s\,U^-$ y
+$\partial U/\partial N=-ik_i\cos\theta_i\,U^+$. Calibración: $1{,}000000$
+contra el caso analítico de onda convergente.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Cantidad verificada & Criterio & Residuo \\
+\midrule
+Inversión $r\leftrightarrow\rho$ & $r(\rho(r))=r$ & $2\times10^{-15}$ \\
+Condición estigmática \eqref{eq:stigmatic} & constante sobre $\Sigma$ & $4\times10^{-15}$ \\
+Ley de Snell & $n_0\sin\theta_0=n_i\sin\theta_i$ & $3\times10^{-13}$ \\
+Conservación de Fresnel & $R_q+T_q=1$ & $5\times10^{-16}$ \\
+Balance de flujo \eqref{eq:balance} & $d\Phi'/d\Phi=T_q$ & $10^{-10}$ \\
+Transversalidad \eqref{eq:transversality} & $\mathbf{k}\cdot\E=0$ & $4\times10^{-11}$ \\
+Ecuación de onda & residuo de Helmholtz & $O(\delta z^2)$ puro \\
+\midrule
+\textbf{Campo focal vectorial} & vs.\ Franz, amplitud absoluta & $1{,}000000$ \\
+ & vs.\ Franz, fase & $+0{,}0002^\circ$ \\
+ & vs.\ Franz, RMS del perfil & $1{,}4\times10^{-8}$ \\
+ & canal longitudinal (orden 1) & $1{,}000000$ \\
+\midrule
+\textbf{Campo focal escalar} & canal $s$ vs.\ Kirchhoff & $1{,}000000$ \\
+ & promedio $(\lambda_r+\lambda_\varphi)/2$ & $1{,}0246$ \\
+ & pupila plana $t\equiv1$ & $0{,}3040$ \\
+\midrule
+\textbf{Mapeo de pupila} & seno vs.\ Franz (RMS) & $2\times10^{-8}$ \\
+ & tangente vs.\ Franz (RMS) & $4\times10^{-2}$ \\
+\bottomrule
+\end{tabular}
+\caption{Verificación de la nota. Las tres primeras filas son identidades
+geométricas; las siguientes, físicas; el bloque final contrasta el modelo
+contra las dos referencias exactas.}
+\end{table}
+
+Vale subrayar el renglón de la ecuación de onda: el residuo de
+$(\partial_z^2+\nabla_\perp^2+n^2k_0^2)U$ cae en razón exactamente $4{,}00$ al
+halvar el paso del stencil, o sea que \emph{todo} el residuo es error de
+discretización de la medición y ninguno del campo.
+
+\section{Alcance y límites}
+
+Lo que este desarrollo \textbf{sí} garantiza: dado el campo sobre
+$\mathcal{G}$, el campo en el plano focal es solución exacta de Maxwell (caso
+vectorial) o de Helmholtz (caso escalar), con amplitud y fase absolutas
+correctas, sin aproximación paraxial ni de Fresnel en ningún punto de la
+cadena.
+
+Lo que \textbf{no} elimina:
+\begin{itemize}
+  \item \emph{La condición de contorno.} El reparto de Fresnel local en $Q$ es
+    óptica física. Las dos referencias comparten esa hipótesis, así que la
+    verificación de la Sec.~\ref{sec:verif} no la pone a prueba. Levantarla
+    exige un solve de contorno riguroso (Müller/PMCHWT sobre cuerpo de
+    revolución).
+  \item \emph{Estigmatismo puntual.} El óvalo es perfecto para \emph{un} par
+    de puntos conjugados, el axial. Fuera de eje aberra, y a apertura alta
+    rápido: se midió que la PSF deja de estar limitada por difracción más allá
+    de unas cinco longitudes de onda de altura de objeto. Un óvalo aislado es
+    un formador de puntos, no un sistema de campo.
+  \item \emph{Máscaras delgadas.} Si el objeto es una transmitancia
+    $T(x,y)$, se supone $\E=T\,\E_{\rm inc}$ en su plano (Kirchhoff de máscara
+    delgada), razonable mientras las estructuras sean grandes frente a
+    $\lambda$.
+\end{itemize}
+
+\section{Conclusión}
+
+La refracción en un sistema estigmático simple queda descrita, en las bases
+esféricas centradas en los focos, por \eqref{eq:transfer}. El factor
+$\mathcal{A}=|z_0|\ell_i/(|z_i|\ell_0)$ representa la redistribución
+geométrica de amplitud entre las dos esferas y vale uno en el eje: es una
+apodización de apertura alta pura. Los coeficientes $t_s$ y $t_p$ fijan la
+amplitud de la rama transmitida y sus transmitancias satisfacen
+\eqref{eq:T}--\eqref{eq:balance}.
+
+El paso al plano focal es una reducción de Debye sobre el mapeo seno, con el
+prefactor absoluto \eqref{eq:prefactor}; el mapeo perspectivo, aunque correcto
+como relación de flujo plano--esfera, no es el cambio de variable de esa
+transformada. La versión escalar del problema es el canal $s$, porque la
+continuidad de $U$ y $\partial U/\partial n$ reproduce exactamente $t_s$.
+
+Finalmente, la identidad $\lambda_z=\lambda_r\tan\alpha_i$ no es un peso
+auxiliar sino la condición de divergencia nula expresada rayo a rayo, lo que
+explica que el campo construido sea exactamente transversal a precisión de
+máquina.
+
+\begin{thebibliography}{9}
+\bibitem{bornwolf} M. Born y E. Wolf, \emph{Principles of Optics}, 7.\textsuperscript{a} ed., Cambridge University Press, 1999.
+\bibitem{jackson} J. D. Jackson, \emph{Classical Electrodynamics}, 3.\textsuperscript{a} ed., Wiley, 1999.
+\bibitem{richardswolf} B. Richards y E. Wolf, ``Electromagnetic diffraction in optical systems. II. Structure of the image field in an aplanatic system'', \emph{Proc.\ R.\ Soc.\ A} \textbf{253}, 358--379 (1959).
+\bibitem{goodman} J. W. Goodman, \emph{Introduction to Fourier Optics}, 4.\textsuperscript{a} ed., W. H. Freeman, 2017.
+\bibitem{stratton} J. A. Stratton y L. J. Chu, ``Diffraction theory of electromagnetic waves'', \emph{Phys.\ Rev.} \textbf{56}, 99--107 (1939).
+\bibitem{flagello} D. G. Flagello, T. Milster y A. E. Rosenbluth, ``Theory of high-NA imaging in homogeneous thin films'', \emph{J.\ Opt.\ Soc.\ Am.\ A} \textbf{13}, 53--64 (1996).
+\end{thebibliography}
+
+\end{document}

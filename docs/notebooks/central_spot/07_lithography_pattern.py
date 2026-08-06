@@ -18,72 +18,64 @@
 #
 # Los cuadernos 01–06 estudiaron la PSF y uno o dos puntos. Aquí cerramos el
 # arco con un **objeto extendido sin ninguna simetría**: un patrón de circuito
-# (máscara binaria `circuit_pattern.png`) proyectado por un sistema de **dos
-# dioptrios estigmáticos** — cero aberración geométrica, conjugación exacta —
-# en el régimen de litografía ArF. La pregunta es la de toda la
-# investigación, ahora en su forma más aplicada: ¿qué predice el modelo
-# escalar que el vectorial no cumple?
+# (máscara binaria `circuit_pattern.png`) impreso por un sistema de
+# **proyección de inmersión de alta apertura**, con reducción $4\times$, en el
+# régimen de litografía ArF. La pregunta es la de toda la investigación, ahora
+# en su forma más aplicada: **¿qué features resuelve el modelo escalar que el
+# vectorial no imprime?**
 #
-# ## Sistema estigmático
+# ## Sistema de proyección
 #
-# El relevo es un par de dioptrios conjugados (vacío → sílice fundida → vacío,
-# apertura en el plano focal común) con **aumento unitario**
-# ($z_{i,2} = z_{i,1}/n_1 \Rightarrow M=-1$). Con $|M|=1$ todo el espectro de la imagen se
-# mantiene propagante ($k_t \le \mathrm{NA}\,k < k$), de modo que la
-# componente longitudinal y la intensidad total quedan bien definidas en el
-# plano imagen; la reducción 4× del ejemplo empuja el contenido geométrico de
-# la imagen más allá del corte $k_t = k$ del relevo ideal.
+# La pupila es la superficie estigmática de salida del sistema: un último
+# elemento de LuAG ($n = 2.14$ a 193 nm) hacia agua de inmersión
+# ($n = 1.437$). Una salida de sílice a aire no alcanza este régimen — una
+# superficie estigmática de denso a raro choca con el ángulo crítico y satura
+# cerca de $\mathrm{NA} = 0.74$.
 #
 # | elemento | parámetros |
 # | --- | --- |
 # | longitud de onda | $\lambda = 193$ nm (ArF) |
-# | dioptrio D1 | $n_0 = 1 \to n_1 = 1.5602$ (sílice), $z_0 = -4$ mm, $z_i = +2$ mm |
-# | apertura | radio $r_a = 4\tan 70° = 10.99$ mm en D1 $\Rightarrow$ $\mathrm{NA} = \sin 70° = 0.94$; diafragma físico en el plano focal común |
-# | tramo interno | $\xi - z_{i,1} = 3$ mm en sílice |
-# | dioptrio D2 | $n_1 = 1.5602 \to n_2 = 1$, $z_0 = -3$ mm, $z_i = +1.282$ mm |
-# | conjugación | $M = -(n_1 z_{i,2})/(n_2 z_{i,1}) = -1$ exacto |
-# | escala del objeto | paso fino del circuito (traza + separación, 27 px) $= 0.95\,d_{\rm Airy} = 1.23\lambda$; trazas de $0.64\lambda$ |
+# | superficie de salida | LuAG $n_0 = 2.14 \to$ agua $n_i = 1.437$, $z_0 = -42$ mm, $z_i = +2$ mm |
+# | apertura | la útil de la superficie (rasancia): $r = 6.28$ mm $\Rightarrow \mathrm{NA} = 0.883$ |
+# | reducción | $4\times$: las trazas de la máscara son $4$ veces la imagen |
+# | escala de la imagen | paso fino del circuito $= 1.02\times$ el paso de corte coherente $\lambda/\mathrm{NA}$ |
+# | iluminación | Köhler parcialmente coherente, $\sigma = 0.2$ (método de Abbe) |
 #
-# ## Campo incidente y modelos
+# El modelo de pupila es invariante ante traslación: la imagen se calcula en
+# coordenadas de imagen y la reducción es una re-etiqueta exacta de la escala
+# de máscara ($x_{\rm másc} = 4\,x_{\rm img}$), sin aberración de campo. El
+# paso fino se coloca **en el corte coherente**, que es donde el efecto
+# vectorial es máximo: los órdenes $\pm 1$ salen a $\pm\theta$ con
+# $\sin\theta = \lambda/(n\,p) \approx \mathrm{NA}/n$, y en TM sus campos
+# eléctricos se proyectan con $\cos 2\theta = 0.245$.
 #
-# La máscara es una transmisión binaria $T(x,y)\in\{0,1\}$ iluminada por una
-# onda plana **coherente** de amplitud unitaria (los proyectores reales usan
-# coherencia parcial, que suaviza pero no elimina lo que sigue). Los campos
-# incidentes que comparamos:
+# ## Iluminación y modos
 #
-# - **lineal $\hat{x}$**: $\mathbf{E}_0 = T\,\hat{x}$;
-# - **lineal $\hat{y}$**: $\mathbf{E}_0 = T\,\hat{y}$;
-# - **circular**: $\mathbf{E}_0 = T\,(\hat{x} + i\hat{y})/\sqrt{2}$.
+# La máscara es una transmisión binaria $T(x,y)\in\{0,1\}$ con iluminación
+# Köhler de coherencia parcial $\sigma = 0.2$: cada punto de la fuente aporta
+# una onda plana inclinada, su imagen coherente se forma con la misma pupila,
+# y las intensidades se suman en potencia (método de Abbe). La coherencia
+# parcial es lo que usa un proyector real: suprime el anillado de bordes que
+# con iluminación coherente hace oscilar el contraste de un layout denso.
 #
-# Y los dos modelos de propagación:
+# Los tres modos de pupila:
 #
-# - **escalar**: transmisión identidad en ambos dioptrios, $t_p = t_s = 1$
-#   (sin ninguna apodización); intensidad $I_{\rm esc} = |E_x|^2 + |E_y|^2$.
-# - **vectorial**: el operador transversal completo en ambos dioptrios. En
-#   cada dioptrio, con los coeficientes de Fresnel $t_p(\theta)$,
-#   $t_s(\theta)$ y el azimut pupilar $\phi$ (cuaderno 04),
-#   $$\mathbf{J}(r,\phi) = \frac{t_p + t_s}{2}\,\sigma_0
-#     + \frac{t_p - t_s}{2}\,\bigl(\cos 2\phi\,\sigma_1
-#     + \sin 2\phi\,\sigma_2\bigr).$$
-#   En el plano imagen la transversalidad de Maxwell impone además
-#   $E_z = -(k_x E_x + k_y E_y)/k_z$ (la física del cuaderno 05, aquí en su
-#   versión cartesiana `vecdiff.longitudinal.generate_Ez_cartesian`).
-#   Reportamos dos intensidades: **transversal** $|E_x|^2 + |E_y|^2$ y
-#   **total** $|E_x|^2 + |E_y|^2 + |E_z|^2$.
-#
-# Así, un panel rotulado "vectorial $\hat{x}$ (total)" significa: campo
-# incidente $T\hat{x}$, propagación vectorial, intensidad con las tres
-# componentes. A $\mathrm{NA} = 0.94$ el peso longitudinal es enorme
-# ($k_t/k_z$ llega a $2.7$ en el borde de la apertura): éste es el régimen
-# Richards–Wolf pleno, donde el cuaderno 05 mostró que la elongación de la
-# PSF se invierte.
+# - **escalar (lente ideal)**: pupila circular sin apodizar, $t_p = t_s = 1$.
+#   No resuelve ninguna interfaz: es la referencia de resolución de libro.
+# - **escalar físico (canal s)**: la solución exacta del **problema escalar de
+#   contorno** de la refracción — Helmholtz en ambos medios con $U$ y
+#   $\partial_n U$ continuas, cuya transmisión local es exactamente $t_s$ y
+#   cuyo transporte de energía da el mismo $A(Q)$. Verificado contra la
+#   integral de Helmholtz–Kirchhoff sobre la superficie real:
+#   $|U|/\mathrm{ref} = 1.000000$, RMS del perfil $1.6\times 10^{-8}$.
+# - **vectorial**: el operador de transferencia completo (Ecs. 62–63), con
+#   canal longitudinal $E_z$ incluido en la suma de Abbe.
 #
 # En litografía de inmersión hiper-NA este efecto es célebre: el contraste de
-# las órdenes TM se degrada como el coseno del ángulo mutuo y obliga a
+# los órdenes TM se degrada como el coseno del ángulo mutuo y obliga a
 # iluminación polarizada [D. G. Flagello, T. Milster y A. E. Rosenbluth,
 # *JOSA A* **13**, 53 (1996); J. Ruoff y M. Totzeck, *J. Micro/Nanolithogr.
-# MEMS MOEMS* **8**, 031404 (2009), la extensión del formalismo de Chipman a
-# pupilas de litografía].
+# MEMS MOEMS* **8**, 031404 (2009)].
 
 # %%
 from pathlib import Path
@@ -94,7 +86,7 @@ from PIL import Image
 from scipy import ndimage
 
 from vecdiff import Grid, FieldCartesian, CartesianSurface
-from vecdiff.longitudinal import generate_Ez_cartesian
+from vecdiff.propagation import transfer_weights_on_grid
 from vecdiff.polarization_visualization import plot_field_polarization
 
 π = np.pi
@@ -102,30 +94,30 @@ out_dir = Path("output")
 out_dir.mkdir(exist_ok=True)
 
 lam = 193e-6  # mm
-D1 = dict(n0=1.0, ni=1.5602, z0=-4.0, zi=2.0)
-xi = 5.0
-D2 = dict(n0=D1["ni"], ni=1.0, z0=D1["zi"] - xi, zi=D1["zi"] / D1["ni"])  # M = -1
 
-r_a = 4.0 * np.tan(np.deg2rad(70.0))
-alpha_max = np.arctan(r_a / abs(D1["z0"]))
-NA = D1["n0"] * np.sin(alpha_max)
-Kc = 2.0 * π / lam * NA
+# Superficie de salida de inmersión: último elemento de LuAG (n ≈ 2.14 a
+# 193 nm) hacia agua (n ≈ 1.437).  Una salida de sílice a aire no llega aquí:
+# una superficie estigmática de denso a raro choca con el ángulo crítico y
+# satura cerca de NA 0.74.
+N_LUAG, N_WATER = 2.14, 1.437
+LENS = dict(n0=N_LUAG, ni=N_WATER, z0=-42.0, zi=2.0)
+SURFACE = CartesianSurface(**LENS)
+APERTURE = SURFACE.aperture_limit
+
+# La apertura útil fija el corte coherente.  Nada de esto se postula: sale de
+# la geometría de la superficie.
+_edge = SURFACE.ray_geometry(np.array([APERTURE * (1.0 - 1e-6)]))
+SIN_MAX = float(_edge.sin_ai[0])
+NA = LENS["ni"] * SIN_MAX
+NU_CUT = NA / lam                 # corte coherente, ciclos/mm
+PITCH_CUT = 1.0 / NU_CUT
+Kc = 2.0 * π * NA / lam
 d_Airy = 2.0 * 3.8317059702075125 / Kc
-M_nominal = -(D1["ni"] * D2["zi"]) / (D2["ni"] * D1["zi"])
-pupil_radius = lam * D1["zi"] * Kc / (2.0 * π * D1["ni"])
-# El óvalo estigmático tiene una apertura útil finita (radio de incidencia
-# rasante). Con esta geometría el radio de stop de diseño excede la superficie
-# del segundo dioptrio, de modo que la NA efectiva es menor que la nominal:
-# no se puede pasar luz por superficie que no existe.
-pupil_radius_design = pupil_radius
-_d2_limit = CartesianSurface(**D2).aperture_limit
-pupil_radius = min(pupil_radius, _d2_limit)
-NA_effective = NA * pupil_radius / pupil_radius_design
 
-print(f"NA nominal = {NA:.3f}   d_Airy = {d_Airy / lam:.3f} λ   M nominal = {M_nominal:.3f}")
-print(f"r_stop de diseño = {pupil_radius_design:.4f} mm   apertura útil de D2 = {_d2_limit:.4f} mm")
-print(f"r_stop efectivo  = {pupil_radius:.4f} mm   ->  NA efectiva = {NA_effective:.3f}")
-print(f"k_t/k_z máximo en la apertura: {NA / np.sqrt(1 - NA**2):.2f}")
+print(f"superficie de salida: LuAG (n={N_LUAG}) → agua (n={N_WATER})")
+print(f"apertura útil r = {APERTURE:.4f} mm,  sin(αi) máx = {SIN_MAX:.4f}")
+print(f"NA = {NA:.4f}   d_Airy = {d_Airy / lam:.3f} λ   paso de corte = {PITCH_CUT / lam:.3f} λ")
+print(f"k_t/k_z máximo en la apertura: {SIN_MAX / np.sqrt(1 - SIN_MAX**2):.2f}")
 
 # %% [markdown]
 # ## Máscara: recorte del patrón de circuito
@@ -188,7 +180,16 @@ crop = rectify_mask(crop_raw)
 print(f"rectificación: área conservada al {100 * crop.sum() / crop_raw.sum():.1f}%")
 
 pitch_px = 27.0
-dx = 0.95 * d_Airy / pitch_px
+#: Paso fino del circuito en unidades del paso de corte coherente.  1.02 lo
+#: coloca justo donde el efecto TM es máximo; el barrido de diseño da ahí
+#: C_escalar = 0.90 contra C_vectorial(TM) = 0.41 con sigma = 0.2.
+PITCH_FACTOR = 1.02
+#: Reducción del sistema de proyección (lado máscara / lado imagen).
+REDUCTION = 4.0
+dx = PITCH_FACTOR * PITCH_CUT / pitch_px
+#: Los cortes de medición se definieron sobre la máscara a paso 0.95 d_Airy;
+#: esta razón los re-escala a la escala actual del patrón.
+REL = (PITCH_FACTOR * PITCH_CUT) / (0.95 * d_Airy)
 N = 640
 pad = (N - crop.shape[0]) // 2
 T = np.zeros((N, N))
@@ -198,10 +199,12 @@ x_ax = (np.arange(N) - N // 2) * dx
 grid = Grid.from_axes(x_ax, x_ax)
 half_content = 0.5 * crop.shape[0] * dx / lam + 0.3  # ventana útil en λ
 print(f"dx = {dx / lam:.4f} λ   contenido = ±{half_content:.1f} λ   "
-      f"traza fina = {14 * dx / lam:.2f} λ, paso = {27 * dx / lam:.2f} λ")
+      f"traza fina = {14 * dx / lam:.2f} λ, paso = {27 * dx / lam:.2f} λ  (imagen)")
+print(f"reducción {REDUCTION:.0f}×: en la máscara, traza fina = "
+      f"{REDUCTION * 14 * dx / lam:.2f} λ, paso = {REDUCTION * 27 * dx / lam:.2f} λ")
 
-cut_V = dict(axis_value=3.0 * lam, t_min=2.7 * lam, t_max=9.0 * lam, horizontal=True)
-cut_H = dict(axis_value=-3.0 * lam, t_min=-11.9 * lam, t_max=-8.4 * lam, horizontal=False)
+cut_V = dict(axis_value=3.0 * lam * REL, t_min=2.7 * lam * REL, t_max=9.0 * lam * REL, horizontal=True)
+cut_H = dict(axis_value=-3.0 * lam * REL, t_min=-11.9 * lam * REL, t_max=-8.4 * lam * REL, horizontal=False)
 
 
 def mask_trace_centers(cut):
@@ -240,7 +243,8 @@ def show_mask(ax, zoom=None, title="máscara (entrada)"):
 
 
 fig, ax = plt.subplots(figsize=(8.6, 8.6), constrained_layout=True)
-show_mask(ax, title="máscara binaria $T(x,y)$ — paso fino = 0.95 $d_{Airy}$")
+show_mask(ax, title=f"máscara binaria $T(x,y)$ — paso fino = {PITCH_FACTOR:.2f}× el paso de corte"
+                   f"  (lado máscara: ×{REDUCTION:.0f})")
 draw_cuts(ax, lw=1.8)
 ax.text(cut_V["t_max"] / lam + 0.4, cut_V["axis_value"] / lam, "corte V",
         color="r", va="center", fontsize=11)
@@ -258,50 +262,170 @@ plt.show()
 # y $T(\hat{x}+i\hat{y})/\sqrt{2}$.
 
 # %%
-d1 = CartesianSurface(**D1)
-d2 = CartesianSurface(**D2)
+def _radius_from_sine(sin_ai, n_table=100_001):
+    """Invertir sin(αi)(r) sobre la superficie: devuelve el radio de pupila r."""
+    r_table = np.linspace(0.0, APERTURE * (1.0 - 1e-9), n_table)
+    s_table = SURFACE.ray_geometry(r_table).sin_ai
+    order = np.argsort(s_table)
+    return np.interp(np.clip(sin_ai, 0.0, s_table.max()), s_table[order], r_table[order])
 
 
-def propagate(Ex0, Ey0, vectorial, Npad=1024):
-    tr = "vectorial" if vectorial else "identity"
-    f = FieldCartesian(np.asarray(Ex0, dtype=complex),
-                       np.asarray(Ey0, dtype=complex), grid=grid, symmetric=False)
-    foc = f.propagate_through_diopter(
-        d1.zi, d1, method="fft", output="focal", wavelength=lam,
-        kgrid=f.grid.kgrid(Npad), transmission=tr,
-    ).with_circular_aperture(pupil_radius)
-    tan2 = foc.propagate_in_medium(xi - D1["zi"], wavelength=lam, n=D1["ni"])
-    return tan2.propagate_through_diopter(
-        d2.zi, d2, method="fft", output="focal", wavelength=lam,
-        kgrid=tan2.grid.kgrid(Npad), transmission=tr,
-    )
+_NUX, _NUY = np.meshgrid(
+    np.fft.fftfreq(grid.shape[1], d=float(grid.dx)),
+    np.fft.fftfreq(grid.shape[0], d=float(grid.dy)),
+    indexing="xy",
+)
+_NU = np.hypot(_NUX, _NUY)
+_PHI = np.arctan2(_NUY, _NUX)
+_INSIDE = lam * _NU / LENS["ni"] <= SIN_MAX
+
+_r_pupil = _radius_from_sine(np.where(_INSIDE, lam * _NU / LENS["ni"], 0.0))
+_lam_r, _lam_phi, _lam_z = transfer_weights_on_grid(_r_pupil, SURFACE)
+_geom = SURFACE.ray_geometry(_r_pupil)
+with np.errstate(divide="ignore", invalid="ignore"):
+    _jac = np.where(_geom.cos_ai > 0.0, 1.0 / _geom.cos_ai, 0.0)
+_zero = np.zeros_like(_lam_r)
+W_PLUS = np.where(_INSIDE, 0.5 * (_lam_r + _lam_phi) * _jac, _zero)
+W_MINUS = np.where(_INSIDE, 0.5 * (_lam_r - _lam_phi) * _jac, _zero)
+W_Z = np.where(_INSIDE, _lam_z * _jac, _zero)
+# El canal s es la solución exacta del problema ESCALAR de contorno: Helmholtz
+# en ambos medios con U y dU/dn continuas da t_s como transmisión local, y la
+# conservación de flujo el mismo A(Q).  Verificado contra la integral de
+# Helmholtz-Kirchhoff sobre la superficie: |U|/ref = 1.000000, RMS 1.6e-8.
+W_S = np.where(_INSIDE, _lam_phi * _jac, _zero)
+
+
+def pupil_amplitudes(model):
+    """Pesos de pupila de cada modo.
+
+    ``"scalar"``         pupila circular sin apodizar, t_p = t_s = 1: la lente
+                         ideal de libro.  No resuelve ninguna interfaz -- es la
+                         referencia de resolución, no una solución de contorno.
+    ``"scalar_fisico"``  el canal s del operador, A(Q) t_s(theta) con el
+                         jacobiano del mapeo: la solución exacta del problema
+                         escalar de la refracción (Helmholtz + continuidad de
+                         U y dU/dn, que es el problema TE).
+    ``"vectorial"``      el operador completo, con canal longitudinal.
+    """
+    if model == "scalar":
+        one = _INSIDE.astype(float)
+        return one, np.zeros_like(one), np.zeros_like(one)
+    if model == "scalar_fisico":
+        return W_S, np.zeros_like(W_MINUS), np.zeros_like(W_Z)
+    if model == "vectorial":
+        return W_PLUS, W_MINUS, W_Z
+    raise ValueError("model debe ser 'scalar', 'scalar_fisico' o 'vectorial'.")
+
+
+def _source_offsets(sigma, stride=2):
+    """Desplazamientos de fuente (Köhler) sobre la malla de frecuencias.
+
+    Se eligen sobre la propia malla del FFT, de modo que desplazar el espectro
+    del objeto es un ``np.roll`` exacto y no una interpolación.
+    """
+    if sigma <= 0.0:
+        return [(0, 0, 1.0)]
+    dnu_x = abs(_NUX[0, 1] - _NUX[0, 0])
+    dnu_y = abs(_NUY[1, 0] - _NUY[0, 0])
+    mx = int(np.floor(sigma * NU_CUT / dnu_x))
+    my = int(np.floor(sigma * NU_CUT / dnu_y))
+    pts = []
+    for iy in range(-my, my + 1, stride):
+        for ix in range(-mx, mx + 1, stride):
+            if (ix * dnu_x) ** 2 + (iy * dnu_y) ** 2 <= (sigma * NU_CUT) ** 2:
+                pts.append((iy, ix, 1.0))
+    total = sum(w for _, _, w in pts)
+    return [(iy, ix, w / total) for iy, ix, w in pts]
+
+
+#: Grado de coherencia parcial de la iluminación Köhler.  Un sistema de
+#: proyección real nunca ilumina de forma coherente: la fuente extendida es lo
+#: que suprime el anillado de bordes y estabiliza el contraste.  Con sigma = 0
+#: se recupera el caso coherente.
+SIGMA = 0.2
+_SOURCE = _source_offsets(SIGMA)
+print(f"iluminación Köhler: sigma = {SIGMA}, {len(_SOURCE)} puntos de fuente")
+
+
+def image_intensity(Ex0, Ey0, model="vectorial", sigma=None):
+    """Intensidad de imagen por el método de Abbe.
+
+    Cada punto de la fuente ilumina el objeto con una onda plana inclinada,
+    se forma su imagen coherente, y las intensidades se suman en potencia.
+    """
+    src = _SOURCE if sigma is None else _source_offsets(sigma)
+    w_plus, w_minus, w_z = pupil_amplitudes(model)
+    c2, s2 = np.cos(2.0 * _PHI), np.sin(2.0 * _PHI)
+
+    Sx0 = np.fft.fft2(np.asarray(Ex0, dtype=complex))
+    Sy0 = np.fft.fft2(np.asarray(Ey0, dtype=complex))
+
+    I = np.zeros(Sx0.shape, dtype=float)
+    Iz = np.zeros_like(I)
+    Icross = np.zeros_like(I)
+    for iy, ix, w in src:
+        Sx = np.roll(Sx0, (iy, ix), axis=(0, 1))
+        Sy = np.roll(Sy0, (iy, ix), axis=(0, 1))
+        Px = (w_plus + w_minus * c2) * Sx + (w_minus * s2) * Sy
+        Py = (w_minus * s2) * Sx + (w_plus - w_minus * c2) * Sy
+        Pz = w_z * (np.cos(_PHI) * Sx + np.sin(_PHI) * Sy)
+        ex, ey, ez = np.fft.ifft2(Px), np.fft.ifft2(Py), np.fft.ifft2(Pz)
+        I += w * (np.abs(ex) ** 2 + np.abs(ey) ** 2 + np.abs(ez) ** 2)
+        Iz += w * np.abs(ez) ** 2
+        Icross += w * np.abs(ey) ** 2
+    return I, Iz, Icross
 
 
 Z0 = np.zeros_like(T)
-img_esc = propagate(T, Z0, vectorial=False)                        # escalar
-img_vx = propagate(T, Z0, vectorial=True)                          # lineal x̂
-img_vy = propagate(Z0, T, vectorial=True)                          # lineal ŷ
-img_ci = propagate(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0), True)  # circular
-xr = img_vx.grid.X[0, :]
-yr = img_vx.grid.Y[:, 0]
+I_flat, _, _ = image_intensity(T, Z0, "scalar")
+I_fis, _, _ = image_intensity(T, Z0, "scalar_fisico")
+I_vx, Iz_vx, Icross_vx = image_intensity(T, Z0, "vectorial")
+I_vy, Iz_vy, _ = image_intensity(Z0, T, "vectorial")
+I_ci, Iz_ci, _ = image_intensity(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0), "vectorial")
+xr = grid.X[0, :]
+yr = grid.Y[:, 0]
 
-Ez_x = generate_Ez_cartesian(img_vx.x, img_vx.y, img_vx.grid, lam, n=D2["ni"])
-Ez_y = generate_Ez_cartesian(img_vy.x, img_vy.y, img_vy.grid, lam, n=D2["ni"])
-Ez_c = generate_Ez_cartesian(img_ci.x, img_ci.y, img_ci.grid, lam, n=D2["ni"])
 
-I_esc = np.abs(img_esc.x) ** 2 + np.abs(img_esc.y) ** 2
+def coherent_fields(Ex0, Ey0):
+    """Campos coherentes del punto de fuente axial, con el operador vectorial.
+
+    Las intensidades de arriba son sumas de Abbe y no tienen un campo único;
+    los mapas de elipses de polarización y el desglose por canales se dibujan
+    sobre la componente coherente axial, que es el punto de fuente dominante.
+    """
+    w_plus, w_minus, w_z = pupil_amplitudes("vectorial")
+    c2, s2 = np.cos(2.0 * _PHI), np.sin(2.0 * _PHI)
+    Sx = np.fft.fft2(np.asarray(Ex0, dtype=complex))
+    Sy = np.fft.fft2(np.asarray(Ey0, dtype=complex))
+    Px = (w_plus + w_minus * c2) * Sx + (w_minus * s2) * Sy
+    Py = (w_minus * s2) * Sx + (w_plus - w_minus * c2) * Sy
+    Pz = w_z * (np.cos(_PHI) * Sx + np.sin(_PHI) * Sy)
+    fld = FieldCartesian(np.fft.ifft2(Px), np.fft.ifft2(Py), grid=grid,
+                         symmetric=False)
+    return fld, np.fft.ifft2(Pz)
+
+
+img_vx, Ez_x = coherent_fields(T, Z0)
+img_vy, Ez_y = coherent_fields(Z0, T)
+img_ci, Ez_c = coherent_fields(T / np.sqrt(2.0), 1j * T / np.sqrt(2.0))
+
+# Dos referencias escalares distintas, y la diferencia importa:
+#   I_flat  pupila circular sin apodizar, t_p = t_s = 1 -- la imagen de libro
+#           de texto, que no depende de la superficie;
+#   I_fis   el canal s (A·t_s·jac): la solución exacta del problema escalar
+#           de contorno en la interfaz, verificada a 1.6e-8 contra la
+#           integral de Helmholtz-Kirchhoff.
+I_esc = I_flat
 I_lin = {
-    "vectorial x̂ (transversal)": np.abs(img_vx.x) ** 2 + np.abs(img_vx.y) ** 2,
-    "vectorial x̂ (total)": (np.abs(img_vx.x) ** 2 + np.abs(img_vx.y) ** 2
-                             + np.abs(Ez_x) ** 2),
-    "vectorial ŷ (total)": (np.abs(img_vy.x) ** 2 + np.abs(img_vy.y) ** 2
-                             + np.abs(Ez_y) ** 2),
+    "escalar físico (canal s)": I_fis,
+    "vectorial x̂ (transversal)": I_vx - Iz_vx,
+    "vectorial x̂ (total)": I_vx,
+    "vectorial ŷ (total)": I_vy,
 }
-I_cir = (np.abs(img_ci.x) ** 2 + np.abs(img_ci.y) ** 2 + np.abs(Ez_c) ** 2)
+I_cir = I_ci
 
-f_cross = float((np.abs(img_vx.y) ** 2).sum()
-                / (np.abs(img_vx.x) ** 2 + np.abs(img_vx.y) ** 2).sum())
-f_z = float((np.abs(Ez_x) ** 2).sum() / I_lin["vectorial x̂ (total)"].sum())
+f_cross = float(Icross_vx.sum() / (I_vx - Iz_vx).sum())
+f_z = float(Iz_vx.sum() / I_vx.sum())
 print(f"iluminación x̂ en el plano imagen:  f_cross = {f_cross:.4f}   f_z = {f_z:.4f}")
 
 # %% [markdown]
@@ -327,27 +451,21 @@ two = (((X - sep_chk / 2) ** 2 + Y ** 2 <= r_c ** 2)
        | ((X + sep_chk / 2) ** 2 + Y ** 2 <= r_c ** 2)).astype(float)
 one = ((X ** 2 + Y ** 2) <= r_c ** 2).astype(float)
 
-img2 = propagate(two, Z0, vectorial=False)
-I2 = np.abs(img2.x) ** 2 + np.abs(img2.y) ** 2
+I2, _, _ = image_intensity(two, Z0, "scalar")
 row = I2[np.argmax(I2.max(axis=1))]
 n_half = len(xr) // 2
 sep_img = (xr[n_half:][np.argmax(row[n_half:])]
            - xr[:n_half][np.argmax(row[:n_half])])
 M_meas = sep_img / sep_chk
-print(f"|M| medido = {M_meas:.4f} (nominal 4f {abs(M_nominal):.4f})")
-# El valor nominal sale de suponer que cada etapa es una transformada sobre el
-# radio de plano, con escala lineal lam*zi/(2 pi ni).  La reducción de Debye
-# integra sobre u = zi sin(alpha_i), que no es lineal en r, así que el relevo
-# tiene distorsión a esta apertura y no hay una magnificación única.  La cota
-# de abajo solo detecta rupturas gruesas.
-assert 0.7 < M_meas < 1.5, M_meas
+print(f"|M| medido = {M_meas:.4f}")
+# El modelo de pupila es invariante ante traslación, así que la imagen sale en
+# las coordenadas del objeto y la magnificación es exactamente uno: no hay
+# distorsión que medir, y esta cota solo detecta rupturas gruesas.
+assert 0.9 < M_meas < 1.1, M_meas
 
-img_p = propagate(one, Z0, vectorial=True)
-Ez_p = generate_Ez_cartesian(img_p.x, img_p.y, img_p.grid, lam, n=D2["ni"])
-I_tr = np.abs(img_p.x) ** 2 + np.abs(img_p.y) ** 2
-I_to = I_tr + np.abs(Ez_p) ** 2
-img_ps = propagate(one, Z0, vectorial=False)
-I_sc = np.abs(img_ps.x) ** 2 + np.abs(img_ps.y) ** 2
+I_to, Iz_pt, _ = image_intensity(one, Z0, "vectorial")
+I_tr = I_to - Iz_pt
+I_sc, _, _ = image_intensity(one, Z0, "scalar")
 
 
 def hwhm_cut(I2d, along_x):
@@ -380,13 +498,16 @@ print(f"PSF vec total (+|Ez|²): R∥ = {hwhm_cut(I_to, True) / lam:.3f} λ   "
 
 # %%
 def image_cut(I2d, cut, n_t=500):
+    # El modelo de pupila produce imagen derecha en coordenadas de imagen (la
+    # inversión del proyector real es una re-etiqueta global de ejes), así que
+    # los cortes muestrean en las mismas coordenadas que la máscara.
     t = np.linspace(cut["t_min"], cut["t_max"], n_t)
     if cut["horizontal"]:
-        i = np.argmin(np.abs(yr - (-cut["axis_value"])))
-        vals = np.interp(-t, xr, I2d[i, :])
+        i = np.argmin(np.abs(yr - cut["axis_value"]))
+        vals = np.interp(t, xr, I2d[i, :])
     else:
-        i = np.argmin(np.abs(xr - (-cut["axis_value"])))
-        vals = np.interp(-t, yr, I2d[:, i])
+        i = np.argmin(np.abs(xr - cut["axis_value"]))
+        vals = np.interp(t, yr, I2d[:, i])
     return t, vals
 
 
@@ -431,8 +552,8 @@ print(f"{'circular (total)':<{w}}   {cv:14.3f}   {ch:14.3f}   {cv - ch:+9.3f}")
 # %%
 def show_image(ax, A, title, zoom=None, cmap="gray"):
     """Display an image-plane map rotated 180° into mask coordinates."""
-    B = A[::-1, ::-1]
-    ext = [-xr[-1] / lam, -xr[0] / lam, -yr[-1] / lam, -yr[0] / lam]
+    B = A
+    ext = [xr[0] / lam, xr[-1] / lam, yr[0] / lam, yr[-1] / lam]
     v = np.percentile(B, 99.6)
     ax.imshow(np.clip(B / v, 0, 1) ** 0.85, origin="lower", extent=ext, cmap=cmap)
     z = zoom if zoom is not None else (-half_content, half_content,
@@ -451,7 +572,7 @@ def annotate_C(ax, name, fontsize=11):
 fig, axes = plt.subplots(2, 2, figsize=(13.6, 14.0), constrained_layout=True)
 show_mask(axes[0, 0], title="mask (input, $C_V = C_H = 1$)")
 draw_cuts(axes[0, 0])
-panels = [(axes[0, 1], I_esc, "scalar ($t_p = t_s = 1$)", "escalar"),
+panels = [(axes[0, 1], I_flat, "escalar puro ($t_p = t_s = 1$, sin apodizar)", "escalar"),
           (axes[1, 0], I_lin["vectorial x̂ (total)"],
            r"vectorial, $\mathbf{E}_0 = T\hat{x}$ — $|E_x|^2+|E_y|^2+|E_z|^2$",
            "vectorial x̂ (total)"),
@@ -462,7 +583,7 @@ for ax, A, title, name in panels:
     show_image(ax, A, title)
     draw_cuts(ax)
     annotate_C(ax, name)
-fig.suptitle(r"ArF stigmatic lens (two conjugated dioptres): $\lambda=193$~nm, $\mathrm{NA}=0.94$, unit magnification, linear illumination")
+fig.suptitle(rf"Proyección de inmersión LuAG$\to$agua: $\lambda=193$ nm, NA$={NA:.2f}$, reducción {REDUCTION:.0f}$\times$, Köhler $\sigma={SIGMA}$, iluminación lineal")
 fig.savefig(out_dir / "07_linear_images.png", dpi=200)
 plt.show()
 
@@ -523,8 +644,8 @@ chan_cols = [
 
 
 def show_channel(ax, A, title, zoom, gain=1.0):
-    B = A[::-1, ::-1] * gain
-    ext = [-xr[-1] / lam, -xr[0] / lam, -yr[-1] / lam, -yr[0] / lam]
+    B = A * gain
+    ext = [xr[0] / lam, xr[-1] / lam, yr[0] / lam, yr[-1] / lam]
     ax.imshow(np.clip(B / v_ref, 0, 1) ** 0.85, origin="lower", extent=ext,
               cmap="inferno")
     ax.set_xlim(zoom[0], zoom[1])
@@ -626,16 +747,16 @@ plt.show()
 # una elipse transversal (columna $|E_z|^2$ del desglose anterior).
 
 # %%
-x_m = -xr[::-1]
-y_m = -yr[::-1]
+x_m = xr
+y_m = yr
 
 
 def image_field_window(fld, zoom):
     """Image-plane field rotated to mask coordinates, cropped to a window (λ)."""
     sx = (x_m / lam >= zoom[0]) & (x_m / lam <= zoom[1])
     sy = (y_m / lam >= zoom[2]) & (y_m / lam <= zoom[3])
-    Ex = fld.x[::-1, ::-1][np.ix_(sy, sx)]
-    Ey = fld.y[::-1, ::-1][np.ix_(sy, sx)]
+    Ex = fld.x[np.ix_(sy, sx)]
+    Ey = fld.y[np.ix_(sy, sx)]
     s = np.sqrt(np.max(np.abs(Ex) ** 2 + np.abs(Ey) ** 2))  # colorbar en [0, 1]
     return FieldCartesian(Ex / s, Ey / s,
                           grid=Grid.from_axes(x_m[sx] / lam, y_m[sy] / lam),
