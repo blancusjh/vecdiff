@@ -400,7 +400,7 @@ def propagate_to_focal_plane_through_diopter_fft(
     if output == "k":
         grid_out = kgrid
     else:
-        scale = wavelength * abs(diopter.zi) / (2.0 * π * diopter.ni)
+        scale = wavelength * diopter.zi / (2.0 * π * diopter.ni)
         grid_out = Grid.from_cartesian(
             scale * kgrid.X,
             scale * kgrid.Y,

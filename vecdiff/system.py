@@ -121,7 +121,7 @@ def relay_throughput(first, second, separation, *, n_probe: int = 4000):
     r1 = np.linspace(1e-9, budget.radius * (1.0 - 1e-4), int(n_probe))
     g1 = first.ray_geometry(r1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        r2 = abs(second.z0) * g1.sin_ai / np.maximum(np.abs(g1.cos_ai), 1e-15)
+        r2 = abs(second.z0) * g1.sin_ai / np.maximum(g1.cos_ai, 1e-15)
 
     admitted = (r2 <= second.aperture_limit) & g1.valid
     if not np.any(admitted):

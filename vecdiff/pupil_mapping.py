@@ -51,38 +51,28 @@ def pupil_coordinate(geom, mapping: str) -> np.ndarray:
     if mapping == "sine":
         return zi * geom.sin_ai
     if mapping == "tangent":
-        # ``|cos(alpha_i)|``: on the mirrored branch (``zi < 0``) the
-        # transmitted ray runs towards ``-z`` so ``cos(alpha_i)`` is negative,
-        # but the pupil coordinate ``|zi| tan`` and its Jacobian depend only on
-        # the magnitude of the exit angle.
-        cos_ai = np.abs(geom.cos_ai)
         with np.errstate(divide="ignore", invalid="ignore"):
             return zi * np.divide(
                 geom.sin_ai,
-                cos_ai,
+                geom.cos_ai,
                 out=np.zeros_like(geom.r),
-                where=cos_ai > 0.0,
+                where=geom.cos_ai > 0.0,
             )
     raise ValueError(f"mapping must be one of {MAPPINGS}; got {mapping!r}.")
 
 
 def pupil_weight(geom, mapping: str) -> np.ndarray:
     """Return the Jacobian weight the integrand carries under ``mapping``."""
-    # The Debye Jacobian ``dOmega = u du dphi / (|zi|^2 |cos(alpha_i)|)`` carries
-    # the *magnitude* of ``cos(alpha_i)``; on the mirrored branch (``zi < 0``)
-    # the transmitted ray travels towards ``-z`` and ``cos(alpha_i) < 0``, but
-    # the solid angle it subtends is unchanged.
-    cos_ai = np.abs(geom.cos_ai)
     if mapping == "sine":
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.divide(
                 1.0,
-                cos_ai,
+                geom.cos_ai,
                 out=np.zeros_like(geom.r),
-                where=cos_ai > 0.0,
+                where=geom.cos_ai > 0.0,
             )
     if mapping == "tangent":
-        return cos_ai
+        return geom.cos_ai
     raise ValueError(f"mapping must be one of {MAPPINGS}; got {mapping!r}.")
 
 
