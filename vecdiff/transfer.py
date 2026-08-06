@@ -153,11 +153,17 @@ def paraxial_channel_weights(surface, r):
     with ``gamma_0 = 2 n0/(n0+ni)``, ``xi`` the coefficient of
     :class:`~vecdiff.fresnel.FresnelOvoidParax`, and
 
-        A' = -(O/2)(1/|zi| + 1/|z0|) + (1/2)(1/zi^2 - 1/z0^2)
+        A' = -(O/2)(1/zi - 1/z0) + (1/2)(1/zi^2 - 1/z0^2)
 
     the quadratic coefficient of the geometric factor, where ``O`` is the
     vertex curvature parameter of the oval.  Note the factors multiply
     ``gamma_0``, not one, so the geometric slopes enter weighted by it.
+
+    The ``O`` term carries *signed* ``z0`` and ``zi``.  Under the mirror
+    ``z -> -z`` both the sag and ``O`` change sign while ``|z0|, |zi|, l0, l_i``
+    do not, so ``A`` -- and therefore ``A'`` -- is mirror-invariant; the signed
+    ``1/zi - 1/z0`` is what keeps it so.  For the canonical ``z0 < 0 < zi`` it
+    equals ``1/|zi| + 1/|z0|``.
     """
     r = np.asarray(r, dtype=float)
     n0, ni = float(surface.n0), float(surface.ni)
@@ -165,7 +171,7 @@ def paraxial_channel_weights(surface, r):
 
     gamma_0 = 2.0 * n0 / (n0 + ni)
     xi = n0 * (z0 - zi) ** 2 / (z0**2 * zi**2 * (n0**2 - ni**2))
-    A_slope = -0.5 * surface.O * (1.0 / abs(zi) + 1.0 / abs(z0)) + 0.5 * (
+    A_slope = -0.5 * surface.O * (1.0 / zi - 1.0 / z0) + 0.5 * (
         1.0 / zi**2 - 1.0 / z0**2
     )
 

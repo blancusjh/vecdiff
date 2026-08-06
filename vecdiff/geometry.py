@@ -117,13 +117,24 @@ class RayGeometry:
 
     @property
     def r_tan_img(self) -> np.ndarray:
-        """Perspective image-side pupil coordinate ``|zi| tan(alpha_i)``."""
-        return abs(self.zi) * self.sin_ai / self.cos_ai
+        """Perspective image-side pupil coordinate ``|zi| tan(alpha_i)``.
+
+        A physical aperture radius, so it uses ``|cos(alpha_i)|``: on the
+        mirrored branch (``zi < 0``, the transmitted ray running towards
+        ``-z``) ``cos(alpha_i)`` is negative, but the perspective radius the
+        tangent mapping needs is still ``|zi| |tan(alpha_i)|``.
+        """
+        return abs(self.zi) * self.sin_ai / np.abs(self.cos_ai)
 
     @property
     def r_tan_obj(self) -> np.ndarray:
-        """Perspective object-side pupil coordinate ``|z0| tan(alpha_0)``, Eq. (85)."""
-        return abs(self.z0) * self.sin_a0 / self.cos_a0
+        """Perspective object-side pupil coordinate ``|z0| tan(alpha_0)``, Eq. (85).
+
+        Uses ``|cos(alpha_0)|`` for the same reason as :attr:`r_tan_img`: for a
+        ``z0 > 0`` object the incident ray runs towards ``-z`` and
+        ``cos(alpha_0)`` is negative, yet the plane radius is ``|z0| |tan|``.
+        """
+        return abs(self.z0) * self.sin_a0 / np.abs(self.cos_a0)
 
     @property
     def sin_t0(self) -> np.ndarray:
@@ -347,7 +358,10 @@ def grazing_radius(surface, n_probe: int = 200_001) -> float:
         raise ValueError(
             f"({surface.n0}, {surface.ni}, z0={surface.z0}, zi={surface.zi}) is not a "
             "refracting configuration: the axial ray already fails cos(theta_i) > 0, so "
-            "the object and image points lie on the same side of the surface. The "
-            "physical convention is z0 < 0 < zi."
+            "the object and image points lie on the same side of the vertex. This "
+            "closed-form oval is stigmatic only when z0 and zi have opposite signs "
+            "(object and image on opposite sides of the vertex): z0 < 0 < zi, or its "
+            "mirror z0 > 0 > zi. A same-side conjugate pair is a different Cartesian "
+            "oval, not this surface."
         )
     return float(probe[first - 1])

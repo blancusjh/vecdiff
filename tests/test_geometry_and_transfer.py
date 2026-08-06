@@ -33,6 +33,12 @@ SYSTEMS = [
     (1.0, 2.4, -6.0, 3.6),
     (1.0, 1.5602, -4.0, 2.0),
     (1.5, 1.0, -3.0, 0.9),
+    # Mirror branch: object and image on the opposite sides of the vertex from
+    # the canonical convention (z0 > 0 > zi).  The oval is stigmatic for either
+    # orientation, and the whole chain must handle both -- see the sign fixes in
+    # pupil_mapping, geometry and propagation.
+    (1.0, 1.5, 10.0, -6.0),
+    (1.5, 1.0, 3.0, -0.9),
 ]
 
 
@@ -350,6 +356,78 @@ def test_package_reproduces_the_exact_focal_field():
     assert abs(Ex_full[0] / Ex_ref[0]) == pytest.approx(1.0, abs=1e-5)
     assert abs(np.angle(Ex_full[0] / Ex_ref[0])) < 1e-3
     assert np.sqrt(np.mean((full_profile - reference_profile) ** 2)) < 1e-6
+
+
+@pytest.mark.parametrize(
+    "params",
+    [(1.0, 1.5, 10.0, -6.0), (1.5, 1.0, 3.0, -0.9)],
+)
+def test_mirror_branch_reproduces_the_exact_focal_field(params):
+    """The whole chain against the Franz reference for a ``z0 > 0 > zi`` system.
+
+    The mirror of the canonical convention is an equally valid stigmatic oval,
+    with the transmitted ray running towards ``-z`` and the focus at ``zi < 0``.
+    The Debye reduction integrates over ``|zi| sin(alpha_i)`` with a
+    ``1/|cos(alpha_i)|`` weight, so it must not care about the sign; a guard on
+    ``cos(alpha_i) > 0`` used to zero the whole integrand here.
+    """
+    from vecdiff.pupil_mapping import debye_prefactor
+    from vecdiff.reference import focal_field_reference
+
+    lam = 532e-6
+    surface = _surface(params)
+    aperture = 0.999 * surface.aperture_limit
+    k_i = 2.0 * np.pi * surface.ni / lam
+
+    rho = np.linspace(0.0, 2.0, 41) * lam
+    q = k_i * rho / abs(surface.zi)
+    q[0] = 1e-9
+
+    field = _uniform_pupil_field(surface, aperture)
+    scale = debye_prefactor(surface, lam) / (2.0 * np.pi)
+    Ex_full = field.propagate_through_diopter(surface.zi, surface, q).x[0] * scale
+
+    obs = np.stack([rho, np.zeros_like(rho), np.full_like(rho, surface.zi)], axis=-1)
+    _, E_ref = focal_field_reference(
+        surface, lam, lambda r: np.ones_like(r),
+        aperture=aperture, observation=obs, n_r=1200, n_phi=128, chunk=24_000,
+    )
+    Ex_ref = E_ref[:, 0]
+
+    reference_profile = np.abs(Ex_ref) / np.abs(Ex_ref).max()
+    full_profile = np.abs(Ex_full) / np.abs(Ex_full).max()
+
+    assert abs(Ex_full[0] / Ex_ref[0]) == pytest.approx(1.0, abs=1e-5)
+    assert abs(np.angle(Ex_full[0] / Ex_ref[0])) < 1e-3
+    assert np.sqrt(np.mean((full_profile - reference_profile) ** 2)) < 1e-6
+
+
+def test_mirror_branch_matches_the_canonical_focus():
+    """A ``z0 > 0 > zi`` system and its ``z -> -z`` mirror share a focal field.
+
+    Reflecting the whole problem through the vertex maps the canonical
+    convention onto the mirror one, leaving ``|z0|, |zi|`` and the refractive
+    indices untouched, so the transverse focal amplitude must be identical
+    sample for sample -- an end-to-end check that no sign leaks into the chain.
+    """
+    lam = 532e-6
+    canonical = CartesianSurface(n0=1.0, ni=1.5, z0=-10.0, zi=6.0)
+    mirror = CartesianSurface(n0=1.0, ni=1.5, z0=10.0, zi=-6.0)
+
+    k_i = 2.0 * np.pi * 1.5 / lam
+    rho = np.linspace(0.0, 2.0, 41) * lam
+    q = k_i * rho / 6.0
+    q[0] = 1e-9
+
+    def focus(surface):
+        aperture = 0.999 * surface.aperture_limit
+        field = _uniform_pupil_field(surface, aperture)
+        return field.propagate_through_diopter(surface.zi, surface, q).x[0]
+
+    Ex_canon = focus(canonical)
+    Ex_mirror = focus(mirror)
+
+    assert np.allclose(Ex_mirror, Ex_canon, rtol=1e-9, atol=1e-9 * np.abs(Ex_canon).max())
 
 
 def test_hankel_and_fft_branches_agree():
