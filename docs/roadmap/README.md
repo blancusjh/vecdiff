@@ -19,3 +19,4 @@ el `README.md` raíz y en `docs/notebooks/`), sino la deuda de diseño.
 | Archivo | Tema | Estado |
 | --- | --- | --- |
 | [`01_campos_y_superficies_arbitrarias.md`](01_campos_y_superficies_arbitrarias.md) | Generalizar el software a campos y superficies arbitrarias | abierto |
+| [`02_signos_de_z0_y_zi.md`](02_signos_de_z0_y_zi.md) | `z0`/`zi` de cualquier signo: objetos/imágenes virtuales y espejos | abierto |
