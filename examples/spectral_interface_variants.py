@@ -43,6 +43,7 @@ Run from the repository root::
 """
 
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -81,6 +82,17 @@ SURFACE = CartesianSurface(n0=N1, ni=N2, z0=-40.0, zi=24.0)
 APERTURE = 0.70 * SURFACE.aperture_limit
 SIN_MAX = 0.45               # half-width of the sampled angular band
 SOURCE_OFFSET = 11.0         # lateral offset of the two sources, wavelengths
+
+
+def _rank(matrix, tol=1e-6):
+    singular = np.linalg.svd(matrix, compute_uv=False)
+    return int(np.sum(singular > tol * singular[0]))
+
+
+def _time(fn):
+    start = time.perf_counter()
+    fn()
+    return time.perf_counter() - start
 
 
 def rel_error(a, b, weight=None):
@@ -357,6 +369,31 @@ def main():
     print("   rango de la sagita frente a la profundidad:  "
           + ",  ".join(f"{a:.0f}->{b}" for a, b in depths)
           + "   (k*dz -> rango)")
+
+    # What the two channels actually cost.  The dense timings below are this
+    # implementation; the ranks are the physics, because a factorised
+    # implementation of either costs one transform per retained mode -- the sag
+    # kernel alone for ``local``, the sag times Fresnel for ``spectral``.
+    cos_i = (profile.n_x[:, None] * pair.kx[None, :]
+             + profile.n_z[:, None] * pair.kz[None, :]) / K1
+    t_kernel = np.nan_to_num(transmission(cos_i, N1, N2, "TM")[0])
+    print(f"{'k*dz':>10} {'rango local':>13} {'rango spectral':>16} {'cociente':>10}")
+    print("-" * 52)
+    for frac in (1.0, 4.0, 16.0):
+        sag = np.exp(1j * pair.kz[None, :] * (frac * profile.z[:, None]))
+        r_local = _rank(sag)
+        r_spec = _rank(t_kernel * sag)
+        print(f"{frac*k_dz:>10.0f} {r_local:>13d} {r_spec:>16d} "
+              f"{r_spec/r_local:>10.2f}")
+
+    def _bench(fn, repeats=3):
+        fn()
+        return min(_time(fn) for _ in range(repeats))
+
+    t_local = _bench(lambda: surface_field_local(pair, profile, N1, N2, "TM"))
+    t_spec = _bench(lambda: surface_field_spectral(pair, profile, N1, N2, "TM"))
+    print(f"   denso {profile.x.size}x{pair.kx.size}: local {t_local*1e3:.0f} ms, "
+          f"spectral {t_spec*1e3:.0f} ms, cociente {t_spec/t_local:.2f}")
     print()
 
     # ---------------------------------------------------------------- #
