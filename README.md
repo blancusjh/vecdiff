@@ -106,6 +106,10 @@ python examples/two_diopter_imaging.py           # orientation-dependent vectori
 python examples/resolution_inversion.py          # scalar resolves, vectorial fuses
 python examples/wave_error_scaling.py            # error law of the general operator vs exact Maxwell
 python examples/wave_radial_diopter.py           # Quabis tight spot through a real diopter
+python examples/wave_nanojet.py                  # photonic nanojet via the closed-body word
+python examples/wave_light_needle.py             # longitudinal light needle from one surface
+python examples/wave_vortex_diopter.py           # spin-orbit vortex switch at an interface
+python examples/wave_freeform_astigmat.py        # freeform astigmatism via the NUFFT path
 ```
 
 Generated artifacts are written under `examples/output/`. See
