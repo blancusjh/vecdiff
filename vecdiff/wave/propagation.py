@@ -199,26 +199,58 @@ def _freeform_samples(surface, aperture, n):
 #  Return integrals  (surface currents -> angular spectrum)
 # ======================================================================
 def _return_integral_polar(datum, rho, sag, dsag, k_out, grid, m_max, n_kr,
-                           sigma, wavelength, out_index):
+                           sigma, wavelength, out_index,
+                           datum_pair=None, normal_rz=None):
     """Azimuthal Bessel-kernel return integral for a surface of revolution.
 
     ``datum`` is the (already apodized) surface field, shape ``(3, n_rho, n_phi)``.
+
+    With ``datum_pair`` and ``normal_rz`` given, the *Franz measure* is
+    applied: every spectral component is weighted by the Kirchhoff obliquity
+    pair ``(n.k_out + n.d)/2`` times the chart radiation factor ``k/kz`` —
+    the stationary-phase content of the exact Franz/Stratton-Chu radiation of
+    the surface currents, which reduces to unity in the planar limit.
+    ``datum_pair`` carries ``(n.k_out)/2 * E`` on the surface grid (the
+    Q-side half, azimuth-dependent for a general incident field);
+    ``normal_rz = (n_rho(rho), n_z(rho))`` is the oriented meridional normal
+    from which the direction-side half is assembled per outgoing angle.  Its
+    axial part cancels ``k/kz`` exactly (``n_z/2`` survives), and the
+    azimuthal cross term ``n_rho sin(theta') cos(psi - phi')`` folds back
+    onto the *same* outgoing harmonic through ``J_{m-1} - J_{m+1} = 2 J_m'``.
     """
     phi_len = datum.shape[-1]
     cm = np.fft.fft(datum, axis=-1) / phi_len          # coeffs of exp(+i m phi)
+    franz = datum_pair is not None
+    if franz:
+        cm_pair = np.fft.fft(datum_pair, axis=-1) / phi_len
+        n_rho_arr, n_z_arr = normal_rz
     ms = np.arange(-int(m_max), int(m_max) + 1)
 
     kr_tab = np.linspace(0.0, k_out * 0.9995, int(n_kr))
     kz_tab = np.sqrt(np.maximum(k_out**2 - kr_tab**2, 0.0))
+    inv_cos = k_out / np.maximum(kz_tab, 1e-9 * k_out)   # k/kz
+    tan_t = kr_tab / np.maximum(kz_tab, 1e-9 * k_out)
     weight = rho * np.sqrt(1.0 + dsag ** 2) * (rho[1] - rho[0])
     phase_z = np.exp(-1j * np.outer(kz_tab, sag))      # (n_kr, n_rho)
 
     Am = np.zeros((3, ms.size, kr_tab.size), dtype=complex)
     for i, m in enumerate(ms):
         g = cm[:, :, m % phi_len] * weight[None, :]    # (3, n_rho)
-        Jm = jv(m, np.outer(kr_tab, rho))              # (n_kr, n_rho)
+        arg = np.outer(kr_tab, rho)
+        Jm = jv(m, arg)                                # (n_kr, n_rho)
         kern = Jm * phase_z
-        Am[:, i, :] = 2 * np.pi * ((-1j) ** m) * (g @ kern.T)
+        if not franz:
+            Am[:, i, :] = 2 * np.pi * ((-1j) ** m) * (g @ kern.T)
+            continue
+        g1 = cm_pair[:, :, m % phi_len] * weight[None, :]
+        Jpm = 0.5 * (jv(m - 1, arg) - jv(m + 1, arg))
+        kern_p = Jpm * phase_z
+        Am[:, i, :] = 2 * np.pi * ((-1j) ** m) * (
+            (g1 @ kern.T) * inv_cos[None, :]
+            + (g * (0.5 * n_z_arr)[None, :]) @ kern.T
+            + 1j * ((g * (0.5 * n_rho_arr)[None, :]) @ kern_p.T)
+            * tan_t[None, :]
+        )
 
     KX, KY = grid.KXY
     KR = np.hypot(KX, KY)
@@ -238,13 +270,22 @@ def _return_integral_polar(datum, rho, sag, dsag, k_out, grid, m_max, n_kr,
 
 
 def _return_integral_nufft(points, Eout, dS, k_out, grid, sigma, wavelength,
-                           out_index, eps: float = 1e-8):
+                           out_index, eps: float = 1e-8,
+                           pair_weight=None, nhat=None):
     """Fast, fully general return integral by a type-3 NUFFT of the currents.
 
     Computes ``A(k) = sum_Q Eout(Q) exp(-i k.Q) dS`` directly from the
     scattered surface points, so it needs no azimuthal symmetry — the same
     code serves a freeform surface and is near-linear in the number of
     samples.  Requires :mod:`finufft`.
+
+    With ``pair_weight`` (``(n.k_out)/2`` per point) and ``nhat`` (the
+    oriented unit normal, ``(3, N)``) given, the Franz measure is applied:
+    ``A(k) = (k/kz) [ F(pair_weight E) + sum_j d_j F(n_j E / 2) ]`` — the
+    Kirchhoff obliquity pair times the chart radiation factor, which is the
+    stationary-phase content of the exact Franz radiation and reduces to the
+    bare transform in the planar limit.  The ``n.d`` half separates over the
+    three normal components, so the cost is four NUFFTs per field component.
     """
     import finufft
     x, y, z = (np.ascontiguousarray(points[i], dtype=np.float64) for i in range(3))
@@ -256,20 +297,41 @@ def _return_integral_nufft(points, Eout, dS, k_out, grid, sigma, wavelength,
     # want exp(-i (kx x + ky y + kz z)); finufft type-3 uses exp(+i (s x + ...))
     s, t, u = -kx, -ky, -kz
     w = np.asarray(dS, dtype=np.complex128)
+    franz = pair_weight is not None
+    if franz:
+        dhat = np.stack([kx, ky, kz]) / k_out
+        radiation = k_out / np.maximum(np.abs(kz), 1e-9 * k_out)
     A = np.zeros((3, *grid.shape), dtype=complex)
     for c in range(3):
-        cj = np.ascontiguousarray(Eout[c] * w, dtype=np.complex128)
+        if not franz:
+            cj = np.ascontiguousarray(Eout[c] * w, dtype=np.complex128)
+            A[c][mask] = finufft.nufft3d3(x, y, z, cj, s, t, u, isign=+1,
+                                          eps=eps)
+            continue
+        cj = np.ascontiguousarray(pair_weight * Eout[c] * w,
+                                  dtype=np.complex128)
         fm = finufft.nufft3d3(x, y, z, cj, s, t, u, isign=+1, eps=eps)
-        A[c][mask] = fm
+        for j in range(3):
+            cj = np.ascontiguousarray(0.5 * nhat[j] * Eout[c] * w,
+                                      dtype=np.complex128)
+            fm = fm + dhat[j] * finufft.nufft3d3(x, y, z, cj, s, t, u,
+                                                 isign=+1, eps=eps)
+        A[c][mask] = fm * radiation
     spec = AngularSpectrum(A, grid, wavelength, out_index, sigma)
     return spec.apodize_horizon().impose_transversality()
 
 
 def surface_transform(points, Eout, dS, grid, *, k_out, sigma=+1,
-                      wavelength=1.0, out_index=1.0, eps=1e-8):
-    """Public wrapper for the general (NUFFT) surface-current transform."""
+                      wavelength=1.0, out_index=1.0, eps=1e-8,
+                      pair_weight=None, nhat=None):
+    """Public wrapper for the general (NUFFT) surface-current transform.
+
+    Pass ``pair_weight`` and ``nhat`` to radiate with the Franz measure (see
+    :func:`_return_integral_nufft`); omit them for the bare transform.
+    """
     return _return_integral_nufft(points, Eout, dS, k_out, grid, sigma,
-                                  wavelength, out_index, eps=eps)
+                                  wavelength, out_index, eps=eps,
+                                  pair_weight=pair_weight, nhat=nhat)
 
 
 # ======================================================================
@@ -307,6 +369,7 @@ def surface_spectrum(
     edge_softness: float = 0.25,
     tir_margin: float = 0.04,
     sigma: int = +1,
+    measure: str = "franz",
 ) -> AngularSpectrum:
     """Angular spectrum produced by a *named* incident field at an interface.
 
@@ -316,7 +379,14 @@ def surface_spectrum(
     total-internal-reflection limit, and transformed to an angular spectrum by
     the azimuthal Bessel kernel.  For a general incident spectrum, or a
     non-axisymmetric surface, use :class:`vecdiff.wave.operators.InterfaceOperator`.
+
+    ``measure`` selects the amplitude measure of the return integral:
+    ``"franz"`` (default) applies the Kirchhoff obliquity pair times the chart
+    radiation factor — the stationary-phase content of the exact Franz
+    radiation — while ``"flat"`` keeps the bare surface transform.
     """
+    if measure not in ("franz", "flat"):
+        raise ValueError("measure must be 'franz' or 'flat'")
     k1 = 2 * np.pi * n1 / wavelength
     out_index = n2 if mode == "t" else n1
     k_out = 2 * np.pi * out_index / wavelength
@@ -332,15 +402,24 @@ def surface_spectrum(
     E_in, khat = _incident_on_surface(surface, RHO, PHI, SAG, k1,
                                       incident, polarization, source_distance)
     if mode == "t":
-        E_out, _, coeffs = transmit_field(E_in, khat, nhat, n1, n2)
+        E_out, k_dir, coeffs = transmit_field(E_in, khat, nhat, n1, n2)
     else:
-        E_out, _, coeffs = reflect_field(E_in, khat, nhat, n1, n2)
+        E_out, k_dir, coeffs = reflect_field(E_in, khat, nhat, n1, n2)
 
     vis = _rim_tir_apodization(rho, len(phi), aperture, edge_softness,
                                coeffs, mode, n1, n2, tir_margin)
     datum = E_out * np.broadcast_to(vis[:, None], RHO.shape).ravel()[None, :]
-    datum = datum.reshape(3, len(rho), len(phi))
+    shape3 = (3, len(rho), len(phi))
+    datum_pair = None
+    normal_rz = None
+    if measure == "franz" and mode == "t":
+        # transmission only: see InterfaceOperator._franz_pieces
+        pair = 0.5 * np.abs(np.sum(nhat * k_dir, axis=0))
+        datum_pair = (datum * pair[None, :]).reshape(shape3)
+        normal_rz = surface.normal(rho)
+    datum = datum.reshape(shape3)
 
     return _return_integral_polar(datum, rho, smp["sag"], surface.dsag(rho),
                                   k_out, grid, m_max, n_kr, sigma,
-                                  wavelength, out_index)
+                                  wavelength, out_index,
+                                  datum_pair=datum_pair, normal_rz=normal_rz)

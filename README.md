@@ -104,6 +104,8 @@ python examples/aperture_scalar_vs_vectorial.py  # scalar (t- = 0) vs vectorial 
 python examples/maximize_cross_polarization.py   # edge pupil maximizing the cross field
 python examples/two_diopter_imaging.py           # orientation-dependent vectorial imaging
 python examples/resolution_inversion.py          # scalar resolves, vectorial fuses
+python examples/wave_error_scaling.py            # error law of the general operator vs exact Maxwell
+python examples/wave_radial_diopter.py           # Quabis tight spot through a real diopter
 ```
 
 Generated artifacts are written under `examples/output/`. See
@@ -182,6 +184,30 @@ oval = CartesianSurface(n0=1.0, ni=1.5, z0=-30.0, zi=20.0)
 report = vw.referee(oval)          # exact chain vs general operator
 print(report["profile_rms"])       # ~2e-2 at NA_i ~ 0.6
 ```
+
+### The amplitude measure, measured
+
+The return integral radiates the refracted surface field with an amplitude
+measure selected by `measure=`:
+
+- `"franz"` (default): the Kirchhoff obliquity pair `(n.k_t + n.d)/2` times
+  the chart radiation factor `k/kz` — the stationary-phase content of the
+  exact Franz radiation of the surface currents.  It reduces to the bare
+  transform in the planar limit and, measured against the Franz/Stratton–Chu
+  Maxwell reference on the stigmatic oval, holds the absolute focal amplitude
+  to −3…−8% with **no trend in NA or in the size parameter**
+  (`examples/wave_error_scaling.py`).
+- `"flat"`: the bare surface transform of the original construction.  Its
+  phase (focal profile) is percent-level too, but its absolute amplitude runs
+  +9% at NA 0.32 to +40% at NA 0.87 — an error controlled by aperture, not by
+  size.  Kept for comparison and for reflection, where the Franz convention
+  is not yet worked out.
+
+Validation status is pinned by tests: the planar Fresnel limit to ~0.5%
+(`test_wave_rigor`), the exact-chain and Stratton–Chu referees
+(`test_unification`, `test_stratton_chu_referee`), Richards–Wolf 1959 to
+2–4×10⁻⁴ profile RMS and Quabis 2000 spot areas to 1–6%
+(`test_literature`).
 
 ## Package Layout
 

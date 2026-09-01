@@ -87,7 +87,8 @@ class InterfaceOperator(Operator):
                  wavelength: float = 1.0, m_max: int = 6,
                  n_rho: int = 600, n_phi: int = 64, n_kr: int = 512,
                  n_free: int = 220, edge_softness: float = 0.25,
-                 tir_margin: float = 0.04, method: str = "auto"):
+                 tir_margin: float = 0.04, method: str = "auto",
+                 measure: str = "franz"):
         self.surface = surface
         self.n1, self.n2, self.mode = float(n1), float(n2), mode
         self.wavelength = float(wavelength)
@@ -95,6 +96,9 @@ class InterfaceOperator(Operator):
         self.n_kr, self.n_free = n_kr, n_free
         self.edge_softness, self.tir_margin = edge_softness, tir_margin
         self.method = method
+        if measure not in ("franz", "flat"):
+            raise ValueError("measure must be 'franz' or 'flat'")
+        self.measure = measure
         if aperture is None:
             aperture = (surface.max_radius if np.isfinite(surface.max_radius)
                         else 10.0 * self.wavelength)
@@ -106,10 +110,22 @@ class InterfaceOperator(Operator):
 
     def _local(self, points, nhat, khat, E_in):
         if self.mode == "t":
-            E_out, _, coeffs = transmit_field(E_in, khat, nhat, self.n1, self.n2)
-        else:
-            E_out, _, coeffs = reflect_field(E_in, khat, nhat, self.n1, self.n2)
-        return E_out, coeffs
+            return transmit_field(E_in, khat, nhat, self.n1, self.n2)
+        return reflect_field(E_in, khat, nhat, self.n1, self.n2)
+
+    def _franz_pieces(self, nhat, k_out_dir):
+        """Oriented normal and the Q-side obliquity half ``(n.k_out)/2``.
+
+        The Franz measure is derived and validated for *transmission* (the
+        return integral represents outgoing modes with positive ``kz``); a
+        reflected spectrum keeps the flat measure until the ``sigma = -1``
+        radiation convention is worked out.  Returns ``(None, None)`` when the
+        measure does not apply.
+        """
+        if self.measure != "franz" or self.mode != "t":
+            return None, None
+        pair = 0.5 * np.abs(np.sum(nhat * k_out_dir, axis=0))
+        return nhat, pair
 
     def apply(self, spec: AngularSpectrum) -> AngularSpectrum:
         k_out = 2 * np.pi * self.out_index / self.wavelength
@@ -124,7 +140,8 @@ class InterfaceOperator(Operator):
             smp = _axisym_samples(self.surface, self.aperture, self.n_rho, self.n_phi)
             pts, nhat = smp["points"], smp["nhat"]
             E_in, khat = incident_on_surface(spec, pts[0], pts[1], pts[2])
-            E_out, coeffs = self._local(pts, nhat, khat, E_in)
+            E_out, k_dir, coeffs = self._local(pts, nhat, khat, E_in)
+            nhat_out, pair = self._franz_pieces(nhat, k_dir)
             rho, phi = smp["rho"], smp["phi"]
             vis = _rim_tir_apodization(rho, len(phi), self.aperture,
                                        self.edge_softness, coeffs, self.mode,
@@ -132,30 +149,42 @@ class InterfaceOperator(Operator):
             visg = np.broadcast_to(vis[:, None], smp["RHO"].shape).ravel()
             E_out = E_out * visg[None, :]
             if method == "polar":
-                datum = E_out.reshape(3, len(rho), len(phi))
+                shape3 = (3, len(rho), len(phi))
+                datum = E_out.reshape(shape3)
+                datum_pair = None
+                normal_rz = None
+                if pair is not None:
+                    datum_pair = (E_out * pair[None, :]).reshape(shape3)
+                    normal_rz = self.surface.normal(rho)
                 return _return_integral_polar(datum, rho, smp["sag"],
                                               self.surface.dsag(rho), k_out,
                                               spec.grid, self.m_max, self.n_kr,
                                               spec.sigma, self.wavelength,
-                                              self.out_index)
+                                              self.out_index,
+                                              datum_pair=datum_pair,
+                                              normal_rz=normal_rz)
             drho, dphi = rho[1] - rho[0], 2 * np.pi / len(phi)
             area = (rho * np.sqrt(1.0 + self.surface.dsag(rho) ** 2) * drho * dphi)
             dS = np.broadcast_to(area[:, None], smp["RHO"].shape).ravel()
             return _return_integral_nufft(pts, E_out, dS, k_out, spec.grid,
                                           spec.sigma, self.wavelength,
-                                          self.out_index)
+                                          self.out_index,
+                                          pair_weight=pair, nhat=nhat_out)
 
         # ---- general freeform surface -----------------------------------
         smp = _freeform_samples(self.surface, self.aperture, self.n_free)
         pts, nhat, dS = smp["points"], smp["nhat"], smp["dS"]
         E_in, khat = incident_on_surface(spec, pts[0], pts[1], pts[2])
-        E_out, coeffs = self._local(pts, nhat, khat, E_in)
+        E_out, k_dir, coeffs = self._local(pts, nhat, khat, E_in)
+        nhat_out, pair = self._franz_pieces(nhat, k_dir)
         r = np.hypot(pts[0], pts[1])
         vis = raised_cosine(r, self.aperture * (1.0 - self.edge_softness),
                             self.aperture)
         E_out = E_out * vis[None, :]
         return _return_integral_nufft(pts, E_out, dS * vis, k_out, spec.grid,
-                                      spec.sigma, self.wavelength, self.out_index)
+                                      spec.sigma, self.wavelength,
+                                      self.out_index,
+                                      pair_weight=pair, nhat=nhat_out)
 
     def __repr__(self):  # pragma: no cover - cosmetic
         return (f"InterfaceOperator({type(self.surface).__name__}, "
