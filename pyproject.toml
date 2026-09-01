@@ -4,14 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vecdiff"
-version = "0.1.0"
-description = "Radial Hankel/Fresnel field propagation utilities"
+version = "0.2.0"
+description = "General vectorial diffraction: spectral interface operators for arbitrary curved surfaces, with an exact stigmatic Hankel chain as the rigorous anchor"
 requires-python = ">=3.10"
 dependencies = [
   "numpy",
   "scipy",
   "matplotlib",
 ]
+
+[project.optional-dependencies]
+# The general surface transform (freeform surfaces, operator composition on
+# large apertures) is near-linear only with finufft; without it the wave
+# subpackage falls back to direct sums on the axisymmetric polar path.
+wave = ["finufft>=2.2"]
+raytracer = ["geometrical-raytracer"]
 
 [dependency-groups]
 dev = [
@@ -25,3 +32,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["vecdiff*"]
+
+[tool.setuptools.package-data]
+"vecdiff.wave" = ["data/*.json", "data/prescriptions/*"]

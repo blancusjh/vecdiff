@@ -77,3 +77,8 @@ from .animation import (
     harmonic_field_frames,
     save_animation,
 )
+
+# The general spectral interface-operator engine (any smooth surface, operator
+# composition, projection imaging).  Imported last: its stigmatic bridge leans
+# on the exact host modules above, which referee it on the Cartesian oval.
+from . import wave
