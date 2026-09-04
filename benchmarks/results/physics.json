@@ -1,0 +1,1251 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "miepython": "3.3.0"
+  },
+  "conventions": "exp(-i omega t), vacuum wavelength=1, H=Z0 H_SI, n1=1 n2=1.5",
+  "planes": [
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 0.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 4.901421890909223e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 0.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 4.901421890909223e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 20.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 1.4317444111685404e-16,
+        "tangential_H": 2.3150032933239905e-16,
+        "normal_D": 0.0,
+        "normal_B": 8.174515510909753e-17
+      },
+      "flux_relative_error": 5.215984229832453e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 20.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 7.76485187975253e-17,
+        "tangential_H": 1.2941558811211235e-16,
+        "normal_D": 2.3574860167849707e-17,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 41.810314895778596,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 4.7812081191923766e-17,
+        "tangential_H": 8.50576140279806e-17,
+        "normal_D": 0.0,
+        "normal_B": 6.929837262365764e-17
+      },
+      "flux_relative_error": 5.47995626723929e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 41.810314895778596,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 1.2520977768423196e-16,
+        "tangential_H": 2.442065507073335e-16,
+        "normal_D": 8.535849772387942e-17,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 4.383965013791432e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 56.309932474020215,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 7.16688479093187e-16,
+        "tangential_H": 8.830128488782684e-16,
+        "normal_D": 0.0,
+        "normal_B": 6.255947985873638e-16
+      },
+      "flux_relative_error": 2.9453879917258117e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 56.309932474020215,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 6.3725985491949295e-16,
+        "tangential_H": 1.160588684881446e-15,
+        "normal_D": 4.1846707056645356e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 4.4180819875887173e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 75.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 3.9523103661605205e-16,
+        "tangential_H": 4.490237867915505e-16,
+        "normal_D": 0.0,
+        "normal_B": 3.717038531719264e-16
+      },
+      "flux_relative_error": 2.36720499498391e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 75.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 3.642813346990751e-16,
+        "tangential_H": 7.287354079806349e-16,
+        "normal_D": 3.0775268363745857e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 6.312546653290427e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 89.9,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 1.264241040967157e-16,
+        "tangential_H": 2.3165464065616993e-19,
+        "normal_D": 0.0,
+        "normal_B": 1.822392034758655e-16
+      },
+      "flux_relative_error": 4.7850729233036544e-17
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.5,
+      "angle_deg": 89.9,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 1.9447429914118783e-19,
+        "tangential_H": 1.3266142510685233e-16,
+        "normal_D": 4.723761427909768e-17,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 2.7424895560426914e-16
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 0.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 2.220446049250313e-16,
+        "tangential_H": 1.4802973661668753e-16,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 3.2676145939394814e-16
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 0.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 2.220446049250313e-16,
+        "tangential_H": 1.4802973661668753e-16,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 3.2676145939394814e-16
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 20.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 6.593616237879513e-16,
+        "tangential_H": 3.7984154546641395e-16,
+        "normal_D": 0.0,
+        "normal_B": 2.3605052733227847e-16
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 20.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 7.342551283425886e-16,
+        "tangential_H": 8.098510328104579e-16,
+        "normal_D": 1.6931666784325709e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 1.5068398886182636e-15
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 41.810314895778596,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 41.810314895778596,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 7.986239300762057e-17,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 56.309932474020215,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 1.246652208531297e-16,
+        "tangential_H": 7.197549881813859e-17,
+        "normal_D": 0.0,
+        "normal_B": 2.0648170050463397e-16
+      },
+      "flux_relative_error": 6.031472328180432e-17
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 56.309932474020215,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 1.4258724110510774e-16,
+        "tangential_H": 1.0912896967929307e-16,
+        "normal_D": 1.3637483092441965e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 2.7795987125909345e-16
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 75.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 5.3357538120790076e-17,
+        "tangential_H": 6.066849360203408e-17,
+        "normal_D": 0.0,
+        "normal_B": 8.028584998361589e-17
+      },
+      "flux_relative_error": 2.5077103188432678e-17
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 75.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 4.2627139647026375e-17,
+        "tangential_H": 2.2329811271012513e-16,
+        "normal_D": 1.6755334881383509e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 1.8424088668533841e-16
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 89.9,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 9.331858120925839e-17,
+        "tangential_H": 3.7648475148291354e-19,
+        "normal_D": 0.0,
+        "normal_B": 1.0806638620103925e-16
+      },
+      "flux_relative_error": 2.572788043079767e-20
+    },
+    {
+      "n1": 1.5,
+      "n2": 1.0,
+      "angle_deg": 89.9,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 3.595891803022605e-19,
+        "tangential_H": 7.339840240254863e-17,
+        "normal_D": 5.2425589488868246e-17,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 4.618936334812897e-20
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 0.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 0.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 20.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 20.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 41.810314895778596,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 41.810314895778596,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 56.309932474020215,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 0.0,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 56.309932474020215,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 0.0,
+        "tangential_H": 0.0,
+        "normal_D": 1.1318843109789113e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 0.0
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 75.0,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 1.302012684839691e-16,
+        "tangential_H": 3.946506268102844e-17,
+        "normal_D": 0.0,
+        "normal_B": 1.3026556541059621e-16
+      },
+      "flux_relative_error": 1.5781366633226067e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 75.0,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 3.946506268102844e-17,
+        "tangential_H": 1.302012684839691e-16,
+        "normal_D": 1.3026556541059621e-16,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 1.5781366633226067e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 89.9,
+      "polarization": "s",
+      "boundary": {
+        "tangential_E": 6.179292398777583e-17,
+        "tangential_H": 1.918282670243076e-19,
+        "normal_D": 0.0,
+        "normal_B": 5.729270908162886e-17
+      },
+      "flux_relative_error": 3.656652741390255e-16
+    },
+    {
+      "n1": 1.0,
+      "n2": 1.0,
+      "angle_deg": 89.9,
+      "polarization": "p",
+      "boundary": {
+        "tangential_E": 1.918282670243076e-19,
+        "tangential_H": 6.179292398777583e-17,
+        "normal_D": 5.729270908162886e-17,
+        "normal_B": 0.0
+      },
+      "flux_relative_error": 3.656652741390255e-16
+    }
+  ],
+  "caps": [
+    {
+      "radius_over_wavelength": 0.5,
+      "level": 0,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 40,
+      "nphi": 32,
+      "radial_count": 512,
+      "angular_ntheta": 64,
+      "angular_nphi": 64,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7318700901030872e-16,
+        "tangential_H": 2.5720603273514885e-16,
+        "normal_D": 3.9643116859798744e-17,
+        "normal_B": 7.375937070662809e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.19867409534261565,
+        "tangential_H": 0.32510532927575825,
+        "normal_D": 0.1594060791616337,
+        "normal_B": 0.27457163420612535
+      },
+      "seconds": 0.07763688099930732
+    },
+    {
+      "radius_over_wavelength": 0.5,
+      "level": 1,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 80,
+      "nphi": 64,
+      "radial_count": 1024,
+      "angular_ntheta": 128,
+      "angular_nphi": 128,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7573508551037858e-16,
+        "tangential_H": 2.5087522362091895e-16,
+        "normal_D": 3.73089743821788e-17,
+        "normal_B": 6.927950556589025e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.198674095342704,
+        "tangential_H": 0.32510532927549607,
+        "normal_D": 0.15940607916147764,
+        "normal_B": 0.27457163420593894
+      },
+      "seconds": 0.29093821000060416,
+      "quadrature_relative_field_change": 6.028721366194622e-13
+    },
+    {
+      "radius_over_wavelength": 1,
+      "level": 0,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 40,
+      "nphi": 32,
+      "radial_count": 512,
+      "angular_ntheta": 64,
+      "angular_nphi": 64,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7416958265692717e-16,
+        "tangential_H": 2.579800082261328e-16,
+        "normal_D": 3.974414603798706e-17,
+        "normal_B": 7.479179532461592e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.0981870058395783,
+        "tangential_H": 0.304601796055682,
+        "normal_D": 0.16290597622493946,
+        "normal_B": 0.1542596110676153
+      },
+      "seconds": 0.07770297099978052
+    },
+    {
+      "radius_over_wavelength": 1,
+      "level": 1,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 80,
+      "nphi": 64,
+      "radial_count": 1024,
+      "angular_ntheta": 128,
+      "angular_nphi": 128,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7705568050838045e-16,
+        "tangential_H": 2.526068103680061e-16,
+        "normal_D": 3.8219748791571014e-17,
+        "normal_B": 6.862851306722806e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.09818700583684813,
+        "tangential_H": 0.3046017960508984,
+        "normal_D": 0.16290597622523845,
+        "normal_B": 0.15425961106850386
+      },
+      "seconds": 0.28280433299914876,
+      "quadrature_relative_field_change": 1.1400909722393814e-11
+    },
+    {
+      "radius_over_wavelength": 2,
+      "level": 0,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 40,
+      "nphi": 32,
+      "radial_count": 512,
+      "angular_ntheta": 64,
+      "angular_nphi": 64,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7106771101599376e-16,
+        "tangential_H": 2.619593362307246e-16,
+        "normal_D": 3.806880371746808e-17,
+        "normal_B": 7.294488010879366e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.10435488381558553,
+        "tangential_H": 0.13876977406087065,
+        "normal_D": 0.07459226026685929,
+        "normal_B": 0.11440338105845804
+      },
+      "seconds": 0.12007617600011145
+    },
+    {
+      "radius_over_wavelength": 2,
+      "level": 1,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 80,
+      "nphi": 64,
+      "radial_count": 1024,
+      "angular_ntheta": 128,
+      "angular_nphi": 128,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7980317854457342e-16,
+        "tangential_H": 2.5237474364392526e-16,
+        "normal_D": 3.952245468186697e-17,
+        "normal_B": 7.015774016817847e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.10435488359860866,
+        "tangential_H": 0.138769774145559,
+        "normal_D": 0.0745922603171231,
+        "normal_B": 0.11440338106726831
+      },
+      "seconds": 0.7761728329996913,
+      "quadrature_relative_field_change": 6.975106314613543e-10
+    },
+    {
+      "radius_over_wavelength": 5,
+      "level": 0,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 40,
+      "nphi": 32,
+      "radial_count": 512,
+      "angular_ntheta": 64,
+      "angular_nphi": 64,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.750218465679032e-16,
+        "tangential_H": 2.76212462987202e-16,
+        "normal_D": 4.185211571211812e-17,
+        "normal_B": 7.82002260171523e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.12973987565887532,
+        "tangential_H": 0.16918720835338352,
+        "normal_D": 0.09098497384992982,
+        "normal_B": 0.14493760869720787
+      },
+      "seconds": 0.14676116699956765
+    },
+    {
+      "radius_over_wavelength": 5,
+      "level": 1,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 80,
+      "nphi": 64,
+      "radial_count": 1024,
+      "angular_ntheta": 128,
+      "angular_nphi": 128,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7324924383452306e-16,
+        "tangential_H": 2.55619921627368e-16,
+        "normal_D": 3.5553900212619473e-17,
+        "normal_B": 7.109809039566974e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.12973987271294718,
+        "tangential_H": 0.1691872015910875,
+        "normal_D": 0.09098497293874049,
+        "normal_B": 0.14493760749667578
+      },
+      "seconds": 0.6033838280000055,
+      "quadrature_relative_field_change": 1.799749159035103e-08
+    },
+    {
+      "radius_over_wavelength": 10,
+      "level": 0,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 60,
+      "nphi": 32,
+      "radial_count": 512,
+      "angular_ntheta": 100,
+      "angular_nphi": 64,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.6610437046241062e-16,
+        "tangential_H": 2.275342049711832e-16,
+        "normal_D": 3.641152332716936e-17,
+        "normal_B": 6.142624071894852e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.06478231478233724,
+        "tangential_H": 0.11509939983424883,
+        "normal_D": 0.06020538935489891,
+        "normal_B": 0.08138165241468166
+      },
+      "seconds": 0.24573059599970293
+    },
+    {
+      "radius_over_wavelength": 10,
+      "level": 1,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 120,
+      "nphi": 64,
+      "radial_count": 1024,
+      "angular_ntheta": 200,
+      "angular_nphi": 128,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7167808708113254e-16,
+        "tangential_H": 2.482297759180703e-16,
+        "normal_D": 3.798969362881638e-17,
+        "normal_B": 7.036723521509463e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.0647823095350878,
+        "tangential_H": 0.11509944636665301,
+        "normal_D": 0.06020538606144099,
+        "normal_B": 0.08138164181185605
+      },
+      "seconds": 0.9048311649994503,
+      "quadrature_relative_field_change": 4.135130408097327e-07
+    },
+    {
+      "radius_over_wavelength": 50,
+      "level": 0,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 300,
+      "nphi": 32,
+      "radial_count": 1600,
+      "angular_ntheta": 500,
+      "angular_nphi": 200,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.706642136136146e-16,
+        "tangential_H": 2.4136129383333803e-16,
+        "normal_D": 3.9086322364123504e-17,
+        "normal_B": 6.679539115112806e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.0312761155413345,
+        "tangential_H": 0.04924151651045975,
+        "normal_D": 0.025980589816078023,
+        "normal_B": 0.03960011177718885
+      },
+      "seconds": 2.6585024059995703
+    },
+    {
+      "radius_over_wavelength": 50,
+      "level": 1,
+      "aperture_over_radius": 0.6,
+      "observation_radius_over_radius": 0.3,
+      "nr": 600,
+      "nphi": 64,
+      "radial_count": 3200,
+      "angular_ntheta": 1000,
+      "angular_nphi": 400,
+      "propagating_spectrum_only": true,
+      "local_boundary": {
+        "tangential_E": 1.7414164720391203e-16,
+        "tangential_H": 2.5389338463693274e-16,
+        "normal_D": 3.8067412094051666e-17,
+        "normal_B": 7.009342150590826e-17
+      },
+      "reconstructed_boundary": {
+        "tangential_E": 0.03127690638167825,
+        "tangential_H": 0.049242792152511546,
+        "normal_D": 0.025980646179188924,
+        "normal_B": 0.03960021655876626
+      },
+      "seconds": 9.106367307000255,
+      "quadrature_relative_field_change": 3.535127740080126e-06
+    }
+  ],
+  "spheres": [
+    {
+      "radius_over_wavelength": 0.5,
+      "size_parameter": 3.141592653589793,
+      "level": 0,
+      "nmu_per_hemisphere": 32,
+      "nphi": 64,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00011150411366166887,
+          "tangential_H": 0.00015013730783634783,
+          "normal_D": 5.531191917662986e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 1.1152611997761061e-06,
+          "tangential_H": 1.5026363910814153e-06,
+          "normal_D": 5.532944886592392e-07,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 3.0326283570007036e-10,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.07696845800001029,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.6141715662314388,
+        "exterior_H": 0.5679230433336384,
+        "interior_E": 0.5662707668769746,
+        "interior_H": 0.41464403338635586
+      },
+      "mie_efficiencies": {
+        "extinction": 3.4822401133876784,
+        "scattering": 3.4822401133876784,
+        "backscatter": 0.8070952651458299,
+        "asymmetry": 0.7292423061789702
+      }
+    },
+    {
+      "radius_over_wavelength": 0.5,
+      "size_parameter": 3.141592653589793,
+      "level": 1,
+      "nmu_per_hemisphere": 64,
+      "nphi": 128,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00011150411366166887,
+          "tangential_H": 0.00015013730783634783,
+          "normal_D": 5.531191917662986e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 1.1152611997761061e-06,
+          "tangential_H": 1.5026363910814153e-06,
+          "normal_D": 5.532944886592392e-07,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 3.0326283570007036e-10,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.3651269729998603,
+      "quadrature_relative_field_change": 1.9494118372898907e-08,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.6141715652622712,
+        "exterior_H": 0.5679230375568404,
+        "interior_E": 0.5662707668768007,
+        "interior_H": 0.41464403341624334
+      },
+      "mie_efficiencies": {
+        "extinction": 3.4822401133876784,
+        "scattering": 3.4822401133876784,
+        "backscatter": 0.8070952651458299,
+        "asymmetry": 0.7292423061789702
+      }
+    },
+    {
+      "radius_over_wavelength": 1.0,
+      "size_parameter": 6.283185307179586,
+      "level": 0,
+      "nmu_per_hemisphere": 32,
+      "nphi": 64,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00012439103714816628,
+          "tangential_H": 0.00019332128388628887,
+          "normal_D": 7.489078712751392e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 1.2301725588442666e-06,
+          "tangential_H": 2.005144328629681e-06,
+          "normal_D": 7.641034912366847e-07,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 1.2131370586779711e-09,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.05280215699986002,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.9524009577005875,
+        "exterior_H": 0.9174329238216421,
+        "interior_E": 0.6227159389888113,
+        "interior_H": 0.5237326195519494
+      },
+      "mie_efficiencies": {
+        "extinction": 2.351382357157885,
+        "scattering": 2.351382357157885,
+        "backscatter": 2.5327702507678667,
+        "asymmetry": 0.5834231596131445
+      }
+    },
+    {
+      "radius_over_wavelength": 1.0,
+      "size_parameter": 6.283185307179586,
+      "level": 1,
+      "nmu_per_hemisphere": 64,
+      "nphi": 128,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00012439103714816628,
+          "tangential_H": 0.00019332128388628887,
+          "normal_D": 7.489078712751392e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 1.2301725588442666e-06,
+          "tangential_H": 2.005144328629681e-06,
+          "normal_D": 7.641034912366847e-07,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 1.2131370586779711e-09,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.20493230200008838,
+      "quadrature_relative_field_change": 1.1354002566126371e-08,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.9524009578776985,
+        "exterior_H": 0.9174329242953264,
+        "interior_E": 0.6227159389879029,
+        "interior_H": 0.5237326195500587
+      },
+      "mie_efficiencies": {
+        "extinction": 2.351382357157885,
+        "scattering": 2.351382357157885,
+        "backscatter": 2.5327702507678667,
+        "asymmetry": 0.5834231596131445
+      }
+    },
+    {
+      "radius_over_wavelength": 2.0,
+      "size_parameter": 12.566370614359172,
+      "level": 0,
+      "nmu_per_hemisphere": 32,
+      "nphi": 64,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00013965694374181128,
+          "tangential_H": 0.0002007265015424714,
+          "normal_D": 7.918967107276537e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 1.5393317696072544e-06,
+          "tangential_H": 2.3717911114933572e-06,
+          "normal_D": 8.029259098274485e-07,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 7.474311840087181e-10,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.055962270999771135,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.7368989332069906,
+        "exterior_H": 0.6609847322467506,
+        "interior_E": 0.5362094345472873,
+        "interior_H": 0.35780215573692786
+      },
+      "mie_efficiencies": {
+        "extinction": 2.5947136620576234,
+        "scattering": 2.5947136620576234,
+        "backscatter": 9.76141294400181,
+        "asymmetry": 0.6719996312210803
+      }
+    },
+    {
+      "radius_over_wavelength": 2.0,
+      "size_parameter": 12.566370614359172,
+      "level": 1,
+      "nmu_per_hemisphere": 64,
+      "nphi": 128,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00013965694374181128,
+          "tangential_H": 0.0002007265015424714,
+          "normal_D": 7.918967107276537e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 1.5393317696072544e-06,
+          "tangential_H": 2.3717911114933572e-06,
+          "normal_D": 8.029259098274485e-07,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 7.474311840087181e-10,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.2334143979996952,
+      "quadrature_relative_field_change": 9.431349509911807e-09,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.7368989330933413,
+        "exterior_H": 0.6609847324901035,
+        "interior_E": 0.5362094345487518,
+        "interior_H": 0.35780215573444085
+      },
+      "mie_efficiencies": {
+        "extinction": 2.5947136620576234,
+        "scattering": 2.5947136620576234,
+        "backscatter": 9.76141294400181,
+        "asymmetry": 0.6719996312210803
+      }
+    },
+    {
+      "radius_over_wavelength": 5.0,
+      "size_parameter": 31.41592653589793,
+      "level": 0,
+      "nmu_per_hemisphere": 32,
+      "nphi": 64,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00014046850703922615,
+          "tangential_H": 0.0003185377838780675,
+          "normal_D": 0.0002433601484042425,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 2.0289306418123197e-06,
+          "tangential_H": 3.246416392974907e-06,
+          "normal_D": 2.4795859445911708e-06,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 4.240248978821841e-11,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.0596618870004022,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.6187055362462046,
+        "exterior_H": 0.6189071756546378,
+        "interior_E": 0.7374252441659447,
+        "interior_H": 0.5836794453282128
+      },
+      "mie_efficiencies": {
+        "extinction": 2.2911844281472358,
+        "scattering": 2.2911844281472358,
+        "backscatter": 6.990372868105522,
+        "asymmetry": 0.7440380845486146
+      }
+    },
+    {
+      "radius_over_wavelength": 5.0,
+      "size_parameter": 31.41592653589793,
+      "level": 1,
+      "nmu_per_hemisphere": 64,
+      "nphi": 128,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00014046850703922615,
+          "tangential_H": 0.0003185377838780675,
+          "normal_D": 0.0002433601484042425,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 2.0289306418123197e-06,
+          "tangential_H": 3.246416392974907e-06,
+          "normal_D": 2.4795859445911708e-06,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 4.240248978821841e-11,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.21338862599986896,
+      "quadrature_relative_field_change": 2.141716878319572e-08,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.6187055347112854,
+        "exterior_H": 0.6189071773151189,
+        "interior_E": 0.7374252441552752,
+        "interior_H": 0.5836794453567353
+      },
+      "mie_efficiencies": {
+        "extinction": 2.2911844281472358,
+        "scattering": 2.2911844281472358,
+        "backscatter": 6.990372868105522,
+        "asymmetry": 0.7440380845486146
+      }
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "size_parameter": 62.83185307179586,
+      "level": 0,
+      "nmu_per_hemisphere": 50,
+      "nphi": 120,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00014841712608241897,
+          "tangential_H": 0.00025309404049745835,
+          "normal_D": 6.901945623557278e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 2.4649096766227884e-06,
+          "tangential_H": 3.9557142696168815e-06,
+          "normal_D": 1.557033819033843e-06,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 1.1605632380550861e-09,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 0.16807598800005508,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.5669774397604901,
+        "exterior_H": 0.5728604524113338,
+        "interior_E": 0.507755126081596,
+        "interior_H": 0.4403329451172259
+      },
+      "mie_efficiencies": {
+        "extinction": 2.176220751218864,
+        "scattering": 2.176220751218864,
+        "backscatter": 3.5534939058938,
+        "asymmetry": 0.7872293153107618
+      }
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "size_parameter": 62.83185307179586,
+      "level": 1,
+      "nmu_per_hemisphere": 100,
+      "nphi": 240,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 0.00014841712608241897,
+          "tangential_H": 0.00025309404049745835,
+          "normal_D": 6.901945623557278e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 2.4649096766227884e-06,
+          "tangential_H": 3.9557142696168815e-06,
+          "normal_D": 1.557033819033843e-06,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 1.1605632380550861e-09,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 1.0456818349994137,
+      "quadrature_relative_field_change": 1.1750047668719612e-09,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.5669774397615912,
+        "exterior_H": 0.5728604524036497,
+        "interior_E": 0.507755126167615,
+        "interior_H": 0.44033294516976457
+      },
+      "mie_efficiencies": {
+        "extinction": 2.176220751218864,
+        "scattering": 2.176220751218864,
+        "backscatter": 3.5534939058938,
+        "asymmetry": 0.7872293153107618
+      }
+    },
+    {
+      "radius_over_wavelength": 50.0,
+      "size_parameter": 314.1592653589793,
+      "level": 0,
+      "nmu_per_hemisphere": 250,
+      "nphi": 600,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 9.455756753481223e-05,
+          "tangential_H": 0.00012953155514564154,
+          "normal_D": 2.38003510742149e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 2.194380535129328e-06,
+          "tangential_H": 4.915786949909991e-06,
+          "normal_D": 2.534112999543179e-06,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 1.3964879248746461e-06,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 9.6240126900002,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.5355230532555203,
+        "exterior_H": 0.5393966762524425,
+        "interior_E": 0.298084414161857,
+        "interior_H": 0.3301883607208117
+      },
+      "mie_efficiencies": {
+        "extinction": 2.040256527948314,
+        "scattering": 2.040256527948314,
+        "backscatter": 0.9219506878546101,
+        "asymmetry": 0.8219599956482362
+      }
+    },
+    {
+      "radius_over_wavelength": 50.0,
+      "size_parameter": 314.1592653589793,
+      "level": 1,
+      "nmu_per_hemisphere": 500,
+      "nphi": 1200,
+      "mie_boundary": [
+        {
+          "offset_over_wavelength": 1e-05,
+          "tangential_E": 9.455756753481223e-05,
+          "tangential_H": 0.00012953155514564154,
+          "normal_D": 2.38003510742149e-05,
+          "normal_B": 0.0
+        },
+        {
+          "offset_over_wavelength": 1e-07,
+          "tangential_E": 2.194380535129328e-06,
+          "tangential_H": 4.915786949909991e-06,
+          "normal_D": 2.534112999543179e-06,
+          "normal_B": 0.0
+        }
+      ],
+      "mie_extra_multipoles_E_change": 1.3964879248746461e-06,
+      "model": "diagnostic only: one illuminated encounter, zero shadow trace, no repeated refraction or resonant feedback",
+      "seconds": 40.117171821999364,
+      "quadrature_relative_field_change": 3.6612567654204894e-12,
+      "one_encounter_errors_vs_mie": {
+        "exterior_E": 0.5355230532570705,
+        "exterior_H": 0.5393966762541174,
+        "interior_E": 0.29808441416192116,
+        "interior_H": 0.3301883607206182
+      },
+      "mie_efficiencies": {
+        "extinction": 2.040256527948314,
+        "scattering": 2.040256527948314,
+        "backscatter": 0.9219506878546101,
+        "asymmetry": 0.8219599956482362
+      }
+    }
+  ]
+}

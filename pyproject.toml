@@ -4,34 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vecdiff"
-version = "0.2.0"
-description = "General vectorial diffraction: spectral interface operators for arbitrary curved surfaces, with an exact stigmatic Hankel chain as the rigorous anchor"
+version = "0.3.0"
+description = "Electric-field spectral interface transformations and homogeneous Maxwell propagation"
 requires-python = ">=3.10"
 dependencies = [
-  "numpy",
-  "scipy",
-  "matplotlib",
+  "numpy>=1.26",
+  "scipy>=1.14",
 ]
 
 [project.optional-dependencies]
-# The general surface transform (freeform surfaces, operator composition on
-# large apertures) is near-linear only with finufft; without it the wave
-# subpackage falls back to direct sums on the axisymmetric polar path.
-wave = ["finufft>=2.2"]
-raytracer = ["geometrical-raytracer"]
-
-[dependency-groups]
-dev = [
-  "pytest",
-  "jupytext",
-  "ipykernel",
-  "nbformat",
-  "nbconvert>=7.17.1",
-]
+nufft = ["finufft>=2.2"]
+validation = ["miepython==3.3.0"]
+examples = ["matplotlib>=3.8"]
+notebooks = ["matplotlib>=3.8", "nbformat>=5.10", "nbclient>=0.10", "ipykernel>=6.29"]
+test = ["pytest>=8", "matplotlib>=3.8", "miepython==3.3.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["vecdiff*"]
 
-[tool.setuptools.package-data]
-"vecdiff.wave" = ["data/*.json", "data/prescriptions/*"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["workflow: execute a complete scientific example (slower)"]

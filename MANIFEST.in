@@ -1,0 +1,11 @@
+include README.md requirements-validation.txt
+recursive-include docs *.md *.py *.ipynb
+recursive-include references *.py *.md
+recursive-include examples *.py *.md
+recursive-include benchmarks *.py *.json
+recursive-include scripts *.py
+recursive-include tests *.py
+prune examples/output
+prune build
+prune references/legacy
+global-exclude __pycache__ *.py[cod]
