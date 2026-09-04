@@ -17,12 +17,18 @@ claims were explicitly retired instead of being made to run through adapters.
 | Aperture limits; scalar-vs-vector aperture; cross-polarization maximization; deformation-vs-cross | Curved-interface limits and vector-focus comparisons, notebooks 04/05. Optimization and scalar-equivalence claims retired without an explicit objective/detector model |
 | Spectral-interface variants; freeform astigmatism | One native per-k interface implementation and documented freeform geometry in notebook 04; no competing legacy chains |
 | Reference-vs-model; scalar reference; wave-error scaling | Independent Stratton–Chu test plus reproducible plane/cap/Mie benchmarks. Historical model-specific scalar/stigmatic wrappers removed |
-| Nanojet | Closed-sphere field and resonance validation against Mie; no blanket nanojet accuracy claim |
+| Nanojet | Retired; complete spectral closed-sphere interactions and resonance validation remain pending |
 | Two-diopter imaging; resolution inversion; resolved features; two-point resolution; lithography pattern | Retired application-specific imaging claims. A coherent imaging/detector/object model and converged multi-surface propagation are not yet provided |
 | Baseline spot metrics; central-spot exploration | Explicit component norms and equal-input comparisons in notebooks 01/05; no automatic interpretation as power or resolution |
 | Quabis replication, vecdiff comparison, and diopter notebooks | Replaced by a clearly labeled ideal Richards–Wolf reference notebook; not presented as an experimental replication or exact dielectric objective |
 
 New workflows add what the former suite did not establish: coherent cavity
-round trips, stable frustrated TIR, held-out closed-boundary checks, independent
-Mie E/H comparisons, and visible failure/convergence cases. No `ScalarField`
+round trips, stable frustrated TIR, and visible failure/convergence cases. Mie
+remains an independent reference for the incomplete one-encounter diagnostic,
+not evidence of a completed resonant-body method. No `ScalarField`
 class is introduced because no maintained scalar physical workflow requires it.
+
+The auxiliary-source boundary solver, its public API, dedicated tests,
+closed-sphere benchmark results, and resonance example/notebook were removed.
+They implemented a different method and did not validate the spectral method.
+No compatibility wrapper or relocated copy is retained.

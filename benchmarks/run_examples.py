@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from examples._report import versions
 
 NAMES = ("field_propagation", "plane_interface", "cavity_resonance", "frustrated_tir",
-         "curved_interface", "vector_focus", "sphere_resonance")
+         "curved_interface", "vector_focus")
 
 
 def main():

@@ -14,13 +14,10 @@ They do not inherently require EUV material physics. Modeling a lossless
 monochromatic refractive element is within the present material scope; claiming
 validated performance for a complete instrument requires more than that.
 
-The auxiliary-source calculation currently present in `closed_interface.py`
-fits fictitious dipole fields to boundary conditions. It is a different
-numerical method. Its 0.30–0.44% Mie comparison is **not an accuracy result for
-the spectral Fresnel method**. It must not become a hidden fallback or a
-prerequisite for the roadmap below. If retained for comparison, it belongs
-outside the main-method implementation. This document records that separation
-requirement; it does not itself relocate or remove executable code.
+The auxiliary-source boundary solver and its dedicated validation artifacts
+have been removed. It was a different numerical method, and its Mie comparisons
+did not validate the spectral Fresnel method. Future work must not introduce
+such a solver as a hidden fallback or a prerequisite for this roadmap.
 
 ## Pending work
 

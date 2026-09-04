@@ -1,6 +1,6 @@
 # New-API scientific notebooks
 
-The six notebooks are paired with readable percent-format Python sources.
+The five notebooks are paired with readable percent-format Python sources.
 Edit the `.py` source, then run `python scripts/notebooks.py` to regenerate
 the `.ipynb`. Stable cell IDs make changes reviewable. Committed notebooks have
 no stale outputs; the execution runner stores fresh outputs under
@@ -13,7 +13,6 @@ no stale outputs; the execution runner stores fresh outputs under
 | [03 Coherent resonances](03_coherent_resonances.ipynb) | Round trips, Airy amplitudes, standing waves, and evanescent gaps |
 | [04 Curved-interface limits](04_curved_interface_limits.ipynb) | Separate quadrature accuracy from physical approximation; introduce freeform geometry |
 | [05 Vector focusing reference](05_vector_focusing_reference.ipynb) | Polarization, vortices, and longitudinal fields without mixing reference theory into core physics |
-| [06 Closed-sphere resonance](06_closed_sphere_resonance.ipynb) | Self-consistent boundary matching, Mie comparison, and convergence limits |
 
 Install `.[notebooks,validation,nufft]` in this checkout and use that Python
 kernel. Each notebook locates the repository when started from a subdirectory.

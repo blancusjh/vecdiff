@@ -9,7 +9,7 @@ import pytest
 
 @pytest.mark.workflow
 @pytest.mark.parametrize("name", ["field_propagation", "plane_interface", "cavity_resonance",
-                                  "frustrated_tir", "curved_interface", "vector_focus", "sphere_resonance"])
+                                  "frustrated_tir", "curved_interface", "vector_focus"])
 def test_complete_scientific_workflow(name):
     before = plt.get_fignums()
     module = import_module("examples."+name)

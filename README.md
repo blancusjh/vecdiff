@@ -17,12 +17,9 @@ or bundled old implementation**. Earlier code is available only in Git history.
 | General curved open interface | Per-k local tangent-plane **physical-optics approximation**; not a solved dielectric boundary |
 | General resonant behavior through the spectral method | **Pending implementation and validation** of coherent repeated surface encounters; planar-layer results do not establish this capability |
 | Macroscopic elements and complete optical systems | **Pending verification**; corrections or additional spectral-method support are also pending wherever verification reveals inadequate handling |
-| Closed dielectric interface | **Experimental** dense Maxwell boundary matching; source-placement and held-out convergence checks required |
 | Richards–Wolf and Mie | External references, never dependencies of the core |
 
-The main method is the per-k spectral interface transformation. The auxiliary-
-source closed-boundary calculation listed above is a separate experiment; its
-Mie error is not the main method's accuracy. Immediate application priorities
+The main method is the per-k spectral interface transformation. Immediate application priorities
 are lossless refractive DUV systems, telescopes, microscopes, and simple
 reflections. See [future implementations](docs/future_implementations.md) for
 the distinction between existing components, missing system validation, ideal
@@ -95,7 +92,7 @@ this convention to SI flux when E is in V/m. `|E|²` is not generally power flux
 | `geometry/` | Frames and domains |
 | `surfaces/` | Parametric physical boundaries |
 | `interfaces/` | Dielectric configuration and `fresnel.py` |
-| `propagation/` | Homogeneous, interface, layer, and closed-boundary field calculations |
+| `propagation/` | Homogeneous, interface, and layer propagation; coherent feedback |
 | `sampling/` | Spatial samples and surface quadrature |
 | `fourier/` | Cartesian, Hankel, polar, and NUFFT algorithms |
 | `observables/` | Boundary residuals and energy flux |
@@ -105,7 +102,7 @@ from `references/` to shared abstractions is allowed; the reverse is tested
 and forbidden.
 
 Start with the [curated examples](examples/README.md) and
-[six paired notebooks](docs/notebooks/README.md). Each workflow has a stated
+[five paired notebooks](docs/notebooks/README.md). Each workflow has a stated
 purpose, assumptions, assertions, labeled figures, and numerical provenance.
 See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 [the migration/retirement record](docs/migration.md).
@@ -113,6 +110,6 @@ See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 ```bash
 python -m examples.cavity_resonance
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-  python -m benchmarks.closed_sphere
+  python -m benchmarks.validate_physics
 python scripts/notebooks.py --check --execute
 ```

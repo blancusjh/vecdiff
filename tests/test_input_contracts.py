@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from vecdiff import (ElectricSpectrum, Medium, LayerStack, Plane, plane_wave,
-                     propagate_layers, sample_surface, solve_closed_interface, coherent_feedback)
+from vecdiff import (ElectricSpectrum, Medium, LayerStack, plane_wave,
+                     propagate_layers, coherent_feedback)
 from vecdiff.fourier.nufft import synthesize
 from vecdiff.observables.electromagnetism import boundary_residuals
 
@@ -27,14 +27,6 @@ def test_single_interface_layer_with_evanescent_exit_is_stable_far_away():
         e, h = field.evaluate([[0, 0, 1000]], region=1)
     assert np.isfinite(e).all() and np.isfinite(h).all()
     assert np.max(abs(e)) < 1e-100
-
-
-def test_open_surface_cannot_be_used_as_closed_body():
-    plane = Plane()
-    a = sample_surface(plane, (-1, 1), (-1, 1), 4, 4, periodic_v=False)
-    b = sample_surface(plane, (-1, 1), (-1, 1), 8, 8, periodic_v=False)
-    with pytest.raises(ValueError, match="is_closed"):
-        solve_closed_interface(plane_wave(), Medium(1.5), b, a, inward_offset=.2, outward_offset=.2)
 
 
 @pytest.mark.parametrize("value", [0., -1., np.nan, np.inf])

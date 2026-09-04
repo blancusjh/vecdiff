@@ -5,12 +5,9 @@ does a discretization converge, does the physical approximation apply, and
 does an independent reference agree? One successful check cannot replace the
 others. Finite tests cannot prove correctness in every geometry or resonance.
 
-**Scope of the main-method claim:** the repository's main method is the per-k
-spectral interface transformation. Auxiliary-source boundary matching is a
-different method. Its sphere errors and runtimes below must not be reported as
-the spectral method's performance. The [implementation roadmap](future_implementations.md)
-prioritizes refractive DUV, telescope, and microscope workflows within the
-lossless material scope, before real-metal and EUV extensions.
+The per-k spectral interface transformation is the main method. The removed
+auxiliary-source solver's results do not validate it. The [roadmap](future_implementations.md)
+records the outstanding work on resonances and macroscopic optics.
 
 ## Conventions and boundary checks
 
@@ -80,40 +77,11 @@ in `benchmarks.validate_physics`: it misses exit interactions and feedback,
 with 30–95% errors against Mie. It is not a production solver or compatibility
 implementation.
 
-The new `solve_closed_interface` instead matches the complete boundary using
-auxiliary Maxwell dipoles. The complex solve includes interactions implicitly.
-No Mie data, fitted amplitude, or fitted phase enter it. Mie 3.3.0 is an optional
-external reference. All four held-out boundary jumps, exterior/interior E/H,
-closed-surface flux, source order, rank, condition, and offset are recorded.
-
-At index 1.5, wavelength 1, offset fraction .5, and order 16 (512 source
-locations, 1536 fitting points), the measured results are:
-
-| Sphere diameter / wavelength | Largest bulk E/H error vs Mie | Largest held-out boundary jump | Closed flux error |
-| ---: | ---: | ---: | ---: |
-| .5 | 2.22e-8 | 2.36e-5 | 2.71e-10 |
-| 1 | 8.98e-9 | 1.78e-5 | 4.19e-10 |
-| 2 | 8.04e-8 | 5.28e-5 | 1.73e-8 |
-
-Orders 8/12/16 are retained in `benchmarks/results/closed_sphere.json` so the
-convergence trend is visible. The matrices are ill-conditioned; singular-value
-truncation is explicit (`rcond=1e-12`). A separate four-wavelength-diameter
-stress case is deliberately retained in `closed_sphere_stress.json`: the tested
-order/offset are insufficient and produce substantial Mie errors. Do not infer
-universal accuracy from the three smaller cases.
-
-The larger sphere was then tested at order 24 with offset fraction .25
-(1152 source locations, 3456 fitting points). Bulk E/H errors dropped from
-13–19% to **0.30–0.44%**, with a maximum held-out jump of `5.09e-3` and a closed
-flux error of `3.17e-3`. `closed_sphere_refinement.json` retains this result.
-Both source count and placement changed, so this is an improvement under two
-numerical changes, not a one-parameter convergence proof. The dense solve took
-155 seconds; no claim of arbitrary-precision or universal high-Q accuracy is made.
-
-The index-2 sphere example compares a nine-point wavelength scan with Mie and
-refines its worst point from order 12 to 16. Maximum sampled bulk error was
-`9.18e-5` at order 12. The dense curve is explicitly the reference, not additional
-native solves. A sparse wavelength scan cannot certify narrow high-Q peaks.
+General resonant behavior through the main spectral method is **pending**.
+The physical map for repeated curved-surface encounters has not been completed
+or validated. The auxiliary-source solver and its benchmark results were removed;
+no accuracy claims from that different method are retained as current validation.
+Planar cavity and layer results remain valid only within their stated scope.
 
 ## Reproduction and scientific use
 
@@ -121,24 +89,20 @@ native solves. A sparse wavelength scan cannot certify narrow high-Q peaks.
 python -m pip install -e '.[test,notebooks,nufft,validation]' -c requirements-validation.txt
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m pytest -q
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m benchmarks.validate_physics
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m benchmarks.closed_sphere
 python scripts/notebooks.py --check --execute
 ```
 
 The pinned numerical environment targets Python 3.12. The general installation
 supports Python 3.10+; CI also checks other supported versions without those
 environment-specific pins. Notebook source synchronization is distinct from
-Jupyter execution. The development host blocked kernel networking, so local
-Jupyter execution was **not** certified locally. All six notebooks subsequently
-executed successfully in the [CI notebook job](https://github.com/blancusjh/vecdiff/actions/runs/33922646859),
-which uploads their executed outputs. The first unpinned Python 3.12/3.13 test
-jobs exposed a SciPy 1.18 rank-scalar JSON serialization issue; diagnostics now
-convert the rank explicitly to a Python integer. Numerical assertions passed.
-All seven example calculation functions ran locally and their assertions passed.
+Jupyter execution. CI executes the five maintained notebooks, checks embedded
+PNG figures, and uploads execution artifacts. Six maintained example workflows
+are exercised by the test suite. Use the CI run for the revision being evaluated;
+historical runs that included the removed solver are not current suite results.
 
 Before using a new configuration: refine sampling and domain size; check all
-four reconstructed boundary conditions and flux; vary source placement for
-closed-boundary matching; refine wavelength spacing near peaks; verify against
+four reconstructed boundary conditions and flux; refine wavelength spacing
+near peaks; verify against
 an independent solution where available. Preserve parameters, package versions,
 raw residuals, and convergence history. Absorbing/magnetic/anisotropic media,
 general multi-body scattering, singular surface quadrature, and universal

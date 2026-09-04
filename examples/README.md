@@ -23,10 +23,8 @@ otherwise; H uses the documented Z0 normalization.
 | `frustrated_tir` | Demonstrate an effect a single interface cannot capture | Evanescent-gap coupling, thin/thick limits, flux |
 | `curved_interface` | Distinguish integral convergence from physical boundary accuracy | Two source quadratures and separately labeled reconstructed jumps |
 | `vector_focus` | Compare polarization and vortex fields at equal pupil power | Independent Richards–Wolf model, angular convergence, explicit model limits |
-| `sphere_resonance` | Test a self-consistent closed field against Mie | Held-out boundary conditions, bulk E/H, flux, worst-point source refinement |
 
-The sphere example is the slowest (roughly a minute on this development host).
-Its native wavelength scan is intentionally identified as sparse, not a
-certificate of peak resolution. The [notebooks](../docs/notebooks/README.md)
+General resonant-body behavior remains pending. The planar cavity and layer
+examples do not establish it. The [notebooks](../docs/notebooks/README.md)
 provide interpretation and suggested convergence experiments. The
 [migration record](../docs/migration.md) explains consolidations and retirements.

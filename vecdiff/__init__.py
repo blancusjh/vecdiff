@@ -19,7 +19,6 @@ from .propagation.propagation import propagate, spectrum_of
 from .propagation.interface_transform import interface_transform
 from .propagation.layered_propagation import propagate_layers, LayeredElectricField
 from .propagation.multiple_scattering import coherent_feedback, FeedbackResult, ConvergenceError
-from .propagation.closed_interface import solve_closed_interface, ClosedInterfaceSolution
 
 __version__ = "0.3.0"
 __all__ = ["ElectricField", "TransverseElectricField", "ElectricSpectrum", "plane_wave", "Medium",
@@ -27,4 +26,4 @@ __all__ = ["ElectricField", "TransverseElectricField", "ElectricSpectrum", "plan
            "Surface", "Plane", "FreeformSurface", "AxisymmetricSurface", "Sphere", "SphericalCap", "CartesianOval",
            "DielectricInterface", "propagate", "spectrum_of", "interface_transform",
            "LayerStack", "LayeredElectricField", "propagate_layers", "coherent_feedback", "FeedbackResult",
-           "ConvergenceError", "solve_closed_interface", "ClosedInterfaceSolution"]
+           "ConvergenceError"]

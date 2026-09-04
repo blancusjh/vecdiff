@@ -12,7 +12,7 @@
     {
       "name": "field_propagation",
       "status": "passed",
-      "seconds": 1.694841823000388,
+      "seconds": 1.6301364050013945,
       "purpose": "Unknown Ez is completed through k\u00b7E=0, not set to zero.",
       "parameters": {
         "wavelength": 1.0,
@@ -29,7 +29,7 @@
     {
       "name": "plane_interface",
       "status": "passed",
-      "seconds": 0.7643863499997678,
+      "seconds": 0.7635818079997989,
       "parameters": {
         "wavelength": 1.0,
         "angles": [
@@ -220,7 +220,7 @@
     {
       "name": "cavity_resonance",
       "status": "passed",
-      "seconds": 0.45300520899945695,
+      "seconds": 0.41342806099964946,
       "parameters": {
         "index": 4.0,
         "thickness": 1.0,
@@ -238,7 +238,7 @@
     {
       "name": "frustrated_tir",
       "status": "passed",
-      "seconds": 0.22875498999928823,
+      "seconds": 0.20778670400068222,
       "parameters": {
         "indices": [
           1.5,
@@ -415,7 +415,7 @@
     {
       "name": "curved_interface",
       "status": "passed",
-      "seconds": 2.356545565000488,
+      "seconds": 2.2629804119987966,
       "parameters": {
         "radius": 20.0,
         "aperture": 8.0,
@@ -440,7 +440,7 @@
     {
       "name": "vector_focus",
       "status": "passed",
-      "seconds": 0.3070993080000335,
+      "seconds": 0.30186498900002334,
       "parameters": {
         "NA": 0.9,
         "focal_length": 1.0,
@@ -448,48 +448,6 @@
       },
       "assumptions": "Independent ideal sine-condition objective, uniform pupil magnitude and sqrt(cos \u03b8) apodization. Not a dielectric lens or a Quabis experiment replication. Squared electric norm is not Poynting flux.",
       "case_count": 4
-    },
-    {
-      "name": "sphere_resonance",
-      "status": "passed",
-      "seconds": 37.794052393999664,
-      "parameters": {
-        "radius": 0.5,
-        "index": 2.0,
-        "order": 12,
-        "wavelength_count": 9
-      },
-      "assumptions": "Dense auxiliary-source boundary match, experimental. All interactions are implicit in the complex solve; this is not repeated local Fresnel tracing. Not a high-Q peak-resolution certificate; refine wavelength sampling for spectroscopy.",
-      "max_bulk_error": 9.177207969269948e-05,
-      "worst_case_refinement": {
-        "radius": 0.5,
-        "wavelength": 0.8,
-        "sphere_index": 2.0,
-        "order": 16,
-        "source_count": 512,
-        "boundary_count": 1536,
-        "offset_fraction": 0.5,
-        "fit_residual": 4.4831673766370026e-05,
-        "held_out_boundary": {
-          "tangential_E": 2.403670870356511e-05,
-          "tangential_H": 4.633231416886841e-05,
-          "normal_D": 2.4294062296906794e-05,
-          "normal_B": 4.650806247531153e-05
-        },
-        "errors_vs_mie": {
-          "exterior_E": 4.872160257017446e-08,
-          "exterior_H": 5.621471643595625e-08,
-          "interior_E": 6.80163231204378e-08,
-          "interior_H": 5.918033108491184e-08
-        },
-        "rank": 1984,
-        "unknowns": 2048,
-        "condition_number": 2.6238040382338936e+16,
-        "total_closed_flux_relative": 1.0373908383012382e-07,
-        "center_electric_norm2": 3.637067915498182,
-        "seconds": 15.413407964999351
-      },
-      "case_count": 9
     }
   ]
 }

@@ -35,7 +35,6 @@ and physical thicknesses. None owns FFT sizes or solver tolerances.
 | `propagation/surface_radiation.py` | Maxwell radiation from prescribed equivalent currents, by Green or spectral evaluation |
 | `propagation/layered_propagation.py` | Stable coherent multiple-interface composition and region-specific total fields |
 | `propagation/multiple_scattering.py` | Complex-amplitude feedback equation with convergence controls |
-| `propagation/closed_interface.py` | Experimental self-consistent Maxwell boundary matching using auxiliary dipoles |
 | `fourier/` | Transforms only; no field, interface, or literature-model ownership |
 | `observables/` | Measurements and residuals; never hidden normalization inside propagation |
 
@@ -44,21 +43,16 @@ coefficients are applied. It does not infer a ray direction from the phase of
 a superposed field. Linearity is tested explicitly.
 
 The layer recursion sums repeated reflection/refraction with complex phases.
-Its returned `LayeredElectricField` is a spectral electric-field representation;
-the closed-boundary solve returns a `ClosedInterfaceSolution` containing the
-field expansion and numerical diagnostics. Neither has a compatibility alias.
+Its returned `LayeredElectricField` is a spectral electric-field representation
+with no compatibility alias.
 Only decaying internal propagation factors are formed; forward fields are
 anchored at each layer's left boundary and backward fields at its right.
 Exactly grazing/critical layers are rejected explicitly because this basis
 requires a separate limiting formulation. Noncritical evanescent layers work.
 
-The closed-interface calculation actually solves for unknown fields, unlike
-the prescribed-current radiation evaluator. Its dipole kernels satisfy Maxwell
-equations and the outgoing-wave condition; matching the boundary determines
-complex coefficients. It is a general numerical boundary method, not a Mie
-implementation. Rank, condition number, and fit residual accompany every
-result. Surface closure and outward orientation are caller contracts; auxiliary
-sources must remain outside the region in which their expansion is evaluated.
+General closed-body resonances require a physical spectral round-trip map and
+validation that remain pending. The generic feedback iterator does not supply
+that map. No auxiliary-source boundary solver is included.
 
 ## Strict reference separation and breaking API
 
