@@ -1,66 +1,9 @@
-# Examples and Outputs
+# Examples
 
-All runnable examples save generated artifacts under:
+- `plane_interface.py` shows the exact per-k transformation at an infinite
+  plane and evaluates all four Maxwell boundary jumps.
+- `curved_interface.py` constructs an open spherical cap, applies Fresnel to
+  each incident k, and propagates the prescribed boundary currents.
 
-```text
-examples/output/<example_name>/
-```
-
-Run examples from the repository root with `python examples/<script>.py`.
-Each script prints the path of the files it saves.
-
-## Basics
-
-| Example | Purpose | Main outputs |
-| --- | --- | --- |
-| `cartesian_simple.py` | Cartesian-polarized circular pupil propagated through one diopter. | `input_field_components.png`, `propagated_field_components.png`, `input_polarization.png`, `propagated_polarization.png` |
-| `circular_simple.py` | Circular-polarized circular pupil propagated through one diopter. | `input_field_components.png`, `propagated_field_components.png`, `input_polarization.png`, `propagated_polarization.png` |
-## Scalar vs vectorial focusing
-
-| Example | Purpose | Main outputs |
-| --- | --- | --- |
-| `aperture_scalar_vs_vectorial.py` | Wide-aperture focal field: scalar (t- = 0) vs vectorial maps, radial cuts, cross-polarized clover, focal-plane polarization map. | `focal_plane_maps.png`, `radial_cuts.png`, `focal_plane_polarization.png` |
-| `maximize_cross_polarization.py` | Edge-weighted pupil on a high-index diopter maximizing the cross-polarized fraction; cross-channel shape for linear vs circular input. | `cross_polarization_maps.png`, `cross_channel_shape.png`, `focal_plane_polarization.png` |
-
-## Imaging
-
-| Example | Purpose | Main outputs |
-| --- | --- | --- |
-| `two_diopter_imaging.py` | Two-line mask imaged by conjugate diopters: scalar vs vectorial contrast depends on the mask orientation relative to the incident polarization. | `image_gallery.png`, `profiles.png`, `image_plane_polarization.png` |
-| `resolution_inversion.py` | Two canonical point objects resolved by the scalar model but fused by the vectorial one (high-index and ordinary-glass systems, super-resolving edge pupil, zoom-FFT renders). The polarization of each vectorial image is analyzed in three separate figures per system: component analysis (incident vs. image), polarization-ellipse maps (incident field vs. focal plane), and the ellipse-angle maps. | `inversion_{high_index,glass}.png`, `components_{high_index,glass}.png`, `polarization_maps_{high_index,glass}.png`, `ellipse_angles_{high_index,glass}.png` |
-| `resolved_features.py` | Which features scalar theory resolves and vectorial theory does not: period sweep, feature layout, and the longitudinal channel that carries off the lost contrast. | `resolved_features_layout.png` |
-
-## Validation
-
-| Example | Purpose | Main outputs |
-| --- | --- | --- |
-| `reference_vs_model.py` | The package's focal field against the Franz / Stratton-Chu integral, an exact Maxwell field, in absolute amplitude and phase; and the two pupil mappings against it. | `reference_vs_model.png` |
-| `scalar_reference_check.py` | The s channel of the transfer operator against the exact Helmholtz-Kirchhoff scalar field: which pupil weighting actually solves the scalar refraction problem. | terminal table |
-| `aperture_limits.py` | What stops a ray through a two-surface stigmatic element -- the faces meeting, grazing incidence, the critical angle -- for a dry and an immersion configuration, each checked against the exact field. | `aperture_limits.png` |
-
-## Animation
-
-| Example | Purpose | Main outputs |
-| --- | --- | --- |
-| `harmonic_field_animation.py` | Time-harmonic animation (`vecdiff.animate_harmonic_field`) of the instantaneous real field `Re[E e^{-i omega t}]` for a cross-maximizing edge-weighted pupil. Cartesian (linear x) case *breathes*; circular case *rotates*. Both carry the system parameters and refresh the two README hero GIFs. | `harmonic_field_cartesian.gif`, `harmonic_field_circular.gif` (and `docs/assets/quiver_harmonic_readme.gif`, `docs/assets/quiver_harmonic_circular.gif`) |
-
-`_common.py` and `_output.py` are shared helpers, not runnable examples.
-
-## Output Layout
-
-The intended structure is:
-
-```text
-examples/output/
-  cartesian_simple/
-  circular_simple/
-  aperture_scalar_vs_vectorial/
-  maximize_cross_polarization/
-  two_diopter_imaging/
-  resolution_inversion/
-  resolved_features/
-  aperture_limits/
-  reference_vs_model/
-  harmonic_field_animation/
-```
-
+Install the package first with `python -m pip install -e .`, then run an example
+from the repository root.
