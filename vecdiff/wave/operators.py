@@ -178,6 +178,8 @@ class InterfaceOperator(Operator):
                 if pair is not None:
                     datum_pair = (E_out * pair[None, :]).reshape(shape3)
                     normal_rz = self.surface.normal(rho)
+                    if self.mode == "r":
+                        normal_rz = tuple(-component for component in normal_rz)
                 return _return_integral_polar(datum, rho, smp["sag"],
                                               self.surface.dsag(rho), k_out,
                                               spec.grid, self.m_max, self.n_kr,

@@ -71,15 +71,8 @@ def test_planar_interface_reduces_to_fresnel(pol, kx_frac):
     assert ratio == pytest.approx(t_ref, rel=1.5e-2)
 
 
-@pytest.mark.parametrize("measure,closure_t", [
-    # flat measure: transmitted flux overshoots slightly (+2% here); franz
-    # measure: undershoots (-16% at this very steep surface, kR ~ 38, and
-    # shrinking with angle range) — the two brackets of the leading-order
-    # amplitude problem, documented rather than hidden.
-    ("flat", 1.02),
-    ("franz", 0.84),
-])
-def test_energy_flux_closure_on_a_curved_interface(measure, closure_t):
+@pytest.mark.parametrize("measure", ["flat", "franz"])
+def test_energy_flux_closure_on_a_curved_interface(measure):
     """Document the leading-order flux budget and referee reflection locally."""
     n1, n2, ap = 1.0, 1.5, 4.5
     grid = vw.Grid.from_spacing(0.25, 256)
@@ -106,7 +99,10 @@ def test_energy_flux_closure_on_a_curved_interface(measure, closure_t):
     Fi = n1 * float(np.sum(vis**2 * rho) * (rho[1] - rho[0]) * 2 * np.pi)
 
     Ft, Fr = flux(out_t), flux(out_r)
-    assert Ft / Fi == pytest.approx(closure_t, abs=0.06)
+    # The corrected graph normal makes the leading-order surface radiation
+    # close the power budget to a few percent even on this steep kR ~ 38 cap.
+    # Keep this as a physical closure bound, not a regression to an old deficit.
+    assert Ft / Fi == pytest.approx(1.0, abs=0.06)
     # The local Fresnel reflection is the appropriate power reference for the
     # curved surface (not the normal-incidence value at every point).
     E = np.zeros_like(khat, dtype=complex)
@@ -116,6 +112,7 @@ def test_energy_flux_closure_on_a_curved_interface(measure, closure_t):
     R_ref = float(np.sum(vis**2 * rho * R_rho) / np.sum(vis**2 * rho))
     if measure == "franz":
         assert Fr / Fi == pytest.approx(R_ref, rel=0.25)
+        assert (Ft + Fr) / Fi == pytest.approx(1.0, abs=0.06)
     else:
         # The bare transform is retained as an amplitude comparison only.  It
         # has no obliquity normalization and must not be read as reflected power.

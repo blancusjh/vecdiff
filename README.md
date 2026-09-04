@@ -51,7 +51,10 @@ the general one (`vecdiff.wave.referee`, exercised in
   illumination, and a `referee` that compares the general operator against the
   exact chain on the surface they share.
 - Field containers for Cartesian, circular, and polar transverse components,
-  tagged with the reference surface their samples live on.
+  tagged with the reference surface their samples live on.  The transverse
+  pair is the independent design state; ``vecdiff.wave.Field.with_longitudinal``
+  optionally reconstructs ``Ez`` by FT, exact spectral enforcement of
+  ``k.E_tilde = 0``, and inverse FT.
 - Ray geometry of the stigmatic Cartesian oval: path lengths, meridional and
   incidence angles, the local Fresnel frame, and the grazing-incidence aperture
   limit, all from the transverse radius on the surface.
@@ -195,7 +198,7 @@ import vecdiff.wave as vw
 
 oval = CartesianSurface(n0=1.0, ni=1.5, z0=-30.0, zi=20.0)
 report = vw.referee(oval)          # exact chain vs general operator
-print(report["profile_rms"])       # ~2e-2 at NA_i ~ 0.6
+print(report["profile_rms"])       # ~1.4e-3 at NA_i ~ 0.6
 ```
 
 ### The amplitude measure, measured
@@ -208,12 +211,13 @@ measure selected by `measure=`:
   exact Franz radiation of the surface currents.  It reduces to the bare
   transform in the planar limit and, measured against the Franz/Stratton–Chu
   Maxwell reference on the stigmatic oval, holds the absolute focal amplitude
-  to −3…−8% with **no trend in NA or in the size parameter**
+  within about 1% and the normalized focal profile to 0.03–0.16% over the
+  documented aperture and size sweeps, with **no significant trend in NA**
   (`examples/wave_error_scaling.py`).  Reflection uses the outward normal of
   the incident half-space and a reversed spectrum propagation sense.
 - `"flat"`: the bare surface transform of the original construction.  Its
   phase (focal profile) is percent-level too, but its absolute amplitude runs
-  +9% at NA 0.32 to +40% at NA 0.87 — an error controlled by aperture, not by
+  +6.5% at NA 0.32 to +14.8% at NA 0.87 — an error controlled by aperture, not by
   size.  It is kept only for amplitude comparisons and must not be interpreted
   as a normalized transmitted or reflected power measure.
 

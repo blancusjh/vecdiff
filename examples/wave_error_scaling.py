@@ -18,9 +18,9 @@ Two sweeps:
   against image-side NA.
 
 The headline finding: the error of the *flat* measure is controlled by NA,
-not by size — the amplitude ratio is flat in kR and grows to +40% toward
-grazing — while the *franz* measure removes the NA dependence almost
-entirely and leaves a small (-3..-8%) residual.
+not by size — the amplitude ratio is nearly flat in kR and grows from +6.5%
+to +14.8% over the aperture sweep — while the *franz* measure removes the NA
+dependence almost entirely and stays within about 1% in absolute amplitude.
 
 Run from the repository root::
 

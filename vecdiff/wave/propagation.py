@@ -61,7 +61,15 @@ def propagate(field: Field, dz: float, sigma: int = +1) -> Field:
 # ======================================================================
 def _incident_on_surface(surface, rho2d, phi2d, z2d, k1, kind, polarization,
                          source_distance):
-    """Incident direction and vector field for a *named* source (plane/point)."""
+    """Incident direction and vector field for a *named* source (plane/point).
+
+    The polarization callable specifies the designed transverse pair
+    ``(Ex, Ey)``.  The longitudinal component is derived, never independently
+    prescribed, from ``E.khat = 0``.  This is the pointwise analogue of the
+    Fourier-space completion used by :meth:`Field.with_longitudinal`; it is
+    exact here because the analytic source direction is known at every surface
+    point, even though those points do not lie in one plane.
+    """
     from .pupil import POLARIZATIONS
     pol = polarization if callable(polarization) else POLARIZATIONS[polarization]
     ex, ey = pol(rho2d / max(np.max(rho2d), 1e-12), phi2d)
@@ -94,6 +102,14 @@ def _incident_on_surface(surface, rho2d, phi2d, z2d, k1, kind, polarization,
     E = np.zeros((3, npts), dtype=complex)
     E[0] = ex * phase * scale
     E[1] = ey * phase * scale
+    # Preserve the designed Cartesian transverse pair and derive the unique
+    # longitudinal component for the known forward ray.  Named plane/point
+    # sources used here have khat_z > 0; reject a grazing configuration rather
+    # than silently returning a non-Maxwell field.
+    kz_hat = khat[2]
+    if np.any(np.abs(kz_hat) <= 64 * np.finfo(float).eps):
+        raise ValueError("named-source Ez reconstruction is singular at grazing incidence")
+    E[2] = -(khat[0] * E[0] + khat[1] * E[1]) / kz_hat
     return E, khat
 
 
@@ -217,7 +233,7 @@ def _return_integral_polar(datum, rho, sag, dsag, k_out, grid, m_max, n_kr,
     Q-side half, azimuth-dependent for a general incident field);
     ``normal_rz = (n_rho(rho), n_z(rho))`` is the oriented meridional normal
     from which the direction-side half is assembled per outgoing angle.  Its
-    axial part cancels ``k/kz`` exactly (``n_z/2`` survives), and the
+    axial part cancels ``k/kz`` exactly (``sigma * n_z/2`` survives), and the
     azimuthal cross term ``n_rho sin(theta') cos(psi - phi')`` folds back
     onto the *same* outgoing harmonic through ``J_{m-1} - J_{m+1} = 2 J_m'``.
     """
@@ -250,7 +266,7 @@ def _return_integral_polar(datum, rho, sag, dsag, k_out, grid, m_max, n_kr,
         kern_p = Jpm * phase_z
         Am[:, i, :] = 2 * np.pi * ((-1j) ** m) * (
             (g1 @ kern.T) * inv_cos[None, :]
-            + (g * (0.5 * n_z_arr)[None, :]) @ kern.T
+            + (g * (0.5 * sigma * n_z_arr)[None, :]) @ kern.T
             + 1j * ((g * (0.5 * n_rho_arr)[None, :]) @ kern_p.T)
             * tan_t[None, :]
         )
@@ -377,7 +393,8 @@ def surface_spectrum(
     """Angular spectrum produced by a *named* incident field at an interface.
 
     The incident field (a plane wave or a point source) is sampled on the
-    surface, refracted (``mode='t'``) or reflected (``mode='r'``) with the full
+    surface; its designed ``(Ex, Ey)`` pair is completed by ``E.k = 0`` before
+    it is refracted (``mode='t'``) or reflected (``mode='r'``) with the full
     vector Fresnel operator, softly apodized near the rim and the
     total-internal-reflection limit, and transformed to an angular spectrum by
     the azimuthal Bessel kernel.  For a general incident spectrum, or a

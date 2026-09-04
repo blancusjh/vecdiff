@@ -54,6 +54,19 @@ def test_interface_operator_matches_source(grid):
                  out.field_on(x, x, zf).intensity) > 0.99
 
 
+def test_reflecting_interface_operator_matches_source(grid):
+    """Both public paths must use the same radiating-half-space normal."""
+    surf = vw.Conic(radius=+8.0, conic=-0.5)
+    common = dict(n1=1.0, n2=1.5, aperture=4.0, mode="r", measure="franz",
+                  n_rho=300, n_phi=32, n_kr=256, m_max=4)
+    ref = vw.surface_spectrum(surf, grid, polarization="x", **common)
+    out = vw.InterfaceOperator(surf, **common)(
+        vw.plane_wave_spectrum(grid, wavelength=1.0, n=1.0)
+    )
+    assert out.sigma == ref.sigma == -1
+    assert np.linalg.norm(out.A - ref.A) / np.linalg.norm(ref.A) < 1e-8
+
+
 def test_interface_freespace_shifts_focus(grid):
     surf = vw.Conic(radius=-8.0, conic=vw.stigmatic_conic_constant(1.5, 1.0))
     out = vw.InterfaceOperator(surf, n1=1.5, n2=1.0, aperture=9.0)(

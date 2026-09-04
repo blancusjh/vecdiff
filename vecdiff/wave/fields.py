@@ -94,6 +94,31 @@ class Field:
         return {name: float((np.abs(c) ** 2).sum() / tot)
                 for name, c in zip("xyz", self.components)}
 
+    def with_longitudinal(self, sigma: int = +1) -> "Field":
+        r"""Return a copy with ``Ez`` reconstructed from Maxwell transversality.
+
+        ``Ex`` and ``Ey`` remain the independent design variables.  They are
+        Fourier transformed on the field plane, then the propagating spectrum
+        is completed according to
+
+        ``Ez_tilde = -(kx Ex_tilde + ky Ey_tilde) / (sigma kz)``,
+
+        and only ``Ez_tilde`` is inverse transformed.  Evanescent orders are
+        omitted consistently with :class:`~vecdiff.wave.spectrum.AngularSpectrum`.
+        The original field is not modified.
+        """
+        if sigma not in (-1, +1):
+            raise ValueError("sigma must be +1 or -1")
+
+        # Local import avoids the fields <-> propagation module cycle.
+        from .propagation import spectrum_of              # noqa: PLC0415
+
+        spec = spectrum_of(self, sigma=sigma).impose_transversality()
+        Ez = np.fft.ifft2(spec.A[2])
+        Ez = np.fft.fftshift(Ez) / (self.grid.dx * self.grid.dy)
+        return Field(self.Ex.copy(), self.Ey.copy(), self.grid,
+                     self.wavelength, self.n, Ez=Ez, z=self.z)
+
     # ---------------------------------------------------------- polarization
     def polarization(self) -> Polarization:
         """Stokes parameters of the transverse part."""

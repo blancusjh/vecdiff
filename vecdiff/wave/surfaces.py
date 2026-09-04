@@ -1,7 +1,7 @@
 """Refracting / reflecting surface shapes.
 
 Every surface exposes the same three things the physics needs — a sag, its
-slope, and an outward unit normal — so the propagators never care whether they
+slope, and a unit normal — so the propagators never care whether they
 were handed a sphere, a conic, a polynomial asphere or a measured profile.
 
 Sign convention (the usual optical one): the surface is a graph ``z = sag(rho)``
@@ -10,8 +10,10 @@ curvature at +z**, so the surface curves toward +z and is concave as seen from
 +z.  A beam travelling toward +z is therefore converged by a *negative* radius:
 for the classic glass-to-air focusing cap use ``Conic(radius=-R, conic=...)``.
 
-The outward normal always carries a positive radial component in the sense of
-the sag gradient, so it is continuous through the vertex.
+For every graph ``z = sag(x, y)`` the canonical normal points toward ``+z``:
+``n = (-grad(sag), 1) / sqrt(1 + |grad(sag)|^2)``.  The Fresnel routines are
+insensitive to reversing the entire normal, but not to reversing only its
+transverse component.
 """
 
 from __future__ import annotations
@@ -54,15 +56,17 @@ class Surface(ABC):
         return np.inf
 
     def normal(self, rho: np.ndarray, phi: np.ndarray | None = None) -> np.ndarray:
-        """Outward unit normal.
+        """Unit normal pointing toward ``+z``.
 
         With ``phi`` given, returns a ``(3, ...)`` Cartesian normal; without it,
-        the meridional ``(n_rho, n_z)`` pair.
+        the meridional ``(n_rho, n_z)`` pair.  For ``z = sag(rho)`` this is
+        ``(-sag', 1) / sqrt(1 + sag'^2)``, exactly orthogonal to the radial
+        tangent ``(1, sag')``.
         """
         rho = np.asarray(rho, dtype=float)
         s = self.dsag(rho)
         norm = np.sqrt(1.0 + s**2)
-        n_rho, n_z = s / norm, 1.0 / norm
+        n_rho, n_z = -s / norm, 1.0 / norm
         if phi is None:
             return np.stack([n_rho, n_z])
         return np.stack([n_rho * np.cos(phi), n_rho * np.sin(phi),

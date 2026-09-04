@@ -8,12 +8,13 @@ make without an external solver.
 
 What it establishes, measured at NA_i ~ 0.64 on the stigmatic oval:
 
-* the focal profile (phase structure of the kernel) is right to ~2%;
-* the longitudinal channel weight is right to ~1%;
-* the *absolute amplitude* carries the leading-order error of the theory
-  (~25% here) — consistent with the known status of the spectral amplitude
-  measure, and shrinking with the size parameter (see the error-scaling
-  study in examples/wave_error_scaling.py).
+* the focal profile agrees to about 0.1%;
+* the longitudinal channel weight agrees to about 1%;
+* the absolute peak amplitude agrees to about 0.1% for this case.
+
+The error-scaling study in ``examples/wave_error_scaling.py`` repeats the
+comparison across aperture and size rather than inferring a general law from
+this one geometry.
 """
 
 import numpy as np
@@ -56,17 +57,14 @@ def test_focal_profile_matches_the_maxwell_reference(duel):
 
 
 def test_longitudinal_channel_matches_the_maxwell_reference(duel):
-    # under the franz measure the residual angular deficit is carried mostly
-    # by the high angles, which the sin(theta)-weighted Ez channel feels:
-    # measured -7.5% here (the flat measure gives +0.7% on this ratio but
-    # +26% on the absolute amplitude below)
+    # This channel is an independent check because it is carried by a
+    # different Hankel order from the dominant transverse field.
     r_sc = np.abs(duel["Ez_sc"]).max() / np.abs(duel["Ex_sc"]).max()
     r_w = np.abs(duel["Ez_w"]).max() / np.abs(duel["Ex_w"]).max()
     assert r_w == pytest.approx(r_sc, rel=0.10)
 
 
 def test_absolute_amplitude_is_leading_order(duel):
-    """Documented, not hidden: the residual amplitude error under the franz
-    measure is -3..-8% across NA (the flat measure runs +9..+40%)."""
+    """The geometric graph normal restores the expected absolute amplitude."""
     ratio = np.abs(duel["Ex_w"]).max() / np.abs(duel["Ex_sc"]).max()
-    assert ratio == pytest.approx(0.93, abs=0.06)
+    assert ratio == pytest.approx(1.0, abs=0.02)

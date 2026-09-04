@@ -28,9 +28,26 @@ def test_conic_sag_and_normal():
     rho = np.array([0.0, 1.0, 3.0])
     # sphere sag: R - sqrt(R^2 - rho^2)
     assert np.allclose(s.sag(rho), 10.0 - np.sqrt(100.0 - rho**2))
-    n = s.normal(np.array([3.0]))
+    at = np.array([3.0])
+    n = s.normal(at)
     assert np.allclose(np.hypot(n[0], n[1]), 1.0)
-    assert n[0] > 0 and n[1] > 0                   # outward: +rho and +z
+    assert n[0] < 0 and n[1] > 0                   # graph normal points toward +z
+    tangent = np.stack([np.ones_like(at), s.dsag(at)])
+    assert np.max(np.abs(np.sum(n * tangent, axis=0))) < 1e-15
+
+
+def test_axisymmetric_normal_matches_freeform2d_normal():
+    """The polar and Cartesian surface paths must use the same geometry."""
+    conic = vw.Conic(radius=10.0, conic=-0.4)
+    rho = np.array([0.7, 2.1, 4.0])
+    phi = np.array([0.2, 1.1, 2.4])
+    x, y = rho * np.cos(phi), rho * np.sin(phi)
+    free = vw.Freeform2D(
+        sag_fn=lambda xx, yy: conic.sag(np.hypot(xx, yy)), radius=5.0,
+        step=1e-5,
+    )
+    assert np.allclose(conic.normal(rho, phi), free.normal_xy(x, y),
+                       rtol=2e-8, atol=2e-9)
 
 
 def test_sphere_bounded_hyperboloid_unbounded():
@@ -107,6 +124,40 @@ def test_pupil_spectrum_is_transverse():
     g = vw.Grid.from_spacing(0.25, 96)
     spec = vw.Pupil(na=0.95, n=1.0, wavelength=1.0).spectrum(g)
     assert spec.transversality_residual() < 1e-12
+
+
+def test_field_longitudinal_reconstruction_is_optional_and_spectral():
+    g = vw.Grid.from_spacing(0.25, 48)
+    KX, KY = g.KXY
+    kx, ky = KX[0, 2], KY[3, 0]
+    X, Y = g.XY
+    carrier = np.exp(1j * (kx * X + ky * Y))
+    field = vw.Field(carrier, 0.3j * carrier, g, wavelength=1.0, n=1.5)
+
+    completed = field.with_longitudinal()
+    assert field.Ez is None
+    assert np.array_equal(completed.Ex, field.Ex)
+    assert np.array_equal(completed.Ey, field.Ey)
+    assert vw.spectrum_of(completed).transversality_residual() < 2e-14
+
+    kz = np.sqrt(completed.k**2 - kx**2 - ky**2)
+    expected = -(kx + 0.3j * ky) * carrier / kz
+    assert np.max(np.abs(completed.Ez - expected)) < 2e-13
+
+
+@pytest.mark.parametrize("polarization", ["x", "circular", "radial", "azimuthal"])
+def test_named_point_source_is_transverse(polarization):
+    from vecdiff.wave.propagation import _axisym_samples, _incident_on_surface
+
+    surf = vw.Conic(radius=-8.0, conic=-2.25)
+    smp = _axisym_samples(surf, aperture=6.0, n_rho=31, n_phi=24)
+    E, khat = _incident_on_surface(
+        surf, smp["RHO"], smp["PHI"], smp["SAG"], 2 * np.pi,
+        "point", polarization, source_distance=5.0,
+    )
+    residual = np.abs(np.sum(E * khat, axis=0))
+    scale = np.linalg.norm(E, axis=0)
+    assert np.max(residual / scale) < 2e-15
 
 
 def test_propagation_round_trip():
