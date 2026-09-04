@@ -18,6 +18,14 @@ or bundled old implementation**. Earlier code is available only in Git history.
 | Closed dielectric interface | **Experimental** dense Maxwell boundary matching; source-placement and held-out convergence checks required |
 | Richards–Wolf and Mie | External references, never dependencies of the core |
 
+The main method is the per-k spectral interface transformation. The auxiliary-
+source closed-boundary calculation listed above is a separate experiment; its
+Mie error is not the main method's accuracy. Immediate application priorities
+are lossless refractive DUV systems, telescopes, microscopes, and simple
+reflections. See [future implementations](docs/future_implementations.md) for
+the distinction between existing components, missing system validation, ideal
+mirrors, and later metal/coating/EUV support.
+
 “Exact” describes the governing representation in its stated geometry, not a
 guarantee for finite numerical sampling or arbitrary resonant structures. In
 particular, repeating an approximate curved-interface map does not by itself

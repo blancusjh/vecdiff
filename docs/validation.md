@@ -5,6 +5,13 @@ does a discretization converge, does the physical approximation apply, and
 does an independent reference agree? One successful check cannot replace the
 others. Finite tests cannot prove correctness in every geometry or resonance.
 
+**Scope of the main-method claim:** the repository's main method is the per-k
+spectral interface transformation. Auxiliary-source boundary matching is a
+different method. Its sphere errors and runtimes below must not be reported as
+the spectral method's performance. The [implementation roadmap](future_implementations.md)
+prioritizes refractive DUV, telescope, and microscope workflows within the
+lossless material scope, before real-metal and EUV extensions.
+
 ## Conventions and boundary checks
 
 Time dependence is `exp(-i omega t)`, vacuum wavelength is explicit, and returned
