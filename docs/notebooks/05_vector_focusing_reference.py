@@ -9,9 +9,13 @@ from pathlib import Path
 import sys
 root = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists())
 sys.path.insert(0, str(root))
+from IPython import get_ipython
+get_ipython().run_line_magic("matplotlib", "inline")
+import matplotlib.pyplot as plt
 from examples.vector_focus import run
 figure, report = run()
 display(figure)
+plt.close(figure)
 report
 # %% [markdown]
 # All pupil choices have the same magnitude and incident pupil power. No curve

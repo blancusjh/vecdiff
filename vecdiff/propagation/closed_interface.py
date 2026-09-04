@@ -38,7 +38,7 @@ def _dipoles(points, sources, directions, wavelength, medium):
 
 
 @dataclass(frozen=True)
-class ClosedInterfaceField:
+class ClosedInterfaceSolution:
     """Total fields with explicit region selection.
 
     Auxiliary sources are not physical emitters. Evaluate each expansion only
@@ -139,5 +139,5 @@ def solve_closed_interface(incident, interior_medium, boundary, source_sampling,
     solution, _, rank, singular = lstsq(matrix, rhs, cond=rcond, lapack_driver="gelsd")
     residual = np.linalg.norm(matrix@solution-rhs)/max(np.linalg.norm(rhs), np.finfo(float).tiny)
     condition = float(singular[0]/singular[-1]) if singular[-1] > 0 else np.inf
-    return ClosedInterfaceField(incident, interior_medium, inside, outside, directions,
-                                 solution/scale, float(residual), rank, condition)
+    return ClosedInterfaceSolution(incident, interior_medium, inside, outside, directions,
+                                 solution/scale, float(residual), int(rank), condition)

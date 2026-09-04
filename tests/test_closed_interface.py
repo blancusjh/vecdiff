@@ -65,3 +65,11 @@ def test_explicit_domain_and_immutable_solution(solutions):
         field.evaluate([[0, 0, 0]], region="unknown")
     with pytest.raises(ValueError):
         field.coefficients[0] = 0
+
+
+def test_diagnostics_use_json_serializable_python_scalars(solutions):
+    import json
+    field = solutions[1][-1]
+    assert type(field.rank) is int
+    json.dumps(dict(rank=field.rank, fit_residual=field.fit_residual,
+                    condition_number=field.condition_number), allow_nan=False)

@@ -17,14 +17,14 @@ from .surfaces.cartesian_oval import CartesianOval
 from .interfaces.dielectric_interface import DielectricInterface
 from .propagation.propagation import propagate, spectrum_of
 from .propagation.interface_transform import interface_transform
-from .propagation.layered_propagation import propagate_layers, LayeredField
+from .propagation.layered_propagation import propagate_layers, LayeredElectricField
 from .propagation.multiple_scattering import coherent_feedback, FeedbackResult, ConvergenceError
-from .propagation.closed_interface import solve_closed_interface, ClosedInterfaceField
+from .propagation.closed_interface import solve_closed_interface, ClosedInterfaceSolution
 
 __version__ = "0.3.0"
 __all__ = ["ElectricField", "TransverseElectricField", "ElectricSpectrum", "plane_wave", "Medium",
            "PlaneDomain", "Frame", "CartesianGrid", "PointSampling", "SurfaceSampling", "sample_surface",
            "Surface", "Plane", "FreeformSurface", "AxisymmetricSurface", "Sphere", "SphericalCap", "CartesianOval",
            "DielectricInterface", "propagate", "spectrum_of", "interface_transform",
-           "LayerStack", "LayeredField", "propagate_layers", "coherent_feedback", "FeedbackResult",
-           "ConvergenceError", "solve_closed_interface", "ClosedInterfaceField"]
+           "LayerStack", "LayeredElectricField", "propagate_layers", "coherent_feedback", "FeedbackResult",
+           "ConvergenceError", "solve_closed_interface", "ClosedInterfaceSolution"]

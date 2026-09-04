@@ -20,7 +20,7 @@ def test_core_has_no_reference_dependency_and_only_root_api():
 def test_no_compatibility_package_or_aliases():
     root = Path(vecdiff.__file__).parent
     assert not list((root.parent/"references/legacy").rglob("*.py"))
-    for name in ("Field", "VectorField", "TransverseField"):
+    for name in ("Field", "VectorField", "TransverseField", "LayeredField", "ClosedInterfaceField"):
         assert not hasattr(vecdiff, name)
     for path in (root.parent/"references").glob("*.py"):
         assert "from .legacy" not in path.read_text()

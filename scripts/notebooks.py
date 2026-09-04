@@ -61,9 +61,13 @@ def main():
             start = time.perf_counter()
             NotebookClient(nb, km=manager, timeout=600, allow_errors=False,
                            resources={"metadata": {"path": str(ROOT)}}).execute()
+            figures = sum("image/png" in item.get("data", {})
+                          for cell in nb.cells for item in cell.get("outputs", []))
+            if figures == 0:
+                raise RuntimeError(f"{target.name} executed without rendering its scientific figures")
             output.mkdir(parents=True, exist_ok=True)
             nbformat.write(nb, output/target.name)
-            report.append(dict(notebook=target.name, status="passed", cells=len(nb.cells),
+            report.append(dict(notebook=target.name, status="passed", cells=len(nb.cells), figures=figures,
                                seconds=time.perf_counter()-start))
             (output/"execution.json").write_text(json.dumps(report, indent=2)+"\n")
             print(report[-1], flush=True)

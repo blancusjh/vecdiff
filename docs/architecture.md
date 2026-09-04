@@ -44,6 +44,9 @@ coefficients are applied. It does not infer a ray direction from the phase of
 a superposed field. Linearity is tested explicitly.
 
 The layer recursion sums repeated reflection/refraction with complex phases.
+Its returned `LayeredElectricField` is a spectral electric-field representation;
+the closed-boundary solve returns a `ClosedInterfaceSolution` containing the
+field expansion and numerical diagnostics. Neither has a compatibility alias.
 Only decaying internal propagation factors are formed; forward fields are
 anchored at each layer's left boundary and backward fields at its right.
 Exactly grazing/critical layers are rejected explicitly because this basis

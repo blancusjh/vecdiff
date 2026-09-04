@@ -12,7 +12,7 @@ from ..interfaces.fresnel import tangential_coefficients
 
 
 @dataclass(frozen=True)
-class LayeredField:
+class LayeredElectricField:
     incident: ElectricSpectrum
     stack: object
     kz: np.ndarray
@@ -110,4 +110,4 @@ def propagate_layers(incident, stack):
     for j in range(regions-1):
         feedback = effective[j+1]*factors[j+1]**2 if j+1 < regions-1 else 0.
         ttotal *= ts[j]*factors[j]/(1+rs[j]*feedback)
-    return LayeredField(incident, stack, kz, s, tangent, tuple(forward), tuple(backward), effective[0], ttotal)
+    return LayeredElectricField(incident, stack, kz, s, tangent, tuple(forward), tuple(backward), effective[0], ttotal)

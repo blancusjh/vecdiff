@@ -9,9 +9,13 @@ from pathlib import Path
 import sys
 root = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists())
 sys.path.insert(0, str(root))
+from IPython import get_ipython
+get_ipython().run_line_magic("matplotlib", "inline")
+import matplotlib.pyplot as plt
 from examples.curved_interface import run
 figure, report = run()
 display(figure)
+plt.close(figure)
 report
 # %% [markdown]
 # The first panel checks quadrature convergence for a fixed physical aperture.

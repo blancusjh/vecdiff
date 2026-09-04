@@ -9,6 +9,9 @@ from pathlib import Path
 import sys
 root = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists())
 sys.path.insert(0, str(root))
+from IPython import get_ipython
+get_ipython().run_line_magic("matplotlib", "inline")
+import matplotlib.pyplot as plt
 from vecdiff import Medium, Plane, DielectricInterface, plane_wave, interface_transform
 result = interface_transform(plane_wave(), DielectricInterface(Plane(), Medium(), Medium(1.5)))
 reflected_E, reflected_H = result.reflected.evaluate([[0, 0, 0]])
@@ -17,6 +20,7 @@ transmitted_E, transmitted_H = result.transmitted.evaluate([[0, 0, 0]])
 from examples.plane_interface import run
 figure, report = run()
 display(figure)
+plt.close(figure)
 {key: report[key] for key in ["max_boundary_residual", "max_flux_error"]}
 # %% [markdown]
 # The checks use reconstructed E and H, not just Fresnel coefficients. They test

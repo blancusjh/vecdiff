@@ -12,9 +12,13 @@ from pathlib import Path
 import sys
 root = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists())
 sys.path.insert(0, str(root))
+from IPython import get_ipython
+get_ipython().run_line_magic("matplotlib", "inline")
+import matplotlib.pyplot as plt
 from examples.sphere_resonance import run
 figure, report = run()
 display(figure)
+plt.close(figure)
 report["max_bulk_error"], report["worst_case_refinement"]
 # %% [markdown]
 # Four distinct checks matter: fit residual, all four held-out Maxwell boundary

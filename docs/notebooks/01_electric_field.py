@@ -11,6 +11,9 @@ from pathlib import Path
 import sys
 root = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists())
 sys.path.insert(0, str(root))
+from IPython import get_ipython
+get_ipython().run_line_magic("matplotlib", "inline")
+import matplotlib.pyplot as plt
 import numpy as np
 from vecdiff import CartesianGrid, PlaneDomain, TransverseElectricField, ElectricField
 grid = CartesianGrid.from_spacing(.8, 32)
@@ -29,6 +32,7 @@ assert completed.Ez is not None
 from examples.field_propagation import run
 figure, report = run()
 display(figure)
+plt.close(figure)
 {key: value for key, value in report.items() if key != "parameters"}
 # %% [markdown]
 # | Quantity | Interpretation |

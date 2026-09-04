@@ -18,5 +18,7 @@ no stale outputs; the execution runner stores fresh outputs under
 Install `.[notebooks,validation,nufft]` in this checkout and use that Python
 kernel. Each notebook locates the repository when started from a subdirectory.
 `python scripts/notebooks.py --check --execute` checks synchronization and runs
-every cell in order. CI runs this command explicitly; a source-only check is
+every cell in order and requires embedded PNG figures in every executed notebook.
+The notebooks explicitly enable inline rendering, including in headless CI.
+CI runs this command explicitly; a source-only check is
 not reported as a successful Jupyter execution.

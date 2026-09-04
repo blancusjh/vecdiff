@@ -89,6 +89,14 @@ stress case is deliberately retained in `closed_sphere_stress.json`: the tested
 order/offset are insufficient and produce substantial Mie errors. Do not infer
 universal accuracy from the three smaller cases.
 
+The larger sphere was then tested at order 24 with offset fraction .25
+(1152 source locations, 3456 fitting points). Bulk E/H errors dropped from
+13–19% to **0.30–0.44%**, with a maximum held-out jump of `5.09e-3` and a closed
+flux error of `3.17e-3`. `closed_sphere_refinement.json` retains this result.
+Both source count and placement changed, so this is an improvement under two
+numerical changes, not a one-parameter convergence proof. The dense solve took
+155 seconds; no claim of arbitrary-precision or universal high-Q accuracy is made.
+
 The index-2 sphere example compares a nine-point wavelength scan with Mie and
 refines its worst point from order 12 to 16. Maximum sampled bulk error was
 `9.18e-5` at order 12. The dense curve is explicitly the reference, not additional
@@ -108,7 +116,11 @@ The pinned numerical environment targets Python 3.12. The general installation
 supports Python 3.10+; CI also checks other supported versions without those
 environment-specific pins. Notebook source synchronization is distinct from
 Jupyter execution. The development host blocked kernel networking, so local
-Jupyter execution was **not** certified; CI includes an explicit execution job.
+Jupyter execution was **not** certified locally. All six notebooks subsequently
+executed successfully in the [CI notebook job](https://github.com/blancusjh/vecdiff/actions/runs/33922646859),
+which uploads their executed outputs. The first unpinned Python 3.12/3.13 test
+jobs exposed a SciPy 1.18 rank-scalar JSON serialization issue; diagnostics now
+convert the rank explicitly to a Python integer. Numerical assertions passed.
 All seven example calculation functions ran locally and their assertions passed.
 
 Before using a new configuration: refine sampling and domain size; check all

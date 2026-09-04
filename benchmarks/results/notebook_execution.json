@@ -1,0 +1,46 @@
+{
+  "commit": "a8cd6ff6c56222d031857a8c3f202d33a3be4818",
+  "run_url": "https://github.com/blancusjh/vecdiff/actions/runs/33922646859",
+  "job_id": 101184185705,
+  "status": "success",
+  "figure_rendering": "Not checked in this initial execution run; explicit PNG-rendering assertions were added subsequently.",
+  "scope": "All six paired notebooks executed in fresh Jupyter kernels in CI; development host kernel launch was blocked.",
+  "notebooks": [
+    {
+      "notebook": "01_electric_field.ipynb",
+      "status": "passed",
+      "cells": 5,
+      "seconds": 2.937248566000001
+    },
+    {
+      "notebook": "02_fresnel_boundaries.ipynb",
+      "status": "passed",
+      "cells": 4,
+      "seconds": 2.4030462150000034
+    },
+    {
+      "notebook": "03_coherent_resonances.ipynb",
+      "status": "passed",
+      "cells": 6,
+      "seconds": 1.597341563999997
+    },
+    {
+      "notebook": "04_curved_interface_limits.ipynb",
+      "status": "passed",
+      "cells": 6,
+      "seconds": 3.6490273040000005
+    },
+    {
+      "notebook": "05_vector_focusing_reference.ipynb",
+      "status": "passed",
+      "cells": 3,
+      "seconds": 1.4427064500000029
+    },
+    {
+      "notebook": "06_closed_sphere_resonance.ipynb",
+      "status": "passed",
+      "cells": 3,
+      "seconds": 35.97925964100001
+    }
+  ]
+}
