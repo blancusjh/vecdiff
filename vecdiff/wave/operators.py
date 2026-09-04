@@ -1,19 +1,25 @@
-"""Composable operators on the angular spectrum.
+"""Composable maps on the angular spectrum.
 
 The paper's spine: in the intrinsic representation an interface maps the space
 of angular-spectrum states to itself, so interfaces *compose*.  This module
 makes that literal.
 
 * :class:`FreeSpace` -- the trivial diagonal operator (a propagation phase).
-* :class:`InterfaceOperator` -- a curved dielectric interface as an operator
-  that takes an incident spectrum to an outgoing one, via the same local
-  tangent-plane model as :func:`vecdiff.wave.surface_spectrum`, but for a
-  *general* incident field and (optionally) a *general* surface.
-* :class:`System` -- an ordered product of operators; an objective is a word in
-  this algebra, and a closed body is the same product with one surface repeated.
+* :class:`InterfaceOperator` -- a curved dielectric interface using the local
+  tangent-plane boundary model.  Fresnel transmission is applied to every
+  populated incident plane-wave mode separately by default, as linearity of
+  Maxwell's equations requires.  A faster one-local-ray approximation exists,
+  but must be requested explicitly.
+* :class:`System` -- an ordered product of maps.  Exact spectral composition is
+  presently practical for sparse states; dense multi-surface examples must
+  declare the local-ray approximation at the relevant interface.
 
-Each operator is callable and returns an :class:`~vecdiff.wave.spectrum.AngularSpectrum`,
-so ``System([...])(spectrum)`` reads exactly like the mathematics.
+Each map is callable and returns an
+:class:`~vecdiff.wave.spectrum.AngularSpectrum`, so
+``System([...])(spectrum)`` reads like the mathematics.  The individual-mode
+spectral path is rigorous within the stated tangent-plane surface model but is
+expensive for dense spectra; the explicit ``incidence_model="local_ray"`` path
+is a geometrical-optics approximation and is not a linear Maxwell operator.
 """
 
 from __future__ import annotations
@@ -71,15 +77,22 @@ class FreeSpace(Operator):
 class InterfaceOperator(Operator):
     """A curved dielectric interface, as an operator on the angular spectrum.
 
-    ``apply`` samples the incident spectrum on the surface, refracts
-    (``mode='t'``) or reflects (``mode='r'``) it with the full vector Fresnel
-    operator, and returns the outgoing spectrum by the surface transform.  For
-    a surface of revolution the azimuthal Bessel kernel is used
+    ``apply`` samples every populated incident plane-wave mode on the surface,
+    refracts (``mode='t'``) or reflects (``mode='r'``) it with its own full
+    vector Fresnel operator, and sums the outgoing spectra.  This mode-by-mode
+    action preserves superposition exactly.  For a surface of revolution the
+    azimuthal Bessel kernel is used
     (``method='polar'``); a :class:`~vecdiff.wave.surfaces.Freeform2D` surface, or
     ``method='nufft'``, uses the general NUFFT transform.
 
-    Parameters mirror :func:`vecdiff.wave.surface_spectrum`.  Because it consumes
-    and produces a spectrum, ``InterfaceOperator`` composes with others.
+    ``incidence_model="spectral"`` is the physically safe default.  It is
+    intentionally capped by ``max_spectral_modes`` because its present direct
+    implementation performs one surface transform per populated mode.  The
+    alternative ``incidence_model="local_ray"`` reconstructs one energy-flow
+    direction from the total field at each surface point.  That approximation
+    is appropriate only when one geometrical ray reaches each point (for
+    example, a point source in its single-ray region); for interfering fields
+    it is nonlinear and must never be mistaken for the general Maxwell map.
     """
 
     def __init__(self, surface: Surface, *, n1: float, n2: float,
@@ -88,7 +101,8 @@ class InterfaceOperator(Operator):
                  n_rho: int = 600, n_phi: int = 64, n_kr: int = 512,
                  n_free: int = 220, edge_softness: float = 0.25,
                  tir_margin: float = 0.04, method: str = "auto",
-                 measure: str = "franz"):
+                 measure: str = "franz", incidence_model: str = "spectral",
+                 max_spectral_modes: int = 64):
         self.surface = surface
         self.n1, self.n2, self.mode = float(n1), float(n2), mode
         self.wavelength = float(wavelength)
@@ -96,6 +110,12 @@ class InterfaceOperator(Operator):
         self.n_kr, self.n_free = n_kr, n_free
         self.edge_softness, self.tir_margin = edge_softness, tir_margin
         self.method = method
+        if incidence_model not in ("spectral", "local_ray"):
+            raise ValueError("incidence_model must be 'spectral' or 'local_ray'")
+        if int(max_spectral_modes) < 1:
+            raise ValueError("max_spectral_modes must be positive")
+        self.incidence_model = incidence_model
+        self.max_spectral_modes = int(max_spectral_modes)
         if measure not in ("franz", "flat"):
             raise ValueError("measure must be 'franz' or 'flat'")
         self.measure = measure
@@ -116,19 +136,21 @@ class InterfaceOperator(Operator):
     def _franz_pieces(self, nhat, k_out_dir):
         """Oriented normal and the Q-side obliquity half ``(n.k_out)/2``.
 
-        The Franz measure is derived and validated for *transmission* (the
-        return integral represents outgoing modes with positive ``kz``); a
-        reflected spectrum keeps the flat measure until the ``sigma = -1``
-        radiation convention is worked out.  Returns ``(None, None)`` when the
-        measure does not apply.
+        The outward normal of the radiating half-space is ``nhat`` for
+        transmission and ``-nhat`` for reflection.  The latter accompanies a
+        negative output ``sigma``.  Returns ``(None, None)`` for the deliberately
+        unweighted ``flat`` measure.
         """
-        if self.measure != "franz" or self.mode != "t":
+        if self.measure != "franz":
             return None, None
-        pair = 0.5 * np.abs(np.sum(nhat * k_out_dir, axis=0))
-        return nhat, pair
+        outward = nhat if self.mode == "t" else -nhat
+        pair = 0.5 * np.abs(np.sum(outward * k_out_dir, axis=0))
+        return outward, pair
 
-    def apply(self, spec: AngularSpectrum) -> AngularSpectrum:
+    def _apply_local_ray(self, spec: AngularSpectrum) -> AngularSpectrum:
+        """Apply the single-local-ray construction once to the total field."""
         k_out = 2 * np.pi * self.out_index / self.wavelength
+        out_sigma = spec.sigma if self.mode == "t" else -spec.sigma
         axisym = getattr(self.surface, "rotationally_symmetric", True)
         method = self.method
         if method == "auto":
@@ -159,7 +181,7 @@ class InterfaceOperator(Operator):
                 return _return_integral_polar(datum, rho, smp["sag"],
                                               self.surface.dsag(rho), k_out,
                                               spec.grid, self.m_max, self.n_kr,
-                                              spec.sigma, self.wavelength,
+                                              out_sigma, self.wavelength,
                                               self.out_index,
                                               datum_pair=datum_pair,
                                               normal_rz=normal_rz)
@@ -167,7 +189,7 @@ class InterfaceOperator(Operator):
             area = (rho * np.sqrt(1.0 + self.surface.dsag(rho) ** 2) * drho * dphi)
             dS = np.broadcast_to(area[:, None], smp["RHO"].shape).ravel()
             return _return_integral_nufft(pts, E_out, dS, k_out, spec.grid,
-                                          spec.sigma, self.wavelength,
+                                          out_sigma, self.wavelength,
                                           self.out_index,
                                           pair_weight=pair, nhat=nhat_out)
 
@@ -182,20 +204,73 @@ class InterfaceOperator(Operator):
                             self.aperture)
         E_out = E_out * vis[None, :]
         return _return_integral_nufft(pts, E_out, dS * vis, k_out, spec.grid,
-                                      spec.sigma, self.wavelength,
+                                      out_sigma, self.wavelength,
                                       self.out_index,
                                       pair_weight=pair, nhat=nhat_out)
 
+    def _apply_spectral(self, spec: AngularSpectrum) -> AngularSpectrum:
+        """Apply Fresnel mode by mode and sum, preserving superposition."""
+        populated = (np.any(spec.A != 0.0, axis=0)
+                     & spec.grid.propagating(spec.k))
+        modes = np.argwhere(populated)
+        if len(modes) == 0:
+            sigma = spec.sigma if self.mode == "t" else -spec.sigma
+            return AngularSpectrum(np.zeros_like(spec.A), spec.grid,
+                                   spec.wavelength, self.out_index, sigma)
+        if len(modes) > self.max_spectral_modes:
+            raise ValueError(
+                f"spectral incidence has {len(modes)} populated modes, above "
+                f"max_spectral_modes={self.max_spectral_modes}; increase the "
+                "limit for the exact (but expensive) mode-by-mode map, or "
+                "request incidence_model='local_ray' explicitly only when one "
+                "geometrical ray reaches each surface point"
+            )
+
+        total = None
+        template = np.zeros_like(spec.A)
+        for iy, ix in modes:
+            amplitude = template.copy()
+            amplitude[:, iy, ix] = spec.A[:, iy, ix]
+            incident_mode = AngularSpectrum(amplitude, spec.grid,
+                                            spec.wavelength, spec.n,
+                                            spec.sigma)
+            outgoing_mode = self._apply_local_ray(incident_mode)
+            if total is None:
+                total = np.zeros_like(outgoing_mode.A)
+                out_sigma = outgoing_mode.sigma
+            total += outgoing_mode.A
+        return AngularSpectrum(total, spec.grid, spec.wavelength,
+                               self.out_index, out_sigma)
+
+    def apply(self, spec: AngularSpectrum) -> AngularSpectrum:
+        if not np.isclose(spec.n, self.n1, rtol=1e-12, atol=1e-14):
+            raise ValueError(
+                f"incident spectrum index n={spec.n:g} does not match "
+                f"interface incident index n1={self.n1:g}"
+            )
+        if not np.isclose(spec.wavelength, self.wavelength,
+                          rtol=1e-12, atol=1e-14):
+            raise ValueError(
+                f"incident wavelength {spec.wavelength:g} does not match "
+                f"operator wavelength {self.wavelength:g}"
+            )
+        if self.incidence_model == "local_ray":
+            return self._apply_local_ray(spec)
+        return self._apply_spectral(spec)
+
     def __repr__(self):  # pragma: no cover - cosmetic
         return (f"InterfaceOperator({type(self.surface).__name__}, "
-                f"n1={self.n1:g}, n2={self.n2:g}, mode={self.mode!r})")
+                f"n1={self.n1:g}, n2={self.n2:g}, mode={self.mode!r}, "
+                f"incidence_model={self.incidence_model!r})")
 
 
 # --------------------------------------------------------------------------
 class System(Operator):
     """An ordered product of operators: ``System([A, B, C])`` applies A, then B,
-    then C.  A multi-element objective and a closed body are both words in this
-    algebra."""
+    then C.  The algebraic composition is exact.  A dense spectrum at a later
+    interface may require either an expensive spectral evaluation or an
+    explicitly selected ``local_ray`` approximation; :class:`InterfaceOperator`
+    never changes between those regimes silently."""
 
     def __init__(self, operators):
         self.operators = list(operators)

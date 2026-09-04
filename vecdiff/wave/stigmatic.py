@@ -11,8 +11,8 @@ Franz/Stratton–Chu Maxwell reference.  The general operator of
   :class:`~vecdiff.CartesianSurfaces.CartesianSurface` as a
   :class:`~vecdiff.wave.surfaces.Surface`, so the general spectral operator can
   be fed the one shape the exact solver owns;
-* :func:`stigmatic_operator` builds that operator with the oval's own indices
-  and aperture;
+* :func:`stigmatic_operator` builds that map with the oval's own indices and
+  aperture, using the valid single-ray description of its point source;
 * :func:`object_spectrum` is the matching illumination — the point source at
   the oval's object point, normalised as the exact chain normalises it;
 * :func:`exact_focal_cut` drives the host package's own weighting
@@ -87,10 +87,14 @@ def stigmatic_operator(oval, *, wavelength: float = 1.0, mode: str = "t",
 
     Indices and aperture are read from the oval itself (``n1 = n0``,
     ``n2 = ni``, aperture defaulting to the grazing limit); everything else is
-    forwarded to :class:`~vecdiff.wave.operators.InterfaceOperator`.
+    forwarded to :class:`~vecdiff.wave.operators.InterfaceOperator`.  The
+    matched object is a point source with one geometrical ray at every regular
+    point of the oval, so ``incidence_model='local_ray'`` is the appropriate
+    default here; callers may override it explicitly.
     """
     if aperture is None:
         aperture = float(oval.aperture_limit)
+    operator_kwargs.setdefault("incidence_model", "local_ray")
     return InterfaceOperator(oval_surface(oval), n1=float(oval.n0),
                              n2=float(oval.ni), mode=mode, aperture=aperture,
                              wavelength=wavelength, **operator_kwargs)

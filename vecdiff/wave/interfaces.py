@@ -28,11 +28,16 @@ class FresnelCoefficients:
     cos_i: np.ndarray
     cos_t: np.ndarray
     tir: np.ndarray
+    n1: float
+    n2: float
 
     @property
     def transmittance(self) -> np.ndarray:
-        """Unpolarized intensity transmittance (for diagnostics)."""
-        return 0.5 * (np.abs(self.ts) ** 2 + np.abs(self.tp) ** 2)
+        """Unpolarized normal Poynting-flux transmittance."""
+        with np.errstate(divide="ignore", invalid="ignore"):
+            flux = np.real(self.n2 * self.cos_t / (self.n1 * self.cos_i))
+        flux = np.where(self.tir, 0.0, np.nan_to_num(flux))
+        return 0.5 * flux * (np.abs(self.ts) ** 2 + np.abs(self.tp) ** 2)
 
 
 def _unit(v: np.ndarray) -> np.ndarray:
@@ -54,22 +59,28 @@ def critical_angle(n1: float, n2: float) -> float:
 
 
 def fresnel(khat: np.ndarray, nhat: np.ndarray, n1: float, n2: float) -> FresnelCoefficients:
-    """Fresnel amplitude coefficients for each incident ray."""
+    """Fresnel amplitude coefficients for each incident ray.
+
+    Above the critical angle ``cos_t`` is continued onto the positive
+    imaginary branch.  The transmitted propagating channel is suppressed by
+    :func:`transmit_field`, while ``rs`` and ``rp`` retain the unit-modulus
+    total-internal-reflection phase required by Maxwell's boundary conditions.
+    """
     _, cos_i = _oriented(khat, nhat)
     mu = n1 / n2
     sin_t2 = (mu**2) * (1.0 - cos_i**2)
     tir = sin_t2 > 1.0
-    cos_t = np.sqrt(np.clip(1.0 - sin_t2, 0.0, None))
+    cos_t = np.sqrt((1.0 - sin_t2).astype(complex))
     denom_s = n1 * cos_i + n2 * cos_t
     denom_p = n2 * cos_i + n1 * cos_t
     with np.errstate(divide="ignore", invalid="ignore"):
-        ts = np.where(tir, 0.0, 2 * n1 * cos_i / denom_s)
-        tp = np.where(tir, 0.0, 2 * n1 * cos_i / denom_p)
-        rs = np.where(tir, 1.0, (n1 * cos_i - n2 * cos_t) / denom_s)
-        rp = np.where(tir, 1.0, (n2 * cos_i - n1 * cos_t) / denom_p)
+        ts = 2 * n1 * cos_i / denom_s
+        tp = 2 * n1 * cos_i / denom_p
+        rs = (n1 * cos_i - n2 * cos_t) / denom_s
+        rp = (n2 * cos_i - n1 * cos_t) / denom_p
     return FresnelCoefficients(np.nan_to_num(ts), np.nan_to_num(tp),
                                np.nan_to_num(rs), np.nan_to_num(rp),
-                               cos_i, cos_t, tir)
+                               cos_i, cos_t, tir, float(n1), float(n2))
 
 
 def refract_direction(khat: np.ndarray, nhat: np.ndarray, n1: float, n2: float) -> np.ndarray:

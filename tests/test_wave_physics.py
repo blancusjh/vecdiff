@@ -65,6 +65,8 @@ def test_fresnel_normal_incidence():
     c = vw.fresnel(khat, nhat, 1.0, 1.5)
     assert c.ts[0] == pytest.approx(2 * 1.0 / (1.0 + 1.5))
     assert c.rs[0] == pytest.approx((1.0 - 1.5) / (1.0 + 1.5))
+    reflectance = 0.5 * (abs(c.rs[0])**2 + abs(c.rp[0])**2)
+    assert c.transmittance[0] + reflectance == pytest.approx(1.0)
 
 
 def test_total_internal_reflection_onset():
@@ -74,6 +76,17 @@ def test_total_internal_reflection_onset():
         khat = np.array([[np.sin(th)], [0.0], [np.cos(th)]])
         nhat = np.array([[0.0], [0.0], [1.0]])
         assert bool(vw.fresnel(khat, nhat, 1.5, 1.0).tir[0]) is expect_tir
+
+
+def test_total_internal_reflection_retains_fresnel_phase():
+    th = vw.critical_angle(1.5, 1.0) + 0.15
+    khat = np.array([[np.sin(th)], [0.0], [np.cos(th)]])
+    nhat = np.array([[0.0], [0.0], [1.0]])
+    c = vw.fresnel(khat, nhat, 1.5, 1.0)
+    assert abs(c.rs[0]) == pytest.approx(1.0, abs=1e-12)
+    assert abs(c.rp[0]) == pytest.approx(1.0, abs=1e-12)
+    assert abs(c.rs[0].imag) > 1e-3
+    assert abs(c.rp[0].imag) > 1e-3
 
 
 def test_transmitted_field_is_transverse():

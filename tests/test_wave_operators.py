@@ -67,6 +67,7 @@ def test_interface_freespace_shifts_focus(grid):
 
 # --------------------------------------------------- NUFFT == polar (axisym)
 def test_nufft_matches_polar(grid):
+    pytest.importorskip("finufft")
     surf = vw.Conic(radius=-8.0, conic=vw.stigmatic_conic_constant(1.5, 1.0))
     pw = vw.plane_wave_spectrum(grid, wavelength=1.0, n=1.5)
     a = vw.InterfaceOperator(surf, n1=1.5, n2=1.0, aperture=9.0, method="polar")(pw)
@@ -81,6 +82,7 @@ def test_nufft_matches_polar(grid):
 
 # ------------------------------------------------------- Freeform2D == polar
 def test_freeform2d_matches_axisym(grid):
+    pytest.importorskip("finufft")
     conic = vw.Conic(radius=-8.0, conic=vw.stigmatic_conic_constant(1.5, 1.0))
     ff = vw.Freeform2D(sag_fn=lambda x, y: conic.sag(np.hypot(x, y)), radius=9.0)
     pw = vw.plane_wave_spectrum(grid, wavelength=1.0, n=1.5)
@@ -100,7 +102,11 @@ def test_two_surface_system_focuses(grid):
     front = vw.InterfaceOperator(
         vw.Conic(radius=+6.0, conic=vw.stigmatic_conic_constant(1.0, n_g)),
         n1=1.0, n2=n_g, aperture=5.5)
-    back = vw.InterfaceOperator(vw.Plane(), n1=n_g, n2=1.0, aperture=5.5)
+    # The field after the first curved interface has a dense spectrum.  The
+    # current fast composition path reconstructs one local ray and is therefore
+    # a stated geometrical-optics approximation, never the default Maxwell map.
+    back = vw.InterfaceOperator(vw.Plane(), n1=n_g, n2=1.0, aperture=5.5,
+                                incidence_model="local_ray")
     system = vw.System([front, vw.FreeSpace(8.0), back])
     assert len(system) == 3
     out = system(vw.plane_wave_spectrum(grid, wavelength=1.0, n=1.0))
@@ -115,3 +121,44 @@ def test_plane_wave_spectrum_polarization(grid):
                                polarization="x").field(0.0)
     fr = f.component_fractions()
     assert fr["x"] > 0.999 and fr["y"] < 1e-6
+
+
+def _single_s_mode(grid, ix, amplitude=1.0):
+    area = (grid.x.size * grid.dx) * (grid.y.size * grid.dy)
+    A = np.zeros((3, *grid.shape), dtype=complex)
+    A[1, 0, ix] = amplitude * area
+    return vw.AngularSpectrum(A, grid, wavelength=1.0, n=1.0)
+
+
+def test_spectral_incidence_preserves_superposition():
+    """A dielectric interface must be linear in the incident Maxwell field."""
+    g = vw.Grid.from_spacing(0.35, 32)
+    a = _single_s_mode(g, 2)
+    b = _single_s_mode(g, 5, amplitude=0.7j)
+    ab = vw.AngularSpectrum(a.A + b.A, g, wavelength=1.0, n=1.0)
+    op = vw.InterfaceOperator(
+        vw.Plane(), n1=1.0, n2=1.5, aperture=3.0, measure="flat",
+        n_rho=40, n_phi=24, n_kr=32, m_max=8, max_spectral_modes=2,
+    )
+    lhs = op(ab).A
+    rhs = op(a).A + op(b).A
+    assert np.linalg.norm(lhs - rhs) / np.linalg.norm(rhs) < 1e-13
+
+
+def test_dense_spectrum_is_not_silently_reduced_to_one_ray():
+    g = vw.Grid.from_spacing(0.4, 24)
+    dense = vw.point_source_spectrum(g, distance=8.0)
+    op = vw.InterfaceOperator(vw.Plane(), n1=1.0, n2=1.5,
+                              aperture=2.0, max_spectral_modes=2)
+    with pytest.raises(ValueError, match="incidence_model='local_ray'"):
+        op(dense)
+
+
+def test_reflection_reverses_propagation_sense():
+    g = vw.Grid.from_spacing(0.4, 24)
+    pw = vw.plane_wave_spectrum(g)
+    reflected = vw.InterfaceOperator(
+        vw.Plane(), n1=1.0, n2=1.5, mode="r", aperture=2.0,
+        measure="flat", n_rho=32, n_phi=16, n_kr=24, m_max=2,
+    )(pw)
+    assert reflected.sigma == -pw.sigma

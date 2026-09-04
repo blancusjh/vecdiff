@@ -98,14 +98,17 @@ def _incident_on_surface(surface, rho2d, phi2d, z2d, k1, kind, polarization,
 
 
 def incident_on_surface(spec: AngularSpectrum, x, y, z, chunk: int = 2000):
-    """Sample a *general* incident spectrum on scattered surface points.
+    """Sample a spectrum and estimate one local energy-flow direction.
 
     Returns ``(E, khat)`` where ``E`` is the vector field ``(3, N)`` at the
     points and ``khat`` is the local propagation direction, taken as the
-    local wavevector ``Im(E* . grad E)/|E|^2`` — exact for a locally
-    plane-wave-like (beam) field, which is the regime the tangent-plane model
-    already assumes.  This is what lets one interface operator accept the
-    output of another.
+    local wavevector ``Im(E* . grad E)/|E|^2``.  The direction is exact for a
+    single plane wave and is a geometrical-optics approximation where one ray
+    reaches each point.  It is *not* a per-mode wavevector for an interfering
+    superposition: applying Fresnel coefficients to this reconstructed
+    direction is nonlinear in ``spec``.  ``InterfaceOperator`` therefore uses
+    this function on one spectral mode at a time by default, and calls it on a
+    total field only when ``incidence_model='local_ray'`` is explicit.
     """
     x = np.ascontiguousarray(np.atleast_1d(np.asarray(x, float)).ravel())
     y = np.ascontiguousarray(np.atleast_1d(np.asarray(y, float)).ravel())
@@ -231,7 +234,7 @@ def _return_integral_polar(datum, rho, sag, dsag, k_out, grid, m_max, n_kr,
     inv_cos = k_out / np.maximum(kz_tab, 1e-9 * k_out)   # k/kz
     tan_t = kr_tab / np.maximum(kz_tab, 1e-9 * k_out)
     weight = rho * np.sqrt(1.0 + dsag ** 2) * (rho[1] - rho[0])
-    phase_z = np.exp(-1j * np.outer(kz_tab, sag))      # (n_kr, n_rho)
+    phase_z = np.exp(-1j * sigma * np.outer(kz_tab, sag))  # (n_kr, n_rho)
 
     Am = np.zeros((3, ms.size, kr_tab.size), dtype=complex)
     for i, m in enumerate(ms):
@@ -383,7 +386,9 @@ def surface_spectrum(
     ``measure`` selects the amplitude measure of the return integral:
     ``"franz"`` (default) applies the Kirchhoff obliquity pair times the chart
     radiation factor — the stationary-phase content of the exact Franz
-    radiation — while ``"flat"`` keeps the bare surface transform.
+    radiation — while ``"flat"`` keeps the bare surface transform.  ``sigma``
+    is the incident propagation sense; reflection reverses it in the returned
+    spectrum.
     """
     if measure not in ("franz", "flat"):
         raise ValueError("measure must be 'franz' or 'flat'")
@@ -412,14 +417,17 @@ def surface_spectrum(
     shape3 = (3, len(rho), len(phi))
     datum_pair = None
     normal_rz = None
-    if measure == "franz" and mode == "t":
-        # transmission only: see InterfaceOperator._franz_pieces
-        pair = 0.5 * np.abs(np.sum(nhat * k_dir, axis=0))
+    if measure == "franz":
+        outward = nhat if mode == "t" else -nhat
+        pair = 0.5 * np.abs(np.sum(outward * k_dir, axis=0))
         datum_pair = (datum * pair[None, :]).reshape(shape3)
         normal_rz = surface.normal(rho)
+        if mode == "r":
+            normal_rz = tuple(-component for component in normal_rz)
     datum = datum.reshape(shape3)
 
+    out_sigma = sigma if mode == "t" else -sigma
     return _return_integral_polar(datum, rho, smp["sag"], surface.dsag(rho),
-                                  k_out, grid, m_max, n_kr, sigma,
+                                  k_out, grid, m_max, n_kr, out_sigma,
                                   wavelength, out_index,
                                   datum_pair=datum_pair, normal_rz=normal_rz)

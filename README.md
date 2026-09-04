@@ -1,19 +1,20 @@
 # vecdiff
 
-General vectorial diffraction propagation: a composable spectral
-interface-operator engine for **arbitrary smooth curved surfaces**
-(`vecdiff.wave`), anchored by an essentially exact Hankel/Debye chain for the
-stigmatic Cartesian oval and an independent Franz/Stratton–Chu Maxwell
-reference solver that referees it. The project contains the Python package,
-runnable examples, and tests for working with sampled electromagnetic fields
-in Cartesian, polar, and circular representations.
+Vectorial diffraction tools for curved interfaces, anchored by an essentially
+exact Hankel/Debye chain for the stigmatic Cartesian oval and an independent
+Franz/Stratton–Chu Maxwell reference.  `vecdiff.wave` extends the calculation
+to arbitrary smooth surfaces with a local tangent-plane boundary model.  Its
+default sparse-spectrum path applies Fresnel transmission to each incident
+plane wave separately, preserving the linearity required by Maxwell's
+equations; its faster one-local-ray path is an explicit geometrical-optics
+approximation.
 
 Two engines, one physics, at two fidelities:
 
 | | engine | scope | fidelity |
 |---|---|---|---|
 | classic chain | Hankel transfer `G -> G' -> focal plane` | the stigmatic Cartesian oval | exact within its class (pinned to 2e-9 against Franz/Stratton–Chu) |
-| `vecdiff.wave` | spectral interface operators, composable | any smooth surface — sphere, conic, asphere, freeform — and *systems* of them | leading order in `1/kR`, improving with size |
+| `vecdiff.wave` | tangent-plane surface maps | sphere, conic, asphere, freeform; sparse spectra exactly linear, dense spectra by explicit local-ray approximation | leading order in `1/kR`; measured against the exact chain |
 
 The seam between them is `vecdiff.wave.stigmatic`: it feeds the general
 operator the one surface the exact chain owns, so the exact solver referees
@@ -33,15 +34,18 @@ the general one (`vecdiff.wave.referee`, exercised in
 
 ## What Is Included
 
-- **The general operator engine** (`vecdiff.wave`): a curved dielectric
-  interface as a non-diagonal operator on the vector angular spectrum, built
-  from the local tangent-plane Fresnel model and a surface return integral —
-  the azimuthal Bessel kernel for surfaces of revolution, a general type-3
-  NUFFT of the surface currents for freeforms. Operators compose
-  (`InterfaceOperator`, `FreeSpace`, `System`), so a multi-surface system is
-  an ordered product; aplanatic pupils, vector aerial imaging of masks, and
-  two packaged ray-traced projection objectives (EUV and hyper-NA DUV
-  immersion) ride on the same spectrum.
+- **The general surface engine** (`vecdiff.wave`): a curved dielectric
+  interface built from the local tangent-plane Fresnel model and a surface
+  return integral — the azimuthal Bessel kernel for surfaces of revolution and
+  a general type-3 NUFFT of the surface currents for freeforms.  The default
+  `InterfaceOperator` acts on every populated incident mode separately and is
+  therefore linear.  Dense multi-interface calculations may explicitly use
+  `incidence_model="local_ray"` when their one-ray-per-point assumption is
+  justified; this approximation is never selected silently.
+- **The spectral-incidence referee** (`vecdiff.spectral_interface`): an
+  independent meridional/cylindrical reduction in which TE and TM are exact
+  scalar Helmholtz problems.  It proves the per-mode Fresnel rule, tests
+  superposition directly, and measures the low rank of the Fresnel kernel.
 - **The stigmatic bridge** (`vecdiff.wave.stigmatic`): the Cartesian oval seen
   through the wave `Surface` interface, the matching point-source
   illumination, and a `referee` that compares the general operator against the
@@ -81,8 +85,8 @@ wants `finufft`:
 python -m pip install -e ".[wave]"
 ```
 
-Without it the axisymmetric spectral path still works through the Bessel
-kernel and direct sums.
+Without it the axisymmetric Bessel path still works; tests requiring the NUFFT
+extra are skipped.
 
 ## Quick Check
 
@@ -106,7 +110,7 @@ python examples/two_diopter_imaging.py           # orientation-dependent vectori
 python examples/resolution_inversion.py          # scalar resolves, vectorial fuses
 python examples/wave_error_scaling.py            # error law of the general operator vs exact Maxwell
 python examples/wave_radial_diopter.py           # Quabis tight spot through a real diopter
-python examples/wave_nanojet.py                  # photonic nanojet via the closed-body word
+python examples/wave_nanojet.py                  # nanojet via an explicit local-ray second surface
 python examples/wave_light_needle.py             # longitudinal light needle from one surface
 python examples/wave_vortex_diopter.py           # spin-orbit vortex switch at an interface
 python examples/wave_freeform_astigmat.py        # freeform astigmatism via the NUFFT path
@@ -152,10 +156,14 @@ rather than assuming.
 
 ## The general operator engine
 
-`vecdiff.wave` treats an interface as an operator on the vector angular
-spectrum, defined for any smooth surface through its normal and measure alone.
-Because each operator maps spectra to spectra, interfaces *compose*: a system
-of many surfaces is their ordered product interleaved with free propagation.
+`vecdiff.wave` maps a vector angular spectrum across an interface defined by
+its surface normal and measure.  Maxwell linearity requires the incidence
+cosine to be evaluated for each incident plane-wave component, not reconstructed
+once from their sum.  `InterfaceOperator` therefore defaults to the linear
+mode-by-mode path and refuses a dense spectrum above `max_spectral_modes`
+instead of silently changing physics.  The faster
+`incidence_model="local_ray"` path is available only by explicit request for a
+field with one geometrical ray at each surface point.
 
 ```python
 import numpy as np
@@ -167,10 +175,11 @@ pw   = vw.plane_wave_spectrum(grid, wavelength=1.0, n=1.0, polarization="x")
 kappa = vw.stigmatic_conic_constant(1.0, 1.5)           # plane-wave stigmat
 front = vw.InterfaceOperator(vw.Conic(radius=+6.0, conic=kappa),
                              n1=1.0, n2=1.5, aperture=5.5)
-back  = vw.InterfaceOperator(vw.Plane(), n1=1.5, n2=1.0, aperture=5.5)
+back  = vw.InterfaceOperator(vw.Plane(), n1=1.5, n2=1.0, aperture=5.5,
+                             incidence_model="local_ray")
 
-system = vw.System([front, vw.FreeSpace(8.0), back])    # a word in the algebra
-out    = system(pw)                                     # spectrum -> spectrum
+system = vw.System([front, vw.FreeSpace(8.0), back])
+out    = system(pw)  # second surface uses the stated single-ray approximation
 ```
 
 A genuinely non-axisymmetric surface uses the same operator through the
@@ -200,12 +209,13 @@ measure selected by `measure=`:
   transform in the planar limit and, measured against the Franz/Stratton–Chu
   Maxwell reference on the stigmatic oval, holds the absolute focal amplitude
   to −3…−8% with **no trend in NA or in the size parameter**
-  (`examples/wave_error_scaling.py`).
+  (`examples/wave_error_scaling.py`).  Reflection uses the outward normal of
+  the incident half-space and a reversed spectrum propagation sense.
 - `"flat"`: the bare surface transform of the original construction.  Its
   phase (focal profile) is percent-level too, but its absolute amplitude runs
   +9% at NA 0.32 to +40% at NA 0.87 — an error controlled by aperture, not by
-  size.  Kept for comparison and for reflection, where the Franz convention
-  is not yet worked out.
+  size.  It is kept only for amplitude comparisons and must not be interpreted
+  as a normalized transmitted or reflected power measure.
 
 Validation status is pinned by tests: the planar Fresnel limit to ~0.5%
 (`test_wave_rigor`), the exact-chain and Stratton–Chu referees
@@ -220,6 +230,7 @@ vecdiff/          Python package (the exact stigmatic chain)
 vecdiff/reference/  Independent Maxwell reference solver
 vecdiff/wave/     The general spectral interface-operator engine
 vecdiff/wave/stigmatic.py  The bridge and referee between the two engines
+vecdiff/spectral_interface.py  Linear per-mode Fresnel referee in 2D
 examples/         Runnable scripts and generated-output conventions
 tests/            Unit tests (test_unification.py referees the two engines)
 docs/assets/      README and documentation media

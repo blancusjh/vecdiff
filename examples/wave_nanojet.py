@@ -1,15 +1,16 @@
 """The raindrop word: a photonic nanojet from the closed-body composition.
 
-The operator algebra's claim is that a closed scatterer is the same product as
-an optical system — one surface encountered repeatedly.  This script spells
-the once-transmitted word of a dielectric ball lens letter by letter,
+This script studies the once-transmitted word of a dielectric ball lens,
 
     T_back . P(2R) . T_front,
 
-feeds it a plane wave, and renders the classic *photonic nanojet*: the
-narrow, wavelength-scale, several-wavelength-long jet anchored just outside
-the shadow-side surface of a small dielectric sphere (Chen, Taflove &
-Backman, Opt. Express 12, 1214 (2004)).
+and renders a *photonic-nanojet-like* concentration.  The first interface is
+driven by one plane wave and uses the spectrally linear path.  The field at the
+second interface is dense, so that step explicitly uses the one-local-ray
+approximation.  This is therefore a model study, not a rigorous full-wave
+solution of the closed sphere.  The phenomenon being modelled is the narrow,
+wavelength-scale jet outside a dielectric sphere (Chen, Taflove & Backman,
+Opt. Express 12, 1214 (2004)).
 
 Ball: R = 8 lambda, n = 1.5, aperture 6 lambda (the rim beyond that is
 clipped by total internal reflection at the exit face anyway).
@@ -42,9 +43,13 @@ def compute():
     front = vw.InterfaceOperator(vw.Sphere(radius=+R), n1=1.0, n2=N_GLASS,
                                  aperture=APERTURE, n_rho=600, n_phi=32,
                                  m_max=2)
-    back = vw.InterfaceOperator(vw.Sphere(radius=-R), n1=N_GLASS, n2=1.0,
-                                aperture=APERTURE, n_rho=600, n_phi=32,
-                                m_max=2)
+    back = vw.InterfaceOperator(
+        vw.Sphere(radius=-R), n1=N_GLASS, n2=1.0,
+        aperture=APERTURE, n_rho=600, n_phi=32, m_max=2,
+        # The internal field has a dense spectrum.  This fast second-surface
+        # step is the explicitly selected single-ray/geometrical approximation.
+        incidence_model="local_ray",
+    )
     inside = vw.FreeSpace(2 * R)(front(pw))     # internal spectrum at z = 0
     out = back(inside)                          # external spectrum at z = 2R
     return inside, out
@@ -144,9 +149,9 @@ def main():
         s.set_color("#2A3540")
     ax.grid(alpha=0.15)
 
-    fig.suptitle("Photonic nanojet of a dielectric ball lens "
+    fig.suptitle("Local-ray model of a dielectric-ball nanojet "
                  f"(R = {R:.0f}$\\lambda$, n = {N_GLASS})  —  "
-                 "the closed-body composition word",
+                 "spectral first surface, local-ray second surface",
                  color=INK, fontsize=13, y=0.97)
     path = OUTPUT / "wave_nanojet.png"
     fig.savefig(path, dpi=150, facecolor=BG)

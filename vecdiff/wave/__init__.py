@@ -2,11 +2,12 @@
 
 Vectorial wave optics for arbitrary curved interfaces and projection optics
 (the ``vectorwave`` engine, folded into vecdiff).  It complements the exact
-stigmatic Hankel chain of the host package: where vecdiff's classic path
-solves the Cartesian oval rigorously, this subpackage supplies the general,
-composable operator for *any* smooth surface — and :mod:`vecdiff.wave.stigmatic`
-bridges the two, so the exact solver referees the general one on the surface
-they share.
+stigmatic Hankel chain of the host package with a local tangent-plane surface
+model.  Sparse angular spectra are transmitted mode by mode, preserving
+Maxwell linearity.  Dense fields may use an explicitly requested local-ray
+approximation when one geometrical ray reaches each surface point.
+:mod:`vecdiff.wave.stigmatic` bridges the engines so the exact solver referees
+the general surface model on the surface they share.
 
 The subpackage is built around four abstractions:
 
