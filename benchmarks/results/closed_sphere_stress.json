@@ -1,0 +1,38 @@
+{
+  "versions": {
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "miepython": "3.3.0"
+  },
+  "conventions": "exp(-i omega t), H=Z0 H_SI, vacuum wavelength=1",
+  "cases": [
+    {
+      "radius": 2.0,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 20,
+      "source_count": 800,
+      "boundary_count": 2400,
+      "offset_fraction": 0.4,
+      "fit_residual": 0.030100891205755504,
+      "held_out_boundary": {
+        "tangential_E": 0.017872892232204306,
+        "tangential_H": 0.02981317323607636,
+        "normal_D": 0.002134708634839287,
+        "normal_B": 0.031932120500341096
+      },
+      "errors_vs_mie": {
+        "exterior_E": 0.12983553347129287,
+        "exterior_H": 0.12866256504537324,
+        "interior_E": 0.16195391170809267,
+        "interior_H": 0.18764236733193704
+      },
+      "rank": 3060,
+      "unknowns": 3200,
+      "condition_number": 3.2461284592462824e+16,
+      "total_closed_flux_relative": 0.08693607029376396,
+      "center_electric_norm2": 1.0050951464824758,
+      "seconds": 50.47436715799995
+    }
+  ]
+}

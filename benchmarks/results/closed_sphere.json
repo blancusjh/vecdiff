@@ -1,0 +1,268 @@
+{
+  "versions": {
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "miepython": "3.3.0"
+  },
+  "conventions": "exp(-i omega t), H=Z0 H_SI, vacuum wavelength=1",
+  "cases": [
+    {
+      "radius": 0.25,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 8,
+      "source_count": 128,
+      "boundary_count": 384,
+      "offset_fraction": 0.5,
+      "fit_residual": 0.0052914959533072094,
+      "held_out_boundary": {
+        "tangential_E": 0.007599879917659449,
+        "tangential_H": 0.0028647680996040665,
+        "normal_D": 0.006944602978702348,
+        "normal_B": 0.0027819624186616746
+      },
+      "errors_vs_mie": {
+        "exterior_E": 0.00010513284533246422,
+        "exterior_H": 0.00014803172358194793,
+        "interior_E": 0.0002182104866998966,
+        "interior_H": 0.00017685294975229357
+      },
+      "rank": 512,
+      "unknowns": 512,
+      "condition_number": 597078.4950966315,
+      "total_closed_flux_relative": 2.5949358779794992e-05,
+      "center_electric_norm2": 1.09207394740043,
+      "seconds": 0.5159669800013944
+    },
+    {
+      "radius": 0.25,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 12,
+      "source_count": 288,
+      "boundary_count": 864,
+      "offset_fraction": 0.5,
+      "fit_residual": 0.0002989982268335374,
+      "held_out_boundary": {
+        "tangential_E": 0.00043501379683158367,
+        "tangential_H": 0.0001066000564976932,
+        "normal_D": 0.0004155537562152872,
+        "normal_B": 0.00011086831957117932
+      },
+      "errors_vs_mie": {
+        "exterior_E": 1.3943329943391973e-06,
+        "exterior_H": 1.1655616133021577e-06,
+        "interior_E": 1.6623072661520175e-06,
+        "interior_H": 1.1551279446564178e-06
+      },
+      "rank": 1152,
+      "unknowns": 1152,
+      "condition_number": 111683213763.63692,
+      "total_closed_flux_relative": 9.22950800683152e-08,
+      "center_electric_norm2": 1.0920748190050023,
+      "seconds": 3.1635254139982862,
+      "bulk_change_from_previous_order": 0.0001671252805158515
+    },
+    {
+      "radius": 0.25,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 16,
+      "source_count": 512,
+      "boundary_count": 1536,
+      "offset_fraction": 0.5,
+      "fit_residual": 1.554375169300349e-05,
+      "held_out_boundary": {
+        "tangential_E": 2.0672550654564333e-05,
+        "tangential_H": 3.503604387786807e-06,
+        "normal_D": 2.362879037423233e-05,
+        "normal_B": 5.315530593590881e-06
+      },
+      "errors_vs_mie": {
+        "exterior_E": 2.221668404491272e-08,
+        "exterior_H": 1.9151640311837254e-08,
+        "interior_E": 1.7192102022593057e-08,
+        "interior_H": 1.1539335177050408e-08
+      },
+      "rank": 1988,
+      "unknowns": 2048,
+      "condition_number": 4.0444820947143816e+16,
+      "total_closed_flux_relative": 2.7138946489364905e-10,
+      "center_electric_norm2": 1.0920748385862684,
+      "seconds": 14.201592669000092,
+      "bulk_change_from_previous_order": 1.3132252421935344e-06
+    },
+    {
+      "radius": 0.5,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 8,
+      "source_count": 128,
+      "boundary_count": 384,
+      "offset_fraction": 0.5,
+      "fit_residual": 0.00729743456178228,
+      "held_out_boundary": {
+        "tangential_E": 0.006775002317506562,
+        "tangential_H": 0.006046972978772302,
+        "normal_D": 0.005720422435758899,
+        "normal_B": 0.005733103179726236
+      },
+      "errors_vs_mie": {
+        "exterior_E": 0.00013444056809490564,
+        "exterior_H": 0.00014813786817958192,
+        "interior_E": 0.0002722304973332706,
+        "interior_H": 0.0001772804706133807
+      },
+      "rank": 512,
+      "unknowns": 512,
+      "condition_number": 1159314.2516854976,
+      "total_closed_flux_relative": 0.0001203684888301617,
+      "center_electric_norm2": 2.015995590215167,
+      "seconds": 0.4004128859996854
+    },
+    {
+      "radius": 0.5,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 12,
+      "source_count": 288,
+      "boundary_count": 864,
+      "offset_fraction": 0.5,
+      "fit_residual": 0.00031450773255437605,
+      "held_out_boundary": {
+        "tangential_E": 0.00034473396702008234,
+        "tangential_H": 0.00019094425708015363,
+        "normal_D": 0.0003321596272493727,
+        "normal_B": 0.00015502368822299382
+      },
+      "errors_vs_mie": {
+        "exterior_E": 6.772503093781026e-07,
+        "exterior_H": 6.44138836144455e-07,
+        "interior_E": 1.1521962301361597e-06,
+        "interior_H": 6.165466096400536e-07
+      },
+      "rank": 1152,
+      "unknowns": 1152,
+      "condition_number": 182457074063.1004,
+      "total_closed_flux_relative": 1.9031179683349897e-07,
+      "center_electric_norm2": 2.0160049909941047,
+      "seconds": 2.5180554729995492,
+      "bulk_change_from_previous_order": 0.00018764629832099705
+    },
+    {
+      "radius": 0.5,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 16,
+      "source_count": 512,
+      "boundary_count": 1536,
+      "offset_fraction": 0.5,
+      "fit_residual": 1.467738238783259e-05,
+      "held_out_boundary": {
+        "tangential_E": 1.6162257536603512e-05,
+        "tangential_H": 6.3450633451444834e-06,
+        "normal_D": 1.776821550179457e-05,
+        "normal_B": 5.8085662120282515e-06
+      },
+      "errors_vs_mie": {
+        "exterior_E": 8.975499686527287e-09,
+        "exterior_H": 6.0695831844217806e-09,
+        "interior_E": 7.053467987525345e-09,
+        "interior_H": 4.219010909472131e-09
+      },
+      "rank": 1984,
+      "unknowns": 2048,
+      "condition_number": 3.818674927858906e+16,
+      "total_closed_flux_relative": 4.193309159692932e-10,
+      "center_electric_norm2": 2.016005030717818,
+      "seconds": 15.308827364000535,
+      "bulk_change_from_previous_order": 7.565888787716906e-07
+    },
+    {
+      "radius": 1.0,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 8,
+      "source_count": 128,
+      "boundary_count": 384,
+      "offset_fraction": 0.5,
+      "fit_residual": 0.30766076332016784,
+      "held_out_boundary": {
+        "tangential_E": 0.24233959169333139,
+        "tangential_H": 0.25971032813625916,
+        "normal_D": 0.12216913044145689,
+        "normal_B": 0.2439305376252923
+      },
+      "errors_vs_mie": {
+        "exterior_E": 0.25799773768636663,
+        "exterior_H": 0.27444287039018966,
+        "interior_E": 0.33398755643198624,
+        "interior_H": 0.33034394970681347
+      },
+      "rank": 512,
+      "unknowns": 512,
+      "condition_number": 1944557.9889958506,
+      "total_closed_flux_relative": 0.3357499293186711,
+      "center_electric_norm2": 1.0200788890088255,
+      "seconds": 0.43206479600121384
+    },
+    {
+      "radius": 1.0,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 12,
+      "source_count": 288,
+      "boundary_count": 864,
+      "offset_fraction": 0.5,
+      "fit_residual": 0.0035111628339792207,
+      "held_out_boundary": {
+        "tangential_E": 0.002175420157748157,
+        "tangential_H": 0.0034285262593149357,
+        "normal_D": 0.0018164731656582127,
+        "normal_B": 0.0035957658533704922
+      },
+      "errors_vs_mie": {
+        "exterior_E": 4.0631194547686755e-05,
+        "exterior_H": 3.710474215107811e-05,
+        "interior_E": 8.466539141925218e-05,
+        "interior_H": 6.452127277858196e-05
+      },
+      "rank": 1152,
+      "unknowns": 1152,
+      "condition_number": 358589917292.9741,
+      "total_closed_flux_relative": 3.847302184940584e-05,
+      "center_electric_norm2": 1.0205421281409646,
+      "seconds": 2.632909756999652,
+      "bulk_change_from_previous_order": 0.37564411537278614
+    },
+    {
+      "radius": 1.0,
+      "wavelength": 1.0,
+      "sphere_index": 1.5,
+      "order": 16,
+      "source_count": 512,
+      "boundary_count": 1536,
+      "offset_fraction": 0.5,
+      "fit_residual": 6.303655512252371e-05,
+      "held_out_boundary": {
+        "tangential_E": 5.006468851482311e-05,
+        "tangential_H": 5.277907810613326e-05,
+        "normal_D": 4.914880101858966e-05,
+        "normal_B": 4.781569880564938e-05
+      },
+      "errors_vs_mie": {
+        "exterior_E": 6.363786912261248e-08,
+        "exterior_H": 4.839038825965572e-08,
+        "interior_E": 8.039608825206794e-08,
+        "interior_H": 4.702887352141723e-08
+      },
+      "rank": 1984,
+      "unknowns": 2048,
+      "condition_number": 2.2681073043213444e+16,
+      "total_closed_flux_relative": 1.7342964923063098e-08,
+      "center_electric_norm2": 1.0205422380280391,
+      "seconds": 13.995272756999839,
+      "bulk_change_from_previous_order": 6.239641840617516e-05
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# Measured numerical environment: Python 3.12. Transitive packages are resolved
+# by pip; this is a direct-dependency constraint set, not a universal lockfile.
+numpy==2.3.5
+scipy==1.17.0
+finufft==2.5.1
+miepython==3.3.0
+matplotlib==3.10.8
+pytest==9.1.1
+nbformat==5.11.1
+nbclient==0.11.0
+ipykernel==7.3.0

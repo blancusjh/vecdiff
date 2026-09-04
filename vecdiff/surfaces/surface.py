@@ -5,6 +5,8 @@ from ..geometry.frames import Frame
 
 
 class Surface(ABC):
+    is_closed = False
+
     @abstractmethod
     def position(self, u, v): pass
 

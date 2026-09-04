@@ -8,18 +8,16 @@ version = "0.3.0"
 description = "Electric-field spectral interface transformations and homogeneous Maxwell propagation"
 requires-python = ">=3.10"
 dependencies = [
-  "numpy",
-  "scipy",
+  "numpy>=1.26",
+  "scipy>=1.14",
 ]
 
 [project.optional-dependencies]
 nufft = ["finufft>=2.2"]
 validation = ["miepython==3.3.0"]
-
-[dependency-groups]
-dev = [
-  "pytest",
-]
+examples = ["matplotlib>=3.8"]
+notebooks = ["matplotlib>=3.8", "nbformat>=5.10", "nbclient>=0.10", "ipykernel>=6.29"]
+test = ["pytest>=8", "matplotlib>=3.8", "miepython==3.3.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -28,3 +26,4 @@ include = ["vecdiff*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["workflow: execute a complete scientific example (slower)"]

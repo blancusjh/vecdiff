@@ -39,6 +39,8 @@ class Sphere(Surface):
 Chart order (phi, mu) would give outward orientation; the explicit normal
 below records the chosen outward orientation with (mu, phi) coordinates.
     """
+    is_closed = True
+
     def __init__(self, radius, frame=None):
         if not np.isfinite(radius) or radius <= 0: raise ValueError("radius must be positive")
         self.radius, self.frame = radius, frame or Frame()

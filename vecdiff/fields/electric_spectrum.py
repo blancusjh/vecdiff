@@ -38,6 +38,8 @@ class ElectricSpectrum:
 
     def evaluate(self, points, *, backend="direct"):
         p = np.asarray(points, float)
+        if p.shape[-1:] != (3,) or not np.isfinite(p).all():
+            raise ValueError("points must be finite (..., 3) coordinates")
         shape = p.shape
         values = synthesize(self.wavevectors, np.concatenate((self.amplitudes.T, self.magnetic_amplitudes.T)),
                             p.reshape(-1, 3), backend=backend).T.reshape(shape[:-1]+(6,))

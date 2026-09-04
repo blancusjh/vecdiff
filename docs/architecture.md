@@ -1,81 +1,70 @@
 # Physical architecture
 
-The dependency direction follows the physical ontology. A field is a state; a
-surface and a medium describe its environment; an interface joins these
-configuration objects; propagation evaluates a law; sampling and Fourier
-routines realize that evaluation numerically.
+A field is an electromagnetic **state**. A medium, surface, domain, or layer
+stack describes its **configuration**. A propagation calculation applies a
+physical law to that state and configuration. Sampling and Fourier transforms
+are numerical representations, not alternative physical objects.
 
-```mermaid
-flowchart TD
-  F[Electric field or spectrum] --> P[Propagation]
-  M[Medium] --> I[Dielectric interface]
-  S[Surface] --> I
-  I --> P
-  G[Geometry and sampling] --> P
-  N[Fourier algorithms] --> P
-  P --> O[Observables]
-  R[Repository references] -. validate .-> O
-```
+## State and configuration
 
-The dashed dependency is only in tests and benchmarks. Nothing under
-`vecdiff/` imports `references/`.
+`ElectricField` carries global Cartesian components, domain, sampling, vacuum
+wavelength, and medium. `Ez=None` is unspecified information.
+`TransverseElectricField` is a subclass with exactly that missing component,
+not TE polarization. `complete(direction=...)` selects a propagation branch
+and returns a full electric field without mutating the original.
 
-## State
+`ElectricSpectrum` represents
+`E(r) = sum_j a_j exp(i k_j · r)`; each `a_j` includes its quadrature weight.
+Every wavevector satisfies dispersion and every amplitude satisfies `k·a=0`.
+`Z0 H_j = (k_j/k0) × a_j`. Evanescent k are complex and use the bilinear, not
+Hermitian, dispersion/transversality relations.
 
-`ElectricField` is the general sampled electric field. It always carries a
-physical domain, independent sampling, vacuum wavelength, and medium. `Ez=None`
-means that the longitudinal component is unknown. A supplied zero is a real
-zero and is checked for Maxwell transversality.
+`PlaneDomain` and `Frame` describe placement. `CartesianGrid`, `PointSampling`,
+and `SurfaceSampling` describe discretization. A `Surface` provides positions,
+tangents, normals, and area density. A `DielectricInterface` combines a surface
+with its two media and an orientation. A `LayerStack` describes parallel media
+and physical thicknesses. None owns FFT sizes or solver tolerances.
 
-`TransverseElectricField` is a convenience subclass whose constructor accepts
-only `Ex` and `Ey`. It does not mean TE polarization. Calling `complete()`
-returns an `ElectricField`; it does not mutate the transverse object.
+## Laws and numerical realizations
 
-`ElectricSpectrum` contains discrete Maxwell plane waves. Each wavevector must
-satisfy the medium dispersion relation and each electric amplitude must satisfy
-`k dot E = 0`. Its amplitudes include spectral quadrature weights, so evaluation
-has the unambiguous form
+| Module | Responsibility |
+| --- | --- |
+| `interfaces/fresnel.py` | Per-k s/p basis, Snell mapping, vector Fresnel amplitudes; fixed-tangential-basis admittances for layers |
+| `propagation/propagation.py` | Sampled-field spectrum, missing-component completion, homogeneous propagation |
+| `propagation/interface_transform.py` | Infinite-plane map or per-k curved-surface physical-optics trace |
+| `propagation/surface_radiation.py` | Maxwell radiation from prescribed equivalent currents, by Green or spectral evaluation |
+| `propagation/layered_propagation.py` | Stable coherent multiple-interface composition and region-specific total fields |
+| `propagation/multiple_scattering.py` | Complex-amplitude feedback equation with convergence controls |
+| `propagation/closed_interface.py` | Experimental self-consistent Maxwell boundary matching using auxiliary dipoles |
+| `fourier/` | Transforms only; no field, interface, or literature-model ownership |
+| `observables/` | Measurements and residuals; never hidden normalization inside propagation |
 
-\[
-  \mathbf E(\mathbf r)=\sum_j \mathbf a_j e^{i\mathbf k_j\cdot\mathbf r}.
-\]
+The curved Fresnel map retains each incident k until after its local basis and
+coefficients are applied. It does not infer a ray direction from the phase of
+a superposed field. Linearity is tested explicitly.
 
-Magnetic amplitudes follow from `Z0 H = (k/k0) cross E`.
+The layer recursion sums repeated reflection/refraction with complex phases.
+Only decaying internal propagation factors are formed; forward fields are
+anchored at each layer's left boundary and backward fields at its right.
+Exactly grazing/critical layers are rejected explicitly because this basis
+requires a separate limiting formulation. Noncritical evanescent layers work.
 
-## Interface transformation
+The closed-interface calculation actually solves for unknown fields, unlike
+the prescribed-current radiation evaluator. Its dipole kernels satisfy Maxwell
+equations and the outgoing-wave condition; matching the boundary determines
+complex coefficients. It is a general numerical boundary method, not a Mie
+implementation. Rank, condition number, and fit residual accompany every
+result. Surface closure and outward orientation are caller contracts; auxiliary
+sources must remain outside the region in which their expansion is evaluated.
 
-`interfaces/fresnel.py` owns the local boundary law. For every incident
-wavevector and oriented normal it constructs the s/p frames, reflected and
-transmitted wavevectors, and vector amplitudes. The normal-incidence basis is
-chosen by a transverse-axis construction, avoiding the former non-transverse
-global-x fallback.
+## Strict reference separation and breaking API
 
-`propagation/interface_transform.py` applies that law. The plane path remains
-diagonal in tangential spatial frequency and is exact. The curved path samples
-the full incident spectrum at each surface point but retains each incident
-wavevector through the Fresnel operation. No direction is inferred from the
-phase gradient of a total interfering field.
+`references/mie.py`, `references/richards_wolf.py`, and
+`references/stratton_chu.py` are standalone reference implementations/adapters.
+Only the Richards–Wolf reference consumes a shared field abstraction. Tests and
+benchmarks may import them; the production package cannot. The wheel contains
+only `vecdiff` packages.
 
-The curved transform returns boundary data and two `SurfaceRadiation` objects.
-The latter are equivalent-current Maxwell representations. Their Green and
-angular-spectrum evaluations solve propagation from prescribed currents. They
-do not solve for globally self-consistent currents.
-
-## Numerical realization
-
-`sampling/` owns coordinates and quadrature weights. A physical interface owns
-no FFT size, tolerance, apodization, or mode limit. `fourier/nufft.py` contains
-only a nonuniform Fourier sum. `fourier/polar.py` implements the separate
-azimuthal harmonic transform used for axisymmetric surfaces. Harmonic-tail
-truncation is checked explicitly.
-
-No propagation routine applies a hidden horizon taper. Evanescent terms and
-finite-aperture edges are explicit modeling and quadrature choices.
-
-## References
-
-The repository-level `references/` package contains Lorenz-Mie,
-Richards-Wolf, Stratton-Chu, Kirchhoff, and the preserved 0.2 implementation.
-They may consume shared field representations where useful, but the core does
-not call them and benchmarks state when a reference shares prescribed boundary
-data with the method being checked.
+There is no legacy package, compatibility facade, or alias for an old field
+name. Old examples and notebooks were retired or rewritten, not kept runnable
+through an adapter. The [migration record](migration.md) explains the choices.

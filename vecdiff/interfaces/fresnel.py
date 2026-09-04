@@ -10,6 +10,21 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def tangential_coefficients(kz1, kz2, medium1, medium2, k0):
+    """s/p tangential-E amplitudes with a fixed basis in both directions.
+
+Admittances for normalized H are Ys=kz/k0 and Yp=n^2*k0/kz. Unlike the
+rotating full-vector p convention, reverse-going p uses the same tangential
+electric basis here. Complex kz retains evanescent layers in multilayers.
+    """
+    a, b = np.broadcast_arrays(np.asarray(kz1, complex), np.asarray(kz2, complex))
+    if np.any(abs(a) == 0) or np.any(abs(b) == 0):
+        raise ValueError("exact grazing/critical layer requires a separate limiting solution")
+    y1 = np.stack((a/k0, medium1.epsilon_r*k0/a), axis=-1)
+    y2 = np.stack((b/k0, medium2.epsilon_r*k0/b), axis=-1)
+    return (y1-y2)/(y1+y2), 2*y1/(y1+y2)
+
+
 @dataclass(frozen=True)
 class FresnelResult:
     reflected_k: np.ndarray

@@ -17,7 +17,7 @@ class SurfaceSampling:
             a = np.array(getattr(self, key), float, copy=True)
             if not np.isfinite(a).all(): raise ValueError("surface samples must be finite")
             a.setflags(write=False); object.__setattr__(self, key, a)
-        if self.points.ndim != 2 or self.points.shape[1] != 3 or self.normals.shape != self.points.shape or self.weights.shape != (len(self.points),):
+        if self.points.ndim != 2 or self.points.shape[1] != 3 or len(self.points) == 0 or self.normals.shape != self.points.shape or self.weights.shape != (len(self.points),):
             raise ValueError("expected points,normals=(n,3), weights=(n,)")
         if np.any(self.weights <= 0) or not np.allclose(np.linalg.norm(self.normals, axis=-1), 1, rtol=1e-12, atol=1e-12):
             raise ValueError("weights must be positive and normals unit length")

@@ -1,109 +1,120 @@
-# Physical validation
+# Scientific validation and acceptance limits
 
-Validation distinguishes identities of the local boundary law, numerical
-convergence of propagation, and the accuracy of the physical approximation.
+The suite separates four questions: does the algebra satisfy Maxwell's laws,
+does a discretization converge, does the physical approximation apply, and
+does an independent reference agree? One successful check cannot replace the
+others. Finite tests cannot prove correctness in every geometry or resonance.
 
-## Exact plane interface
+## Conventions and boundary checks
 
-`tests/test_maxwell.py` checks s, p, and circular polarization for equal-index,
-air-to-glass, and glass-to-air interfaces from normal incidence to 89.9 degrees.
-It includes both critical and Brewster angles. The tests reconstruct incident,
-reflected, and transmitted fields on a tilted, displaced physical plane, then
-check all source-free dielectric boundary conditions:
+Time dependence is `exp(-i omega t)`, vacuum wavelength is explicit, and returned
+H is `Z0 H_SI`. Media are homogeneous, isotropic, nonmagnetic, and lossless.
+The source-free dielectric jumps are tangential E, tangential H, normal D, and
+normal B. Tests reconstruct both output fields before checking them; they also
+check dispersion, transversality, and normal Poynting-flux balance.
 
-\[
-\mathbf n\times(\mathbf E_2-\mathbf E_1)=0,\qquad
-\mathbf n\times(\mathbf H_2-\mathbf H_1)=0,
-\]
+Boundary residuals are RMS values. For refinement studies the fixed scales are
+incident electric amplitude and normalized magnetic amplitude. Normal D is
+additionally divided by the larger relative permittivity. The closed-sphere
+benchmark uses quadrature weights and the same held-out points at every order.
 
-\[
-\mathbf n\cdot(\epsilon_2\mathbf E_2-\epsilon_1\mathbf E_1)=0,\qquad
-\mathbf n\cdot(\mathbf B_2-\mathbf B_1)=0.
-\]
+## Planes and coherent layers
 
-They also check dispersion, `k dot E = 0`, lossless normal Poynting-flux
-balance, Brewster cancellation, and evanescent decay under total internal
-reflection.
+Plane tests cover normal, oblique, Brewster, critical, near-grazing, circular,
+equal-index, and total-internal-reflection regimes, including a tilted and
+translated interface. The recorded 36-case plane sweep had maximum boundary
+and relative flux errors of `1.16e-15` and `1.51e-15`.
 
-## Curved open interface
+Layer tests check all four conditions at every boundary in three- and
+four-region stacks, both s/p polarizations, both index directions, and rotated
+frames. Independent Airy complex amplitudes agree within `6e-16` in the cavity
+example. Explicit coherent round trips agree with the all-orders slab field
+within `2.4e-13`. Frustrated-TIR flux errors are below `6e-16`; a 1000-wavelength
+evanescent gap checks overflow safety. Exact critical layers are unsupported
+and rejected, not silently regularized. Generic feedback raises on failure.
 
-The local Fresnel boundary data satisfy the four conditions to floating-point
-accuracy by construction. This is a necessary check. It is not the final
-accuracy claim.
+## Curved open surfaces: an approximation, even after numerical convergence
 
-`benchmarks/validate_physics.py` reconstructs the reflected and transmitted
-fields from the finite cap and evaluates the same four jumps again at physical
-points on the cap. It reports those residuals separately from surface and
-angular quadrature changes. Only propagating output waves enter this benchmark;
-the JSON records that choice because edge-generated evanescent fields can be
-relevant near a finite aperture.
+Local Fresnel boundary traces satisfy the imposed conditions to roundoff by
+construction. The Green propagator is independently compared with Stratton–Chu,
+and E/H curl identities are tested away from sources. These checks do **not**
+establish that the prescribed currents solve the curved dielectric boundary.
 
-The direct dyadic Green evaluator is cross-checked against a separately
-preserved Stratton-Chu implementation. Numerical curls independently verify
-both frequency-domain Maxwell curl equations away from the source surface.
+The cap benchmark evaluates reconstructed, propagating-only spectra at physical
+surface points. This is a continuation diagnostic, not a singular on-surface
+Green integral. Its error includes local physical optics, hard-aperture effects,
+and omitted evanescent content. It must not be labeled pure curvature error.
 
-## Dielectric spheres and Mie theory
+With aperture `0.6 R`, observations through `0.3 R`, wavelength 1, and indices
+1/1.5, the recorded fine-grid results are:
 
-`references/mie.py` wraps `miepython` 3.3.0 and is kept outside the core. First,
-its field on both sides of a sphere is checked against all four boundary
-conditions with shrinking radial offsets and against an expanded multipole
-order. This qualifies the reference for the requested indices and sizes.
+| R / wavelength | Et jump | Ht jump | Dn jump | Bn jump | Quadrature field change |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.5 | .199 | .325 | .159 | .275 | 6.0e-13 |
+| 1 | .0982 | .305 | .163 | .154 | 1.1e-11 |
+| 2 | .104 | .139 | .0746 | .114 | 7.0e-10 |
+| 5 | .130 | .169 | .0910 | .145 | 1.8e-8 |
+| 10 | .0648 | .115 | .0602 | .0814 | 4.1e-7 |
+| 50 | .0313 | .0492 | .0260 | .0396 | 3.5e-6 |
 
-The native comparison deliberately applies only one local Fresnel encounter on
-the illuminated hemisphere, sets its shadow-side interior trace to zero, and
-radiates the resulting guessed trace on the complete sphere. It omits:
+These nonzero jumps remain after quadrature convergence. Macroscopic scale
+does not automatically confer exact boundary accuracy.
 
-- repeated internal reflection and refraction;
-- the second exit encounter;
-- coherent resonant feedback;
-- creeping and diffracted shadow fields.
+## Closed objects and resonances
 
-Its error against Mie therefore measures the failure of that one-encounter
-extension for a closed resonant object. It is not evidence against the exact
-planar Fresnel map. A production sphere method needs a multiple-scattering
-iteration or a Maxwell boundary-integral solver; either belongs in a future
-solver package with convergence and resonance controls.
+The original one-encounter sphere diagnostic remains a labeled failure case
+in `benchmarks.validate_physics`: it misses exit interactions and feedback,
+with 30–95% errors against Mie. It is not a production solver or compatibility
+implementation.
 
-## Reproduction
+The new `solve_closed_interface` instead matches the complete boundary using
+auxiliary Maxwell dipoles. The complex solve includes interactions implicitly.
+No Mie data, fitted amplitude, or fitted phase enter it. Mie 3.3.0 is an optional
+external reference. All four held-out boundary jumps, exterior/interior E/H,
+closed-surface flux, source order, rank, condition, and offset are recorded.
+
+At index 1.5, wavelength 1, offset fraction .5, and order 16 (512 source
+locations, 1536 fitting points), the measured results are:
+
+| Sphere diameter / wavelength | Largest bulk E/H error vs Mie | Largest held-out boundary jump | Closed flux error |
+| ---: | ---: | ---: | ---: |
+| .5 | 2.22e-8 | 2.36e-5 | 2.71e-10 |
+| 1 | 8.98e-9 | 1.78e-5 | 4.19e-10 |
+| 2 | 8.04e-8 | 5.28e-5 | 1.73e-8 |
+
+Orders 8/12/16 are retained in `benchmarks/results/closed_sphere.json` so the
+convergence trend is visible. The matrices are ill-conditioned; singular-value
+truncation is explicit (`rcond=1e-12`). A separate four-wavelength-diameter
+stress case is deliberately retained in `closed_sphere_stress.json`: the tested
+order/offset are insufficient and produce substantial Mie errors. Do not infer
+universal accuracy from the three smaller cases.
+
+The index-2 sphere example compares a nine-point wavelength scan with Mie and
+refines its worst point from order 12 to 16. Maximum sampled bulk error was
+`9.18e-5` at order 12. The dense curve is explicitly the reference, not additional
+native solves. A sparse wavelength scan cannot certify narrow high-Q peaks.
+
+## Reproduction and scientific use
 
 ```bash
-python -m pip install -e '.[nufft,validation]'
-python -m pytest -q
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-  python -m benchmarks.validate_physics
+python -m pip install -e '.[test,notebooks,nufft,validation]' -c requirements-validation.txt
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m pytest -q
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m benchmarks.validate_physics
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -m benchmarks.closed_sphere
+python scripts/notebooks.py --check --execute
 ```
 
-The generated JSON contains package versions, discretizations, raw residuals,
-field changes under refinement, and timings. No fitted scale, phase alignment,
-or reference-derived normalization is applied to native fields.
+The pinned numerical environment targets Python 3.12. The general installation
+supports Python 3.10+; CI also checks other supported versions without those
+environment-specific pins. Notebook source synchronization is distinct from
+Jupyter execution. The development host blocked kernel networking, so local
+Jupyter execution was **not** certified; CI includes an explicit execution job.
+All seven example calculation functions ran locally and their assertions passed.
 
-## Recorded results
-
-The committed run used vacuum wavelength 1, `n1=1`, `n2=1.5`, cap aperture
-`0.6 R`, and reconstructed-boundary observations through `0.3 R`. Values are
-relative RMS residuals. `Δquad` is the relative change of the concatenated
-reconstructed fields under simultaneous surface and angular refinement.
-
-| `R/λ` | tangential E | tangential H | normal D | normal B | `Δquad` |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 0.5 | 0.199 | 0.325 | 0.159 | 0.275 | 6.0e-13 |
-| 1 | 0.0982 | 0.305 | 0.163 | 0.154 | 1.1e-11 |
-| 2 | 0.104 | 0.139 | 0.0746 | 0.114 | 7.0e-10 |
-| 5 | 0.130 | 0.169 | 0.0910 | 0.145 | 1.8e-8 |
-| 10 | 0.0648 | 0.115 | 0.0602 | 0.0814 | 4.1e-7 |
-| 50 | 0.0313 | 0.0492 | 0.0260 | 0.0396 | 3.5e-6 |
-
-The residual generally decreases at macroscopic scale but is not monotone for
-this hard-edged, fixed-shape cap. Refinement changes are much smaller than the
-residuals, so they do not explain the measured jumps.
-
-The planar sweep contains 36 cases. Its largest boundary residual was
-`1.16e-15`; its largest relative flux error was `1.51e-15`.
-
-The closed-sphere diagnostic is numerically stable under quadrature refinement
-(field changes from `2.1e-8` down to `3.7e-12`) while its one-encounter field
-errors versus Mie remain 30–95%, depending on radius, region, and E/H. Their
-nonmonotonic size dependence and the recorded Mie scattering/backscatter
-efficiencies are consistent with a resonant closed object. These numbers are
-reported as evidence that repeated interactions are required, not as an error
-estimate for an open interface.
+Before using a new configuration: refine sampling and domain size; check all
+four reconstructed boundary conditions and flux; vary source placement for
+closed-boundary matching; refine wavelength spacing near peaks; verify against
+an independent solution where available. Preserve parameters, package versions,
+raw residuals, and convergence history. Absorbing/magnetic/anisotropic media,
+general multi-body scattering, singular surface quadrature, and universal
+high-Q accuracy are not implemented or claimed.
