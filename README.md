@@ -15,6 +15,8 @@ or bundled old implementation**. Earlier code is available only in Git history.
 | Infinite planar interface | Exact per-k Fresnel map for isotropic, lossless, nonmagnetic media |
 | Parallel dielectric layers | All coherent reflection/refraction orders; stable decaying-factor scattering recursion, including frustrated TIR |
 | General curved open interface | Per-k local tangent-plane **physical-optics approximation**; not a solved dielectric boundary |
+| General resonant behavior through the spectral method | **Pending implementation and validation** of coherent repeated surface encounters; planar-layer results do not establish this capability |
+| Macroscopic elements and complete optical systems | **Pending verification**; corrections or additional spectral-method support are also pending wherever verification reveals inadequate handling |
 | Closed dielectric interface | **Experimental** dense Maxwell boundary matching; source-placement and held-out convergence checks required |
 | Richards–Wolf and Mie | External references, never dependencies of the core |
 
@@ -30,6 +32,10 @@ mirrors, and later metal/coating/EUV support.
 guarantee for finite numerical sampling or arbitrary resonant structures. In
 particular, repeating an approximate curved-interface map does not by itself
 make a closed-body solution exact.
+
+This refactor is a development baseline, not a certification of general
+resonant-body or macroscopic-instrument accuracy. The explicit pending work and
+its acceptance criteria are tracked in the [roadmap](docs/future_implementations.md#pending-work).
 
 ## Installation
 

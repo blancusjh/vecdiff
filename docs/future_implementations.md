@@ -22,6 +22,30 @@ prerequisite for the roadmap below. If retained for comparison, it belongs
 outside the main-method implementation. This document records that separation
 requirement; it does not itself relocate or remove executable code.
 
+## Pending work
+
+- [ ] **General resonant behavior: implementation and verification pending.**
+  Construct coherent repeated reflection/refraction maps using the main spectral
+  method. Verify reconstructed interior/exterior fields, Maxwell boundary
+  conditions, power balance, encounter convergence, and resonance scans against
+  independent references. Existing planar-layer resonances and the generic
+  feedback iterator do not complete this task. Auxiliary-source results cannot
+  close it.
+- [ ] **Macroscopic elements: verification pending.** Benchmark the main spectral
+  method for large apertures and curvature radii, multiple numerical apertures,
+  and complete refractive prescriptions. Establish field/image accuracy,
+  reconstructed boundary residuals, flux, numerical convergence, runtime, and
+  memory requirements. The radius-50-wavelength cap diagnostic is not sufficient.
+- [ ] **Macroscopic support where inadequate: implementation pending, contingent
+  on verification.** Correct or extend spectral propagation, interface coupling,
+  sampling, and computational scaling wherever those tests expose inadequate
+  handling. Rerun the same acceptance benchmarks before declaring support;
+  neither large physical size nor a successful API call establishes it.
+
+These are explicitly unfinished capabilities, not completed work awaiting only
+documentation. Merging the refactor does not close these tasks or certify the
+package for general resonant or macroscopic scientific workflows.
+
 ## Present capabilities versus application targets
 
 | Capability or application | What exists | What remains |

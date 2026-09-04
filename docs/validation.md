@@ -14,6 +14,12 @@ lossless material scope, before real-metal and EUV extensions.
 
 ## Conventions and boundary checks
 
+**Pending:** general resonant behavior through coherent repeated encounters of
+the main spectral method; verification of macroscopic elements and complete
+systems; and any corrective implementation or additional macroscopic support
+that verification shows to be necessary. Planar-layer tests and auxiliary-source
+Mie comparisons do not close these items. See the [pending-work checklist](future_implementations.md#pending-work).
+
 Time dependence is `exp(-i omega t)`, vacuum wavelength is explicit, and returned
 H is `Z0 H_SI`. Media are homogeneous, isotropic, nonmagnetic, and lossless.
 The source-free dielectric jumps are tangential E, tangential H, normal D, and
