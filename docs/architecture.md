@@ -35,6 +35,8 @@ and physical thicknesses. None owns FFT sizes or solver tolerances.
 | `propagation/surface_radiation.py` | Maxwell radiation from prescribed equivalent currents, by Green or spectral evaluation |
 | `propagation/layered_propagation.py` | Stable coherent multiple-interface composition and region-specific total fields |
 | `propagation/multiple_scattering.py` | Complex-amplitude feedback equation with convergence controls |
+| `interfaces/assembly.py` | Ordered interfaces and the physical media they bound |
+| `propagation/interface_assembly.py` | Constructed coherent spectral encounters, with explicit domain and bandwidth limits |
 | `fourier/` | Transforms only; no field, interface, or literature-model ownership |
 | `observables/` | Measurements and residuals; never hidden normalization inside propagation |
 
@@ -50,9 +52,16 @@ anchored at each layer's left boundary and backward fields at its right.
 Exactly grazing/critical layers are rejected explicitly because this basis
 requires a separate limiting formulation. Noncritical evanescent layers work.
 
-General closed-body resonances require a physical spectral round-trip map and
-validation that remain pending. The generic feedback iterator does not supply
-that map. No auxiliary-source boundary solver is included.
+The assembly calculation constructs repeated spectral encounters for separated
+z-graph interfaces; the generic feedback iterator alone does not supply this
+map. General closed-body resonances and accurate curved-boundary coupling remain
+pending. No auxiliary-source boundary solver is included.
+
+For an axisymmetric source, `evaluate_propagating` analytically integrates the
+observation phase in azimuth using Fourier–Bessel harmonics. It evaluates the
+same propagating hemisphere as `angular_spectrum`, checks the current harmonic
+tail, and bounds transform temporaries by processing polar nodes in blocks.
+It does not replace a multimode field with a local ray or add evanescent content.
 
 ## Strict reference separation and breaking API
 

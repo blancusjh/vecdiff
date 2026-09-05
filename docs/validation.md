@@ -78,10 +78,16 @@ with 30–95% errors against Mie. It is not a production solver or compatibility
 implementation.
 
 General resonant behavior through the main spectral method is **pending**.
-The physical map for repeated curved-surface encounters has not been completed
-or validated. The auxiliary-source solver and its benchmark results were removed;
+The physical map is now constructed for ordered z-graph assemblies, but its
+curved-boundary accuracy and closed-body extension are not validated. The auxiliary-source solver and its benchmark results were removed;
 no accuracy claims from that different method are retained as current validation.
 Planar cavity and layer results remain valid only within their stated scope.
+
+The [new spectral interaction and scale report](spectral_interactions.md) records
+constructed-assembly tests, independent bandwidth/window/surface refinements,
+and macroscopic cap runs through R=200 wavelengths. General resonance and full
+macroscopic-system acceptance remain open because reconstructed boundary errors
+are still nonzero at a scientifically significant level.
 
 ## Reproduction and scientific use
 
@@ -95,8 +101,9 @@ python scripts/notebooks.py --check --execute
 The pinned numerical environment targets Python 3.12. The general installation
 supports Python 3.10+; CI also checks other supported versions without those
 environment-specific pins. Notebook source synchronization is distinct from
-Jupyter execution. CI executes the five maintained notebooks, checks embedded
-PNG figures, and uploads execution artifacts. Six maintained example workflows
+Jupyter execution. CI executes the seven maintained notebooks, checks embedded
+PNG figures, and uploads execution artifacts. Executed outputs are also committed
+in the source-tree notebooks. Seven maintained example workflows
 are exercised by the test suite. Use the CI run for the revision being evaluated;
 historical runs that included the removed solver are not current suite results.
 

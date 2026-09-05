@@ -119,6 +119,40 @@ must resolve both the source extent and the requested observation extent.
         a = (-k0*tj+np.cross(kv, m))*weights[:, None]
         return ElectricSpectrum(kv, a, self.wavelength, self.medium)
 
+    def evaluate_propagating(self, points, *, direction=1, n_theta=100,
+                             radial_count=1024, max_order=8):
+        """Propagating hemisphere via analytic azimuthal Fourier–Bessel synthesis.
+
+For full axisymmetric rings with a resolved current harmonic tail. Equivalent
+to angular_spectrum(..., backend='polar').evaluate at converged azimuthal
+quadrature, without allocating O(n_theta*n_phi_observation) modes. The source
+translation is removed before harmonic analysis and restored in observations.
+This excludes evanescent fields; evaluation within a source z envelope is only
+an analytic continuation diagnostic, not a physical boundary limit.
+        """
+        from ..fourier.polar import cylindrical_synthesize
+        p = np.asarray(points, float)
+        if p.shape[-1:] != (3,) or not np.isfinite(p).all():
+            raise ValueError("points must be finite (...,3)")
+        if not isinstance(max_order, int) or max_order < 0:
+            raise ValueError("max_order must be a nonnegative integer")
+        # The dyadic projection adds at most two harmonics; H=k x E/k0
+        # adds one more. The source-current tail itself is checked upstream.
+        n_phi = 2*(max_order+3)+1
+        spectrum = self.angular_spectrum(direction=direction, n_theta=n_theta,
+                    n_phi=n_phi, backend="polar", radial_count=radial_count, max_order=max_order)
+        origin = self.sampling.surface.frame.origin
+        values = np.concatenate((spectrum.amplitudes, spectrum.magnetic_amplitudes), axis=-1)
+        values *= np.exp(1j*spectrum.wavevectors @ origin)[:, None]
+        # Amplitudes already contain Delta-phi. fft(values) gives Fourier
+        # coefficients multiplied by the full azimuthal measure 2*pi.
+        coefficients = np.fft.fft(values.reshape(n_theta, n_phi, 6), axis=1)
+        orders = np.rint(np.fft.fftfreq(n_phi)*n_phi).astype(int)
+        k = spectrum.wavevectors.real.reshape(n_theta, n_phi, 3)[:, 0]
+        out = cylindrical_synthesize(np.linalg.norm(k[:, :2], axis=-1), k[:, 2],
+                                    coefficients, orders, p-origin)
+        return out[..., :3], out[..., 3:]
+
     def evaluate(self, points, *, chunk=16):
         """Direct dyadic Green integral, including reactive near-field terms.
 

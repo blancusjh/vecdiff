@@ -1,0 +1,178 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "vecdiff": "0.3.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8",
+    "finufft": "2.5.1",
+    "miepython": "3.3.0"
+  },
+  "parameters": {
+    "wavelength": 1.0,
+    "indices": [
+      1,
+      4,
+      1
+    ],
+    "radii": [
+      80,
+      -80
+    ],
+    "gap": 1.0,
+    "aperture": 2.0
+  },
+  "scope": "Finite periodic propagating lattice and local Fresnel curved traces. Boundary values below are continuation diagnostics inside source envelopes.",
+  "cases": [
+    {
+      "refinement": "baseline",
+      "count": 6,
+      "spacing": 1.2,
+      "period": 7.199999999999999,
+      "surface_radial_nodes": 12,
+      "feedback_residual": 3.8157955172892654e-11,
+      "iterations": 23,
+      "downstream_field_change": 0.0,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.16346248836826047,
+          "tangential_H": 0.16886214698741864,
+          "normal_D": 0.002757413071107606,
+          "normal_B": 0.03656965466232516
+        },
+        {
+          "tangential_E": 0.027401114689261583,
+          "tangential_H": 0.29042719662330857,
+          "normal_D": 0.004742589819141146,
+          "normal_B": 0.005776286901069249
+        }
+      ],
+      "seconds": 1.006429445998947
+    },
+    {
+      "refinement": "bandwidth",
+      "count": 8,
+      "spacing": 0.9,
+      "period": 7.2,
+      "surface_radial_nodes": 12,
+      "feedback_residual": 7.216173612448243e-11,
+      "iterations": 26,
+      "downstream_field_change": 0.1803657191770125,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.10278383795553311,
+          "tangential_H": 0.03771889349577267,
+          "normal_D": 0.0016387236863193426,
+          "normal_B": 0.03303165479370275
+        },
+        {
+          "tangential_E": 0.022344798017768792,
+          "tangential_H": 0.13048036566519164,
+          "normal_D": 0.0033503076259276733,
+          "normal_B": 0.007010795125574894
+        }
+      ],
+      "seconds": 1.920590073998028
+    },
+    {
+      "refinement": "bandwidth",
+      "count": 10,
+      "spacing": 0.72,
+      "period": 7.199999999999999,
+      "surface_radial_nodes": 12,
+      "feedback_residual": 6.701578051460057e-11,
+      "iterations": 28,
+      "downstream_field_change": 0.19830931668351431,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.07314844972797989,
+          "tangential_H": 0.06594267772909296,
+          "normal_D": 0.002676471093988336,
+          "normal_B": 0.03282279749104011
+        },
+        {
+          "tangential_E": 0.01940075729133353,
+          "tangential_H": 0.06853302970410269,
+          "normal_D": 0.0021782141693179194,
+          "normal_B": 0.011873175215390708
+        }
+      ],
+      "seconds": 3.450006778999523
+    },
+    {
+      "refinement": "window",
+      "count": 4,
+      "spacing": 1.2,
+      "period": 4.8,
+      "surface_radial_nodes": 12,
+      "feedback_residual": 4.3863988771984375e-11,
+      "iterations": 24,
+      "downstream_field_change": 0.03686360880918033,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.22866845101715103,
+          "tangential_H": 0.2401525109929304,
+          "normal_D": 0.0035435717500138307,
+          "normal_B": 0.054892357462138025
+        },
+        {
+          "tangential_E": 0.030568297742122892,
+          "tangential_H": 0.3206183741865276,
+          "normal_D": 0.00485656001097421,
+          "normal_B": 0.007368790868902669
+        }
+      ],
+      "seconds": 0.5087746960016375
+    },
+    {
+      "refinement": "window",
+      "count": 8,
+      "spacing": 1.2,
+      "period": 9.6,
+      "surface_radial_nodes": 12,
+      "feedback_residual": 6.458397754298853e-11,
+      "iterations": 22,
+      "downstream_field_change": 0.01989759300166633,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.13189938019346498,
+          "tangential_H": 0.14588726915219052,
+          "normal_D": 0.0025186829595297134,
+          "normal_B": 0.027824084460905354
+        },
+        {
+          "tangential_E": 0.0258265208733355,
+          "tangential_H": 0.2760313963935969,
+          "normal_D": 0.004778200445038454,
+          "normal_B": 0.004934932098018596
+        }
+      ],
+      "seconds": 1.7998199940011546
+    },
+    {
+      "refinement": "surface",
+      "count": 6,
+      "spacing": 1.2,
+      "period": 7.199999999999999,
+      "surface_radial_nodes": 24,
+      "feedback_residual": 3.815795398900765e-11,
+      "iterations": 23,
+      "downstream_field_change": 2.2270532847867724e-09,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.16346248867269472,
+          "tangential_H": 0.16886214694910323,
+          "normal_D": 0.002757413102138862,
+          "normal_B": 0.036569654576048556
+        },
+        {
+          "tangential_E": 0.027401113695342212,
+          "tangential_H": 0.2904271948666059,
+          "normal_D": 0.004742589796004913,
+          "normal_B": 0.0057762865350587745
+        }
+      ],
+      "seconds": 2.3074964719999116
+    }
+  ]
+}

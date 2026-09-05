@@ -7,6 +7,16 @@ then the resulting field is propagated using Maxwell representations.
 Version 0.3 is a clean API break. There are **no compatibility aliases, wrappers,
 or bundled old implementation**. Earlier code is available only in Git history.
 
+<p align="center">
+  <img src="docs/assets/quiver_harmonic_readme.gif" alt="Instantaneous focal electric field, linear polarization" width="420">
+  <img src="docs/assets/quiver_harmonic_circular.gif" alt="Instantaneous focal electric field, circular polarization" width="420">
+</p>
+
+Preserved project animations of the instantaneous field `Re[E exp(-i omega t)]`:
+linear polarization (left) and circular polarization (right). These original
+stigmatic-model visualizations are retained from the pre-refactor repository;
+they are not validation results for the general spectral interface method.
+
 ## Physical scope
 
 | Operation | Status and limits |
@@ -15,8 +25,9 @@ or bundled old implementation**. Earlier code is available only in Git history.
 | Infinite planar interface | Exact per-k Fresnel map for isotropic, lossless, nonmagnetic media |
 | Parallel dielectric layers | All coherent reflection/refraction orders; stable decaying-factor scattering recursion, including frustrated TIR |
 | General curved open interface | Per-k local tangent-plane **physical-optics approximation**; not a solved dielectric boundary |
-| General resonant behavior through the spectral method | **Pending implementation and validation** of coherent repeated surface encounters; planar-layer results do not establish this capability |
-| Macroscopic elements and complete optical systems | **Pending verification**; corrections or additional spectral-method support are also pending wherever verification reveals inadequate handling |
+| Ordered interface assemblies | Constructed coherent per-k encounters in separated z-graph geometries; propagating spectral lattice only. Planar limit validated; curved boundaries remain approximate |
+| General resonant behavior through the spectral method | **Pending physical validation and extension** beyond ordered assemblies, including closed spheres and high-Q convergence |
+| Macroscopic elements and complete optical systems | Caps tested through R=200 wavelengths; boundary errors remain at percent level. Corrective physics and complete-system validation remain pending |
 | Richards–Wolf and Mie | External references, never dependencies of the core |
 
 The main method is the per-k spectral interface transformation. Immediate application priorities
@@ -79,6 +90,38 @@ linear round-trip map, with successive-encounter or GMRES iteration, a true
 equation residual, and explicit failure on nonconvergence. It does not invent
 surface-to-surface coupling or certify the accuracy of the supplied map.
 
+`propagate_interfaces` constructs that coupling for an `InterfaceAssembly`:
+
+```python
+from vecdiff import Frame, CartesianGrid, InterfaceAssembly, propagate_interfaces
+
+front = DielectricInterface(Plane(), air, glass)
+back = DielectricInterface(Plane(Frame(origin=[0, 0, 2])), glass, air)
+assembly = InterfaceAssembly((front, back))
+field = propagate_interfaces(incident, assembly, CartesianGrid.from_spacing(1, 8))
+E, H = field.evaluate([[0, 0, 1]], region=1)
+```
+
+Curved graphs require a quadrature per surface. The lattice's bandwidth and
+period must converge independently; a converged feedback residual does not
+certify the curved-boundary model. See the [assembly study](docs/notebooks/06_spectral_assembly.ipynb).
+
+![Constructed spectral encounters, planar validation and curved-boundary limitations](docs/assets/interface_assembly.png)
+
+## Measured macroscopic behavior
+
+The main spectral method has been tested at curvature radii 50, 100, and 200
+vacuum wavelengths. Analytic azimuthal synthesis removes observation-phase
+aliasing while retaining the resolved current harmonics. At R=200 wavelengths,
+the propagating-power imbalance is 0.051%, but reconstructed boundary jumps
+remain 1.24–2.36%. Complete macroscopic accuracy is therefore still pending.
+
+![Macroscopic boundary residuals, power balance, and numerical refinement](docs/assets/macroscopic_validation.png)
+
+Raw data and independent numerical refinements are in
+[macroscopic.json](benchmarks/results/macroscopic.json). These are open-cap
+diagnostics, not validated projection-system or complete-sphere results.
+
 All lengths use the same chosen unit; wavelength is the **vacuum** wavelength.
 Phasors use `exp(-i omega t)`. Returned `H` means `Z0 * H_SI`; `poynting` converts
 this convention to SI flux when E is in V/m. `|E|²` is not generally power flux.
@@ -102,7 +145,7 @@ from `references/` to shared abstractions is allowed; the reverse is tested
 and forbidden.
 
 Start with the [curated examples](examples/README.md) and
-[five paired notebooks](docs/notebooks/README.md). Each workflow has a stated
+[seven executed notebooks](docs/notebooks/README.md). Each workflow has a stated
 purpose, assumptions, assertions, labeled figures, and numerical provenance.
 See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 [the migration/retirement record](docs/migration.md).

@@ -21,16 +21,22 @@ such a solver as a hidden fallback or a prerequisite for this roadmap.
 
 ## Pending work
 
+Implemented progress is recorded in [spectral interactions and scale validation](spectral_interactions.md):
+ordered assemblies now construct repeated per-k encounters, and axisymmetric
+propagating fields can be evaluated with analytic azimuthal integration.
+Caps at R=50,100,200 wavelengths have measured boundary and power residuals.
+These changes do not close the physical-accuracy items below.
+
 - [ ] **General resonant behavior: implementation and verification pending.**
-  Construct coherent repeated reflection/refraction maps using the main spectral
-  method. Verify reconstructed interior/exterior fields, Maxwell boundary
+  Extend the constructed ordered-interface maps to the remaining geometries.
+  Verify reconstructed interior/exterior fields, Maxwell boundary
   conditions, power balance, encounter convergence, and resonance scans against
   independent references. Existing planar-layer resonances and the generic
   feedback iterator do not complete this task. Auxiliary-source results cannot
   close it.
 - [ ] **Macroscopic elements: verification pending.** Benchmark the main spectral
   method for large apertures and curvature radii, multiple numerical apertures,
-  and complete refractive prescriptions. Establish field/image accuracy,
+  and complete refractive prescriptions beyond the recorded cap cases. Establish field/image accuracy,
   reconstructed boundary residuals, flux, numerical convergence, runtime, and
   memory requirements. The radius-50-wavelength cap diagnostic is not sufficient.
 - [ ] **Macroscopic support where inadequate: implementation pending, contingent
@@ -69,15 +75,16 @@ optical element. Sampling, quadrature tolerances, and iteration settings remain
 separate from those physical configurations. An instrument name must not select
 a different underlying propagation theory.
 
-Implement and validate surface-to-surface propagation in the appropriate medium
+Extend and validate surface-to-surface propagation in the appropriate medium
 and frame. Retain vector amplitudes, phase, polarization, and wavevector-specific
 Fresnel transformations through each encounter. Do not infer one propagation
 direction from the phase of a total interfering electric field.
 
 Repeated reflections/refractions must be coherent sums of complex fields.
-`coherent_feedback` supplies the numerical equation but does not construct the
-physical round-trip map. That map must compose the main spectral propagation
-and interface transformations, with explicit branch orientation and medium.
+`coherent_feedback` supplies the numerical equation; `propagate_interfaces`
+constructs the map for ordered, separated z-graph interfaces by composing the
+main spectral transformations, with explicit branch orientation and medium.
+Other geometries and evanescent coupling require further work.
 Require both an iteration residual and convergence of the observable field.
 Converging an approximate round-trip map does not establish exact curved
 Maxwell boundary conditions.
@@ -143,7 +150,9 @@ curvature radius 50 vacuum wavelengths its reconstructed boundary jumps were
 approximately 2.6–4.9%, despite a quadrature field change of 3.5e-6. That diagnostic
 also contains finite-aperture and omitted-evanescent effects. It is neither a
 projection-system error nor proof that curvature alone causes the residual.
-There is no measured hundreds-of-wavelength system-accuracy claim yet.
+The new R=100 and R=200 wavelength cap runs are documented in
+[spectral interactions and scale validation](spectral_interactions.md). They
+still show percent-level boundary residuals and do not validate full instruments.
 
 ## 3. Extend constitutive media, mirrors, and coatings
 

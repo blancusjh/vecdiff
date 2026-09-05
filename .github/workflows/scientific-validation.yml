@@ -37,7 +37,17 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -e '.[notebooks,nufft,validation]' -c requirements-validation.txt
+      - name: Check committed executed outputs
+        id: committed_outputs
+        continue-on-error: true
+        run: python scripts/notebooks.py --check
       - run: python scripts/notebooks.py --check --execute
+      - run: python scripts/notebooks.py --check
+      - name: Require fresh committed outputs
+        if: steps.committed_outputs.outcome == 'failure'
+        run: |
+          echo 'Commit the freshly executed notebooks from the artifact; source-only or stale outputs cannot pass this gate.'
+          exit 1
       - uses: actions/upload-artifact@v7
         if: always()
         with:

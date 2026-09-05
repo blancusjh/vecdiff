@@ -12,7 +12,7 @@
     {
       "name": "field_propagation",
       "status": "passed",
-      "seconds": 1.6301364050013945,
+      "seconds": 1.6355519970020396,
       "purpose": "Unknown Ez is completed through k\u00b7E=0, not set to zero.",
       "parameters": {
         "wavelength": 1.0,
@@ -29,7 +29,7 @@
     {
       "name": "plane_interface",
       "status": "passed",
-      "seconds": 0.7635818079997989,
+      "seconds": 0.7548005190001277,
       "parameters": {
         "wavelength": 1.0,
         "angles": [
@@ -220,7 +220,7 @@
     {
       "name": "cavity_resonance",
       "status": "passed",
-      "seconds": 0.41342806099964946,
+      "seconds": 0.43726832500033197,
       "parameters": {
         "index": 4.0,
         "thickness": 1.0,
@@ -238,7 +238,7 @@
     {
       "name": "frustrated_tir",
       "status": "passed",
-      "seconds": 0.20778670400068222,
+      "seconds": 0.23110273300335393,
       "parameters": {
         "indices": [
           1.5,
@@ -415,7 +415,7 @@
     {
       "name": "curved_interface",
       "status": "passed",
-      "seconds": 2.2629804119987966,
+      "seconds": 2.1566734370026097,
       "parameters": {
         "radius": 20.0,
         "aperture": 8.0,
@@ -440,7 +440,7 @@
     {
       "name": "vector_focus",
       "status": "passed",
-      "seconds": 0.30186498900002334,
+      "seconds": 0.2889343649985676,
       "parameters": {
         "NA": 0.9,
         "focal_length": 1.0,
@@ -448,6 +448,89 @@
       },
       "assumptions": "Independent ideal sine-condition objective, uniform pupil magnitude and sqrt(cos \u03b8) apodization. Not a dielectric lens or a Quabis experiment replication. Squared electric norm is not Poynting flux.",
       "case_count": 4
+    },
+    {
+      "name": "interface_assembly",
+      "status": "passed",
+      "seconds": 7.680202581999765,
+      "parameters": {
+        "indices": [
+          1,
+          4,
+          1
+        ],
+        "gap": 1.0,
+        "curvature_radii": [
+          80.0,
+          -80.0
+        ],
+        "aperture_radius": 2.0,
+        "wavelengths": [
+          0.94,
+          0.95,
+          0.96,
+          0.97,
+          0.98,
+          0.99,
+          1.0,
+          1.01,
+          1.02,
+          1.03,
+          1.04,
+          1.05,
+          1.06
+        ],
+        "grid_count": 4,
+        "grid_spacing": 1.2
+      },
+      "assumptions": "Curved curves use local physical optics and a finite periodic propagating spectrum. Source quadrature and feedback checks do not certify spectral-window convergence, Maxwell boundary accuracy, or resolved high-Q peaks.",
+      "max_planar_complex_field_error": 1.978736318817702e-15,
+      "max_curved_feedback_residual": 9.710935326524512e-10,
+      "curved_surface_quadrature_change": 1.6313938818174496e-09,
+      "reconstructed_boundary": [
+        {
+          "tangential_E": 0.19829897847638783,
+          "tangential_H": 0.20478641174922907,
+          "normal_D": 0.0030823066829814435,
+          "normal_B": 0.046478505379449496
+        },
+        {
+          "tangential_E": 0.027363357902057822,
+          "tangential_H": 0.22504967159924505,
+          "normal_D": 0.0039861974052530355,
+          "normal_B": 0.007742271075969806
+        }
+      ],
+      "planar_intensity": [
+        0.22164596284773122,
+        0.2323548315811289,
+        0.2749731471535981,
+        0.3663878536474957,
+        0.5415429618788954,
+        0.8184986309626582,
+        1.0000000000000013,
+        0.8242431284019762,
+        0.5596414210966445,
+        0.3890268443938956,
+        0.2957581126631995,
+        0.24713446088476615,
+        0.22527666820910167
+      ],
+      "curved_intensity": [
+        0.3611596784509332,
+        0.49464206312573533,
+        0.8172782638473172,
+        1.411030404218916,
+        2.1459559652941356,
+        2.4182643231138066,
+        1.8108483016900925,
+        1.102755829894657,
+        0.6929314594731585,
+        0.48708048429627265,
+        0.3869604438618904,
+        0.34663748590136667,
+        0.3504760217205973
+      ]
     }
   ]
 }
