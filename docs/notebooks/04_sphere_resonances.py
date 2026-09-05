@@ -88,7 +88,7 @@ scales=[max(np.sum(abs(pair[0])**2,axis=-1).max() for pair in reference),
 for row,((e,h),w) in enumerate(zip(reference,[off_resonance,resonance])):
     panels=[np.sum(abs(e)**2,axis=-1),abs(e[...,2])**2,np.sum(abs(h)**2,axis=-1)]
     for col,(values,title) in enumerate(zip(panels,[r'$|\mathbf{E}|^2$',r'$|E_z|^2$',r'$|Z_0\mathbf{H}_{SI}|^2$'])):
-        scalar_map(fig,axes[row,col],values,z,x,f'{w*1e3:.2f} nm: {title}',xlabel='z (µm)',ylabel='x (µm)',norm=LogNorm(.01,scales[col]),label='Squared field / incident E amplitude² (log scale)')
+        scalar_map(fig,axes[row,col],np.maximum(values,1e-300),z,x,f'{w*1e3:.2f} nm: {title}',xlabel='z (µm)',ylabel='x (µm)',norm=LogNorm(.01,scales[col]),label='Squared field / incident E amplitude² (log scale)')
         axes[row,col].add_patch(Circle((0,0),radius,fill=False,color='cyan',lw=1))
         axes[row,col].set_aspect('equal')
 show(fig,'04_sphere_meridional_fields')

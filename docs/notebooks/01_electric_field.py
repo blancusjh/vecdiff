@@ -135,3 +135,15 @@ assert resolution < 1e-6 and window < 1e-5
 # longitudinal fraction, power check and two independent sampling checks.
 # For a tighter focus, change `waist` and repeat these checks; the paraxial curve
 # will cease to be an adequate reference before the Maxwell representation does.
+# %% [markdown]
+# ## 5. Continue propagation from an output field
+# A usable field can be propagated again. Two forward steps should equal their
+# combined distance. `propagate` works relative to the current plane, avoiding
+# a numerically growing evanescent re-reference to a distant global origin.
+# This does not make backward evanescent continuation well-conditioned.
+# %%
+first=propagate(field,10.)
+continued=propagate(first,20.)
+composition_error=np.linalg.norm(continued.components-end.components)/np.linalg.norm(end.components)
+print(f'10 µm then 20 µm versus 30 µm directly: {composition_error:.3g}')
+assert composition_error < 1e-10
