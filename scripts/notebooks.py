@@ -17,6 +17,26 @@ import nbformat
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def execution_fingerprint():
+    """Bind outputs to the numerical code, input data, and paired sources.
+
+Notebook output bytes are excluded to avoid a circular hash. A change in any
+maintained numerical dependency requires re-executing the suite before merge.
+    """
+    paths = set()
+    for pattern in ('vecdiff/**/*.py', 'references/**/*.py', 'examples/*.py',
+                    'benchmarks/**/*.py', 'benchmarks/results/*.json',
+                    'docs/notebooks/*.py', 'scripts/*.py'):
+        paths.update(ROOT.glob(pattern))
+    for name in ('pyproject.toml', 'requirements-validation.txt'):
+        if (ROOT/name).exists(): paths.add(ROOT/name)
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        digest.update(str(path.relative_to(ROOT)).encode()+b'\0')
+        digest.update(path.read_bytes()+b'\0')
+    return digest.hexdigest()
+
+
 def notebook(source):
     cells = []
     for part in re.split(r"^# %%", source.read_text(), flags=re.MULTILINE)[1:]:
@@ -43,6 +63,7 @@ def main():
     args = parser.parse_args()
     output = ROOT/"build/notebooks"
     report = []
+    fingerprint = execution_fingerprint()
     for source in sorted((ROOT/"docs/notebooks").glob("*.py")):
         nb = notebook(source)
         target = source.with_suffix(".ipynb")
@@ -61,6 +82,8 @@ def main():
                 or any(item.output_type == 'error' for cell in code for item in cell.outputs)
                 or not figures):
                 raise RuntimeError(f"Unexecuted notebook: run with --execute for {target.relative_to(ROOT)}")
+            if existing.metadata.get('vecdiff_execution', {}).get('input_sha256') != fingerprint:
+                raise RuntimeError(f"Stale results: code or inputs changed; execute {target.relative_to(ROOT)}")
             continue
         if args.execute:
             from nbclient import NotebookClient
@@ -78,6 +101,7 @@ def main():
             if figures == 0:
                 raise RuntimeError(f"{target.name} executed without rendering its scientific figures")
             output.mkdir(parents=True, exist_ok=True)
+            nb.metadata['vecdiff_execution'] = dict(input_sha256=fingerprint, python=sys.version.split()[0])
             nbformat.write(nb, output/target.name)
             # Commit the same executed notebook users open, not a blank source copy.
             nbformat.write(nb, target)

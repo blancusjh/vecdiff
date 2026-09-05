@@ -10,7 +10,11 @@ The runner saves both the source-tree notebook and an artifact copy under
 `python scripts/notebooks.py --check` verifies matching sources and completed
 outputs without stripping results. Changed sources require execution; a normal
 check never clears or rewrites existing outputs. CI independently re-executes
-the suite and publishes its executed copies.
+the suite and publishes its executed copies. Each notebook stores a fingerprint
+of the numerical code, paired sources, committed input data, and dependency
+configuration. Changing those invalidates old results even when notebook cells
+have not changed. CI blocks merging stale committed outputs while still providing
+freshly executed artifacts to commit. Output bytes are excluded from the hash.
 
 | Notebook | Learning/validation goal |
 | --- | --- |
