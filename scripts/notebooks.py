@@ -26,7 +26,7 @@ maintained numerical dependency requires re-executing the suite before merge.
     paths = set()
     for pattern in ('vecdiff/**/*.py', 'references/**/*.py', 'examples/*.py',
                     'benchmarks/**/*.py', 'benchmarks/results/*.json',
-                    'docs/notebooks/*.py', 'scripts/*.py', 'examples/data/*.csv'):
+                    'docs/notebooks/*.py', 'scripts/*.py', 'examples/data/*.csv', 'examples/data/*.json'):
         paths.update(ROOT.glob(pattern))
     for name in ('pyproject.toml', 'requirements-validation.txt'):
         if (ROOT/name).exists(): paths.add(ROOT/name)

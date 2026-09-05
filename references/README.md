@@ -19,3 +19,10 @@ their outputs remain recoverable from Git history, outside the maintained API.
 Primary sources: [Richards and Wolf (1959)](https://doi.org/10.1098/rspa.1959.0200),
 [Mie field implementation](https://miepython.readthedocs.io/en/latest/15_2D_fields.html),
 and [multilayer derivations and conventions](https://arxiv.org/abs/1603.02720).
+
+`projection.py` defines a separate sine-condition vector-pupil reference for
+local image formation. Its Cartesian angular-spectrum density includes the
+Debye-to-Cartesian Jacobian explicitly. The DUV notebook uses the same complex
+transfer for focal fields, through-focus propagation and circuit imaging. Its
+ray-traced wavefront provenance is recorded in `examples/data/README.md`.
+Neither this module nor the Mie module is imported by `vecdiff`.

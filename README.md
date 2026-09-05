@@ -105,7 +105,7 @@ E, H = field.evaluate([[0, 0, 1]], region=1)
 
 Curved graphs require a quadrature per surface. The lattice's bandwidth and
 period must converge independently; a converged feedback residual does not
-certify the curved-boundary model. See the [assembly study](docs/notebooks/06_spectral_assembly.ipynb).
+certify the curved-boundary model. See the [assembly benchmark](examples/interface_assembly.py).
 
 ![Constructed spectral encounters, planar validation and curved-boundary limitations](docs/assets/interface_assembly.png)
 
@@ -140,13 +140,14 @@ this convention to SI flux when E is in V/m. `|E|²` is not generally power flux
 | `sampling/` | Spatial samples and surface quadrature |
 | `fourier/` | Cartesian, Hankel, polar, and NUFFT algorithms |
 | `observables/` | Boundary residuals and energy flux |
+| `IO/` | Optical prescription import/export |
 
 Only the API wrapper lives directly in `vecdiff/`. The dependency direction
 from `references/` to shared abstractions is allowed; the reverse is tested
 and forbidden.
 
 Start with the [curated examples](examples/README.md) and
-[seven executed notebooks](docs/notebooks/README.md). Each workflow has a stated
+[six executed notebooks](docs/notebooks/README.md). Each workflow has a stated
 purpose, assumptions, assertions, labeled figures, and numerical provenance.
 See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 [the migration/retirement record](docs/migration.md).
@@ -162,7 +163,7 @@ python scripts/notebooks.py --check --execute
 
 ![Macroscopic stigmatic field and polarization](docs/assets/macroscopic_focus.png)
 
-The [executed macroscopic notebook](docs/notebooks/08_macroscopic_focus.ipynb)
+The [executed macroscopic notebook](docs/notebooks/03_stigmatic_refraction.ipynb)
 shows transverse, meridional, longitudinal and polarization maps for a 10 mm
 conic at 193.368 nm. A local plane-wave expansion of the per-k Fresnel radiation
 evaluated 130,622 E/H points in about 0.63 s on one CPU thread. Its explicit
@@ -177,3 +178,16 @@ system = read_prescription("examples/data/US7557996.csv")
 Import preserves all 48 encounters, including the two mirrors and the stop.
 It introduces no ray-tracer dependency and does not silently discard unsupported
 physics when converting a prescription for propagation.
+
+## Optical experiments
+
+The [six executed application notebooks](docs/notebooks/README.md) show Gaussian
+beam propagation, planar refraction and TIR, stigmatic dielectric focusing,
+sphere resonance comparisons, circuit-pattern image formation from the main
+method, and a separate real-system DUV pupil reference. Each includes fields,
+physical units, measured results and numerical controls. Mie and the DUV pupil
+reference remain explicitly separate from the main spectral interface method.
+
+![Finite-beam reflection, refraction and total internal reflection](docs/assets/planar_beam_fields.png)
+
+![Lithographic pattern formed from the main method's computed point response](docs/assets/lithographic_image.png)

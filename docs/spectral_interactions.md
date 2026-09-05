@@ -93,7 +93,7 @@ exact boundaries or complete DUV, telescope, or microscope performance.
 
 ## Reproducible presentation
 
-All seven notebooks are committed with executed outputs; source synchronization
+All six application notebooks are committed with executed outputs; source synchronization
 preserves them. The two original README GIFs are restored unchanged and labeled
 with their historical model provenance. Current spectral results appear in
 separate reproducible figures, including the unresolved boundary residuals.
