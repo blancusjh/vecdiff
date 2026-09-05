@@ -16,7 +16,7 @@ The example `python -m examples.macroscopic_focus` uses millimetres:
 - 2,048 surface samples; 241×241 transverse and 301×241 meridional field points.
 - The observation ball has radius 13 wavelengths around the image point.
 
-One-thread local measurements gave 0.006 s construction and 0.54 s for both
+One-thread local measurements gave 0.006 s construction and 0.63 s for both
 E/H maps (130,622 points). Against the existing full dyadic radiation kernel at
 50 held-out observations, the relative concatenated complex E/H error was
 1.032×10^-4. Independent radial and azimuthal refinements changed the reference
@@ -110,8 +110,9 @@ $$
 
 where $D_N=2[(kr_-)^{-1}+(kr_-)^{-2}]/(4\pi r_-)$ and
 $D_C=(4\pi r_-^2)^{-1}$. The dual expression bounds normalized magnetic error.
-These triangle-inequality bounds apply to every point in the ball, relative to
-radiation by the **same discrete currents**. Evaluation outside the ball fails
+These exact-arithmetic triangle-inequality bounds apply to every point in the ball, relative to
+radiation by the **same discrete currents**. Floating-point and NUFFT errors are
+checked separately and are not included in the analytic bound. Evaluation outside the ball fails
 explicitly. They exclude:
 
 1. Surface quadrature error.

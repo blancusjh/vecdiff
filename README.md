@@ -165,7 +165,7 @@ python scripts/notebooks.py --check --execute
 The [executed macroscopic notebook](docs/notebooks/08_macroscopic_focus.ipynb)
 shows transverse, meridional, longitudinal and polarization maps for a 10 mm
 conic at 193.368 nm. A local plane-wave expansion of the per-k Fresnel radiation
-evaluated 130,622 E/H points in about 0.54 s on one CPU thread. Its explicit
+evaluated 130,622 E/H points in about 0.63 s on one CPU thread. Its explicit
 error bound is separate from quadrature error and from the still-unresolved
 curved dielectric boundary error. See the [derivation, measurements and limits](docs/macroscopic_fields.md).
 
