@@ -1,6 +1,6 @@
 # Results from the optical application notebooks
 
-The eight [executed notebooks](notebooks/README.md) contain the actual setup,
+The nine [executed notebooks](notebooks/README.md) contain the actual setup,
 calculation, embedded figures and numerical checks. This page is a guide to their
 results and the limits of those results. Electric-field norms are distinguished
 from transported power throughout:
@@ -166,7 +166,44 @@ Meridional fields and polarization accompany it in the notebook.
 
 **Remaining gate:** these results establish numerical evaluation of macroscopic
 single-surface physical-optics responses. They do not establish full dielectric
-boundary accuracy, extended surface-to-surface macroscopic transport, folded
-multi-element instruments, or full-system lithographic imaging. The existing
+boundary accuracy, general wave transport between extended surfaces, folded
+multi-element instruments, or full-system lithographic imaging. The explicit
+high-frequency multi-interface implementation added in notebook 09 is described below. The existing
 isoplanatic mask example and separate DUV pupil reference retain their explicit
 scope; neither substitutes for that unfinished implementation.
+
+## Implemented macroscopic transport through both curved faces
+
+[Notebook 09](notebooks/09_macroscopic_system_transport.ipynb) now propagates the
+field through an entrance asphere and exit sphere before computing diffraction.
+It also recovers a finite-conjugate Cartesian-oval/spherical element and recomputes
+its response to a displaced object. This closes the missing implementation of
+multi-interface transport **within the explicitly chosen high-frequency domain**.
+
+![Field after both curved interfaces](assets/two_interface_fields.png)
+
+The optimization transports one ray per surface sample for each known smooth
+phase. It retains vector Fresnel transformations, optical phase and geometric
+spreading. A single `EikonalElectricField` has one component; an `ElectricSpectrum`
+retains all components separately. The final radiation still computes vector
+image diffraction. Automatic Fourier backend selection also avoids creating
+NUFFT plans for very small observation patches.
+
+![Recovered finite object–image pair and displaced-source fields](assets/finite_conjugate_fields.png)
+
+At 193.368 nm, the final image-field comparison takes **0.0347 s with one phase**
+and **30.793 s with 625 transported components**, for 17 observations and 2,048
+surface samples per component. Their complex E/H fields differ by **0.0218%**.
+Both use the same high-frequency inter-face approximation; the approximately
+888× speedup is a phase-compression result, not a full-Maxwell performance claim.
+
+The separate direct-current reference test gives component-wise transport errors
+of **0.0883%, 0.0442%, 0.0177%, and 0.00886%** at $R/\lambda_0=100,200,500,1000$.
+The one-phase Gaussian reduction is substantially less accurate at those small
+sizes, which the notebook shows rather than conceals.
+
+![Measured transport accuracy and computational cost](assets/high_frequency_performance.png)
+
+See [the method, measurements and domain](high_frequency_transport.md). Intermediate
+edge diffraction, caustic crossings, resonant feedback and complete folded DUV
+systems remain outside the present implementation.

@@ -157,6 +157,10 @@ sampling bounds and are not applied automatically by this conversion.
 
 ## Research route to complete macroscopic systems
 
+An explicit [high-frequency multi-interface implementation](high_frequency_transport.md)
+now covers smooth-phase dielectric paths and recovers the finite-conjugate case.
+The requirements below concern general wave corrections and full instruments.
+
 The next numerical problem is transport **between extended interfaces**, where
 one small observation ball is insufficient. The implementation should cover
 these domains with controlled local spectra, retain coherent amplitudes and

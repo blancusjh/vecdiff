@@ -87,3 +87,12 @@ through an adapter. The [migration record](migration.md) explains the choices.
 
 The new representation is an explicit approximation with independent tests; it
 does not automatically replace unrestricted homogeneous propagation.
+
+## Smooth-phase macroscopic transport
+
+`fields/eikonal_field.py` owns an electric envelope and its optical-path phase
+and gradient. `propagation/high_frequency.py` transports these states through
+multiple interfaces with ray-tube spreading and per-component Fresnel laws.
+The same algorithm handles stigmatic and displaced-source cases. Its explicit
+approximation is documented in [high_frequency_transport.md](high_frequency_transport.md);
+no total-field ray, external ray-tracer dependency, or reference solver is substituted.

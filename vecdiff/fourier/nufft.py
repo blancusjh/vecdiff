@@ -6,19 +6,26 @@ def synthesize(frequencies, coefficients, points, *, backend="direct", eps=1e-10
     """sum_j c[j] exp(i k[j].x); final coefficient axis indexes modes.
 
 FINUFFT requires real coordinates. Complex (evanescent) wavevectors use the
-direct backend. An explicitly requested unavailable backend raises an error.
+direct backend. An explicitly requested unavailable backend raises an error. auto uses direct
+sums for small products/evanescent modes and FINUFFT for larger real sums when
+available. The crossover is a cost heuristic, not an accuracy threshold.
     """
     k, c, x = np.asarray(frequencies), np.asarray(coefficients), np.asarray(points)
     if k.ndim != 2 or k.shape[1] != 3 or x.ndim != 2 or x.shape[1] != 3 or c.ndim < 1 or c.shape[-1] != len(k):
         raise ValueError("expected k=(m,3), c=(...,m), points=(p,3)")
-    if backend not in ("direct", "nufft"):
-        raise ValueError("backend must be 'direct' or 'nufft'")
+    if backend not in ("direct", "nufft", "auto"):
+        raise ValueError("backend must be 'direct', 'nufft' or 'auto'")
     if not isinstance(chunk, int) or chunk < 1 or not 0 < eps < 1:
         raise ValueError("chunk must be positive and 0 < eps < 1")
     if not all(np.isfinite(a).all() for a in (k, c, x)) or np.any(np.imag(x)):
         raise ValueError("finite frequencies/coefficients and real finite points required")
     if len(k) == 0 or len(x) == 0:
         return np.zeros(c.shape[:-1] + (len(x),), complex)
+    if backend == "auto":
+        # Small patch sums cost less than constructing a NUFFT plan. This is
+        # a numerical backend choice, not an optical approximation.
+        from importlib.util import find_spec
+        backend = "direct" if len(k)*len(x) <= 1_000_000 or np.any(np.imag(k)) or find_spec("finufft") is None else "nufft"
     if backend == "nufft":
         if np.any(np.imag(k)):
             raise ValueError("FINUFFT does not accept complex wavevectors; select direct")

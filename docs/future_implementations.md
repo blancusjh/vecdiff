@@ -238,3 +238,17 @@ stigmatic pair and then an off-axis refractive prescription, with independent
 source and destination sampling checks. Full-system circuit imaging must use
 those transported fields rather than the current pupil-reference convolution.
 These implementation and verification items remain open.
+
+## Implemented high-frequency subset
+
+- [x] Smooth-phase transport through multiple curved dielectric interfaces, with
+  optical phase, vector Fresnel laws, ray-tube spreading and final diffraction.
+- [x] Finite-conjugate stigmatic recovery and displaced-source calculations using
+  the same algorithm; executed notebook 09 and measured numerical controls.
+- [x] Direct-current comparisons through R/λ=1,000 and a phase-compression image
+  comparison at 193.368 nm. These are scoped accuracy measurements.
+
+The [implementation and measured limits](high_frequency_transport.md) do not close
+intermediate diffraction, caustic crossings, feedback, metallic/coated mirrors
+or full folded-prescription verification. General wave transport retains those
+open tasks.

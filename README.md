@@ -147,7 +147,7 @@ from `references/` to shared abstractions is allowed; the reverse is tested
 and forbidden.
 
 Start with the [curated examples](examples/README.md) and
-[eight executed notebooks](docs/notebooks/README.md). Each workflow has a stated
+[nine executed notebooks](docs/notebooks/README.md). Each workflow has a stated
 purpose, assumptions, assertions, labeled figures, and numerical provenance.
 See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 [the migration/retirement record](docs/migration.md).
@@ -182,7 +182,7 @@ physics when converting a prescription for propagation.
 ## Optical experiments
 
 The [results report](docs/application_results.md) and
-[eight executed application notebooks](docs/notebooks/README.md) show Gaussian
+[nine executed application notebooks](docs/notebooks/README.md) show Gaussian
 beam propagation, planar refraction and TIR, stigmatic dielectric focusing,
 sphere resonance comparisons, circuit-pattern image formation from the main
 method, a separate real-system DUV pupil reference, two-sided curved-boundary
@@ -196,7 +196,19 @@ reference remain explicitly separate from the main spectral interface method.
 
 [Direct field-dependent imaging](docs/notebooks/08_field_dependent_optics.ipynb)
 recomputes each distant-source response and combines fields on common physical
-image coordinates, without a shifted PSF. Full macroscopic surface-to-surface
-transport remains pending.
+image coordinates, without a shifted PSF. Notebook 09 extends this to an explicit
+high-frequency multi-interface path; general wave corrections remain pending.
 
 ![Directly propagated field-dependent scene](docs/assets/direct_field_dependent_scene.png)
+
+## Fast transport through multiple interfaces
+
+[Notebook 09](docs/notebooks/09_macroscopic_system_transport.ipynb) now carries a
+smooth-phase electric field through both curved faces of a macroscopic element,
+including finite-conjugate stigmatic recovery and displaced-source images. The
+explicit high-frequency path preserves optical phase, vector Fresnel laws and
+ray-tube spreading, then computes final diffraction. A measured one-phase image
+calculation is about 888× faster than transporting 625 components, with 0.0218%
+complex-field difference in that comparison. Read the [accuracy tests and domain](docs/high_frequency_transport.md); these are not exact full-Maxwell claims.
+
+![Finite-conjugate macroscopic fields](docs/assets/finite_conjugate_fields.png)

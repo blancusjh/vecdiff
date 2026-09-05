@@ -31,8 +31,8 @@ patch, even if the on-axis response was already converged.
         raise ValueError('points must be nonempty finite (...,3) coordinates')
     if not np.isfinite(radius) or radius<=0:
         raise ValueError('radius must be finite and positive')
-    if backend not in ('direct','nufft'):
-        raise ValueError('backend must be direct or nufft')
+    if backend not in ('direct','nufft','auto'):
+        raise ValueError('backend must be direct, nufft or auto')
     flat=p.reshape(-1,3)
     # Cube half-diagonal <= radius, independent of the cloud's orientation.
     keys=np.floor((flat-flat.min(axis=0))/(2*radius/np.sqrt(3))).astype(np.int64)

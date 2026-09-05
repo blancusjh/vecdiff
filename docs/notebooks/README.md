@@ -1,6 +1,6 @@
 # Optical application notebooks
 
-Eight executed studies progress from a specified beam to image formation. Each
+Nine executed studies progress from a specified beam to image formation. Each
 contains the physical problem, units and phasor convention, explicit API calls,
 field maps, measured observables and checks of the numerical assumptions.
 Figures remain embedded in the `.ipynb` files. The paired `.py` files are editable
@@ -18,6 +18,8 @@ cell sources, not separate implementations of the experiments.
 | [07 Curved boundary verification](07_curved_boundary_verification.ipynb) | Actual E-field maps, two-sided full-Green limits, quadrature/offset convergence and aperture controls | Pointwise physical acceptance and failure of the main finite-aperture model |
 | [08 Field-dependent macroscopic optics](08_field_dependent_optics.ipynb) | Actual refraction/reflection, off-axis spots, meridional and polarization maps, coherent/incoherent three-source images | Direct single-surface response per source; no shift invariance; full instrument transport remains pending |
 
+| [09 Macroscopic system transport](09_macroscopic_system_transport.ipynb) | Both curved faces, finite-conjugate recovery, displaced sources, image fields and measured speed/accuracy | Explicit high-frequency phase transport; preserves vector Fresnel laws and final diffraction |
+
 The sphere and DUV reference studies are deliberately labeled. They provide
 concrete target fields and useful comparisons; they do not turn the still-missing
 closed-sphere and full-prescription propagation into completed capabilities.
@@ -27,7 +29,7 @@ notebooks that merely print a benchmark dictionary.
 
 Install `python -m pip install -e '.[notebooks,validation,nufft]'` in this checkout.
 Run `python scripts/notebooks.py --execute` from the repository root to rebuild
-and execute all six notebooks. The command writes both the committed notebooks
+and execute all nine notebooks. The command writes both the committed notebooks
 and execution artifacts under `build/notebooks/`; plotting cells also save PNG
 review figures under `build/notebook-review/`.
 
