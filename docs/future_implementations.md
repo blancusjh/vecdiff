@@ -223,3 +223,5 @@ material physics, when required, is a separate extension with its own evidence.
 This is a scope and implementation roadmap, not a change to the numerical code
 and not a claim that a complete DUV instrument or ideal-mirror API is already
 validated.
+
+Macroscopic focal propagation and strict native prescription IO now have a measured implementation; see [macroscopic fields](macroscopic_fields.md). Extended surface-to-surface transport, folded propagation, global curved-boundary correction and complete DUV/Mie acceptance remain pending.

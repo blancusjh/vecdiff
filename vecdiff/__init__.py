@@ -14,6 +14,9 @@ from .sampling.surface_sampling import SurfaceSampling, sample_surface
 from .surfaces.surface import Surface, Plane, FreeformSurface
 from .surfaces.axisymmetric import AxisymmetricSurface, Sphere, SphericalCap
 from .surfaces.cartesian_oval import CartesianOval
+from .surfaces.asphere import EvenAsphere
+from .fields.local_spectrum import LocalElectricSpectrum
+from .interfaces.optical_system import OpticalSystem, SurfaceEncounter
 from .interfaces.dielectric_interface import DielectricInterface
 from .interfaces.assembly import InterfaceAssembly
 from .propagation.propagation import propagate, spectrum_of
@@ -28,4 +31,5 @@ __all__ = ["ElectricField", "TransverseElectricField", "ElectricSpectrum", "plan
            "Surface", "Plane", "FreeformSurface", "AxisymmetricSurface", "Sphere", "SphericalCap", "CartesianOval",
            "DielectricInterface", "propagate", "spectrum_of", "interface_transform",
            "LayerStack", "LayeredElectricField", "propagate_layers", "coherent_feedback", "FeedbackResult",
-           "ConvergenceError", "InterfaceAssembly", "propagate_interfaces", "AssemblyElectricField"]
+           "ConvergenceError", "InterfaceAssembly", "propagate_interfaces", "AssemblyElectricField",
+           "EvenAsphere", "LocalElectricSpectrum", "OpticalSystem", "SurfaceEncounter"]

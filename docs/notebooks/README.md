@@ -33,3 +33,5 @@ every cell in order and requires embedded PNG figures in every executed notebook
 The notebooks explicitly enable inline rendering, including in headless CI.
 CI runs this command explicitly; a source-only check is
 not reported as a successful Jupyter execution.
+
+08_macroscopic_focus.ipynb: executed centimetre-scale per-k Fresnel focal fields, polarization, scale controls and complete DUV prescription import.

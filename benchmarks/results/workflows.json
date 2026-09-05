@@ -12,7 +12,7 @@
     {
       "name": "field_propagation",
       "status": "passed",
-      "seconds": 1.6355519970020396,
+      "seconds": 1.6383742789985263,
       "purpose": "Unknown Ez is completed through k\u00b7E=0, not set to zero.",
       "parameters": {
         "wavelength": 1.0,
@@ -29,7 +29,7 @@
     {
       "name": "plane_interface",
       "status": "passed",
-      "seconds": 0.7548005190001277,
+      "seconds": 0.7236980200032122,
       "parameters": {
         "wavelength": 1.0,
         "angles": [
@@ -220,7 +220,7 @@
     {
       "name": "cavity_resonance",
       "status": "passed",
-      "seconds": 0.43726832500033197,
+      "seconds": 0.41693794000093476,
       "parameters": {
         "index": 4.0,
         "thickness": 1.0,
@@ -238,7 +238,7 @@
     {
       "name": "frustrated_tir",
       "status": "passed",
-      "seconds": 0.23110273300335393,
+      "seconds": 0.2063757460018678,
       "parameters": {
         "indices": [
           1.5,
@@ -415,7 +415,7 @@
     {
       "name": "curved_interface",
       "status": "passed",
-      "seconds": 2.1566734370026097,
+      "seconds": 2.109170722000272,
       "parameters": {
         "radius": 20.0,
         "aperture": 8.0,
@@ -440,7 +440,7 @@
     {
       "name": "vector_focus",
       "status": "passed",
-      "seconds": 0.2889343649985676,
+      "seconds": 0.29854325799897197,
       "parameters": {
         "NA": 0.9,
         "focal_length": 1.0,
@@ -452,7 +452,7 @@
     {
       "name": "interface_assembly",
       "status": "passed",
-      "seconds": 7.680202581999765,
+      "seconds": 7.81274531300005,
       "parameters": {
         "indices": [
           1,
@@ -531,6 +531,54 @@
         0.34663748590136667,
         0.3504760217205973
       ]
+    },
+    {
+      "name": "macroscopic_focus",
+      "status": "passed",
+      "seconds": 2.3832828429985966,
+      "observation_ball_radius_wavelengths": 13,
+      "wavelength_mm": 0.000193368,
+      "radius_mm": 10.0,
+      "radius_over_wavelength": 51714.86492077283,
+      "aperture_radius_mm": 12.0,
+      "focus_mm": 20.0,
+      "source_nodes": 2048,
+      "transverse_shape": [
+        241,
+        241
+      ],
+      "meridional_shape": [
+        301,
+        241
+      ],
+      "construction_seconds": 0.004846169002121314,
+      "field_maps_seconds": 0.6279746389991487,
+      "reference_points_seconds": 0.028719275000185007,
+      "kernel_relative_EH_error": 0.0001031665646596364,
+      "surface_quadrature_relative_EH_change": 1.487330871773995e-11,
+      "nufft_relative_EH_error": 8.923974793827763e-11,
+      "electric_absolute_error_bound": 602.4625181591459,
+      "magnetic_absolute_error_bound": 602.1869834084325,
+      "electric_error_bound_over_peak_amplitude": 0.0062018137190353794,
+      "longitudinal_norm_fraction": 0.05374350542244338,
+      "parameters": {
+        "indices": [
+          1.5,
+          1.0
+        ],
+        "conic": -2.25,
+        "source_quadrature": [
+          32,
+          64
+        ],
+        "length_unit": "mm"
+      },
+      "assumptions": [
+        "Local expansion of the existing Fresnel-current radiation.",
+        "Kernel bound excludes source quadrature and dielectric trace error.",
+        "The geometrically stigmatic residual phase is smooth; no full DUV train is propagated."
+      ],
+      "scope": "Local radiation approximation; full dielectric boundary accuracy remains unvalidated."
     }
   ]
 }

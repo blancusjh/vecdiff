@@ -27,7 +27,8 @@ they are not validation results for the general spectral interface method.
 | General curved open interface | Per-k local tangent-plane **physical-optics approximation**; not a solved dielectric boundary |
 | Ordered interface assemblies | Constructed coherent per-k encounters in separated z-graph geometries; propagating spectral lattice only. Planar limit validated; curved boundaries remain approximate |
 | General resonant behavior through the spectral method | **Pending physical validation and extension** beyond ordered assemblies, including closed spheres and high-Q convergence |
-| Macroscopic elements and complete optical systems | Caps tested through R=200 wavelengths; boundary errors remain at percent level. Corrective physics and complete-system validation remain pending |
+| Macroscopic focal fields | Bounded local spectral expansion tested at a 10 mm conic radius and 193.368 nm; 0.0103% sampled E/H error against the same-current full radiation kernel. Dielectric-boundary accuracy remains open |
+| Complete optical systems | Native prescription IO preserves mirrors, stops and folds; the complete 48-encounter DUV wave calculation remains pending |
 | Richards–Wolf and Mie | External references, never dependencies of the core |
 
 The main method is the per-k spectral interface transformation. Immediate application priorities
@@ -156,3 +157,23 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   python -m benchmarks.validate_physics
 python scripts/notebooks.py --check --execute
 ```
+
+## Macroscopic fields and prescription IO
+
+![Macroscopic stigmatic field and polarization](docs/assets/macroscopic_focus.png)
+
+The [executed macroscopic notebook](docs/notebooks/08_macroscopic_focus.ipynb)
+shows transverse, meridional, longitudinal and polarization maps for a 10 mm
+conic at 193.368 nm. A local plane-wave expansion of the per-k Fresnel radiation
+evaluated 130,622 E/H points in about 0.54 s on one CPU thread. Its explicit
+error bound is separate from quadrature error and from the still-unresolved
+curved dielectric boundary error. See the [derivation, measurements and limits](docs/macroscopic_fields.md).
+
+```python
+from vecdiff.IO import read_prescription
+system = read_prescription("examples/data/US7557996.csv")
+```
+
+Import preserves all 48 encounters, including the two mirrors and the stop.
+It introduces no ray-tracer dependency and does not silently discard unsupported
+physics when converting a prescription for propagation.

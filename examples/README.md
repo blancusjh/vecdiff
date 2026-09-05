@@ -29,3 +29,5 @@ General resonant-body behavior remains pending. The planar cavity and layer
 examples do not establish it. The [notebooks](../docs/notebooks/README.md)
 provide interpretation and suggested convergence experiments. The
 [migration record](../docs/migration.md) explains consolidations and retirements.
+
+`macroscopic_focus.py`: 10 mm stigmatic conic at 193.368 nm; resolved vector maps, local-spectrum kernel bounds, quadrature and NUFFT comparisons. Requires the `nufft` extra.
