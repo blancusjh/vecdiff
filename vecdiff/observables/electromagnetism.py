@@ -39,3 +39,28 @@ for convergence studies to avoid hiding errors in a changing denominator.
                 tangential_H=rms(np.cross(n, h2-h1))/hs,
                 normal_D=rms(np.sum(n*(medium2.epsilon_r*e2-medium1.epsilon_r*e1), axis=-1))/(max(medium1.epsilon_r, medium2.epsilon_r)*es),
                 normal_B=rms(np.sum(n*(h2-h1), axis=-1))/hs)
+
+
+def assembly_boundary_residuals(field, samplings, *, electric_scale=1., magnetic_scale=1.):
+    """Reconstructed interface jumps of an assembly, including both branches.
+
+At curved source surfaces these are propagating-spectrum continuation
+diagnostics, not singular boundary limits. They include window/bandwidth and
+local-model errors. Never substitute local Fresnel identities for this check.
+    """
+    samplings = tuple(samplings)
+    if len(samplings) != len(field.assembly.interfaces):
+        raise ValueError("one sampling per interface is required")
+    result = []
+    for j, (interface, sampling) in enumerate(zip(field.assembly.interfaces, samplings)):
+        if sampling.surface is not interface.surface:
+            raise ValueError("sampling belongs to a different interface")
+        def trace(region):
+            ef, hf = field.forward[region].evaluate(sampling.points)
+            eb, hb = field.backward[region].evaluate(sampling.points)
+            return ef+eb, hf+hb
+        e1, h1 = trace(j); e2, h2 = trace(j+1)
+        result.append(boundary_residuals(e1,h1,e2,h2,interface.normal_sign*sampling.normals,
+            interface.incident_medium,interface.transmitted_medium,weights=sampling.weights,
+            electric_scale=electric_scale,magnetic_scale=magnetic_scale))
+    return tuple(result)

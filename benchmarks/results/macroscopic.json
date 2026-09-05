@@ -1,0 +1,340 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "vecdiff": "0.3.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8",
+    "finufft": "2.5.1",
+    "miepython": "3.3.0"
+  },
+  "method": "per-k Fresnel currents, propagating Fourier\u2013Bessel spectrum",
+  "scope": "Open caps: boundary continuation includes hard-aperture and omitted-evanescent effects; not full instrument validation.",
+  "memory": "Linux ru_maxrss: cumulative process high-water mark, not isolated per-case memory.",
+  "cases": [
+    {
+      "radius_over_wavelength": 50,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 200,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 400,
+      "interpolation_nodes": 800,
+      "reconstructed_boundary": {
+        "tangential_E": 0.031235215636905407,
+        "tangential_H": 0.04918239311116525,
+        "normal_D": 0.025976545779797973,
+        "normal_B": 0.039594436585650324
+      },
+      "reflected_power_fraction": 0.04078682683089164,
+      "transmitted_power_fraction": 0.9571416427302833,
+      "power_balance_error": 0.00207153043882502,
+      "seconds": 1.566976431000512,
+      "process_peak_rss_mib": 91.93359375,
+      "refinement": "baseline"
+    },
+    {
+      "radius_over_wavelength": 50,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 400,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 400,
+      "interpolation_nodes": 800,
+      "reconstructed_boundary": {
+        "tangential_E": 0.031235215636912315,
+        "tangential_H": 0.04918239311117692,
+        "normal_D": 0.0259765457798091,
+        "normal_B": 0.03959443658566404
+      },
+      "reflected_power_fraction": 0.040786826830892416,
+      "transmitted_power_fraction": 0.9571416427303028,
+      "power_balance_error": 0.002071530438804814,
+      "seconds": 2.8466161010001088,
+      "process_peak_rss_mib": 100.234375,
+      "refinement": "surface",
+      "boundary_field_change": 8.420874257045636e-14,
+      "downstream_field_change": 8.775437618224234e-13
+    },
+    {
+      "radius_over_wavelength": 50,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 200,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 800,
+      "interpolation_nodes": 800,
+      "reconstructed_boundary": {
+        "tangential_E": 0.03129000564682004,
+        "tangential_H": 0.04925886027970817,
+        "normal_D": 0.025981730820907198,
+        "normal_B": 0.039601877553209215
+      },
+      "reflected_power_fraction": 0.04078680813869623,
+      "transmitted_power_fraction": 0.9570810511211786,
+      "power_balance_error": 0.0021321407401251324,
+      "seconds": 1.9374554529968009,
+      "process_peak_rss_mib": 100.234375,
+      "refinement": "polar",
+      "boundary_field_change": 0.0001467763143320649,
+      "downstream_field_change": 0.0002994955030085536
+    },
+    {
+      "radius_over_wavelength": 50,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 200,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 400,
+      "interpolation_nodes": 1600,
+      "reconstructed_boundary": {
+        "tangential_E": 0.031278102318912294,
+        "tangential_H": 0.049244434135579704,
+        "normal_D": 0.025980743186155363,
+        "normal_B": 0.039600362908163586
+      },
+      "reflected_power_fraction": 0.040787002080288556,
+      "transmitted_power_fraction": 0.9572065831714912,
+      "power_balance_error": 0.0020064147482202754,
+      "seconds": 2.8667903159985144,
+      "process_peak_rss_mib": 100.234375,
+      "refinement": "table",
+      "boundary_field_change": 9.422579584526815e-05,
+      "downstream_field_change": 0.0001281579479681227
+    },
+    {
+      "radius_over_wavelength": 50,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 400,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 800,
+      "interpolation_nodes": 1600,
+      "reconstructed_boundary": {
+        "tangential_E": 0.03127627915550065,
+        "tangential_H": 0.049241974217125485,
+        "normal_D": 0.025980602309230147,
+        "normal_B": 0.039600162246209
+      },
+      "reflected_power_fraction": 0.04078700241806149,
+      "transmitted_power_fraction": 0.9572066265557769,
+      "power_balance_error": 0.002006371026161524,
+      "seconds": 5.725074658999802,
+      "process_peak_rss_mib": 103.1171875,
+      "refinement": "combined",
+      "boundary_field_change": 9.065157048711313e-05,
+      "downstream_field_change": 0.00013306897955220855
+    },
+    {
+      "radius_over_wavelength": 100,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 400,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 800,
+      "interpolation_nodes": 1600,
+      "reconstructed_boundary": {
+        "tangential_E": 0.018323314789382407,
+        "tangential_H": 0.029317027433902156,
+        "normal_D": 0.02159107655050055,
+        "normal_B": 0.02957807614302206
+      },
+      "reflected_power_fraction": 0.040944078761592374,
+      "transmitted_power_fraction": 0.9579655079010784,
+      "power_balance_error": 0.001090413337329288,
+      "seconds": 5.28407122399949,
+      "process_peak_rss_mib": 103.140625,
+      "refinement": "baseline"
+    },
+    {
+      "radius_over_wavelength": 100,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 800,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 800,
+      "interpolation_nodes": 1600,
+      "reconstructed_boundary": {
+        "tangential_E": 0.018323314789355307,
+        "tangential_H": 0.02931702743386084,
+        "normal_D": 0.021591076550485644,
+        "normal_B": 0.029578076143005318
+      },
+      "reflected_power_fraction": 0.04094407876159152,
+      "transmitted_power_fraction": 0.9579655079010551,
+      "power_balance_error": 0.0010904133373533798,
+      "seconds": 10.292424529998243,
+      "process_peak_rss_mib": 118.5625,
+      "refinement": "surface",
+      "boundary_field_change": 1.6632262115417754e-13,
+      "downstream_field_change": 1.642693368373156e-12
+    },
+    {
+      "radius_over_wavelength": 100,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 400,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 1600,
+      "interpolation_nodes": 1600,
+      "reconstructed_boundary": {
+        "tangential_E": 0.018332370058616793,
+        "tangential_H": 0.02933622718659238,
+        "normal_D": 0.02157210708320497,
+        "normal_B": 0.029551490896488845
+      },
+      "reflected_power_fraction": 0.04094406869084651,
+      "transmitted_power_fraction": 0.9579498463149767,
+      "power_balance_error": 0.001106084994176748,
+      "seconds": 7.0335326669992355,
+      "process_peak_rss_mib": 135.0078125,
+      "refinement": "polar",
+      "boundary_field_change": 0.00013709058787945047,
+      "downstream_field_change": 0.0006052364364355506
+    },
+    {
+      "radius_over_wavelength": 100,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 400,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 800,
+      "interpolation_nodes": 3200,
+      "reconstructed_boundary": {
+        "tangential_E": 0.01831543743341441,
+        "tangential_H": 0.02930860468944355,
+        "normal_D": 0.02158119012795222,
+        "normal_B": 0.029563757783905943
+      },
+      "reflected_power_fraction": 0.04094425766715449,
+      "transmitted_power_fraction": 0.9580443901395841,
+      "power_balance_error": 0.0010113521932614278,
+      "seconds": 9.818164642998454,
+      "process_peak_rss_mib": 135.0078125,
+      "refinement": "table",
+      "boundary_field_change": 7.255191567574244e-05,
+      "downstream_field_change": 0.00045415820920864913
+    },
+    {
+      "radius_over_wavelength": 100,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 800,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 1600,
+      "interpolation_nodes": 3200,
+      "reconstructed_boundary": {
+        "tangential_E": 0.018315676979815843,
+        "tangential_H": 0.029309620183163382,
+        "normal_D": 0.02158080382599102,
+        "normal_B": 0.029563125703543136
+      },
+      "reflected_power_fraction": 0.040944259085614734,
+      "transmitted_power_fraction": 0.9580433841984594,
+      "power_balance_error": 0.0010123567159259217,
+      "seconds": 21.245874580999953,
+      "process_peak_rss_mib": 140.578125,
+      "refinement": "combined",
+      "boundary_field_change": 7.400535334324082e-05,
+      "downstream_field_change": 0.0004491828338145482
+    },
+    {
+      "radius_over_wavelength": 200,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 800,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 1600,
+      "interpolation_nodes": 3200,
+      "reconstructed_boundary": {
+        "tangential_E": 0.01242981369405132,
+        "tangential_H": 0.019342581260480322,
+        "normal_D": 0.015679754247803587,
+        "normal_B": 0.023595946242354116
+      },
+      "reflected_power_fraction": 0.04102394851009283,
+      "transmitted_power_fraction": 0.9583606725760316,
+      "power_balance_error": 0.0006153789138755306,
+      "seconds": 19.65588013999877,
+      "process_peak_rss_mib": 140.578125,
+      "refinement": "baseline"
+    },
+    {
+      "radius_over_wavelength": 200,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 1600,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 1600,
+      "interpolation_nodes": 3200,
+      "reconstructed_boundary": {
+        "tangential_E": 0.012429813693996747,
+        "tangential_H": 0.019342581260398665,
+        "normal_D": 0.015679754247730503,
+        "normal_B": 0.02359594624236882
+      },
+      "reflected_power_fraction": 0.04102394851009708,
+      "transmitted_power_fraction": 0.9583606725761349,
+      "power_balance_error": 0.000615378913768061,
+      "seconds": 37.34988915899885,
+      "process_peak_rss_mib": 156.8359375,
+      "refinement": "surface",
+      "boundary_field_change": 1.195894580281569e-12,
+      "downstream_field_change": 1.8556744808505064e-11
+    },
+    {
+      "radius_over_wavelength": 200,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 800,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 3200,
+      "interpolation_nodes": 3200,
+      "reconstructed_boundary": {
+        "tangential_E": 0.012404470630834882,
+        "tangential_H": 0.019293306218199677,
+        "normal_D": 0.015668444740313064,
+        "normal_B": 0.02358028750063043
+      },
+      "reflected_power_fraction": 0.04102393779313276,
+      "transmitted_power_fraction": 0.9583755055891879,
+      "power_balance_error": 0.0006005566176793264,
+      "seconds": 36.7908919649999,
+      "process_peak_rss_mib": 276.46875,
+      "refinement": "polar",
+      "boundary_field_change": 0.00021019235624395116,
+      "downstream_field_change": 0.0011293454213593844
+    },
+    {
+      "radius_over_wavelength": 200,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 800,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 1600,
+      "interpolation_nodes": 6400,
+      "reconstructed_boundary": {
+        "tangential_E": 0.012410305966078965,
+        "tangential_H": 0.019307578224824845,
+        "normal_D": 0.015674989265093853,
+        "normal_B": 0.023589422812568657
+      },
+      "reflected_power_fraction": 0.04102412503160344,
+      "transmitted_power_fraction": 0.9584661262414075,
+      "power_balance_error": 0.0005097487269890566,
+      "seconds": 37.151228954000544,
+      "process_peak_rss_mib": 276.46875,
+      "refinement": "table",
+      "boundary_field_change": 0.00012450830464583358,
+      "downstream_field_change": 0.0006870894344618968
+    },
+    {
+      "radius_over_wavelength": 200,
+      "aperture_over_radius": 0.6,
+      "radial_nodes": 1600,
+      "azimuthal_nodes": 32,
+      "polar_nodes": 3200,
+      "interpolation_nodes": 6400,
+      "reconstructed_boundary": {
+        "tangential_E": 0.012409520801535415,
+        "tangential_H": 0.01930656411212226,
+        "normal_D": 0.015675174494238536,
+        "normal_B": 0.02358967272164249
+      },
+      "reflected_power_fraction": 0.04102412419146507,
+      "transmitted_power_fraction": 0.9584656660582935,
+      "power_balance_error": 0.0005102097502414082,
+      "seconds": 89.62038979900171,
+      "process_peak_rss_mib": 309.33984375,
+      "refinement": "combined",
+      "boundary_field_change": 0.00012141848513482783,
+      "downstream_field_change": 0.0006861758912994811
+    }
+  ]
+}

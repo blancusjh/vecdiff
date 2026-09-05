@@ -1,8 +1,9 @@
 """Build paired percent-script notebooks; optionally execute every notebook.
 
-Generated .ipynb sources are versioned without outputs. Execution artifacts and
-the machine-readable report go under build/notebooks, never into source cells.
-Run from the repository root: python scripts/notebooks.py --check --execute.
+Executed .ipynb files are versioned with outputs. Execution also writes review
+artifacts under build/notebooks. Source synchronization ignores outputs but
+requires matching source cells; --check alone also requires completed outputs.
+Run from the repository root: python scripts/notebooks.py --execute.
 """
 import argparse
 import hashlib
@@ -37,7 +38,7 @@ def notebook(source):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="fail if committed notebooks differ from paired scripts")
+    parser.add_argument("--check", action="store_true", help="check sources and, unless executing now, completed outputs")
     parser.add_argument("--execute", action="store_true", help="execute every notebook using this Python interpreter")
     args = parser.parse_args()
     output = ROOT/"build/notebooks"
@@ -45,11 +46,22 @@ def main():
     for source in sorted((ROOT/"docs/notebooks").glob("*.py")):
         nb = notebook(source)
         target = source.with_suffix(".ipynb")
-        if args.check:
-            if not target.exists() or nbformat.read(target, as_version=4) != nb:
-                raise RuntimeError(f"Stale notebook: regenerate {target.relative_to(ROOT)}")
-        else:
-            nbformat.write(nb, target)
+        existing = nbformat.read(target, as_version=4) if target.exists() else None
+        def source_signature(book):
+            return [(cell.cell_type, cell.source, cell.id) for cell in book.cells]
+        same_source = existing is not None and source_signature(existing) == source_signature(nb)
+        if args.check and not same_source:
+            raise RuntimeError(f"Stale source: execute {target.relative_to(ROOT)} from its paired script")
+        if not args.execute:
+            if not same_source:
+                raise RuntimeError(f"Source changed: use --execute to update {target.relative_to(ROOT)} with its results")
+            code = [cell for cell in existing.cells if cell.cell_type == 'code']
+            figures = sum('image/png' in item.get('data', {}) for cell in code for item in cell.outputs)
+            if (not code or any(cell.execution_count is None for cell in code)
+                or any(item.output_type == 'error' for cell in code for item in cell.outputs)
+                or not figures):
+                raise RuntimeError(f"Unexecuted notebook: run with --execute for {target.relative_to(ROOT)}")
+            continue
         if args.execute:
             from nbclient import NotebookClient
             from jupyter_client import KernelManager
@@ -67,6 +79,8 @@ def main():
                 raise RuntimeError(f"{target.name} executed without rendering its scientific figures")
             output.mkdir(parents=True, exist_ok=True)
             nbformat.write(nb, output/target.name)
+            # Commit the same executed notebook users open, not a blank source copy.
+            nbformat.write(nb, target)
             report.append(dict(notebook=target.name, status="passed", cells=len(nb.cells), figures=figures,
                                seconds=time.perf_counter()-start))
             (output/"execution.json").write_text(json.dumps(report, indent=2)+"\n")

@@ -23,6 +23,7 @@ otherwise; H uses the documented Z0 normalization.
 | `frustrated_tir` | Demonstrate an effect a single interface cannot capture | Evanescent-gap coupling, thin/thick limits, flux |
 | `curved_interface` | Distinguish integral convergence from physical boundary accuracy | Two source quadratures and separately labeled reconstructed jumps |
 | `vector_focus` | Compare polarization and vortex fields at equal pupil power | Independent Richards–Wolf model, angular convergence, explicit model limits |
+| `interface_assembly` | Construct repeated per-k encounters from physical interfaces | Independent planar-layer agreement; explicit curved feedback and boundary diagnostics |
 
 General resonant-body behavior remains pending. The planar cavity and layer
 examples do not establish it. The [notebooks](../docs/notebooks/README.md)

@@ -37,3 +37,5 @@ gap_report["limiting_values"], gap_report["max_flux_error"]
 # These are infinite parallel layers, not a general three-dimensional resonator.
 # For high-Q structures, refine wavelength spacing as well as solver tolerances.
 # A converged feedback equation does not certify an approximate round-trip map.
+# Notebook 06 constructs repeated per-k encounters for placed interface assemblies
+# and shows the remaining curved-boundary error alongside the resonant response.

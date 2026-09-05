@@ -17,6 +17,7 @@ docs/assets/quiver_harmonic.gif
 
 # Generated figures from examples/investigations
 *.png
+!docs/assets/*.png
 *.npz
 !docs/notebooks/circuit_pattern.png
 

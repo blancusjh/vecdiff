@@ -1,10 +1,16 @@
 # New-API scientific notebooks
 
-The five notebooks are paired with readable percent-format Python sources.
-Edit the `.py` source, then run `python scripts/notebooks.py` to regenerate
-the `.ipynb`. Stable cell IDs make changes reviewable. Committed notebooks have
-no stale outputs; the execution runner stores fresh outputs under
-`build/notebooks/` and fails on any cell exception.
+The seven notebooks are paired with readable percent-format Python sources.
+Edit the `.py` source, then run `python scripts/notebooks.py --execute` to
+regenerate and execute the `.ipynb`. Commit the executed notebooks with their
+figures and numerical outputs. Stable cell IDs make source changes reviewable.
+The runner saves both the source-tree notebook and an artifact copy under
+`build/notebooks/`; it fails on cell errors or missing figures.
+
+`python scripts/notebooks.py --check` verifies matching sources and completed
+outputs without stripping results. Changed sources require execution; a normal
+check never clears or rewrites existing outputs. CI independently re-executes
+the suite and publishes its executed copies.
 
 | Notebook | Learning/validation goal |
 | --- | --- |
@@ -13,6 +19,8 @@ no stale outputs; the execution runner stores fresh outputs under
 | [03 Coherent resonances](03_coherent_resonances.ipynb) | Round trips, Airy amplitudes, standing waves, and evanescent gaps |
 | [04 Curved-interface limits](04_curved_interface_limits.ipynb) | Separate quadrature accuracy from physical approximation; introduce freeform geometry |
 | [05 Vector focusing reference](05_vector_focusing_reference.ipynb) | Polarization, vortices, and longitudinal fields without mixing reference theory into core physics |
+| [06 Spectral assembly](06_spectral_assembly.ipynb) | Construct repeated encounters and distinguish feedback convergence from curved-boundary accuracy |
+| [07 Macroscopic validation](07_macroscopic_validation.ipynb) | Inspect recorded R=50–200 wavelength tests, power balance, and independent numerical controls |
 
 Install `.[notebooks,validation,nufft]` in this checkout and use that Python
 kernel. Each notebook locates the repository when started from a subdirectory.

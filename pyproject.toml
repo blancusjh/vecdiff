@@ -17,7 +17,7 @@ nufft = ["finufft>=2.2"]
 validation = ["miepython==3.3.0"]
 examples = ["matplotlib>=3.8"]
 notebooks = ["matplotlib>=3.8", "nbformat>=5.10", "nbclient>=0.10", "ipykernel>=6.29"]
-test = ["pytest>=8", "matplotlib>=3.8", "miepython==3.3.0"]
+test = ["pytest>=8", "matplotlib>=3.8", "miepython==3.3.0", "nbformat>=5.10"]
 
 [tool.setuptools.packages.find]
 where = ["."]

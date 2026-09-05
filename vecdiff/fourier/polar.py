@@ -23,10 +23,34 @@ The discarded harmonic tail is checked, never silently accepted.
     keep = abs(orders) <= max_order
     if np.linalg.norm(cm[..., ~keep]) > tail_tolerance*max(np.linalg.norm(cm), 1e-300):
         raise ValueError("azimuthal truncation is unresolved; increase max_order and phi sampling")
-    phase = np.exp(-1j*np.outer(kz, height))
     out = []
     for index in np.flatnonzero(keep):
         m = int(orders[index])
-        kernel = phase*jv(m, np.outer(kr, radius))
-        out.append((-1j)**m*(cm[..., index] @ kernel.T))
+        transformed = np.empty(cm.shape[:-2]+(len(kr),), complex)
+        # Bound temporary memory independently of macroscopic radius and
+        # spectral-table length; the quadrature and harmonic content are unchanged.
+        for start in range(0, len(kr), 256):
+            stop = start+256
+            kernel = np.exp(-1j*np.outer(kz[start:stop], height))*jv(m, np.outer(kr[start:stop], radius))
+            transformed[..., start:stop] = (-1j)**m*(cm[..., index] @ kernel.T)
+        out.append(transformed)
     return orders[keep], np.asarray(out)
+
+
+def cylindrical_synthesize(kr, kz, coefficients, orders, points):
+    """Integrate azimuth analytically using the Jacobi–Anger identity.
+
+Coefficients have shape (polar_nodes, orders, channels), including polar
+quadrature and the full 2*pi azimuthal measure. This evaluates the SAME
+propagating spectrum without discretizing its rapidly oscillating observation
+phase in azimuth. Radial/polar quadrature must still converge.
+    """
+    p = np.asarray(points, float)
+    shape = p.shape[:-1]; p = p.reshape(-1, 3)
+    rho, phi = np.linalg.norm(p[:, :2], axis=-1), np.arctan2(p[:, 1], p[:, 0])
+    out = np.zeros((len(p), coefficients.shape[-1]), complex)
+    phase = np.exp(1j*np.outer(kz, p[:, 2]))
+    for j, m in enumerate(orders):
+        kernel = phase*jv(int(m), np.outer(kr, rho))*(1j**int(m))*np.exp(1j*m*phi)
+        out += kernel.T @ coefficients[:, j]
+    return out.reshape(shape+(coefficients.shape[-1],))
