@@ -181,7 +181,8 @@ physics when converting a prescription for propagation.
 
 ## Optical experiments
 
-The [six executed application notebooks](docs/notebooks/README.md) show Gaussian
+The [results report](docs/application_results.md) and
+[six executed application notebooks](docs/notebooks/README.md) show Gaussian
 beam propagation, planar refraction and TIR, stigmatic dielectric focusing,
 sphere resonance comparisons, circuit-pattern image formation from the main
 method, and a separate real-system DUV pupil reference. Each includes fields,

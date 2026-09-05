@@ -1,7 +1,7 @@
 # Curated scientific examples
 
-Run from the checkout root after installing `.[examples,validation]`. Each
-module exposes `run()` for notebooks/tests and a guarded command-line entry
+Run from the checkout root after installing `.[examples,validation]`. Each application module listed below
+exposes `run()` for notebooks/tests and a guarded command-line entry
 point. Importing an example performs no calculation or plotting.
 
 ```bash
@@ -31,3 +31,9 @@ provide interpretation and suggested convergence experiments. The
 [migration record](../docs/migration.md) explains consolidations and retirements.
 
 `macroscopic_focus.py`: 10 mm stigmatic conic at 193.368 nm; resolved vector maps, local-spectrum kernel bounds, quadrature and NUFFT comparisons. Requires the `nufft` extra.
+
+`image_formation.py` supplies the explicitly periodic vector convolution and
+normalized incoherent-source sum used in the application notebooks. It accepts
+a supplied transfer function and does not infer one from an optical prescription.
+`notebook_tools.py` contains plotting conventions and measured-width helpers.
+The notebooks themselves contain the setup, physics calls, analysis and checks.
