@@ -179,3 +179,59 @@ from the surface independently; this is not a singular boundary evaluator.
             out_e[start:start+chunk] = np.sum(1j*k0*dyadic(jw)-np.cross(grad, mw), axis=1)
             out_h[start:start+chunk] = np.sum(np.cross(grad, jw)+1j*k0*self.medium.epsilon_r*dyadic(mw), axis=1)
         return out_e.reshape(shape), out_h.reshape(shape)
+
+    def evaluate_local(self, points, *, radius, backend="nufft"):
+        """Evaluate actual positions in separate patches, with absolute bounds.
+
+        See propagation.local_evaluation.evaluate_local. This never translates
+        a precomputed point response or assumes a shift-invariant optical map.
+        """
+        from .local_evaluation import evaluate_local
+        return evaluate_local(self, points, radius=radius, backend=backend)
+
+    def local_spectrum(self, center, radius):
+        """Compress this radiation into plane waves on an observation ball.
+
+        Expand each source-to-observation distance to first order about center,
+        retaining the exact source phase and leading Maxwell dyadic. Each mode
+        is transverse and satisfies the exact dispersion relation. No ideal
+        pupil, ray tracing or reference focusing model supplies its amplitudes.
+
+        The returned absolute E/H bounds include distance-phase curvature,
+        geometric amplitude variation and omitted reactive terms. They compare
+        with the SAME discrete currents, not with an exact dielectric solution.
+        Surface quadrature must resolve the combined source/propagation phase;
+        small node counts only work when that residual is sufficiently smooth.
+        """
+        from ..fields.local_spectrum import LocalElectricSpectrum
+        center = np.asarray(center, float)
+        if center.shape != (3,) or not np.isfinite(center).all() or not np.isfinite(radius) or radius < 0:
+            raise ValueError("finite center and nonnegative radius required")
+        rv = center-self.sampling.points
+        d = np.linalg.norm(rv, axis=-1)
+        if np.any(d <= radius): raise ValueError("observation ball intersects source nodes")
+        u = rv/d[:, None]
+        k, k0 = self.medium.wavenumber(self.wavelength), 2*np.pi/self.wavelength
+        j = self.J*self.sampling.weights[:, None]
+        m = self.M*self.sampling.weights[:, None]
+        tj = j-u*np.sum(u*j, axis=-1)[:, None]
+        # Source phasors and the complete source-to-centre phase cancel here
+        # for a stigmatic wave; the centre is never multiplied into a NUFFT grid.
+        g = np.exp(1j*k*d)/(4*np.pi*d)
+        a = 1j*g[:, None]*(k0*tj-k*np.cross(u, m))
+        spectrum = ElectricSpectrum(k*u, a, self.wavelength, self.medium)
+        # Triangle-inequality bounds for every point |delta| <= radius.
+        # Hessian(norm) <= 1/(d-radius), |u(delta)-u(0)| <= 2b/(d-b).
+        rmin = d-radius
+        phase = np.minimum(2., k*radius**2/(2*rmin))
+        dg = (radius/(d*rmin)+phase/d)/(4*np.pi)
+        du = 2*radius/rmin
+        nj, nm = np.linalg.norm(j, axis=-1), np.linalg.norm(m, axis=-1)
+        near_dyadic = 2*(1/(k*rmin)+1/(k*rmin)**2)/(4*np.pi*rmin)
+        near_curl = 1/(4*np.pi*rmin**2)
+        eb = np.sum(dg*(k0*nj+k*nm)+du*(2*k0*nj+k*nm)/(4*np.pi*d)
+                    +k0*near_dyadic*nj+near_curl*nm)
+        hb = np.sum(dg*(k*nj+k0*self.medium.epsilon_r*nm)
+                    +du*(k*nj+2*k0*self.medium.epsilon_r*nm)/(4*np.pi*d)
+                    +near_curl*nj+k0*self.medium.epsilon_r*near_dyadic*nm)
+        return LocalElectricSpectrum(spectrum, center, float(radius), float(eb), float(hb))

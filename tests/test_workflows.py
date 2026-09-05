@@ -9,8 +9,9 @@ import pytest
 
 @pytest.mark.workflow
 @pytest.mark.parametrize("name", ["field_propagation", "plane_interface", "cavity_resonance",
-                                  "frustrated_tir", "curved_interface", "vector_focus", "interface_assembly"])
+                                  "frustrated_tir", "curved_interface", "vector_focus", "interface_assembly", "macroscopic_focus"])
 def test_complete_scientific_workflow(name):
+    if name == "macroscopic_focus": pytest.importorskip("finufft")
     before = plt.get_fignums()
     module = import_module("examples."+name)
     assert plt.get_fignums() == before

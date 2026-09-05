@@ -27,7 +27,8 @@ they are not validation results for the general spectral interface method.
 | General curved open interface | Per-k local tangent-plane **physical-optics approximation**; not a solved dielectric boundary |
 | Ordered interface assemblies | Constructed coherent per-k encounters in separated z-graph geometries; propagating spectral lattice only. Planar limit validated; curved boundaries remain approximate |
 | General resonant behavior through the spectral method | **Pending physical validation and extension** beyond ordered assemblies, including closed spheres and high-Q convergence |
-| Macroscopic elements and complete optical systems | Caps tested through R=200 wavelengths; boundary errors remain at percent level. Corrective physics and complete-system validation remain pending |
+| Macroscopic focal fields | Bounded local spectral expansion tested at a 10 mm conic radius and 193.368 nm; 0.0103% sampled E/H error against the same-current full radiation kernel. Dielectric-boundary accuracy remains open |
+| Complete optical systems | Native prescription IO preserves mirrors, stops and folds; the complete 48-encounter DUV wave calculation remains pending |
 | Richards–Wolf and Mie | External references, never dependencies of the core |
 
 The main method is the per-k spectral interface transformation. Immediate application priorities
@@ -104,7 +105,7 @@ E, H = field.evaluate([[0, 0, 1]], region=1)
 
 Curved graphs require a quadrature per surface. The lattice's bandwidth and
 period must converge independently; a converged feedback residual does not
-certify the curved-boundary model. See the [assembly study](docs/notebooks/06_spectral_assembly.ipynb).
+certify the curved-boundary model. See the [assembly benchmark](examples/interface_assembly.py).
 
 ![Constructed spectral encounters, planar validation and curved-boundary limitations](docs/assets/interface_assembly.png)
 
@@ -139,13 +140,14 @@ this convention to SI flux when E is in V/m. `|E|²` is not generally power flux
 | `sampling/` | Spatial samples and surface quadrature |
 | `fourier/` | Cartesian, Hankel, polar, and NUFFT algorithms |
 | `observables/` | Boundary residuals and energy flux |
+| `IO/` | Optical prescription import/export |
 
 Only the API wrapper lives directly in `vecdiff/`. The dependency direction
 from `references/` to shared abstractions is allowed; the reverse is tested
 and forbidden.
 
 Start with the [curated examples](examples/README.md) and
-[seven executed notebooks](docs/notebooks/README.md). Each workflow has a stated
+[nine executed notebooks](docs/notebooks/README.md). Each workflow has a stated
 purpose, assumptions, assertions, labeled figures, and numerical provenance.
 See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 [the migration/retirement record](docs/migration.md).
@@ -156,3 +158,57 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   python -m benchmarks.validate_physics
 python scripts/notebooks.py --check --execute
 ```
+
+## Macroscopic fields and prescription IO
+
+![Macroscopic stigmatic field and polarization](docs/assets/macroscopic_focus.png)
+
+The [executed macroscopic notebook](docs/notebooks/03_stigmatic_refraction.ipynb)
+shows transverse, meridional, longitudinal and polarization maps for a 24-mm-diameter
+conic at 193.368 nm. A local plane-wave expansion of the per-k Fresnel radiation
+evaluated 135,442 E/H points in about 0.68 s on one CPU thread. Its explicit
+error bound is separate from quadrature error and from the still-unresolved
+curved dielectric boundary error. See the [derivation, measurements and limits](docs/macroscopic_fields.md).
+
+```python
+from vecdiff.IO import read_prescription
+system = read_prescription("examples/data/US7557996.csv")
+```
+
+Import preserves all 48 encounters, including the two mirrors and the stop.
+It introduces no ray-tracer dependency and does not silently discard unsupported
+physics when converting a prescription for propagation.
+
+## Optical experiments
+
+The [results report](docs/application_results.md) and
+[nine executed application notebooks](docs/notebooks/README.md) show Gaussian
+beam propagation, planar refraction and TIR, stigmatic dielectric focusing,
+sphere resonance comparisons, circuit-pattern image formation from the main
+method, a separate real-system DUV pupil reference, two-sided curved-boundary
+verification, and direct field-dependent macroscopic refraction and reflection. Each includes fields,
+physical units, measured results and numerical controls. Mie and the DUV pupil
+reference remain explicitly separate from the main spectral interface method.
+
+![Finite-beam reflection, refraction and total internal reflection](docs/assets/planar_beam_fields.png)
+
+![Lithographic pattern formed from the main method's computed point response](docs/assets/lithographic_image.png)
+
+[Direct field-dependent imaging](docs/notebooks/08_field_dependent_optics.ipynb)
+recomputes each distant-source response and combines fields on common physical
+image coordinates, without a shifted PSF. Notebook 09 extends this to an explicit
+high-frequency multi-interface path; general wave corrections remain pending.
+
+![Directly propagated field-dependent scene](docs/assets/direct_field_dependent_scene.png)
+
+## Fast transport through multiple interfaces
+
+[Notebook 09](docs/notebooks/09_macroscopic_system_transport.ipynb) now carries a
+smooth-phase electric field through both curved faces of a macroscopic element,
+including finite-conjugate stigmatic recovery and displaced-source images. The
+explicit high-frequency path preserves optical phase, vector Fresnel laws and
+ray-tube spreading, then computes final diffraction. A measured one-phase image
+calculation is about 888× faster than transporting 625 components, with 0.0218%
+complex-field difference in that comparison. Read the [accuracy tests and domain](docs/high_frequency_transport.md); these are not exact full-Maxwell claims.
+
+![Finite-conjugate macroscopic fields](docs/assets/finite_conjugate_fields.png)

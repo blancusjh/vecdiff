@@ -37,6 +37,8 @@ and physical thicknesses. None owns FFT sizes or solver tolerances.
 | `propagation/multiple_scattering.py` | Complex-amplitude feedback equation with convergence controls |
 | `interfaces/assembly.py` | Ordered interfaces and the physical media they bound |
 | `propagation/interface_assembly.py` | Constructed coherent spectral encounters, with explicit domain and bandwidth limits |
+| `propagation/local_evaluation.py` | Fresh bounded current expansions for actual observation patches; no optical shift invariance |
+| `sampling/near_surface.py` | Target-centred off-surface quadrature, with separate near-field and oscillatory resolution |
 | `fourier/` | Transforms only; no field, interface, or literature-model ownership |
 | `observables/` | Measurements and residuals; never hidden normalization inside propagation |
 
@@ -74,3 +76,23 @@ only `vecdiff` packages.
 There is no legacy package, compatibility facade, or alias for an old field
 name. Old examples and notebooks were retired or rewritten, not kept runnable
 through an adapter. The [migration record](migration.md) explains the choices.
+
+## Macroscopic representation and external formats
+
+- `IO/`: native prescription CSV reader/writer; file dialects and unit conversion.
+- `interfaces/optical_system.py`: `OpticalSystem` and `SurfaceEncounter`, preserving ordered physical visits, media, apertures and reflection direction.
+- `surfaces/asphere.py`: conic/even-asphere geometry.
+- `fields/local_spectrum.py`: an electric spectrum referenced to a centre with an explicit observation domain and absolute approximation bounds.
+- `propagation/surface_radiation.py`: construction of that bounded spectrum from the main method's Fresnel boundary traces.
+
+The new representation is an explicit approximation with independent tests; it
+does not automatically replace unrestricted homogeneous propagation.
+
+## Smooth-phase macroscopic transport
+
+`fields/eikonal_field.py` owns an electric envelope and its optical-path phase
+and gradient. `propagation/high_frequency.py` transports these states through
+multiple interfaces with ray-tube spreading and per-component Fresnel laws.
+The same algorithm handles stigmatic and displaced-source cases. Its explicit
+approximation is documented in [high_frequency_transport.md](high_frequency_transport.md);
+no total-field ray, external ray-tracer dependency, or reference solver is substituted.

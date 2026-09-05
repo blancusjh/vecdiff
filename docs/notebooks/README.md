@@ -1,35 +1,40 @@
-# New-API scientific notebooks
+# Optical application notebooks
 
-The seven notebooks are paired with readable percent-format Python sources.
-Edit the `.py` source, then run `python scripts/notebooks.py --execute` to
-regenerate and execute the `.ipynb`. Commit the executed notebooks with their
-figures and numerical outputs. Stable cell IDs make source changes reviewable.
-The runner saves both the source-tree notebook and an artifact copy under
-`build/notebooks/`; it fails on cell errors or missing figures.
+Nine executed studies progress from a specified beam to image formation. Each
+contains the physical problem, units and phasor convention, explicit API calls,
+field maps, measured observables and checks of the numerical assumptions.
+Figures remain embedded in the `.ipynb` files. The paired `.py` files are editable
+cell sources, not separate implementations of the experiments.
 
-`python scripts/notebooks.py --check` verifies matching sources and completed
-outputs without stripping results. Changed sources require execution; a normal
-check never clears or rewrites existing outputs. CI independently re-executes
-the suite and publishes its executed copies. Each notebook stores a fingerprint
-of the numerical code, paired sources, committed input data, and dependency
-configuration. Changing those invalidates old results even when notebook cells
-have not changed. CI blocks merging stale committed outputs while still providing
-freshly executed artifacts to commit. Output bytes are excluded from the hash.
+| Study | Actual result | Physical scope |
+| --- | --- | --- |
+| [01 Gaussian beam](01_electric_field.ipynb) | Waist and output vector fields, meridional propagation, width, polarization, power and sampling checks | Main homogeneous Maxwell spectrum |
+| [02 Planar reflection and refraction](02_fresnel_boundaries.ipynb) | Hot-colormap incident/reflected/transmitted maps, Brewster and critical angles, TIR, evanescent penetration and four boundary conditions | Main exact planar per-k Fresnel map, including finite beams |
+| [03 Stigmatic refraction](03_stigmatic_refraction.ipynb) | Actual conic geometry, equal optical path, focal components, meridional field, spot widths, encircled normal flux and polarization | Main curved-surface physical optics; controlled local radiation expansion |
+| [04 Sphere resonances](04_sphere_resonances.ipynb) | Wavelength scan, resonant/off-resonant E/H maps with sphere geometry, internal field enhancement, Mie convergence and main-method error maps | Independent Mie resonance reference versus the incomplete main single-encounter model; closed-sphere feedback remains pending |
+| [05 Lithographic image formation](05_lithographic_image.ipynb) | Circuit mask, complex vector image, polarization, partial coherence, defocus and image convergence | Main Fresnel-current point response under an explicit local isoplanatic imaging assumption |
+| [06 DUV projection reference](06_duv_projection_reference.ipynb) | Patent-system geometry and stored wavefront, vector PSF, meridional field, circuit image, TE/TM resolution and source/pixel checks | Separate pupil reference at one field point; not main-method propagation through 48 surfaces |
 
-| Notebook | Learning/validation goal |
-| --- | --- |
-| [01 Electric field](01_electric_field.ipynb) | Complete Ez and understand propagation/flux checks |
-| [02 Fresnel boundaries](02_fresnel_boundaries.ipynb) | Reconstruct reflected/refracted fields and check Maxwell conditions |
-| [03 Coherent resonances](03_coherent_resonances.ipynb) | Round trips, Airy amplitudes, standing waves, and evanescent gaps |
-| [04 Curved-interface limits](04_curved_interface_limits.ipynb) | Separate quadrature accuracy from physical approximation; introduce freeform geometry |
-| [05 Vector focusing reference](05_vector_focusing_reference.ipynb) | Polarization, vortices, and longitudinal fields without mixing reference theory into core physics |
-| [06 Spectral assembly](06_spectral_assembly.ipynb) | Construct repeated encounters and distinguish feedback convergence from curved-boundary accuracy |
-| [07 Macroscopic validation](07_macroscopic_validation.ipynb) | Inspect recorded R=50–200 wavelength tests, power balance, and independent numerical controls |
+| [07 Curved boundary verification](07_curved_boundary_verification.ipynb) | Actual E-field maps, two-sided full-Green limits, quadrature/offset convergence and aperture controls | Pointwise physical acceptance and failure of the main finite-aperture model |
+| [08 Field-dependent macroscopic optics](08_field_dependent_optics.ipynb) | Actual refraction/reflection, off-axis spots, meridional and polarization maps, coherent/incoherent three-source images | Direct single-surface response per source; no shift invariance; full instrument transport remains pending |
 
-Install `.[notebooks,validation,nufft]` in this checkout and use that Python
-kernel. Each notebook locates the repository when started from a subdirectory.
-`python scripts/notebooks.py --check --execute` checks synchronization and runs
-every cell in order and requires embedded PNG figures in every executed notebook.
-The notebooks explicitly enable inline rendering, including in headless CI.
-CI runs this command explicitly; a source-only check is
-not reported as a successful Jupyter execution.
+| [09 Macroscopic system transport](09_macroscopic_system_transport.ipynb) | Both curved faces, finite-conjugate recovery, displaced sources, image fields and measured speed/accuracy | Explicit high-frequency phase transport; preserves vector Fresnel laws and final diffraction |
+
+The sphere and DUV reference studies are deliberately labeled. They provide
+concrete target fields and useful comparisons; they do not turn the still-missing
+closed-sphere and full-prescription propagation into completed capabilities.
+Planar layers, generic feedback, curved-boundary failures and scale benchmarks
+remain runnable in `examples/` and `benchmarks/`; they no longer occupy shallow
+notebooks that merely print a benchmark dictionary.
+
+Install `python -m pip install -e '.[notebooks,validation,nufft]'` in this checkout.
+Run `python scripts/notebooks.py --execute` from the repository root to rebuild
+and execute all nine notebooks. The command writes both the committed notebooks
+and execution artifacts under `build/notebooks/`; plotting cells also save PNG
+review figures under `build/notebook-review/`.
+
+`python scripts/notebooks.py --check` verifies source synchronization, completed
+cells, embedded figures and a fingerprint of numerical code and input data.
+It never clears outputs. CI independently executes all notebooks and requires
+fresh committed outputs; download and commit the executed artifact when inputs
+change. The original README animations are preserved separately.
