@@ -180,6 +180,15 @@ from the surface independently; this is not a singular boundary evaluator.
             out_h[start:start+chunk] = np.sum(np.cross(grad, jw)+1j*k0*self.medium.epsilon_r*dyadic(mw), axis=1)
         return out_e.reshape(shape), out_h.reshape(shape)
 
+    def evaluate_local(self, points, *, radius, backend="nufft"):
+        """Evaluate actual positions in separate patches, with absolute bounds.
+
+        See propagation.local_evaluation.evaluate_local. This never translates
+        a precomputed point response or assumes a shift-invariant optical map.
+        """
+        from .local_evaluation import evaluate_local
+        return evaluate_local(self, points, radius=radius, backend=backend)
+
     def local_spectrum(self, center, radius):
         """Compress this radiation into plane waves on an observation ball.
 

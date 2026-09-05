@@ -147,7 +147,7 @@ from `references/` to shared abstractions is allowed; the reverse is tested
 and forbidden.
 
 Start with the [curated examples](examples/README.md) and
-[six executed notebooks](docs/notebooks/README.md). Each workflow has a stated
+[eight executed notebooks](docs/notebooks/README.md). Each workflow has a stated
 purpose, assumptions, assertions, labeled figures, and numerical provenance.
 See [architecture](docs/architecture.md), [validation](docs/validation.md), and
 [the migration/retirement record](docs/migration.md).
@@ -164,9 +164,9 @@ python scripts/notebooks.py --check --execute
 ![Macroscopic stigmatic field and polarization](docs/assets/macroscopic_focus.png)
 
 The [executed macroscopic notebook](docs/notebooks/03_stigmatic_refraction.ipynb)
-shows transverse, meridional, longitudinal and polarization maps for a 10 mm
+shows transverse, meridional, longitudinal and polarization maps for a 24-mm-diameter
 conic at 193.368 nm. A local plane-wave expansion of the per-k Fresnel radiation
-evaluated 130,622 E/H points in about 0.63 s on one CPU thread. Its explicit
+evaluated 135,442 E/H points in about 0.68 s on one CPU thread. Its explicit
 error bound is separate from quadrature error and from the still-unresolved
 curved dielectric boundary error. See the [derivation, measurements and limits](docs/macroscopic_fields.md).
 
@@ -182,13 +182,21 @@ physics when converting a prescription for propagation.
 ## Optical experiments
 
 The [results report](docs/application_results.md) and
-[six executed application notebooks](docs/notebooks/README.md) show Gaussian
+[eight executed application notebooks](docs/notebooks/README.md) show Gaussian
 beam propagation, planar refraction and TIR, stigmatic dielectric focusing,
 sphere resonance comparisons, circuit-pattern image formation from the main
-method, and a separate real-system DUV pupil reference. Each includes fields,
+method, a separate real-system DUV pupil reference, two-sided curved-boundary
+verification, and direct field-dependent macroscopic refraction and reflection. Each includes fields,
 physical units, measured results and numerical controls. Mie and the DUV pupil
 reference remain explicitly separate from the main spectral interface method.
 
 ![Finite-beam reflection, refraction and total internal reflection](docs/assets/planar_beam_fields.png)
 
 ![Lithographic pattern formed from the main method's computed point response](docs/assets/lithographic_image.png)
+
+[Direct field-dependent imaging](docs/notebooks/08_field_dependent_optics.ipynb)
+recomputes each distant-source response and combines fields on common physical
+image coordinates, without a shifted PSF. Full macroscopic surface-to-surface
+transport remains pending.
+
+![Directly propagated field-dependent scene](docs/assets/direct_field_dependent_scene.png)

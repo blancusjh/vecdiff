@@ -101,7 +101,7 @@ python scripts/notebooks.py --check --execute
 The pinned numerical environment targets Python 3.12. The general installation
 supports Python 3.10+; CI also checks other supported versions without those
 environment-specific pins. Notebook source synchronization is distinct from
-Jupyter execution. CI executes the six maintained application notebooks, checks embedded
+Jupyter execution. CI executes the eight maintained application notebooks, checks embedded
 PNG figures, and uploads execution artifacts. Executed outputs are also committed
 in the source-tree notebooks. Seven maintained example workflows
 are exercised by the test suite. Use the CI run for the revision being evaluated;
@@ -114,3 +114,19 @@ an independent solution where available. Preserve parameters, package versions,
 raw residuals, and convergence history. Absorbing/magnetic/anisotropic media,
 general multi-body scattering, singular surface quadrature, and universal
 high-Q accuracy are not implemented or claimed.
+
+## Two-sided curved-boundary limits
+
+`benchmarks.curved_boundary_limits` replaces propagation-only continuation as the
+acceptance diagnostic for its recorded spherical-cap cases. It evaluates full
+near fields at $q\pm\delta\hat n$, refines target-centred source quadrature,
+then extrapolates complex fields to the boundary using overlapping offset triples.
+It records numerical convergence separately from four normalized physical
+boundary residuals. Finite-aperture flat and equal-index controls, and localized
+illumination, expose aperture truncation effects. No singular on-surface integral
+or complete closed-body solver is claimed. See [the measured results](application_results.md).
+
+`benchmarks.field_dependent_optics` checks distinct incident directions through
+macroscopic refracting and reflecting surfaces without a shifted PSF. Local
+expansion bounds and refined source quadrature are numerical checks of fixed
+currents; they are deliberately separate from dielectric-boundary verification.

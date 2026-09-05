@@ -1,6 +1,6 @@
 # Optical application notebooks
 
-Six executed studies progress from a specified beam to image formation. Each
+Eight executed studies progress from a specified beam to image formation. Each
 contains the physical problem, units and phasor convention, explicit API calls,
 field maps, measured observables and checks of the numerical assumptions.
 Figures remain embedded in the `.ipynb` files. The paired `.py` files are editable
@@ -14,6 +14,9 @@ cell sources, not separate implementations of the experiments.
 | [04 Sphere resonances](04_sphere_resonances.ipynb) | Wavelength scan, resonant/off-resonant E/H maps with sphere geometry, internal field enhancement, Mie convergence and main-method error maps | Independent Mie resonance reference versus the incomplete main single-encounter model; closed-sphere feedback remains pending |
 | [05 Lithographic image formation](05_lithographic_image.ipynb) | Circuit mask, complex vector image, polarization, partial coherence, defocus and image convergence | Main Fresnel-current point response under an explicit local isoplanatic imaging assumption |
 | [06 DUV projection reference](06_duv_projection_reference.ipynb) | Patent-system geometry and stored wavefront, vector PSF, meridional field, circuit image, TE/TM resolution and source/pixel checks | Separate pupil reference at one field point; not main-method propagation through 48 surfaces |
+
+| [07 Curved boundary verification](07_curved_boundary_verification.ipynb) | Actual E-field maps, two-sided full-Green limits, quadrature/offset convergence and aperture controls | Pointwise physical acceptance and failure of the main finite-aperture model |
+| [08 Field-dependent macroscopic optics](08_field_dependent_optics.ipynb) | Actual refraction/reflection, off-axis spots, meridional and polarization maps, coherent/incoherent three-source images | Direct single-surface response per source; no shift invariance; full instrument transport remains pending |
 
 The sphere and DUV reference studies are deliberately labeled. They provide
 concrete target fields and useful comparisons; they do not turn the still-missing

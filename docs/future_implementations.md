@@ -225,3 +225,16 @@ and not a claim that a complete DUV instrument or ideal-mirror API is already
 validated.
 
 Macroscopic focal propagation and strict native prescription IO now have a measured implementation; see [macroscopic fields](macroscopic_fields.md). Extended surface-to-surface transport, folded propagation, global curved-boundary correction and complete DUV/Mie acceptance remain pending.
+
+## Current recovery of field-dependent macroscopic use cases
+
+Notebook 08 now computes distinct distant-source directions through macroscopic
+refracting and dielectric-reflecting surfaces and combines the resulting fields
+on shared physical image coordinates. No shift-invariant imaging approximation
+is used there. The older specialized stigmatic mapping is an architectural
+reference, not a restored compatibility API. The next acceptance target is
+phase-aware extended surface-to-surface transport, first through a finite-conjugate
+stigmatic pair and then an off-axis refractive prescription, with independent
+source and destination sampling checks. Full-system circuit imaging must use
+those transported fields rather than the current pupil-reference convolution.
+These implementation and verification items remain open.

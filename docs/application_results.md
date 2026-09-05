@@ -1,6 +1,6 @@
 # Results from the optical application notebooks
 
-The six [executed notebooks](notebooks/README.md) contain the actual setup,
+The eight [executed notebooks](notebooks/README.md) contain the actual setup,
 calculation, embedded figures and numerical checks. This page is a guide to their
 results and the limits of those results. Electric-field norms are distinguished
 from transported power throughout:
@@ -82,3 +82,91 @@ illumination and omits coating losses and pupil transmission. **Main-method
 propagation through the complete 48-encounter folded objective remains pending.**
 Neither this reference nor the conic experiment certifies a production
 lithography instrument, electromagnetic mask model, or resist process window.
+
+## Curved boundaries: reconstructed fields and aperture controls
+
+[Notebook 07](notebooks/07_curved_boundary_verification.ipynb) evaluates the main
+reflected and transmitted fields with the full dyadic Green kernel on opposite
+sides of a spherical cap. Target-centred quadrature resolves the near field.
+Two source resolutions and four shrinking offsets separate quadrature error
+from the extrapolated complex-field boundary mismatch. No reference boundary
+solver or fitted phase/amplitude is involved.
+
+![Curved fields and surface geometry](assets/curved_fields.png)
+
+The following values are the largest of four normalized **amplitude** residuals
+at $\rho/R=0.2$, $\phi=45^\circ$, with aperture radius $a=R/2$. They are pointwise
+acceptance diagnostics, not a uniform error bound or image accuracy estimate.
+
+| Illumination and interface | $R/\lambda_0$ | Maximum boundary mismatch |
+| --- | ---: | ---: |
+| Plane wave, $1\to1.5$ | 2 | 17.315% |
+| Plane wave, $1\to1.5$ | 10 | 5.951% |
+| Plane wave, $1\to1.5$ | 30 | 3.107% |
+| Plane wave, $1.5\to1$ | 30 | 2.001% |
+| Plane wave, equal-index curved control | 10 | 5.458% |
+| Plane wave, truncated flat control | 10 (aperture scale) | 7.618% |
+| Localized 121-mode beam, equal-index curved control | 10 | 0.102% |
+| Localized 121-mode beam, $1\to1.5$ | 10 | 0.110% |
+
+All eleven recorded cases pass the specified numerical checks: source-quadrature
+changes below $5\times10^{-12}$ and offset-extrapolation changes below
+$6.2\times10^{-6}$. The hard-aperture cases fail the 1% boundary criterion;
+the two localized cases pass at the tested location. Equal-index and flat controls
+show why hard-aperture mismatch cannot be attributed entirely to curvature.
+The localized result supports this particular regime, not exact arbitrary curved
+scattering. Residuals are scaled to the defined incident amplitude, not to the
+smaller local transmitted amplitude.
+
+![Boundary controls with identical normalization](assets/curved_boundary_controls.png)
+
+Reproduce the full data with `python -m benchmarks.curved_boundary_limits`.
+The notebook also recomputes the localized dielectric case from the current code.
+
+The localized probe scan also checks $\rho/R=0,0.1,0.2,0.3,0.4$ along
+$\phi=45^\circ$. Normalizing to the **local** incident amplitude gives dielectric
+residuals of 0.385%, 0.196%, 0.208%, 0.504%, and **1.188%**. The equal-index
+control reaches 1.167% at the last probe. Thus the localized example does not
+establish uniform 1% boundary accuracy even along this meridian. All ten scan
+cases pass numerical convergence checks.
+
+![Boundary residual versus probe position and normalization](assets/curved_boundary_position_scan.png)
+
+
+## Macroscopic responses without shift invariance
+
+[Notebook 08](notebooks/08_field_dependent_optics.ipynb) computes each incident
+object direction independently on a 24-mm-diameter refracting conic and an
+8-mm-diameter dielectric reflecting paraboloid, at 193.368 nm. A new local
+spectrum is constructed for each observation patch at its actual global position.
+The predicted image displacement selects an observation window; it does not
+translate a precomputed point response.
+
+![Independent off-axis responses compared with a shifted on-axis template](assets/field_dependent_comparison.png)
+
+For angles $0,0.002,0.01,0.02$ degrees, held-out complex $E/\mathcal H$ kernel
+errors are $2.9\times10^{-5}$–$5.6\times10^{-5}$ for refraction and
+$1.9\times10^{-4}$–$2.4\times10^{-4}$ for reflection. Absolute kernel bounds pass.
+Doubling the source quadrature from $128\times256$ to $256\times512$ changes
+these held-out fields by less than $3.2\times10^{-11}$. Construction plus a
+241-point line takes roughly 1–1.5 seconds in the recorded single-thread run;
+these timings are configuration-specific.
+
+At $0.002^\circ$, the refracting conic's line peak is 56.2% of its on-axis value;
+at $0.02^\circ$ it is 2.24%. The dielectric paraboloid retains 56.2% at
+$0.02^\circ$. These are sampled line peaks relative to the same on-axis
+illumination, not integrated throughput or a Strehl ratio. The shapes and image
+positions also change. An on-axis translated template cannot reproduce them.
+
+![Three distinct sources propagated to common image coordinates](assets/direct_field_dependent_scene.png)
+
+The three-source scene combines separately propagated vector fields coherently
+or incoherently on a shared physical image grid. It uses no PSF convolution.
+Meridional fields and polarization accompany it in the notebook.
+
+**Remaining gate:** these results establish numerical evaluation of macroscopic
+single-surface physical-optics responses. They do not establish full dielectric
+boundary accuracy, extended surface-to-surface macroscopic transport, folded
+multi-element instruments, or full-system lithographic imaging. The existing
+isoplanatic mask example and separate DUV pupil reference retain their explicit
+scope; neither substitutes for that unfinished implementation.

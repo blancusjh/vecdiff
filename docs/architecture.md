@@ -37,6 +37,8 @@ and physical thicknesses. None owns FFT sizes or solver tolerances.
 | `propagation/multiple_scattering.py` | Complex-amplitude feedback equation with convergence controls |
 | `interfaces/assembly.py` | Ordered interfaces and the physical media they bound |
 | `propagation/interface_assembly.py` | Constructed coherent spectral encounters, with explicit domain and bandwidth limits |
+| `propagation/local_evaluation.py` | Fresh bounded current expansions for actual observation patches; no optical shift invariance |
+| `sampling/near_surface.py` | Target-centred off-surface quadrature, with separate near-field and oscillatory resolution |
 | `fourier/` | Transforms only; no field, interface, or literature-model ownership |
 | `observables/` | Measurements and residuals; never hidden normalization inside propagation |
 

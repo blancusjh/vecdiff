@@ -192,3 +192,37 @@ outputs. Neither this change nor the imported data closes those gates.
 - [wavec lithography notebook](https://github.com/blancusjh/wavec/blob/main/notebooks/lithography.ipynb):
   inspiration for observables and presentation. Its ray-traced-pupil/Richards–Wolf
   DUV fields are not used as output of the main method here.
+
+## Field-dependent observation patches
+
+`SurfaceRadiation.evaluate_local(points, radius=..., backend='nufft')` partitions
+actual global observation coordinates and constructs a fresh local spectrum from
+the currents for each occupied patch. It returns electric and magnetic arrays,
+uniform absolute kernel error bounds, and a patch count. It preserves coordinate
+shape and coherent phase. The bounds exclude source quadrature and errors in
+local Fresnel traces.
+
+```python
+from examples.field_dependent_optics import response, WAVELENGTH
+import numpy as np
+radiation, center = response('refraction', 0.002)
+x = np.linspace(-10, 10, 201) * WAVELENGTH
+points = center + np.c_[x, 0*x, 0*x]
+result = radiation.evaluate_local(points, radius=4*WAVELENGTH)
+```
+
+The example helper constructs a fresh incident spectrum and interface transform
+for every direction. `evaluate_local` itself evaluates one fixed set of currents;
+it does not infer a changed object or reuse a translated PSF. The demonstration
+in [notebook 08](notebooks/08_field_dependent_optics.ipynb) includes refracted and
+reflected off-axis fields and a directly propagated three-source image.
+
+The earlier implementation's stigmatic reference-sphere mapping and known
+single-source geometry remain useful recovery targets. They must not be equated
+with a generic invariant-shift pupil model or silently inserted as a local-ray
+replacement for the per-wavevector transform. General macroscopic composition
+still requires phase-aware **extended destination-surface** sampling, preservation
+of incident modal directions at each encounter, and convergence checks on the
+combined phase at each destination. Tiling observation coordinates alone does not
+solve that source-sampling problem. Near-focus performance must not be extrapolated
+to arbitrary surface-to-surface distances or field angles.

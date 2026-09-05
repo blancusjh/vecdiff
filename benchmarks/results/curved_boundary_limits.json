@@ -1,0 +1,1361 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "vecdiff": "0.3.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8",
+    "finufft": "2.5.1",
+    "miepython": "3.3.0"
+  },
+  "method": "Per-k Fresnel traces; full dyadic Green evaluation on both sides; target-centred quadrature; quadratic boundary-limit extrapolation.",
+  "scope": "Necessary Maxwell continuity test of the supplied finite-aperture model. Hard-aperture edge and missing global boundary correction are included; this is not a closed-body solution.",
+  "cases": [
+    {
+      "radius_over_wavelength": 2.0,
+      "illumination": "plane",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.10834721167594602,
+          "tangential_H": 0.1543909333320603,
+          "normal_D": 0.03227973933406745,
+          "normal_B": 0.036458973298569834
+        },
+        {
+          "tangential_E": 0.08760941719547602,
+          "tangential_H": 0.1515133246285247,
+          "normal_D": 0.02928105782050224,
+          "normal_B": 0.027538718158041417
+        },
+        {
+          "tangential_E": 0.09045929831689671,
+          "tangential_H": 0.15963050075686774,
+          "normal_D": 0.027950495190535236,
+          "normal_B": 0.023168716031778315
+        },
+        {
+          "tangential_E": 0.09524840094057463,
+          "tangential_H": 0.16578707847721397,
+          "normal_D": 0.027334535064882474,
+          "normal_B": 0.02102279799337824
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.10190958759877641,
+        "tangential_H": 0.17315376503805538,
+        "normal_D": 0.02675434983975664,
+        "normal_B": 0.018914527650969164
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.10190958759877641,
+        "tangential_H": 0.17315376503805538,
+        "normal_D": 0.02675434983975664,
+        "normal_B": 0.018914527650969164
+      },
+      "max_quadrature_change": 6.679476487230784e-14,
+      "boundary_extrapolation_change": 5.537764267497264e-06,
+      "max_source_nodes": 89088,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 0.6327478699968196
+    },
+    {
+      "radius_over_wavelength": 2.0,
+      "illumination": "plane",
+      "indices": [
+        1.5,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.17239241410295045,
+          "tangential_H": 0.1382483040432341,
+          "normal_D": 0.07095178176859457,
+          "normal_B": 0.10080150401195043
+        },
+        {
+          "tangential_E": 0.13319773517001776,
+          "tangential_H": 0.0878777635726264,
+          "normal_D": 0.06425173892417949,
+          "normal_B": 0.09518558771616693
+        },
+        {
+          "tangential_E": 0.1192897864547599,
+          "tangential_H": 0.07045249887283644,
+          "normal_D": 0.06113303698728932,
+          "normal_B": 0.09256963156455704
+        },
+        {
+          "tangential_E": 0.11443569454045266,
+          "tangential_H": 0.06574429686692575,
+          "normal_D": 0.059643631753719575,
+          "normal_B": 0.09131477016309614
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.11124599341178662,
+        "tangential_H": 0.06461033705739565,
+        "normal_D": 0.05820603180382758,
+        "normal_B": 0.090097274058182
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.11124599341178662,
+        "tangential_H": 0.06461033705739565,
+        "normal_D": 0.05820603180382758,
+        "normal_B": 0.090097274058182
+      },
+      "max_quadrature_change": 7.276419458556885e-14,
+      "boundary_extrapolation_change": 6.0676389555469056e-06,
+      "max_source_nodes": 89088,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 0.48340322399599245
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "plane",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.11699588593074499,
+          "tangential_H": 0.13453181716777782,
+          "normal_D": 0.051714773270645685,
+          "normal_B": 0.0716845587723646
+        },
+        {
+          "tangential_E": 0.058813139751562535,
+          "tangential_H": 0.07294086948184447,
+          "normal_D": 0.04898531498022685,
+          "normal_B": 0.06542966670432467
+        },
+        {
+          "tangential_E": 0.03059514499640933,
+          "tangential_H": 0.044659613107423404,
+          "normal_D": 0.04765636374551523,
+          "normal_B": 0.06241979341063423
+        },
+        {
+          "tangential_E": 0.017994745125732826,
+          "tangential_H": 0.03314827328335337,
+          "normal_D": 0.04700202884157126,
+          "normal_B": 0.06095010752539153
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.012025043358396607,
+        "tangential_H": 0.026736625150405525,
+        "normal_D": 0.046354883901494864,
+        "normal_B": 0.05950638042755522
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.012025043358396607,
+        "tangential_H": 0.026736625150405525,
+        "normal_D": 0.046354883901494864,
+        "normal_B": 0.05950638042755522
+      },
+      "max_quadrature_change": 4.849908258105563e-13,
+      "boundary_extrapolation_change": 5.591312431663669e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 1.3838094749953598
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "plane",
+      "indices": [
+        1.5,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.12601864552320793,
+          "tangential_H": 0.13280757574004554,
+          "normal_D": 0.03468490021923495,
+          "normal_B": 0.05350978001259422
+        },
+        {
+          "tangential_E": 0.07170757986873763,
+          "tangential_H": 0.07144629556094421,
+          "normal_D": 0.02748367628512073,
+          "normal_B": 0.04710757490351328
+        },
+        {
+          "tangential_E": 0.04751199170476674,
+          "tangential_H": 0.04228189702641749,
+          "normal_D": 0.024312627445005553,
+          "normal_B": 0.04415303066872503
+        },
+        {
+          "tangential_E": 0.037914170134599204,
+          "tangential_H": 0.029479517440679903,
+          "normal_D": 0.022889868876443294,
+          "normal_B": 0.04275319833530791
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.03213611468612369,
+        "tangential_H": 0.021069914316996924,
+        "normal_D": 0.021605095274651556,
+        "normal_B": 0.041412103635330495
+      },
+      "incident_electric_norm_at_probe": 0.9999999999999999,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0321361146861237,
+        "tangential_H": 0.021069914316996927,
+        "normal_D": 0.02160509527465156,
+        "normal_B": 0.0414121036353305
+      },
+      "max_quadrature_change": 7.350376016238462e-13,
+      "boundary_extrapolation_change": 6.131765850163685e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 1.0875103529979242
+    },
+    {
+      "radius_over_wavelength": 30.0,
+      "illumination": "plane",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.11436384508144233,
+          "tangential_H": 0.126991919335442,
+          "normal_D": 0.011864685008182323,
+          "normal_B": 0.01904042505318842
+        },
+        {
+          "tangential_E": 0.05755690293247149,
+          "tangential_H": 0.06665730473009762,
+          "normal_D": 0.014591233785997434,
+          "normal_B": 0.0210713792723614
+        },
+        {
+          "tangential_E": 0.032124177318513865,
+          "tangential_H": 0.04095190107372171,
+          "normal_D": 0.01614179163176742,
+          "normal_B": 0.023147007303822336
+        },
+        {
+          "tangential_E": 0.023310022691982284,
+          "tangential_H": 0.032624856848139844,
+          "normal_D": 0.016949139544392713,
+          "normal_B": 0.0243809753282745
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.022124883124381985,
+        "tangential_H": 0.031072984134157215,
+        "normal_D": 0.017773971531285408,
+        "normal_B": 0.025721272765516175
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.022124883124381985,
+        "tangential_H": 0.031072984134157215,
+        "normal_D": 0.017773971531285408,
+        "normal_B": 0.025721272765516175
+      },
+      "max_quadrature_change": 3.141963935207537e-12,
+      "boundary_extrapolation_change": 5.613958443210586e-06,
+      "max_source_nodes": 787968,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 7.852839011000469
+    },
+    {
+      "radius_over_wavelength": 30.0,
+      "illumination": "plane",
+      "indices": [
+        1.5,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.11406967155165597,
+          "tangential_H": 0.12773505750682165,
+          "normal_D": 0.007278083690090174,
+          "normal_B": 0.012011381870335546
+        },
+        {
+          "tangential_E": 0.05699747511488833,
+          "tangential_H": 0.06515520166191023,
+          "normal_D": 0.007247388375498136,
+          "normal_B": 0.014266788383521906
+        },
+        {
+          "tangential_E": 0.029322468506030937,
+          "tangential_H": 0.034092553014549186,
+          "normal_D": 0.010591850388688361,
+          "normal_B": 0.01687602041890916
+        },
+        {
+          "tangential_E": 0.01701739332589167,
+          "tangential_H": 0.0189971877287994,
+          "normal_D": 0.012530685807190509,
+          "normal_B": 0.018394239129230026
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.011650294478957704,
+        "tangential_H": 0.007294562460777913,
+        "normal_D": 0.01455533762236629,
+        "normal_B": 0.020012845078712063
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.011650294478957704,
+        "tangential_H": 0.007294562460777913,
+        "normal_D": 0.01455533762236629,
+        "normal_B": 0.020012845078712063
+      },
+      "max_quadrature_change": 4.6785332103921666e-12,
+      "boundary_extrapolation_change": 6.137060381698847e-06,
+      "max_source_nodes": 787968,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 7.918877842006623
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "plane",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.0900356533486791,
+          "tangential_H": 0.09003565334868041,
+          "normal_D": 0.05454396943943601,
+          "normal_B": 0.054543969439437
+        },
+        {
+          "tangential_E": 0.047369361863570894,
+          "tangential_H": 0.047369361863567015,
+          "normal_D": 0.05407417302172762,
+          "normal_B": 0.05407417302172839
+        },
+        {
+          "tangential_E": 0.03304541329201795,
+          "tangential_H": 0.03304541329201036,
+          "normal_D": 0.05420477690231716,
+          "normal_B": 0.05420477690231713
+        },
+        {
+          "tangential_E": 0.03100744054195797,
+          "tangential_H": 0.03100744054195203,
+          "normal_D": 0.05436128626439061,
+          "normal_B": 0.0543612862643922
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.033584965942558796,
+        "tangential_H": 0.033584965942532664,
+        "normal_D": 0.05457798543377773,
+        "normal_B": 0.05457798543378095
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.033584965942558796,
+        "tangential_H": 0.033584965942532664,
+        "normal_D": 0.05457798543377773,
+        "normal_B": 0.05457798543378095
+      },
+      "max_quadrature_change": 5.879612382028395e-13,
+      "boundary_extrapolation_change": 2.174375691492359e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 0.765294142998755
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "plane",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": true,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.12717526951184574,
+          "tangential_H": 0.15792912057262298,
+          "normal_D": 0.044740977021441856,
+          "normal_B": 0.04718256506432098
+        },
+        {
+          "tangential_E": 0.06987875648188491,
+          "tangential_H": 0.10561363341208475,
+          "normal_D": 0.04469010766257214,
+          "normal_B": 0.04712893738108656
+        },
+        {
+          "tangential_E": 0.04417732981586034,
+          "tangential_H": 0.08615249796669283,
+          "normal_D": 0.04466488418104208,
+          "normal_B": 0.047102375384928466
+        },
+        {
+          "tangential_E": 0.03414405065736994,
+          "tangential_H": 0.07967761254669975,
+          "normal_D": 0.04465232518698577,
+          "normal_B": 0.04708915728211649
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.028870350641885065,
+        "tangential_H": 0.07617926095079552,
+        "normal_D": 0.04463980139475811,
+        "normal_B": 0.047075981153652746
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.028870350641885065,
+        "tangential_H": 0.07617926095079552,
+        "normal_D": 0.04463980139475811,
+        "normal_B": 0.047075981153652746
+      },
+      "max_quadrature_change": 4.370777780308242e-13,
+      "boundary_extrapolation_change": 5.659360915209913e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 1.3557543089991668
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "plane",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 25.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.09618347627364052,
+          "tangential_H": 0.1340242221243493,
+          "normal_D": 0.027691448497447983,
+          "normal_B": 0.0450478953401089
+        },
+        {
+          "tangential_E": 0.07668957617061285,
+          "tangential_H": 0.07972988676231801,
+          "normal_D": 0.014055194717183337,
+          "normal_B": 0.04783387403437293
+        },
+        {
+          "tangential_E": 0.07514738836533558,
+          "tangential_H": 0.05525234770768934,
+          "normal_D": 0.007470914163765783,
+          "normal_B": 0.0496136092082403
+        },
+        {
+          "tangential_E": 0.07676622799105924,
+          "tangential_H": 0.045017252862186045,
+          "normal_D": 0.004551000905253212,
+          "normal_B": 0.05058869009243826
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.07988125839849539,
+        "tangential_H": 0.037650976387535874,
+        "normal_D": 0.0030746577498406533,
+        "normal_B": 0.05161631317086692
+      },
+      "incident_electric_norm_at_probe": 1.0,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.07988125839849539,
+        "tangential_H": 0.037650976387535874,
+        "normal_D": 0.0030746577498406533,
+        "normal_B": 0.05161631317086692
+      },
+      "max_quadrature_change": 4.5246321304411416e-13,
+      "boundary_extrapolation_change": 4.293732868337635e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": false,
+      "seconds": 1.106617447003373
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.05100743183884868,
+          "tangential_H": 0.05101733379312736,
+          "normal_D": 0.008556074355342133,
+          "normal_B": 0.00857906481706669
+        },
+        {
+          "tangential_E": 0.025390977777505944,
+          "tangential_H": 0.025403345800893505,
+          "normal_D": 0.004513017142460442,
+          "normal_B": 0.004531106844535196
+        },
+        {
+          "tangential_E": 0.012581068538881218,
+          "tangential_H": 0.012594478389605817,
+          "normal_D": 0.0025462685498069577,
+          "normal_B": 0.0025653249895724213
+        },
+        {
+          "tangential_E": 0.006185745193027915,
+          "tangential_H": 0.006199260623462995,
+          "normal_D": 0.0016369595318702988,
+          "normal_B": 0.0016601827807091068
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.0006314351879589739,
+        "tangential_H": 0.000615862596046895,
+        "normal_D": 0.0009841561706107707,
+        "normal_B": 0.0010161059969501578
+      },
+      "incident_electric_norm_at_probe": 0.5286974914626218,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0011943222696444654,
+        "tangential_H": 0.0011648676341231244,
+        "normal_D": 0.0018614731231051229,
+        "normal_B": 0.0019219043278210733
+      },
+      "max_quadrature_change": 5.901100296410067e-13,
+      "boundary_extrapolation_change": 2.1603470931738094e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 19.129888868999842
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.06176509153273825,
+          "tangential_H": 0.06718198802521354,
+          "normal_D": 0.0049704644398763445,
+          "normal_B": 0.01019525236244176
+        },
+        {
+          "tangential_E": 0.03083806649892311,
+          "tangential_H": 0.03358727198987874,
+          "normal_D": 0.0026599800877521664,
+          "normal_B": 0.005323904478717859
+        },
+        {
+          "tangential_E": 0.015361099699674152,
+          "tangential_H": 0.01677953676739831,
+          "normal_D": 0.0015736172596547593,
+          "normal_B": 0.0029511240448411875
+        },
+        {
+          "tangential_E": 0.007621758204633613,
+          "tangential_H": 0.008381032870193218,
+          "normal_D": 0.001110188914138561,
+          "normal_B": 0.0018556955319881246
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.00024294605811466772,
+        "tangential_H": 0.000560761376875162,
+        "normal_D": 0.000832419454540584,
+        "normal_B": 0.001102202067935443
+      },
+      "incident_electric_norm_at_probe": 0.5286974914626218,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.00045951808366362124,
+        "tangential_H": 0.0010606469406991828,
+        "normal_D": 0.0015744721092542482,
+        "normal_B": 0.0020847499481910577
+      },
+      "max_quadrature_change": 5.060923313006205e-13,
+      "boundary_extrapolation_change": 5.559202687084311e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 25.707657155006018
+    }
+  ],
+  "localized_probe_scan": [
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.0,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.09966781779609069,
+          "tangential_H": 0.09966277945373042,
+          "normal_D": 4.540592635166109e-16,
+          "normal_B": 2.120929360870258e-17
+        },
+        {
+          "tangential_E": 0.04989976782116032,
+          "tangential_H": 0.04988702924938119,
+          "normal_D": 9.778863356891772e-16,
+          "normal_B": 1.7741685188368157e-16
+        },
+        {
+          "tangential_E": 0.025052698531098955,
+          "tangential_H": 0.025031010086720196,
+          "normal_D": 1.871925348170264e-15,
+          "normal_B": 9.505547149842097e-16
+        },
+        {
+          "tangential_E": 0.012726744839413058,
+          "tangential_H": 0.012690780666175487,
+          "normal_D": 2.938830325742448e-15,
+          "normal_B": 5.470985540145792e-17
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.00259864783956501,
+        "tangential_H": 0.0024625400755355128,
+        "normal_D": 4.418779933526295e-15,
+        "normal_B": 1.702539137992008e-15
+      },
+      "incident_electric_norm_at_probe": 0.9999999999999994,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.002598647839565011,
+        "tangential_H": 0.002462540075535514,
+        "normal_D": 4.418779933526297e-15,
+        "normal_B": 1.702539137992009e-15
+      },
+      "max_quadrature_change": 2.311571576533978e-12,
+      "boundary_extrapolation_change": 2.2563177796516437e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 19.489085955996416
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.0,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.11849845784345688,
+          "tangential_H": 0.12806686313252105,
+          "normal_D": 1.1062305600457195e-16,
+          "normal_B": 9.109160915096099e-17
+        },
+        {
+          "tangential_E": 0.05858436467132775,
+          "tangential_H": 0.06310168607760362,
+          "normal_D": 2.9421927286974035e-16,
+          "normal_B": 7.180090718005858e-17
+        },
+        {
+          "tangential_E": 0.028618449177903026,
+          "tangential_H": 0.030664701604409275,
+          "normal_D": 7.513434303343992e-16,
+          "normal_B": 1.4813264326886463e-16
+        },
+        {
+          "tangential_E": 0.013665517387894314,
+          "tangential_H": 0.014594681901701453,
+          "normal_D": 7.177965066448578e-16,
+          "normal_B": 2.8701236920641046e-15
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.002058665538949126,
+        "tangential_H": 0.0038497055210229263,
+        "normal_D": 5.104443199680959e-16,
+        "normal_B": 7.427734929149111e-15
+      },
+      "incident_electric_norm_at_probe": 0.9999999999999994,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0020586655389491274,
+        "tangential_H": 0.0038497055210229285,
+        "normal_D": 5.104443199680962e-16,
+        "normal_B": 7.427734929149116e-15
+      },
+      "max_quadrature_change": 1.5714175201748588e-12,
+      "boundary_extrapolation_change": 5.699914914358207e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 25.51106432799861
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.1,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.08432021238077053,
+          "tangential_H": 0.08433047811709858,
+          "normal_D": 0.005950696864324904,
+          "normal_B": 0.005908437363773029
+        },
+        {
+          "tangential_E": 0.042139559447062214,
+          "tangential_H": 0.04214757352628126,
+          "normal_D": 0.00269263935421857,
+          "normal_B": 0.0026629150787191966
+        },
+        {
+          "tangential_E": 0.02105089450257033,
+          "tangential_H": 0.02105717582823802,
+          "normal_D": 0.0012455401492857084,
+          "normal_B": 0.001237088633209052
+        },
+        {
+          "tangential_E": 0.010531305420967054,
+          "tangential_H": 0.010535497139975123,
+          "normal_D": 0.0008943092934270218,
+          "normal_B": 0.0009163502900335383
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.0012123038080151733,
+        "tangential_H": 0.0011837858193617888,
+        "normal_D": 0.0012030289223259464,
+        "normal_B": 0.0012420145433563708
+      },
+      "incident_electric_norm_at_probe": 0.852711426942862,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.001421704658469889,
+        "tangential_H": 0.0013882607667237365,
+        "normal_D": 0.0014108277247310284,
+        "normal_B": 0.0014565473196591688
+      },
+      "max_quadrature_change": 1.0539559509130095e-12,
+      "boundary_extrapolation_change": 2.2341394778844505e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 19.0106047129957
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.1,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.10162784983888264,
+          "tangential_H": 0.1103589119388891,
+          "normal_D": 0.002946525934905929,
+          "normal_B": 0.00646433733860662
+        },
+        {
+          "tangential_E": 0.050857811158690154,
+          "tangential_H": 0.05527422903615965,
+          "normal_D": 0.0010101305238324739,
+          "normal_B": 0.0024762974692357394
+        },
+        {
+          "tangential_E": 0.02545681051358812,
+          "tangential_H": 0.02771809718286445,
+          "normal_D": 0.0001610960261574423,
+          "normal_B": 0.0006428362440014198
+        },
+        {
+          "tangential_E": 0.012763842410810142,
+          "tangential_H": 0.013950813477922236,
+          "normal_D": 0.0004884327762056536,
+          "normal_B": 0.0007658979154475842
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.0008357365683500776,
+        "tangential_H": 0.0009888920202742759,
+        "normal_D": 0.0009614800385728144,
+        "normal_B": 0.0016682145872921918
+      },
+      "incident_electric_norm_at_probe": 0.852711426942862,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0009800930794915666,
+        "tangential_H": 0.0011597030238232507,
+        "normal_D": 0.0011275561792573946,
+        "normal_B": 0.0019563647613742774
+      },
+      "max_quadrature_change": 7.718390367142481e-13,
+      "boundary_extrapolation_change": 5.658901678018792e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 25.689051787005155
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.05100743183884868,
+          "tangential_H": 0.05101733379312736,
+          "normal_D": 0.008556074355342133,
+          "normal_B": 0.00857906481706669
+        },
+        {
+          "tangential_E": 0.025390977777505944,
+          "tangential_H": 0.025403345800893505,
+          "normal_D": 0.004513017142460442,
+          "normal_B": 0.004531106844535196
+        },
+        {
+          "tangential_E": 0.012581068538881218,
+          "tangential_H": 0.012594478389605817,
+          "normal_D": 0.0025462685498069577,
+          "normal_B": 0.0025653249895724213
+        },
+        {
+          "tangential_E": 0.006185745193027915,
+          "tangential_H": 0.006199260623462995,
+          "normal_D": 0.0016369595318702988,
+          "normal_B": 0.0016601827807091068
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.0006314351879589739,
+        "tangential_H": 0.000615862596046895,
+        "normal_D": 0.0009841561706107707,
+        "normal_B": 0.0010161059969501578
+      },
+      "incident_electric_norm_at_probe": 0.5286974914626218,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0011943222696444654,
+        "tangential_H": 0.0011648676341231244,
+        "normal_D": 0.0018614731231051229,
+        "normal_B": 0.0019219043278210733
+      },
+      "max_quadrature_change": 5.901100296410067e-13,
+      "boundary_extrapolation_change": 2.1603470931738094e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 19.107286803002353
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.2,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.06176509153273825,
+          "tangential_H": 0.06718198802521354,
+          "normal_D": 0.0049704644398763445,
+          "normal_B": 0.01019525236244176
+        },
+        {
+          "tangential_E": 0.03083806649892311,
+          "tangential_H": 0.03358727198987874,
+          "normal_D": 0.0026599800877521664,
+          "normal_B": 0.005323904478717859
+        },
+        {
+          "tangential_E": 0.015361099699674152,
+          "tangential_H": 0.01677953676739831,
+          "normal_D": 0.0015736172596547593,
+          "normal_B": 0.0029511240448411875
+        },
+        {
+          "tangential_E": 0.007621758204633613,
+          "tangential_H": 0.008381032870193218,
+          "normal_D": 0.001110188914138561,
+          "normal_B": 0.0018556955319881246
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.00024294605811466772,
+        "tangential_H": 0.000560761376875162,
+        "normal_D": 0.000832419454540584,
+        "normal_B": 0.001102202067935443
+      },
+      "incident_electric_norm_at_probe": 0.5286974914626218,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.00045951808366362124,
+        "tangential_H": 0.0010606469406991828,
+        "normal_D": 0.0015744721092542482,
+        "normal_B": 0.0020847499481910577
+      },
+      "max_quadrature_change": 5.060923313006205e-13,
+      "boundary_extrapolation_change": 5.559202687084311e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 26.397007091996784
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.3,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.022149496517295763,
+          "tangential_H": 0.02213878178250835,
+          "normal_D": 0.006145456790416709,
+          "normal_B": 0.0062187485398603895
+        },
+        {
+          "tangential_E": 0.011009332431669492,
+          "tangential_H": 0.011004371069440046,
+          "normal_D": 0.0034677887672887706,
+          "normal_B": 0.003518951723481316
+        },
+        {
+          "tangential_E": 0.005443911120674917,
+          "tangential_H": 0.005441426767626762,
+          "normal_D": 0.0021433145648992492,
+          "normal_B": 0.0021836120701731188
+        },
+        {
+          "tangential_E": 0.0026763849164507855,
+          "tangential_H": 0.0026743080558742113,
+          "normal_D": 0.0014964819597458904,
+          "normal_B": 0.001531380358497033
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.00048597374465275494,
+        "tangential_H": 0.0004735068546176886,
+        "normal_D": 0.0008905747543600321,
+        "normal_B": 0.0009194206567005762
+      },
+      "incident_electric_norm_at_probe": 0.2384440164221004,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0020381041719766636,
+        "tangential_H": 0.0019858198235491605,
+        "normal_D": 0.0037349427665381687,
+        "normal_B": 0.0038559183430000254
+      },
+      "max_quadrature_change": 8.121426586876114e-13,
+      "boundary_extrapolation_change": 2.0354792580292097e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 18.82426133500121
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.3,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.02677647997127515,
+          "tangential_H": 0.029136177888654056,
+          "normal_D": 0.003858083403648854,
+          "normal_B": 0.007774943633226539
+        },
+        {
+          "tangential_E": 0.013252684562174882,
+          "tangential_H": 0.014418879128910374,
+          "normal_D": 0.0022743591443102765,
+          "normal_B": 0.004483115890751087
+        },
+        {
+          "tangential_E": 0.006485144598612686,
+          "tangential_H": 0.00705522916378821,
+          "normal_D": 0.0014819214796016598,
+          "normal_B": 0.0028376468304112156
+        },
+        {
+          "tangential_E": 0.003103147003911825,
+          "tangential_H": 0.0033771462120470003,
+          "normal_D": 0.0010857119630866999,
+          "normal_B": 0.0020167236733281873
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.00035864820276292216,
+        "tangential_H": 0.00042744309859387445,
+        "normal_D": 0.0006896543121672834,
+        "normal_B": 0.0012008057157212554
+      },
+      "incident_electric_norm_at_probe": 0.2384440164221004,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.0015041191141824792,
+        "tangential_H": 0.0017926350386465663,
+        "normal_D": 0.002892311254086736,
+        "normal_B": 0.005036006915751473
+      },
+      "max_quadrature_change": 5.099665280062598e-13,
+      "boundary_extrapolation_change": 5.384939117606026e-06,
+      "max_source_nodes": 190464,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 26.249877886999457
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.0
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.4,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.007329865301994001,
+          "tangential_H": 0.007303826853737964,
+          "normal_D": 0.001413278205518135,
+          "normal_B": 0.0014224648866050487
+        },
+        {
+          "tangential_E": 0.0038695710557858807,
+          "tangential_H": 0.003848366027372629,
+          "normal_D": 0.00032696929004688335,
+          "normal_B": 0.0003182828208710385
+        },
+        {
+          "tangential_E": 0.0021565735408756222,
+          "tangential_H": 0.002137233508288194,
+          "normal_D": 0.00035319151788577917,
+          "normal_B": 0.00036967575488343574
+        },
+        {
+          "tangential_E": 0.001324993224173125,
+          "tangential_H": 0.0013060796001067084,
+          "normal_D": 0.000612080826327908,
+          "normal_B": 0.0006353447150212144
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.0006096320884762559,
+        "tangential_H": 0.0005920136853309415,
+        "normal_D": 0.0008861398177864207,
+        "normal_B": 0.0009148397727621576
+      },
+      "incident_electric_norm_at_probe": 0.07838479126689975,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.007777428230949321,
+        "tangential_H": 0.007552660098502252,
+        "normal_D": 0.011304996842679849,
+        "normal_B": 0.011671138724438694
+      },
+      "max_quadrature_change": 7.169374540635721e-13,
+      "boundary_extrapolation_change": 1.8548066557692826e-06,
+      "max_source_nodes": 144384,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 19.133045583999774
+    },
+    {
+      "radius_over_wavelength": 10.0,
+      "illumination": "gaussian",
+      "indices": [
+        1.0,
+        1.5
+      ],
+      "incidence_degrees": 0.0,
+      "flat_control": false,
+      "aperture_over_radius": 0.5,
+      "probe_radius_over_radius": 0.4,
+      "probe_azimuth_degrees": 45,
+      "offsets_over_wavelength": [
+        0.008,
+        0.004,
+        0.002,
+        0.001
+      ],
+      "offset_boundary_residuals": [
+        {
+          "tangential_E": 0.008264767880717585,
+          "tangential_H": 0.008770451388219885,
+          "normal_D": 0.002114574233084038,
+          "normal_B": 0.0037594748097305596
+        },
+        {
+          "tangential_E": 0.004019542873982822,
+          "tangential_H": 0.004148274708158651,
+          "normal_D": 0.001435411000503433,
+          "normal_B": 0.0023437062169589006
+        },
+        {
+          "tangential_E": 0.0018979176454939474,
+          "tangential_H": 0.0018528783706947037,
+          "normal_D": 0.0010956853514108615,
+          "normal_B": 0.0016361410056162067
+        },
+        {
+          "tangential_E": 0.0008454220526749525,
+          "tangential_H": 0.0007600034268177033,
+          "normal_D": 0.0009258932217276576,
+          "normal_B": 0.0012830591018564794
+        }
+      ],
+      "extrapolated_boundary_residuals": {
+        "tangential_E": 0.0002998299649836893,
+        "tangential_H": 0.0006425894806644381,
+        "normal_D": 0.0007562239104199925,
+        "normal_B": 0.0009312968700105926
+      },
+      "incident_electric_norm_at_probe": 0.07838479126689975,
+      "local_amplitude_normalized_boundary_residuals": {
+        "tangential_E": 0.003825103826107925,
+        "tangential_H": 0.008197884695213702,
+        "normal_D": 0.009647584667860563,
+        "normal_B": 0.01188109140763713
+      },
+      "max_quadrature_change": 3.8893789954454105e-13,
+      "boundary_extrapolation_change": 5.1305857409725785e-06,
+      "max_source_nodes": 214272,
+      "numerical_convergence_passed": true,
+      "boundary_acceptance_at_one_percent": true,
+      "seconds": 30.018414534999465
+    }
+  ]
+}

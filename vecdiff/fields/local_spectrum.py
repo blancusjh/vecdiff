@@ -8,7 +8,8 @@ class LocalElectricSpectrum:
     """Plane waves referenced to a centre, valid within an explicit ball.
 
     The error bounds concern the radiation of the supplied discrete currents.
-    They exclude source quadrature error and error in the interface traces.
+    They exclude source quadrature error, Fourier evaluation/roundoff, and
+    error in the interface traces.
     """
     spectrum: object
     center: np.ndarray
