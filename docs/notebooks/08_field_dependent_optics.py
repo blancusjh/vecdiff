@@ -30,10 +30,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from examples.notebook_tools import style, show, scalar_map, polarization_map
 from examples.field_dependent_optics import configuration, response, WAVELENGTH
+from vecdiff import DielectricInterface, plane_wave, sample_surface, interface_transform
 
 style()
 # %% [markdown]
-# ## 1. Actual refracting and reflecting geometries
+# ## 1. Define the two optical configurations
 #
 # Both surfaces use
 # $$z(r)=\frac{cr^2}{1+\sqrt{1-(1+K)c^2r^2}}.$$
@@ -44,11 +45,20 @@ style()
 # the surface radiation integral. Aperture diameters exceed 124,000 and 41,000
 # vacuum wavelengths respectively.
 # %%
-# Draw the refracting and reflecting surface geometries.
+# Resolve both physical configurations before drawing or propagating fields.
+# %%
+kinds = ("refraction", "reflection")
+geometries = {kind: configuration(kind) for kind in kinds}
+
+# %% [markdown]
+# ### Inspect the surfaces
+#
+# These curves and rays display the physical geometry and on-axis focus.
+# %%
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
-for kind, ax in zip(["refraction", "reflection"], axes):
-    surface, n1, n2, aperture, focus, mapping = configuration(kind)
+for kind, ax in zip(kinds, axes):
+    surface, n1, n2, aperture, focus, mapping = geometries[kind]
     rho = np.linspace(-aperture, aperture, 601)
     sag = surface.sag(abs(rho))
     ax.plot(sag, rho, "k", lw=2, label="Physical surface")
@@ -79,20 +89,72 @@ show(fig, "08_macroscopic_geometry")
 # The patch radius is $4\lambda_0$; source quadrature must converge separately for
 # every illumination and observation region.
 # %%
-# Recompute each source direction and measure its actual focal field.
+# Choose the incident directions and source-surface quadrature.
 
 angles = [0.0, 0.002, 0.01, 0.02]
+source_nr = 128
+source_nphi = 256
+
+# %% [markdown]
+# ### Sample each physical boundary
+#
+# Reuse a fixed surface grid for directions through the same geometry. The
+# incident field and its Fresnel transformation are recalculated for every angle.
+# %%
+boundaries = {}
+for kind in kinds:
+    surface, n1, n2, aperture, focus, mapping = geometries[kind]
+    interface = DielectricInterface(surface, n1, n2)
+    samples = sample_surface(
+        surface, (0, aperture), (0, 2 * np.pi), source_nr, source_nphi
+    )
+    boundaries[kind] = (interface, samples)
+
+
+# %% [markdown]
+# ### Incident plane wave for one direction
+#
+# Rotate both propagation direction and polarization to keep them transverse.
+# %%
+def incoming_wave(kind, angle_degrees):
+    angle = np.deg2rad(angle_degrees)
+    n1 = geometries[kind][1]
+    return plane_wave(
+        (np.sin(angle), 0, np.cos(angle)),
+        (np.cos(angle), 0, -np.sin(angle)),
+        wavelength=WAVELENGTH,
+        medium=n1,
+    )
+
+
+# %% [markdown]
+# ### Observation grid
+#
+# The same local grid is centered on each angle's predicted observation point.
+# %%
 x = np.linspace(-15, 15, 301) * WAVELENGTH
 y = np.linspace(-4, 4, 101) * WAVELENGTH
 X, Y = np.meshgrid(x, y)
+
+# %% [markdown]
+# ### Independent surface transformations
+#
+# Transform each incident direction separately on its sampled physical face.
+# %%
 fields = {}
 lines = {}
 radiations = {}
 centers = {}
 start = time.perf_counter()
-for kind in ["refraction", "reflection"]:
+for kind in kinds:
     for angle in angles:
-        rad, center = response(kind, angle)
+        interface, samples = boundaries[kind]
+        transformed = interface_transform(
+            incoming_wave(kind, angle), interface, samples
+        )
+        rad = transformed.transmitted if kind == "refraction" else transformed.reflected
+        _, _, _, _, focus, mapping = geometries[kind]
+        center = focus + np.array([mapping * np.tan(np.deg2rad(angle)), 0.0, 0.0])
         radiations[kind, angle] = rad
         centers[kind, angle] = center
         result = rad.evaluate_local(

@@ -34,7 +34,7 @@ from examples.notebook_tools import style, show, scalar_map, polarization_map, f
 
 style()
 # %% [markdown]
-# ## 1. Define the refracting geometry and illuminate it
+# ## 1. Define the refracting experiment
 #
 # The sag is
 # $$z(r)=\frac{cr^2}{1+\sqrt{1-(1+K)c^2r^2}},\quad
@@ -44,7 +44,7 @@ style()
 # A stigmatic surface has constant $L$. This geometric criterion fixes phase;
 # the Fresnel transformation still determines the amplitudes and polarization.
 # %%
-# Construct the conic interface and verify equal optical path to the focus.
+# Import the optical building blocks used in this study.
 
 from time import perf_counter
 from vecdiff import (
@@ -57,17 +57,50 @@ from vecdiff import (
 )
 
 wavelength = 193.368e-6  # mm
+
+# %% [markdown]
+# ### Physical surface and media
+#
+# The conic separates glass ($n=1.5$) from air. The aperture and image point
+# define the part of the surface used in this calculation.
+# %%
 surface = EvenAsphere(curvature=-0.1, conic=-2.25)
 aperture = 12.0
 focus = np.array([0.0, 0.0, 20.0])
 interface = DielectricInterface(surface, Medium(1.5), Medium())
-sampling = sample_surface(surface, (0, aperture), (0, 2 * np.pi), 48, 96)
+
+# %% [markdown]
+# ### Incident illumination
+#
+# Launch an $x$-polarized plane wave from the glass side.
+# %%
 incoming = plane_wave(wavelength=wavelength, medium=Medium(1.5))
+
+# %% [markdown]
+# ### Surface quadrature
+#
+# Integrate over the physical entrance radius with 48 radial and 96 azimuthal nodes.
+# %%
+sampling = sample_surface(surface, (0, aperture), (0, 2 * np.pi), 48, 96)
+
+# %% [markdown]
+# ### Fresnel transformation and local focal field
+#
+# Transform the incident field on the sampled surface, then expand the emitted
+# field near the intended focus.
+# %%
 start = perf_counter()
 result = interface_transform(incoming, interface, sampling)
 radiation = result.transmitted
 local = radiation.local_spectrum(focus, 15 * wavelength)
 construction = perf_counter() - start
+
+# %% [markdown]
+# ### Geometric check
+#
+# Equal optical path across the aperture predicts stigmatic focusing before
+# the vector diffraction field is evaluated.
+# %%
 r = np.linspace(0, aperture, 1001)
 sag = surface.sag(r)
 opl = 1.5 * sag + np.sqrt(r * r + (focus[2] - sag) ** 2)

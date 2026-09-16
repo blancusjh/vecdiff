@@ -39,7 +39,7 @@ from examples.notebook_tools import style, show, scalar_map, polarization_map, f
 
 style()
 # %% [markdown]
-# ## 1. Calculate an electric impulse response, then its transfer function
+# ## 1. Set up the optical response
 #
 # For one input polarization and one focal plane,
 # $$\mathbf E_{im}(\mathbf r)=\int m(\boldsymbol\rho)
@@ -53,7 +53,7 @@ style()
 # The calculation uses mm internally and µm for the mask coordinates. The
 # finite point-response window is a numerical approximation checked below.
 # %%
-# Form a vector point response, transfer kernel, and coherent mask image.
+# Import the spectral and image-formation tools.
 
 from time import perf_counter
 from examples.macroscopic_focus import radiation, WAVELENGTH
@@ -66,7 +66,6 @@ from examples.image_formation import (
 
 wavelength = WAVELENGTH
 focus = np.array([0.0, 0.0, 20.0])
-# A broad Gaussian input is synthesized as Maxwell plane waves, not painted onto a pupil.
 from numpy.polynomial.hermite import hermgauss
 from vecdiff import (
     ElectricSpectrum,
@@ -79,7 +78,10 @@ from vecdiff import (
 
 
 # %% [markdown]
-# **Next step:** Sample the incident beam spectrum and physical curved aperture.
+# ### Incident beam spectrum
+#
+# Synthesize the broad Gaussian illumination from transverse plane-wave modes.
+# Each mode carries a transverse vector amplitude.
 # %%
 waist_mm = 4.0
 nodes, weights = hermgauss(24)
@@ -94,11 +96,29 @@ beam = ElectricSpectrum(
     wavelength,
     Medium(1.5),
 )
+
+# %% [markdown]
+# ### Refracting surface and numerical sampling
+#
+# Integrate the conic aperture using 64 radial and 192 azimuthal nodes.
+# %%
 surface = EvenAsphere(-0.1, -2.25)
 samples = sample_surface(surface, (0, 12.0), (0, 2 * np.pi), 64, 192)
+
+# %% [markdown]
+# ### Transform the illumination
+#
+# The transmitted surface currents define the point response used below.
+# %%
 rad = interface_transform(
     beam, DielectricInterface(surface, Medium(1.5), Medium()), samples
 ).transmitted
+
+# %% [markdown]
+# ### Image-plane sampling
+#
+# Pixel positions are in µm; the propagation API uses mm.
+# %%
 count = 512
 pixel = 0.012  # µm, image scale
 x = (np.arange(count) - count // 2) * pixel
@@ -106,7 +126,10 @@ X, Y = np.meshgrid(x, x)
 
 
 # %% [markdown]
-# **Read the result:** Build the transfer kernel from the vector point response.
+# ### Point response and coherent transfer
+#
+# Evaluate the vector field on the image grid and Fourier-transform its
+# complex components. The on-axis gain sets the stated normalization.
 # %%
 def transfer_from_radiation(rad, count, pixel, defocus=0.0):
     axis = (np.arange(count) - count // 2) * pixel * 1e-3
@@ -129,6 +152,12 @@ print(f"Point response and transfer: {perf_counter() - start:.3f} s")
 print(
     f"Local-kernel absolute E bound / PSF peak: {local.electric_error_bound / np.max(np.linalg.norm(psf, axis=-1)):.2%}"
 )
+
+# %% [markdown]
+# ### Mask and aerial image
+#
+# Apply the coherent transfer to the circuit mask before taking electric norm.
+# %%
 mask = circuit_pattern(x)
 field = coherent_image(mask, transfer)
 image = np.sum(abs(field) ** 2, axis=-1)

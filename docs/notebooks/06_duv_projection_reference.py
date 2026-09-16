@@ -45,7 +45,11 @@ style()
 # The wavefront map is in nm of optical path, and its piston-removed RMS is
 # measured over the unit pupil.
 # %%
-# Read the stored optical prescription and wavefront reference.
+# ### Load the physical prescription and reference wavefront
+#
+# The prescription describes the real surfaces; the stored wavefront supplies
+# the separate reference pupil phase used in this notebook.
+# %%
 
 import json
 from scipy.interpolate import RegularGridInterpolator
@@ -53,6 +57,12 @@ from vecdiff.IO import read_prescription
 
 system = read_prescription(root / "examples/data/US7557996.csv")
 data = json.loads((root / "examples/data/duv_wavefront.json").read_text())
+
+# %% [markdown]
+# ### Optical and pupil parameters
+#
+# Keep image-side wavelength, numerical aperture, index, and grid explicit.
+# %%
 wavelength = data["wavelength_mm"] * 1e3  # µm
 na = data["na_image"]
 index = data["n_image"]
@@ -60,6 +70,12 @@ W = np.array(data["wavefront"]["values_waves"])
 u = np.linspace(-1, 1, len(W))
 U, V = np.meshgrid(u, u)
 inside = U * U + V * V <= 1
+
+# %% [markdown]
+# ### Interpolated reference phase
+#
+# Use the stored grid to evaluate the aberrated pupil and its piston-removed RMS.
+# %%
 interpolator = RegularGridInterpolator((u, u), W, bounds_error=False, fill_value=0.0)
 
 

@@ -53,14 +53,36 @@ style()
 # ordinary tensor quadrature is not used to infer a singular boundary limit.
 # The next section uses target-centred near-field quadrature for that purpose.
 # %%
-# Construct and evaluate the finite curved surface field.
+# ### Surface and material interface
+#
+# Define the finite cap and the media on its two sides.
+# %%
 
 surface = SphericalCap(2.0)
-samples = sample_surface(surface, (0, 1), (0, 2 * np.pi), 64, 128)
+interface = DielectricInterface(surface, Medium(), Medium(1.5))
+
+# %% [markdown]
+# ### Incoming illumination
+#
+# The default wave travels in $+z$ and is polarized along $x$.
+# %%
 incident = plane_wave()
-out = interface_transform(
-    incident, DielectricInterface(surface, Medium(), Medium(1.5)), samples
-)
+
+# %% [markdown]
+# ### Surface quadrature and transformation
+#
+# Resolve the cap with 64 radial and 128 azimuthal nodes, then construct the
+# reflected and transmitted fields from the actual boundary traces.
+# %%
+samples = sample_surface(surface, (0, 1), (0, 2 * np.pi), 64, 128)
+out = interface_transform(incident, interface, samples)
+
+# %% [markdown]
+# ### Observation window
+#
+# Split the window at the physical sag, leaving a narrow band around the
+# surface for the dedicated boundary-limit check below.
+# %%
 x = np.linspace(-0.8, 0.8, 101)
 z = np.linspace(-0.35, 0.75, 121)
 X, Z = np.meshgrid(x, z)
@@ -70,6 +92,12 @@ below = Z < sag - 0.05
 above = Z > sag + 0.05
 physical = np.full(points.shape, np.nan + 0j)
 reflected = np.full(points.shape, np.nan + 0j)
+
+# %% [markdown]
+# ### Assemble the physical fields
+#
+# Below the cap add incident and reflected fields; above it use transmission.
+# %%
 ei, hi = incident.evaluate(points[below])
 er, hr = out.reflected.evaluate(points[below], chunk=8)
 et, ht = out.transmitted.evaluate(points[above], chunk=8)

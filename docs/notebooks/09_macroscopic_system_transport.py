@@ -36,6 +36,9 @@ import matplotlib.pyplot as plt
 from examples.notebook_tools import style, show, scalar_map, polarization_map, fwhm
 from examples.macroscopic_element import configuration, response
 from vecdiff.observables.electromagnetism import poynting, boundary_residuals
+from vecdiff import plane_wave, sample_surface
+from vecdiff.fields.eikonal_field import EikonalElectricField
+from vecdiff.propagation.high_frequency import propagate_high_frequency
 
 style()
 # %% [markdown]
@@ -69,14 +72,66 @@ style()
 # contribution. Its single-phase input is a leading WKB field, not an exact
 # Gaussian Maxwell solution; that approximation is measured below.
 # %%
-# Transport the input phase through both curved faces and recover optical path.
+# ### Parameters and physical interfaces
+#
+# `configuration` provides the two actual faces, their media, and the focus.
+# %%
 
 wavelength = 0.000193368
+waist_mm = 1.0
+assembly, aperture, focus = configuration()
+
+# %% [markdown]
+# ### Incident field
+#
+# A plane-wave phase with a transverse Gaussian envelope defines the smooth
+# single-phase input. The envelope underfills the first aperture.
+# %%
+carrier = plane_wave(wavelength=wavelength)
+direction = carrier.wavevectors[0].real * wavelength / (2 * np.pi)
+polarization = carrier.amplitudes[0]
+incoming = EikonalElectricField(
+    lambda p: p @ direction,
+    lambda p: direction,
+    lambda p: (
+        np.exp(-(np.sum(p * p, axis=-1) - (p @ direction) ** 2) / waist_mm**2)[
+            ..., None
+        ]
+        * polarization
+    ),
+    wavelength,
+)
+
+# %% [markdown]
+# ### Entrance-surface quadrature
+#
+# Sample the first curved face over its 4-mm radius. The exit face is reached
+# by ray transport and its 3.5-mm aperture is enforced during propagation.
+# %%
+source_nr, source_nphi = 64, 128
+sampling = sample_surface(
+    assembly.interfaces[0].surface,
+    (0, aperture),
+    (0, 2 * np.pi),
+    source_nr,
+    source_nphi,
+)
+
+# %% [markdown]
+# ### Transport through both faces
+#
+# Preserve the vector Fresnel traces and optical path along each sampled ray.
+# %%
 start = time.perf_counter()
-result, focus = response(wavelength=wavelength, waist=1.0)
+result = propagate_high_frequency(incoming, assembly, sampling, apertures=(4.0, 3.5))
 transport_seconds = time.perf_counter() - start
-assembly, aperture, _ = configuration()
 first, last = result.modes[0]
+
+# %% [markdown]
+# ### Optical-path check
+#
+# This geometric diagnostic is evaluated before the focal radiation maps.
+# %%
 opl = last.optical_path + np.linalg.norm(focus - last.sampling.points, axis=-1)
 
 # Stigmatic optical path is checked before plotting rays.
