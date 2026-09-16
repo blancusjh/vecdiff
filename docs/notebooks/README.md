@@ -33,6 +33,6 @@ review figures under `build/notebook-review/`.
 
 `python scripts/notebooks.py --check` verifies source synchronization, completed
 cells, embedded figures and a fingerprint of numerical code and input data.
-It never clears outputs. CI independently executes all notebooks and requires
-fresh committed outputs; download and commit the executed artifact when inputs
-change. The original README animations are preserved separately.
+It never clears outputs. When numerical code or inputs change, rerun the
+notebooks locally and commit the refreshed `.ipynb` files. The original README
+animations are preserved separately.
