@@ -134,7 +134,7 @@ for w in [off_resonance, resonance]:
 # %% [markdown]
 # **Read the result:** Compare resonance and off-resonance on the same field scale.
 # %%
-fig, axes = plt.subplots(2, 3, figsize=(15, 8), layout="constrained")
+fig, axes = plt.subplots(2, 3, figsize=(16, 8), layout="constrained")
 scales = [
     max(np.sum(abs(pair[0]) ** 2, axis=-1).max() for pair in reference),
     max((abs(pair[0][..., 2]) ** 2).max() for pair in reference),
@@ -161,7 +161,7 @@ for row, ((e, h), w) in enumerate(zip(reference, [off_resonance, resonance])):
             xlabel="z (µm)",
             ylabel="x (µm)",
             norm=LogNorm(0.01, scales[col]),
-            label="Squared field / incident E amplitude² (log scale)",
+            label="Field norm² / incident E norm²",
         )
         axes[row, col].add_patch(Circle((0, 0), radius, fill=False, color="cyan", lw=1))
         axes[row, col].set_aspect("equal")
@@ -358,7 +358,7 @@ truth = mie_fields(p, radius, wavelength=resonance, sphere_index=sphere_index)[0
 # %% [markdown]
 # **Read the result:** Map where the single-encounter model differs from full Mie feedback.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+fig, axes = plt.subplots(1, 3, figsize=(16, 5.5), layout="constrained")
 vmax = np.max(np.sum(abs(truth[valid]) ** 2, axis=-1))
 
 for ax, values, title in zip(

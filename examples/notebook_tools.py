@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
+from matplotlib.ticker import MaxNLocator
 from vecdiff.fields.polarization import stokes
 
 
@@ -24,10 +25,23 @@ def show(fig, name):
 
 def scalar_map(fig, ax, values, x, y, title, *, label=r'$|\mathbf{E}|^2/|E_0|^2$',
                xlabel=r'$x$ (µm)', ylabel=r'$z$ (µm)', vmax=None, vmin=0, cmap='hot', norm=None):
+    """Draw a spatial map with one display unit per unit on either axis."""
     image = ax.pcolormesh(x, y, values, shading='auto', cmap=cmap,
                          **({'vmin':vmin,'vmax':vmax} if norm is None else {'norm':norm}), rasterized=True)
-    ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
-    fig.colorbar(image, ax=ax, label=label, shrink=.85)
+    ax.set(xlabel=xlabel, ylabel=ylabel, title=title, aspect='equal')
+    # A wide physical window occupies less vertical space at equal aspect.
+    # Match the colorbar to that map rather than to its taller subplot slot.
+    window_ratio = np.ptp(y) / np.ptp(x)
+    if window_ratio < .4:
+        # Wide maps have too little height for a vertical label and scale.
+        bar = fig.colorbar(
+            image, ax=ax, label=label, orientation="horizontal", shrink=.85, pad=.15
+        )
+    else:
+        bar = fig.colorbar(image, ax=ax, label=label, shrink=.75)
+    if window_ratio < .4 and norm is None:
+        bar.locator = MaxNLocator(nbins=3)
+        bar.update_ticks()
     return image
 
 

@@ -186,12 +186,13 @@ print(
 # fields on the **second** face. The following maps evaluate those currents.
 # All scalar panels use `cmap='hot'`; each component has its own explicit
 # colorbar, normalized to the same total electric-norm peak.
-# The longitudinal window spans 464 µm, while the transverse window spans 7.73 µm.
+# The spatial meridional map spans 46.4 µm axially and 7.73 µm transversely.
+# A separate on-axis lineout retains the broader 464-µm axial range.
 # %%
 # Evaluate the second-face currents at focal and meridional observations.
 
 x = np.linspace(-20, 20, 161) * wavelength
-z = np.linspace(-1200, 1200, 193) * wavelength
+z = np.linspace(-120, 120, 193) * wavelength
 X, Y = np.meshgrid(x, x)
 XM, Z = np.meshgrid(x, z)
 start = time.perf_counter()
@@ -207,14 +208,14 @@ em = meridional.electric
 peak = np.sum(abs(e) ** 2, axis=-1).max()
 
 # %% [markdown]
-# **Read the result:** The final-current field maps retain explicit component normalization.
+# **Read the result:** Square focal maps and tall meridional maps use separate layouts.
 # %%
-fig, axes = plt.subplots(2, 3, figsize=(15, 9), layout="constrained")
+fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
 
 # Plot total and individual focal components against one focal peak.
 scalar_map(
     fig,
-    axes[0, 0],
+    axes[0],
     np.sum(abs(e) ** 2, axis=-1) / peak,
     x * 1e3,
     x * 1e3,
@@ -224,7 +225,7 @@ scalar_map(
 )
 scalar_map(
     fig,
-    axes[0, 1],
+    axes[1],
     abs(e[..., 1]) ** 2 / peak,
     x * 1e3,
     x * 1e3,
@@ -234,7 +235,7 @@ scalar_map(
 )
 scalar_map(
     fig,
-    axes[0, 2],
+    axes[2],
     abs(e[..., 2]) ** 2 / peak,
     x * 1e3,
     x * 1e3,
@@ -242,11 +243,21 @@ scalar_map(
     ylabel="y (µm)",
     label=r"$|E_z|^2$ / total focal peak",
 )
+show(fig, "09_two_interface_focal_fields")
+
+# The meridional maps need a taller frame; the polarization map is square.
+fig, axes = plt.subplots(
+    1,
+    3,
+    figsize=(15, 10),
+    gridspec_kw={"width_ratios": [1, 1, 2]},
+    layout="constrained",
+)
 
 # Use the same peak when comparing focal and meridional maps.
 scalar_map(
     fig,
-    axes[1, 0],
+    axes[0],
     np.sum(abs(em) ** 2, axis=-1) / peak,
     x * 1e3,
     z * 1e3,
@@ -256,7 +267,7 @@ scalar_map(
 )
 scalar_map(
     fig,
-    axes[1, 1],
+    axes[1],
     abs(em[..., 2]) ** 2 / peak,
     x * 1e3,
     z * 1e3,
@@ -267,9 +278,25 @@ scalar_map(
 
 # Draw transverse polarization separately from scalar intensity.
 polarization_map(
-    fig, axes[1, 2], e, x * 1e3, x * 1e3, title="Transverse polarization at focus"
+    fig, axes[2], e, x * 1e3, x * 1e3, title="Transverse polarization at focus"
 )
 show(fig, "09_two_interface_fields")
+
+# Preserve the broader longitudinal view as a one-dimensional observable.
+z_long = np.linspace(-1200, 1200, 241) * wavelength
+axial_points = focus + np.stack((0 * z_long, 0 * z_long, z_long), axis=-1)
+axial_field = result.transmitted.evaluate_local(
+    axial_points, radius=5 * wavelength, backend="auto"
+).electric
+
+fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
+ax.plot(z_long * 1e3, np.sum(abs(axial_field) ** 2, axis=-1) / peak)
+ax.set(
+    xlabel="z − f (µm)",
+    ylabel="Electric norm² / focal peak",
+    title="On-axis field across the full longitudinal window",
+)
+show(fig, "09_two_interface_axial_lineout")
 print(
     f"{X.size + XM.size:,} vector observations in {field_seconds:.3f} s; focal x FWHM={fwhm(x * 1e3, np.sum(abs(e[len(x) // 2]) ** 2, axis=-1)):.4f} µm"
 )
@@ -373,7 +400,14 @@ finite_peak = np.sum(abs(finite_fields[0]) ** 2, axis=-1).max()
 # %% [markdown]
 # **Read the result:** Finite-conjugate maps use the same physical surfaces for both objects.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+# Give the two square physical maps equal slots above the nonspatial lineout.
+fig = plt.figure(figsize=(13, 10), layout="constrained")
+grid = fig.add_gridspec(2, 2, height_ratios=[2, 1])
+axes = [
+    fig.add_subplot(grid[0, 0]),
+    fig.add_subplot(grid[0, 1]),
+    fig.add_subplot(grid[1, :]),
+]
 
 for ax, field, offset in zip(axes[:2], finite_fields, [0.0, 50.0]):
     scalar_map(

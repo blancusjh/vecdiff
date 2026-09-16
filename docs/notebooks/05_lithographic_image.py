@@ -165,7 +165,7 @@ image = np.sum(abs(field) ** 2, axis=-1)
 # %% [markdown]
 # **Read the result:** The mask, point response, and image share physical coordinates.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
+fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
 
 for ax, values, title in zip(
     axes,
@@ -199,7 +199,7 @@ show(fig, "05_mask_psf_image")
 # %%
 # Display complex image components before reducing them to intensity.
 
-fig, axes = plt.subplots(2, 3, figsize=(14, 8), layout="constrained")
+fig, axes = plt.subplots(2, 3, figsize=(15, 10), layout="constrained")
 
 # Keep component magnitude and phase in separate rows.
 for j, name in enumerate(["x", "y", "z"]):
@@ -287,7 +287,7 @@ print(f"{len(sources)} equally weighted source points: {perf_counter() - start:.
 # %% [markdown]
 # **Read the result:** Partial coherence adds source intensities, not complex amplitudes.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
+fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
 
 for ax, values, title in zip(
     axes,
@@ -321,7 +321,7 @@ print(
 # Repeat the image calculation at explicit defocus values.
 
 defocuses = [-0.6, 0, 0.6]  # µm
-fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
+fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
 
 for ax, dz in zip(axes, defocuses):
     tf, _, _ = transfer_from_radiation(rad, count, pixel, defocus=dz)

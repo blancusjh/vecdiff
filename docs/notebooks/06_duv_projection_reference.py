@@ -121,6 +121,7 @@ axes[0].set(
     xlabel="z (mm)",
     ylabel="Meridional radius (mm)",
     title="Imported 48-encounter DUV geometry",
+    aspect="equal",
 )
 
 # Show the stored wavefront separately from the prescription layout.
@@ -194,7 +195,7 @@ focal_norm = np.sum(abs(focal_e) ** 2, axis=-1)
 # %% [markdown]
 # **Read the result:** Read all vector PSF components against one stated scale.
 # %%
-fig, axes = plt.subplots(1, 4, figsize=(16, 4), layout="constrained")
+fig, axes = plt.subplots(1, 4, figsize=(18, 5.5), layout="constrained")
 
 for j, ax in enumerate(axes):
     values = focal_norm if j == 0 else abs(focal_e[..., j - 1]) ** 2
@@ -236,7 +237,13 @@ e, h = spec.evaluate(np.stack((XM, 0 * XM, Z), axis=-1), backend="nufft")
 # %% [markdown]
 # **Read the result:** The meridional window and polarization describe distinct observables.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(15, 5), layout="constrained")
+fig, axes = plt.subplots(
+    1,
+    3,
+    figsize=(15, 7),
+    gridspec_kw={"width_ratios": [1, 1, 2]},
+    layout="constrained",
+)
 scalar_map(
     fig,
     axes[0],
@@ -289,7 +296,7 @@ mask = circuit_pattern(x)
 coherent = coherent_image(mask, transfer)
 sources = disk_sources(0.6 * na / wavelength * count * pixel, step=2)
 partial = aerial_image(mask, transfer, sources)
-fig, axes = plt.subplots(2, 3, figsize=(14, 8), layout="constrained")
+fig, axes = plt.subplots(2, 3, figsize=(16, 11), layout="constrained")
 values = [
     mask,
     np.sum(abs(coherent) ** 2, axis=-1),

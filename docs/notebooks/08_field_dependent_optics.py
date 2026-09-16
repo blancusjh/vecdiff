@@ -180,7 +180,7 @@ print(
 # %% [markdown]
 # **Read the result:** Each spot is recomputed for its source angle and surface type.
 # %%
-fig, axes = plt.subplots(2, 4, figsize=(17, 7), layout="constrained")
+fig, axes = plt.subplots(2, 4, figsize=(18, 6), layout="constrained")
 
 for j, kind in enumerate(["refraction", "reflection"]):
     peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
@@ -258,7 +258,13 @@ peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
 # %% [markdown]
 # **Read the result:** Inspect longitudinal field and polarization off axis.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+fig, axes = plt.subplots(
+    1,
+    3,
+    figsize=(17, 6),
+    gridspec_kw={"width_ratios": [1.2, 2, 2]},
+    layout="constrained",
+)
 scalar_map(
     fig,
     axes[0],
@@ -318,7 +324,14 @@ normalization = max(incoherent.max(), coherent.max())
 # %% [markdown]
 # **Read the result:** Coherent and incoherent scene images use different field combinations.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+# Keep the two physical maps together and give the lineout its own full-width row.
+fig = plt.figure(figsize=(14, 7), layout="constrained")
+grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.3])
+axes = [
+    fig.add_subplot(grid[0, 0]),
+    fig.add_subplot(grid[0, 1]),
+    fig.add_subplot(grid[1, :]),
+]
 
 for ax, values, title in zip(
     axes[:2],

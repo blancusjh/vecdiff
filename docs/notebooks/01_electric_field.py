@@ -161,7 +161,7 @@ for z in zs:
 # %% [markdown]
 # **Read the result:** The dashed radius is a paraxial reference, not a fitted curve.
 # %%
-fig, axes = plt.subplots(1, 2, figsize=(12, 5), layout="constrained")
+fig, axes = plt.subplots(1, 2, figsize=(12, 9), layout="constrained")
 scalar_map(
     fig,
     axes[0],

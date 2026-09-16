@@ -170,7 +170,13 @@ peak = np.sum(abs(e) ** 2, axis=-1).max()
 # %% [markdown]
 # **Read the result:** Keep component scales explicit when reading the vector field maps.
 # %%
-fig, axes = plt.subplots(2, 4, figsize=(16, 8), layout="constrained")
+fig, axes = plt.subplots(
+    2,
+    4,
+    figsize=(18, 14),
+    gridspec_kw={"height_ratios": [1, 2.5]},
+    layout="constrained",
+)
 
 for row, field, xx, yy, vertical in [
     (0, e, x * 1e3, x * 1e3, "y (µm)"),
