@@ -99,13 +99,11 @@ python scripts/notebooks.py --check --execute
 ```
 
 The pinned numerical environment targets Python 3.12. The general installation
-supports Python 3.10+; CI also checks other supported versions without those
-environment-specific pins. Notebook source synchronization is distinct from
-Jupyter execution. CI executes the seven maintained notebooks, checks embedded
-PNG figures, and uploads execution artifacts. Executed outputs are also committed
-in the source-tree notebooks. Seven maintained example workflows
-are exercised by the test suite. Use the CI run for the revision being evaluated;
-historical runs that included the removed solver are not current suite results.
+supports Python 3.10+. Notebook source synchronization is distinct from
+Jupyter execution. Run the commands above locally to execute the seven notebooks,
+check their embedded PNG figures, and exercise the seven maintained example
+workflows. Executed outputs are committed in the source-tree notebooks.
+Historical runs that included the removed solver are not current suite results.
 
 Before using a new configuration: refine sampling and domain size; check all
 four reconstructed boundary conditions and flux; refine wavelength spacing

@@ -9,12 +9,11 @@ The runner saves both the source-tree notebook and an artifact copy under
 
 `python scripts/notebooks.py --check` verifies matching sources and completed
 outputs without stripping results. Changed sources require execution; a normal
-check never clears or rewrites existing outputs. CI independently re-executes
-the suite and publishes its executed copies. Each notebook stores a fingerprint
+check never clears or rewrites existing outputs. Each notebook stores a fingerprint
 of the numerical code, paired sources, committed input data, and dependency
 configuration. Changing those invalidates old results even when notebook cells
-have not changed. CI blocks merging stale committed outputs while still providing
-freshly executed artifacts to commit. Output bytes are excluded from the hash.
+have not changed. Run the notebook suite locally and commit freshly executed
+outputs when inputs change. Output bytes are excluded from the hash.
 
 | Notebook | Learning/validation goal |
 | --- | --- |
@@ -30,6 +29,6 @@ Install `.[notebooks,validation,nufft]` in this checkout and use that Python
 kernel. Each notebook locates the repository when started from a subdirectory.
 `python scripts/notebooks.py --check --execute` checks synchronization and runs
 every cell in order and requires embedded PNG figures in every executed notebook.
-The notebooks explicitly enable inline rendering, including in headless CI.
-CI runs this command explicitly; a source-only check is
-not reported as a successful Jupyter execution.
+The notebooks explicitly enable inline rendering, including in headless
+environments. Run this command locally to verify Jupyter execution; a
+source-only check does not execute any cells.
