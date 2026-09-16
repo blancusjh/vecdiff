@@ -218,12 +218,12 @@ print(
 # These maps are longitudinal slices, not focal observation-plane maps.
 # %%
 
-xx = np.linspace(-0.3, 0.3, 241)
+xx = np.linspace(-0.8, 0.8, 641)
 dz = np.linspace(-0.8, 0.8, 321)
 XM, Z = np.meshgrid(xx, dz)
 e, h = spec.evaluate(np.stack((XM, 0 * XM, Z), axis=-1), backend="nufft")
 
-fig, axes = plt.subplots(1, 2, figsize=(10, 7), layout="constrained")
+fig, axes = plt.subplots(1, 2, figsize=(12, 5.5), layout="constrained")
 fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
     fig,

@@ -157,7 +157,7 @@ print(
 # fields on the **second** face. The following maps evaluate those currents.
 # All scalar panels use `cmap='hot'`; each component has its own explicit
 # colorbar, normalized to the same total electric-norm peak.
-# The spatial meridional map spans 46.4 µm axially and 7.73 µm transversely.
+# The spatial meridional map spans 46.4 µm on each axis.
 # A separate on-axis lineout retains the broader 464-µm axial range.
 # %% [markdown]
 # ### Focal observation plane: x–y at z = f
@@ -220,8 +220,9 @@ show(fig, "09_two_interface_focal_fields")
 # Fix y at zero and vary z across the focus. The vertical axis is $z-f$;
 # this is a longitudinal slice, not the transverse focal observation plane.
 # %%
+x_meridional = np.linspace(-120, 120, 961) * wavelength
 z = np.linspace(-120, 120, 193) * wavelength
-XM, Z = np.meshgrid(x, z)
+XM, Z = np.meshgrid(x_meridional, z)
 start = time.perf_counter()
 meridional = result.transmitted.evaluate_local(
     focus + np.stack((XM, 0 * XM, Z), axis=-1), radius=5 * wavelength, backend="auto"
@@ -230,7 +231,7 @@ meridional_seconds = time.perf_counter() - start
 em = meridional.electric
 field_seconds = focal_seconds + meridional_seconds
 
-fig, axes = plt.subplots(1, 2, figsize=(8, 10), layout="constrained")
+fig, axes = plt.subplots(1, 2, figsize=(12, 6), layout="constrained")
 fig.suptitle("Meridional plane: x–z at y = 0")
 
 # Use the same peak when comparing focal and meridional maps.
@@ -238,7 +239,7 @@ scalar_map(
     fig,
     axes[0],
     np.sum(abs(em) ** 2, axis=-1) / peak,
-    x * 1e3,
+    x_meridional * 1e3,
     z * 1e3,
     "Meridional total electric norm",
     ylabel="z − f (µm)",
@@ -248,7 +249,7 @@ scalar_map(
     fig,
     axes[1],
     abs(em[..., 2]) ** 2 / peak,
-    x * 1e3,
+    x_meridional * 1e3,
     z * 1e3,
     "Meridional longitudinal component",
     ylabel="z − f (µm)",

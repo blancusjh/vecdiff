@@ -72,7 +72,7 @@ sampling = sample_surface(surface, (0, aperture), (0, 2 * np.pi), 48, 96)
 start = perf_counter()
 result = interface_transform(incoming, interface, sampling)
 radiation = result.transmitted
-local = radiation.local_spectrum(focus, 15 * wavelength)
+local = radiation.local_spectrum(focus, 18 * wavelength)
 construction = perf_counter() - start
 
 r = np.linspace(0, aperture, 1001)
@@ -190,8 +190,9 @@ show(fig, "03_stigmatic_focal_fields")
 # This is a longitudinal slice through the focus. The vertical coordinate is
 # $z-f$, so positive and negative values lie after and before the focal plane.
 # %%
+x_meridional = np.linspace(-12, 12, 601) * wavelength
 z = np.linspace(-12, 12, 321) * wavelength
-XM, Z = np.meshgrid(x, z)
+XM, Z = np.meshgrid(x_meridional, z)
 xz = focus + np.stack((XM, 0 * XM, Z), axis=-1)
 start = perf_counter()
 em, hm = local.evaluate(xz, backend="nufft")
@@ -199,11 +200,11 @@ meridional_seconds = perf_counter() - start
 
 fig = vector_component_figure(
     em,
-    x * 1e3,
+    x_meridional * 1e3,
     z * 1e3,
     "z − f (µm)",
     "Meridional plane: x–z at y = 0",
-    (18, 11),
+    (20, 5.5),
 )
 show(fig, "03_stigmatic_meridional_fields")
 print(
