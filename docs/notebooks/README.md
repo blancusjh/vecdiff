@@ -14,10 +14,8 @@ cell sources, not separate implementations of the experiments.
 | [04 Sphere resonances](04_sphere_resonances.ipynb) | Wavelength scan, resonant/off-resonant E/H maps with sphere geometry, internal field enhancement, Mie convergence and main-method error maps | Independent Mie resonance reference versus the incomplete main single-encounter model; closed-sphere feedback remains pending |
 | [05 Lithographic image formation](05_lithographic_image.ipynb) | Circuit mask, complex vector image, polarization, partial coherence, defocus and image convergence | Main Fresnel-current point response under an explicit local isoplanatic imaging assumption |
 | [06 DUV projection reference](06_duv_projection_reference.ipynb) | Patent-system geometry and stored wavefront, vector PSF, meridional field, circuit image, TE/TM resolution and source/pixel checks | Separate pupil reference at one field point; not main-method propagation through 48 surfaces |
-
 | [07 Curved boundary verification](07_curved_boundary_verification.ipynb) | Actual E-field maps, two-sided full-Green limits, quadrature/offset convergence and aperture controls | Pointwise physical acceptance and failure of the main finite-aperture model |
 | [08 Field-dependent macroscopic optics](08_field_dependent_optics.ipynb) | Actual refraction/reflection, off-axis spots, meridional and polarization maps, coherent/incoherent three-source images | Direct single-surface response per source; no shift invariance; full instrument transport remains pending |
-
 | [09 Macroscopic system transport](09_macroscopic_system_transport.ipynb) | Both curved faces, finite-conjugate recovery, displaced sources, image fields and measured speed/accuracy | Explicit high-frequency phase transport; preserves vector Fresnel laws and final diffraction |
 
 The sphere and DUV reference studies are deliberately labeled. They provide
