@@ -82,6 +82,7 @@ print(f"Rayleigh range (paraxial reference): {zR:.3f} µm")
 # **Read the result:** Compare transverse and longitudinal content at the waist.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), layout="constrained")
+
 for ax, values, title in zip(
     axes,
     [abs(field.Ex) ** 2, abs(field.Ez) ** 2, np.angle(field.Ez)],
@@ -106,7 +107,9 @@ for ax, values, title in zip(
         )
     else:
         scalar_map(fig, ax, values, grid.x, grid.y, title, ylabel="y (µm)")
+
     ax.set(xlim=(-3, 3), ylim=(-3, 3), aspect="equal")
+
 show(fig, "01_waist_vector")
 # %% [markdown]
 # ## 2. Propagate and extract an actual meridional field
@@ -125,12 +128,17 @@ widths = []
 flux = []
 edge = []
 spectrum = spectrum_of(field)
+
 for z in zs:
     propagated = propagate(field, float(z))
     e = propagated.components
     intensity = np.sum(abs(e) ** 2, axis=-1)
+
+    # Store the meridional section and longitudinal contribution.
     meridional.append(intensity[len(grid.y) // 2])
     longitudinal.append(abs(propagated.Ez[len(grid.y) // 2]) ** 2)
+
+    # Track width and periodic-window leakage separately from field flux.
     widths.append(2 * np.sqrt(np.sum(X * X * intensity) / intensity.sum()))
     edge.append(
         float(np.sum(intensity[:, [0, -1]]) + np.sum(intensity[[0, -1], :]))
@@ -172,12 +180,14 @@ scalar_map(
     "Gaussian beam: longitudinal component",
     label=r"$|E_z|^2/|E_0|^2$",
 )
+
 for ax in axes:
     paraxial = waist * np.sqrt(1 + (zs / zR) ** 2)
     ax.plot(paraxial, zs, "c--", lw=1, label="Paraxial 1/e² radius")
     ax.plot(-paraxial, zs, "c--", lw=1)
     ax.set(xlim=(-6, 6))
     ax.legend(fontsize=8, loc="upper right")
+
 show(fig, "01_meridional_propagation")
 # %% [markdown]
 # ## 3. Compare a measurable beam width and power
@@ -225,8 +235,10 @@ scalar_map(
 polarization_map(
     fig, axes[1], end.components, grid.x, grid.y, title="Output transverse polarization"
 )
+
 for ax in axes:
     ax.set(xlim=(-6, 6), ylim=(-6, 6), aspect="equal")
+
 show(fig, "01_output_polarization")
 
 # %% [markdown]

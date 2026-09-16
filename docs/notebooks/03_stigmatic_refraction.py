@@ -113,10 +113,12 @@ fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 rfull = np.r_[-r[::-1], r]
 zfull = surface.sag(abs(rfull))
 axes[0].plot(zfull, rfull, "k", lw=2, label="Refracting conic")
+
 for rho in np.linspace(-aperture, aperture, 11):
     z = surface.sag(abs(rho))
     axes[0].plot([-6, z], [rho, rho], color="tab:blue", alpha=0.55)
     axes[0].plot([z, focus[2]], [rho, 0], color="tab:orange", alpha=0.55)
+
 axes[0].plot(focus[2], 0, "ro", label="Geometric focus")
 axes[0].set(
     xlabel="z (mm)",
@@ -169,6 +171,7 @@ peak = np.sum(abs(e) ** 2, axis=-1).max()
 # **Read the result:** Keep component scales explicit when reading the vector field maps.
 # %%
 fig, axes = plt.subplots(2, 4, figsize=(16, 8), layout="constrained")
+
 for row, field, xx, yy, vertical in [
     (0, e, x * 1e3, x * 1e3, "y (µm)"),
     (1, em, x * 1e3, z * 1e3, "z − f (µm)"),
@@ -191,6 +194,7 @@ for row, field, xx, yy, vertical in [
             label="Component / focal total peak",
             vmax=max(np.max(values) / peak, 1e-4),
         )
+
         if np.max(values) / peak < 1e-14:
             axes[row, col].text(
                 0.5,
@@ -201,6 +205,7 @@ for row, field, xx, yy, vertical in [
                 color="white",
                 fontsize=9,
             )
+
 show(fig, "03_stigmatic_vector_fields")
 print(
     f"{e.shape[0] * e.shape[1] + em.shape[0] * em.shape[1]:,} E/H observations: {seconds:.3f} s"
@@ -299,8 +304,10 @@ errors = {
         local.evaluate(points, backend="nufft"), prediction
     ),
 }
+
 for name, value in errors.items():
     print(f"{name}: {value:.6g}")
+
 print(
     f"Absolute E bound / focal peak amplitude: {local.electric_error_bound / np.sqrt(peak):.4%}"
 )

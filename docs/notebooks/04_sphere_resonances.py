@@ -125,6 +125,7 @@ z = np.linspace(-2, 3, 251)
 Z, X = np.meshgrid(z, x)
 points = np.stack((X, 0 * X, Z), axis=-1)
 reference = []
+
 for w in [off_resonance, resonance]:
     reference.append(
         mie_fields(points, radius, wavelength=w, sphere_index=sphere_index)
@@ -139,12 +140,14 @@ scales = [
     max((abs(pair[0][..., 2]) ** 2).max() for pair in reference),
     max(np.sum(abs(pair[1]) ** 2, axis=-1).max() for pair in reference),
 ]
+
 for row, ((e, h), w) in enumerate(zip(reference, [off_resonance, resonance])):
     panels = [
         np.sum(abs(e) ** 2, axis=-1),
         abs(e[..., 2]) ** 2,
         np.sum(abs(h) ** 2, axis=-1),
     ]
+
     for col, (values, title) in enumerate(
         zip(panels, [r"$|\mathbf{E}|^2$", r"$|E_z|^2$", r"$|Z_0\mathbf{H}_{SI}|^2$"])
     ):
@@ -162,6 +165,7 @@ for row, ((e, h), w) in enumerate(zip(reference, [off_resonance, resonance])):
         )
         axes[row, col].add_patch(Circle((0, 0), radius, fill=False, color="cyan", lw=1))
         axes[row, col].set_aspect("equal")
+
 show(fig, "04_sphere_meridional_fields")
 # A full-volume quadrature, not a meridional average, measures stored electric norm.
 
@@ -181,6 +185,7 @@ volume_points = np.stack(
     axis=-1,
 )
 weights = wr[:, None, None] * wm[None, :, None] * (2 * np.pi / 32) * R**2
+
 for w in [off_resonance, resonance]:
     ev, _ = mie_fields(volume_points, radius, wavelength=w, sphere_index=sphere_index)
     average = np.sum(weights * np.sum(abs(ev) ** 2, axis=-1)) / (
@@ -207,6 +212,7 @@ normals = np.stack(
     (np.sqrt(1 - M * M) * np.cos(P), np.sqrt(1 - M * M) * np.sin(P), M), axis=-1
 )
 rows = []
+
 for delta in [1e-4, 1e-6, 1e-8]:
     eo, ho = mie_fields(
         normals * (radius + delta),
@@ -238,8 +244,10 @@ for delta in [1e-4, 1e-6, 1e-8]:
 # **Read the result:** Track boundary jumps as the two-sided offset shrinks.
 # %%
 fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
+
 for key in rows[0]:
     ax.loglog([1e-4, 1e-6, 1e-8], [r[key] for r in rows], "o-", label=key)
+
 ax.set(
     xlabel="Boundary offset (µm)",
     ylabel="Normalized RMS jump",
@@ -352,6 +360,7 @@ truth = mie_fields(p, radius, wavelength=resonance, sphere_index=sphere_index)[0
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 vmax = np.max(np.sum(abs(truth[valid]) ** 2, axis=-1))
+
 for ax, values, title in zip(
     axes,
     [
@@ -379,6 +388,7 @@ for ax, values, title in zip(
     )
     ax.add_patch(Circle((0, 0), radius, fill=False, color="cyan"))
     ax.set_aspect("equal")
+
 show(fig, "04_spectral_vs_mie")
 
 # Report errors inside and outside the sphere separately.

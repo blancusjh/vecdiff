@@ -109,6 +109,7 @@ reflected[below] = er
 # **Read the result:** Show the physical fields before using boundary residuals.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+
 for ax, values, title in zip(
     axes,
     [
@@ -135,6 +136,7 @@ for ax, values, title in zip(
     )
     ax.plot(x, surface.sag(abs(x)), color="cyan", lw=1.5)
     ax.set_aspect("equal")
+
 show(fig, "07_curved_fields")
 # %% [markdown]
 # ## 2. Separate numerical convergence from physical agreement
@@ -175,6 +177,7 @@ np.testing.assert_allclose(
 # **Read the result:** Read quadrature and surface-offset trends separately.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
+
 for key, label in [
     ("tangential_E", r"$E_t$"),
     ("tangential_H", r"$\mathcal{H}_t$"),
@@ -205,6 +208,7 @@ for indices in [[1.0, 1.5], [1.5, 1.0]]:
         "o-",
         label=f"{indices[0]} → {indices[1]}",
     )
+
 axes[0].set(
     xlabel=r"$\delta/\lambda_0$",
     ylabel="Normalized boundary mismatch",
@@ -216,9 +220,11 @@ axes[1].set(
     ylabel="Maximum of four residuals",
     title="Hard aperture: size alone is not validation",
 )
+
 for ax in axes:
     ax.legend()
     ax.grid(alpha=0.2)
+
 show(fig, "07_boundary_convergence")
 print(
     f"Quadrature change: {fresh['max_quadrature_change']:.3e}; extrapolation change: {fresh['boundary_extrapolation_change']:.3e}"
@@ -253,6 +259,7 @@ labels = [
 # %%
 fig, ax = plt.subplots(figsize=(10, 4.5), layout="constrained")
 positions = np.arange(len(controls))
+
 for j, key in enumerate(["tangential_E", "tangential_H", "normal_D", "normal_B"]):
     ax.bar(
         positions + (j - 1.5) * 0.18,
@@ -260,6 +267,7 @@ for j, key in enumerate(["tangential_E", "tangential_H", "normal_D", "normal_B"]
         width=0.18,
         label=key.replace("_", " "),
     )
+
 ax.set_xticks(positions, labels)
 ax.set(
     ylabel="Normalized amplitude mismatch (%)",
@@ -302,9 +310,11 @@ scan = report["localized_probe_scan"]
 # **Read the result:** The position scan exposes the two-sided surface limit.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
+
 for n2, label in [(1.0, "Equal-index control"), (1.5, "Curved dielectric")]:
     subset = [r for r in scan if r["indices"][1] == n2]
     assert all(r["numerical_convergence_passed"] for r in subset)
+
     for ax, key in zip(
         axes,
         [
@@ -318,6 +328,7 @@ for n2, label in [(1.0, "Equal-index control"), (1.5, "Curved dielectric")]:
             "o-",
             label=label,
         )
+
 for ax in axes:
     ax.axhline(1, color="k", ls="--", lw=1)
     ax.set(
@@ -326,9 +337,11 @@ for ax in axes:
     )
     ax.legend()
     ax.grid(alpha=0.2)
+
 axes[0].set_title("Normalization by incident beam peak")
 axes[1].set_title("Normalization by local incident amplitude")
 show(fig, "07_boundary_position_scan")
+
 for row in scan:
     if row["indices"][1] == 1.5:
         print(

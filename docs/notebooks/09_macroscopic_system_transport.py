@@ -141,15 +141,18 @@ assert np.ptp(opl) / wavelength < 1e-7
 # **Read the result:** Both surfaces and the recovered optical path are shown together.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
+
 for interface, radius, label in zip(
     assembly.interfaces, [4.0, 3.5], ["Entrance asphere", "Exit sphere"]
 ):
     xg = np.linspace(-radius, radius, 501)
     zg = interface.surface.sag(abs(xg)) + interface.surface.frame.origin[2]
     axes[0].plot(zg, xg, "k", lw=2, label=label)
+
 for index in np.arange(0, len(first.sampling.points), 128)[::6]:
     p = first.sampling.points[index]
     q = last.sampling.points[index]
+
     for sign in [-1, 1]:
         axes[0].plot(
             [-2, p[2], q[2], focus[2]],
@@ -157,6 +160,7 @@ for index in np.arange(0, len(first.sampling.points), 128)[::6]:
             color="tab:orange",
             alpha=0.55,
         )
+
 axes[0].set(
     xlabel="z (mm)",
     ylabel="x (mm)",
@@ -284,8 +288,11 @@ print(
 angles = [0.0, 0.02, 0.1]
 line_x = np.linspace(-20, 20, 401) * wavelength
 lines = []
+
 for angle in angles:
     system_field, _ = response(angle, wavelength=wavelength)
+
+    # Use the predicted centre only to place the evaluation line.
     center = focus + np.array([45 * np.tan(np.deg2rad(angle)), 0, 0])
     values = system_field.transmitted.evaluate_local(
         center + np.c_[line_x, 0 * line_x, 0 * line_x],
@@ -298,6 +305,7 @@ for angle in angles:
 # **Read the result:** Compare recomputed off-axis profiles with a shifted on-axis control.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
+
 for ax, angle, values in zip(axes, angles[1:], lines[1:]):
     ax.plot(line_x * 1e3, values / lines[0].max(), label="Recomputed two-face response")
     ax.plot(
@@ -312,6 +320,7 @@ for ax, angle, values in zip(axes, angles[1:], lines[1:]):
         title=f"Uniform illumination at {angle:g}°",
     )
     ax.legend(fontsize=8)
+
 show(fig, "09_two_interface_off_axis")
 # %% [markdown]
 # ## 4b. Recover a finite stigmatic object–image pair
@@ -335,19 +344,24 @@ fx = np.linspace(-25, 25, 161) * wavelength
 FX, FY = np.meshgrid(fx, fx)
 finite_fields = []
 finite_results = []
+
 for offset in [0.0, 0.05]:
     start = time.perf_counter()
     state, ff = finite_conjugate_response((offset, 0, -20.0), wavelength=wavelength)
     elapsed = time.perf_counter() - start
+
+    # Move the observation window; the physical surfaces remain fixed.
     center = ff + [-2.25 * offset, 0, 0]
     field = state.transmitted.evaluate_local(
         center + np.stack((FX, FY, 0 * FX), axis=-1),
         radius=5 * wavelength,
         backend="auto",
     ).electric
+
     finite_fields.append(field)
     finite_results.append(state)
     print(f"Finite object x={offset * 1e3:g} µm: two-face transport {elapsed:.4f} s")
+
 end = finite_results[0].modes[0][-1]
 assert (
     np.ptp(end.optical_path + np.linalg.norm(ff - end.sampling.points, axis=-1))
@@ -360,6 +374,7 @@ finite_peak = np.sum(abs(finite_fields[0]) ** 2, axis=-1).max()
 # **Read the result:** Finite-conjugate maps use the same physical surfaces for both objects.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+
 for ax, field, offset in zip(axes[:2], finite_fields, [0.0, 50.0]):
     scalar_map(
         fig,
@@ -378,6 +393,7 @@ for ax, field, offset in zip(axes[:2], finite_fields, [0.0, 50.0]):
         np.sum(abs(field[len(fx) // 2]) ** 2, axis=-1) / finite_peak,
         label=f"Object x={offset:g} µm",
     )
+
 axes[2].set(
     xlabel="x − predicted image (µm)",
     ylabel="Electric norm² / on-axis peak",

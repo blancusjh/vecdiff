@@ -57,15 +57,18 @@ geometries = {kind: configuration(kind) for kind in kinds}
 # %%
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
+
 for kind, ax in zip(kinds, axes):
     surface, n1, n2, aperture, focus, mapping = geometries[kind]
     rho = np.linspace(-aperture, aperture, 601)
     sag = surface.sag(abs(rho))
     ax.plot(sag, rho, "k", lw=2, label="Physical surface")
+
     for r in np.linspace(-aperture, aperture, 9):
         s = surface.sag(abs(r))
         ax.plot([min(sag) - 1, s], [r, r], color="tab:blue", alpha=0.5)
         ax.plot([s, focus[2]], [r, 0], color="tab:orange", alpha=0.6)
+
     ax.plot(focus[2], 0, "ro", label="On-axis focus")
     ax.set(
         xlabel="z (mm)",
@@ -74,6 +77,7 @@ for kind, ax in zip(kinds, axes):
         aspect="equal",
     )
     ax.legend(fontsize=8)
+
 show(fig, "08_macroscopic_geometry")
 # %% [markdown]
 # ## 2. Compute each off-axis response independently
@@ -102,6 +106,7 @@ source_nphi = 256
 # incident field and its Fresnel transformation are recalculated for every angle.
 # %%
 boundaries = {}
+
 for kind in kinds:
     surface, n1, n2, aperture, focus, mapping = geometries[kind]
     interface = DielectricInterface(surface, n1, n2)
@@ -146,6 +151,7 @@ lines = {}
 radiations = {}
 centers = {}
 start = time.perf_counter()
+
 for kind in kinds:
     for angle in angles:
         interface, samples = boundaries[kind]
@@ -153,15 +159,20 @@ for kind in kinds:
             incoming_wave(kind, angle), interface, samples
         )
         rad = transformed.transmitted if kind == "refraction" else transformed.reflected
+
+        # The paraxial mapping only locates the observation window.
         _, _, _, _, focus, mapping = geometries[kind]
         center = focus + np.array([mapping * np.tan(np.deg2rad(angle)), 0.0, 0.0])
         radiations[kind, angle] = rad
         centers[kind, angle] = center
+
+        # Evaluate the independently transformed field at physical positions.
         result = rad.evaluate_local(
             center + np.stack((X, Y, 0 * X), axis=-1), radius=4 * WAVELENGTH
         )
         fields[kind, angle] = result.electric
         lines[kind, angle] = np.sum(abs(result.electric[len(y) // 2]) ** 2, axis=-1)
+
 print(
     f"Computed {2 * len(angles) * X.size:,} vector observations for eight distinct surface transformations in {time.perf_counter() - start:.2f} s"
 )
@@ -170,8 +181,10 @@ print(
 # **Read the result:** Each spot is recomputed for its source angle and surface type.
 # %%
 fig, axes = plt.subplots(2, 4, figsize=(17, 7), layout="constrained")
+
 for j, kind in enumerate(["refraction", "reflection"]):
     peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
+
     for ax, angle in zip(axes[j], angles):
         scalar_map(
             fig,
@@ -185,6 +198,7 @@ for j, kind in enumerate(["refraction", "reflection"]):
             label="Electric norm² / on-axis peak",
             vmax=1,
         )
+
 show(fig, "08_field_dependent_spots")
 # %% [markdown]
 # ## 3. Compare with a shifted on-axis template, without using it as a model
@@ -197,8 +211,10 @@ show(fig, "08_field_dependent_spots")
 # Compare recomputed off-axis responses with shifted on-axis profiles.
 
 fig, axes = plt.subplots(2, 3, figsize=(15, 7), layout="constrained")
+
 for row, kind in enumerate(["refraction", "reflection"]):
     peak = lines[kind, 0.0].max()
+
     for ax, angle in zip(axes[row], angles[1:]):
         ax.plot(x * 1e3, lines[kind, angle] / peak, label="Recomputed surface response")
         ax.plot(
@@ -214,6 +230,7 @@ for row, kind in enumerate(["refraction", "reflection"]):
             title=f"{kind}, θ={angle:g}°",
         )
         ax.legend(fontsize=8)
+
 show(fig, "08_shift_comparison")
 # %% [markdown]
 # ## 4. Through-focus structure and polarization of the off-axis image
@@ -286,11 +303,13 @@ scene_y = np.linspace(-0.8, 0.8, 101) * 1e-3
 SX, SY = np.meshgrid(scene_x, scene_y)
 scene_points = np.stack((SX, SY, 20 + 0 * SX), axis=-1)
 scene_fields = []
+
 for angle in [-0.002, 0.0, 0.002]:
     rad, center = response("refraction", angle)
     scene_fields.append(
         rad.evaluate_local(scene_points, radius=4 * WAVELENGTH).electric
     )
+
 scene_fields = np.asarray(scene_fields)
 incoherent = np.mean(np.sum(abs(scene_fields) ** 2, axis=-1), axis=0)
 coherent = np.sum(abs(np.sum(scene_fields, axis=0) / np.sqrt(3)) ** 2, axis=-1)
@@ -300,6 +319,7 @@ normalization = max(incoherent.max(), coherent.max())
 # **Read the result:** Coherent and incoherent scene images use different field combinations.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+
 for ax, values, title in zip(
     axes[:2],
     [incoherent, coherent],
@@ -317,12 +337,14 @@ for ax, values, title in zip(
         label="Electric norm² / shared scene peak",
         vmax=1,
     )
+
 for field, angle in zip(scene_fields, [-0.002, 0.0, 0.002]):
     axes[2].plot(
         scene_x * 1e3,
         np.sum(abs(field[len(scene_y) // 2]) ** 2, axis=-1) / (3 * normalization),
         label=f"{angle:g}°",
     )
+
 axes[2].set(
     xlabel="Global image x (µm)",
     ylabel="Electric norm² / shared scene peak",

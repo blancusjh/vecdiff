@@ -92,17 +92,23 @@ fig, axes = plt.subplots(1, 2, figsize=(14, 5), layout="constrained")
 
 # Trace each encounter by physical surface type.
 colors = {"refract": "tab:blue", "reflect": "tab:red", "stop": "black"}
+
 for encounter in system.encounters:
     a = encounter.semidiameter
+
     if a is None:
         continue
+
     rr = np.linspace(-a, a, 201)
     surf = encounter.surface
+
     if hasattr(surf, "sag"):
         zz = surf.sag(abs(rr)) + surf.frame.origin[2]
     else:
         zz = np.full_like(rr, surf.frame.origin[2])
+
     axes[0].plot(zz, rr, color=colors[encounter.interaction], lw=1)
+
     if encounter.interaction in ["reflect", "stop"]:
         axes[0].annotate(
             f"{encounter.interaction} {encounter.number}",
@@ -110,6 +116,7 @@ for encounter in system.encounters:
             fontsize=8,
             rotation=45,
         )
+
 axes[0].set(
     xlabel="z (mm)",
     ylabel="Meridional radius (mm)",
@@ -188,6 +195,7 @@ focal_norm = np.sum(abs(focal_e) ** 2, axis=-1)
 # **Read the result:** Read all vector PSF components against one stated scale.
 # %%
 fig, axes = plt.subplots(1, 4, figsize=(16, 4), layout="constrained")
+
 for j, ax in enumerate(axes):
     values = focal_norm if j == 0 else abs(focal_e[..., j - 1]) ** 2
     scalar_map(
@@ -202,6 +210,7 @@ for j, ax in enumerate(axes):
         label="Component / total PSF peak",
     )
     ax.set(xlim=(-300, 300), ylim=(-300, 300), aspect="equal")
+
 show(fig, "06_duv_vector_psf")
 print(
     f"Focal FWHM: x {fwhm(x * 1e3, intensity[mid]):.2f} nm; y {fwhm(x * 1e3, intensity[:, mid]):.2f} nm"
@@ -297,11 +306,13 @@ titles = [
     r"Partial: $|E_y|^2$",
     r"Partial: $|E_z|^2$",
 ]
+
 for ax, im, title in zip(axes.flat, values, titles):
     scalar_map(
         fig, ax, im, x, x, title, ylabel="y (µm)", label="Unit uniform-object response"
     )
     ax.set_aspect("equal")
+
 show(fig, "06_duv_circuit_image")
 print(
     f"Partial-coherence longitudinal electric-norm fraction: {partial[..., 2].sum() / partial.sum():.3%}"
@@ -376,14 +387,18 @@ def grating_contrast(periods, tf, sources):
     # Fourier coefficients for a centered 50% duty grating; DC transmission 1/2.
     M = np.zeros(count, complex)
     M[0] = count / 2
+
     for harmonic in range(1, count // (2 * periods) + 1, 2):
         value = count * np.sin(np.pi * harmonic / 2) / (np.pi * harmonic)
         M[(harmonic * periods) % count] = value
         M[(-harmonic * periods) % count] = value
+
     profile = np.zeros(count)
+
     for sx, sy in sources:
         field = np.fft.ifft(np.roll(M, int(sx))[:, None] * tf[int(sy) % count], axis=0)
         profile += np.sum(abs(field) ** 2, axis=-1) / len(sources)
+
     return (profile.max() - profile.min()) / (profile.max() + profile.min())
 
 
@@ -391,6 +406,7 @@ def grating_contrast(periods, tf, sources):
 # **Read the result:** Contrast curves keep TE and TM pupil assumptions separate.
 # %%
 fig, ax = plt.subplots(figsize=(9, 4.5), layout="constrained")
+
 for label, tf in [
     ("TE / y polarization", ty),
     ("TM / x polarization", transfer),
@@ -398,6 +414,7 @@ for label, tf in [
 ]:
     contrast = [grating_contrast(int(p), tf, sources) for p in period_counts]
     ax.plot(half_pitches * 1e3, contrast, "o-", label=label)
+
 ax.set(
     xlabel="Wafer half-pitch (nm)",
     ylabel="Michelson contrast",

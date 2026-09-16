@@ -98,17 +98,24 @@ q = np.c_[np.linspace(-2, 2, 31), np.zeros((31, 2))]
 curves = {}
 jumps = []
 snell_errors = []
+
 for pol in ("s", "p"):
     R, T = [], []
+
     for angle in angles:
         wave = incident_wave(angle, pol)
         out = interface_transform(wave, interface)
+
+        # Reconstruct both sides of the boundary from their vector spectra.
         ei, hi = wave.evaluate(q)
         er, hr = out.reflected.evaluate(q)
         et, ht = out.transmitted.evaluate(q)
+
+        # Measure normal power before checking tangential field continuity.
         fi = poynting(ei, hi)[:, 2].mean()
         R.append(-poynting(er, hr)[:, 2].mean() / fi)
         T.append(poynting(et, ht)[:, 2].mean() / fi)
+
         jumps.append(
             boundary_residuals(
                 ei + er,
@@ -122,22 +129,27 @@ for pol in ("s", "p"):
                 magnetic_scale=n1,
             )
         )
+
+        # Snell's law applies to the propagating transmitted branch.
         if angle < theta_c:
             kt = out.transmitted.wavevectors[0].real
             measured = np.arctan2(kt[0], kt[2])
             snell_errors.append(
                 abs(n2 * np.sin(measured) - n1 * np.sin(np.deg2rad(angle)))
             )
+
     curves[pol] = np.array(R), np.array(T)
 
 # %% [markdown]
 # **Read the result:** Brewster and critical angles are marked on measured power curves.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), layout="constrained")
+
 for pol, (R, T) in curves.items():
     axes[0].plot(angles, R, label=f"$R_{pol}$")
     axes[0].plot(angles, T, "--", label=f"$T_{pol}$")
     axes[1].semilogy(angles, np.maximum(abs(R + T - 1), 1e-17), label=pol)
+
 for ax in axes:
     ax.axvline(
         theta_B, color="gray", ls=":", label="Brewster" if ax is axes[0] else None
@@ -147,6 +159,7 @@ for ax in axes:
     )
     ax.set(xlabel="Incidence angle (degrees)")
     ax.legend(fontsize=9)
+
 axes[0].set(
     ylabel="Normal power fraction",
     ylim=(-0.02, 1.02),
@@ -220,6 +233,7 @@ beam_results = []
 # **Read the result:** Each panel reconstructs the field on the correct side of the interface.
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(13, 9), layout="constrained")
+
 for ax, (angle, pol, title) in zip(axes.flat, cases):
     incoming = beam(angle, pol)
     out = interface_transform(incoming, interface)
@@ -245,6 +259,7 @@ for ax, (angle, pol, title) in zip(axes.flat, cases):
     ax.text(-11, -7, "glass: n=1.5", color="white")
     ax.set_aspect("equal")
     beam_results.append((incoming, out, e))
+
 show(fig, "02_beam_refraction_tir")
 # %% [markdown]
 # ## 3. Separate the three branches
@@ -258,6 +273,7 @@ show(fig, "02_beam_refraction_tir")
 
 incoming, out, e = beam_results[-1]
 separate = []
+
 for spectrum, region in [
     (incoming, lower),
     (out.reflected, lower),
@@ -266,7 +282,9 @@ for spectrum, region in [
     values = np.full(X.shape, np.nan)
     values[region] = np.sum(abs(spectrum.evaluate(points[region])[0]) ** 2, axis=-1)
     separate.append(values)
+
 fig, axes = plt.subplots(1, 4, figsize=(16, 4.5), layout="constrained")
+
 for ax, values, title in zip(
     axes,
     [*separate, np.sum(abs(e) ** 2, axis=-1)],
@@ -275,6 +293,7 @@ for ax, values, title in zip(
     scalar_map(fig, ax, values, x, z, title, vmax=4)
     ax.axhline(0, color="cyan", lw=0.8)
     ax.set_aspect("equal")
+
 show(fig, "02_separate_branches")
 # %% [markdown]
 # ## 4. Resolve the evanescent penetration and test the finite beam
@@ -327,10 +346,12 @@ for incoming, out, _ in beam_results:
             magnetic_scale=n1,
         )
     )
+
 for i, key in enumerate(finite_jumps[0]):
     axes[1].semilogy(
         range(4), [max(row[key], 1e-18) for row in finite_jumps], "o-", label=key
     )
+
 axes[1].set(
     xticks=range(4),
     xticklabels=["Partial", "Brewster", "Critical", "TIR"],
@@ -405,8 +426,10 @@ scalar_map(
     vmax=2,
     cmap="hot",
 )
+
 for ax in axes:
     ax.axhline(0, color="cyan", lw=1)
+
 show(fig, "02_tir_near_field")
 # %% [markdown]
 # **What this experiment establishes.** The computed fields recover Snell refraction,

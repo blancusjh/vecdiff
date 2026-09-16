@@ -166,6 +166,7 @@ image = np.sum(abs(field) ** 2, axis=-1)
 # **Read the result:** The mask, point response, and image share physical coordinates.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
+
 for ax, values, title in zip(
     axes,
     [
@@ -183,6 +184,7 @@ for ax, values, title in zip(
         fig, ax, values, x, x, title, ylabel="y (µm)", label="Stated normalization"
     )
     ax.set_aspect("equal")
+
 axes[1].set(xlim=(-0.8, 0.8), ylim=(-0.8, 0.8))
 show(fig, "05_mask_psf_image")
 # %% [markdown]
@@ -212,6 +214,7 @@ for j, name in enumerate(["x", "y", "z"]):
         label="Uniform-object normalization",
         vmax=max(np.max(abs(field[..., j]) ** 2), 1e-4 * image.max()),
     )
+
     if np.max(abs(field[..., j]) ** 2) < 1e-14 * image.max():
         axes[0, j].text(
             0.5,
@@ -222,6 +225,7 @@ for j, name in enumerate(["x", "y", "z"]):
             color="white",
             fontsize=9,
         )
+
     bound = max(np.max(abs(field[..., j].real)), 1e-6 * np.sqrt(image.max()))
     scalar_map(
         fig,
@@ -236,8 +240,10 @@ for j, name in enumerate(["x", "y", "z"]):
         vmin=-bound,
         vmax=bound,
     )
+
 for ax in axes.flat:
     ax.set_aspect("equal")
+
 show(fig, "05_complex_image_field")
 
 # %% [markdown]
@@ -282,6 +288,7 @@ print(f"{len(sources)} equally weighted source points: {perf_counter() - start:.
 # **Read the result:** Partial coherence adds source intensities, not complex amplitudes.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
+
 for ax, values, title in zip(
     axes,
     [image, partial.sum(axis=-1), partial[..., 2]],
@@ -299,6 +306,7 @@ for ax, values, title in zip(
         vmax=max(image.max(), partial.sum(axis=-1).max()),
     )
     ax.set_aspect("equal")
+
 show(fig, "05_partial_coherence")
 print(
     f"Longitudinal fraction of aerial electric norm: {partial[..., 2].sum() / partial.sum():.3%}"
@@ -314,6 +322,7 @@ print(
 
 defocuses = [-0.6, 0, 0.6]  # µm
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
+
 for ax, dz in zip(axes, defocuses):
     tf, _, _ = transfer_from_radiation(rad, count, pixel, defocus=dz)
     im = abs(coherent_image(mask, tf / gain)) ** 2
@@ -329,6 +338,7 @@ for ax, dz in zip(axes, defocuses):
         vmax=image.max(),
     )
     ax.set_aspect("equal")
+
 show(fig, "05_defocused_pattern")
 # %% [markdown]
 # ## 5. Test numerical sensitivity of the actual image
