@@ -148,8 +148,6 @@ np.testing.assert_allclose(
     atol=2e-8,
 )
 
-# %% [markdown]
-# **Read the result:** Read quadrature and surface-offset trends separately.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 
@@ -229,9 +227,6 @@ labels = [
     "Curved\nlocalized",
 ]
 
-# %% [markdown]
-# **Read the result:** The control apertures test whether the boundary error is physical.
-# %%
 fig, ax = plt.subplots(figsize=(10, 4.5), layout="constrained")
 positions = np.arange(len(controls))
 
@@ -281,9 +276,6 @@ for label, row in zip(labels, controls):
 
 scan = report["localized_probe_scan"]
 
-# %% [markdown]
-# **Read the result:** The position scan exposes the two-sided surface limit.
-# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 
 for n2, label in [(1.0, "Equal-index control"), (1.5, "Curved dielectric")]:

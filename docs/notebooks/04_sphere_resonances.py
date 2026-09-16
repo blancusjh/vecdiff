@@ -72,9 +72,6 @@ near = valleys[abs(valleys - j) > 5]
 v = near[np.argmin(abs(near - j))]
 off_resonance = float(wavelengths[v])
 
-# %% [markdown]
-# **Read the result:** The Mie scan identifies the wavelength used in the field maps.
-# %%
 fig, ax = plt.subplots(figsize=(10, 4), layout="constrained")
 ax.plot(wavelengths * 1e3, qsca, label=r"$Q_{sca}$")
 ax.plot(
@@ -171,8 +168,6 @@ for row, ((e, h), w) in enumerate(zip(reference, [off_resonance, resonance])):
 show(fig, "04_sphere_meridional_fields")
 # A full-volume quadrature, not a meridional average, measures stored electric norm.
 
-# %% [markdown]
-# **Read the result:** Check the independent field reference before comparing models.
 # %%
 from numpy.polynomial.legendre import leggauss
 
@@ -242,9 +237,6 @@ for delta in [1e-4, 1e-6, 1e-8]:
         )
     )
 
-# %% [markdown]
-# **Read the result:** Track boundary jumps as the two-sided offset shrinks.
-# %%
 fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 
 for key in rows[0]:
@@ -325,9 +317,7 @@ scattered = SurfaceRadiation.from_boundary(
     Medium(),
     normal_sign=1,
 )
-# %% [markdown]
-# **Next step:** Evaluate both models on the same observation grid.
-# %%
+
 xx = np.linspace(-1.6, 1.6, 101)
 zz = np.linspace(-2, 3, 151)
 ZZ, XX = np.meshgrid(zz, xx)
@@ -341,8 +331,6 @@ approx[inside] = out.transmitted.evaluate(p[inside])[0]
 approx[outside] = wave.evaluate(p[outside])[0] + scattered.evaluate(p[outside])[0]
 truth = mie_fields(p, radius, wavelength=resonance, sphere_index=sphere_index)[0]
 
-# %% [markdown]
-# **Read the result:** Map where the single-encounter model differs from full Mie feedback.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(16, 5.5), layout="constrained")
 fig.suptitle("Meridional plane: z–x at y = 0")

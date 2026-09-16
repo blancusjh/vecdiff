@@ -49,7 +49,6 @@ style()
 
 kinds = ("refraction", "reflection")
 geometries = {kind: configuration(kind) for kind in kinds}
-# %%
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
 
@@ -236,9 +235,6 @@ meridional = rad.evaluate_local(
     center + np.stack((XM, 0 * XM, Z), axis=-1), radius=4 * WAVELENGTH
 ).electric
 
-# %% [markdown]
-# **Meridional map:** electric norm in the x–z slice at y = 0.
-# %%
 fig, ax = plt.subplots(figsize=(7, 6), layout="constrained")
 fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
@@ -262,10 +258,6 @@ show(fig, "08_off_axis_meridional_field")
 # %%
 e = fields[kind, angle]
 
-# %% [markdown]
-# **Focal-plane maps:** longitudinal electric component and transverse
-# polarization in x–y at the image-centre z coordinate.
-# %%
 fig, axes = plt.subplots(1, 2, figsize=(14, 4.5), layout="constrained")
 fig.suptitle("Focal observation plane: x–y at z = image centre")
 scalar_map(
@@ -314,9 +306,6 @@ incoherent = np.mean(np.sum(abs(scene_fields) ** 2, axis=-1), axis=0)
 coherent = np.sum(abs(np.sum(scene_fields, axis=0) / np.sqrt(3)) ** 2, axis=-1)
 normalization = max(incoherent.max(), coherent.max())
 
-# %% [markdown]
-# **Read the result:** Coherent and incoherent scene images use different field combinations.
-# %%
 # Keep the two physical maps together and give the lineout its own full-width row.
 fig = plt.figure(figsize=(14, 7), layout="constrained")
 grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.3])
@@ -401,9 +390,6 @@ for kind, angle in [("refraction", 0.002), ("reflection", 0.02)]:
         f"{kind}: relative E/H kernel error={kernel:.3e}; source-quadrature change={quadrature:.3e}; absolute bounds passed"
     )
 
-# %% [markdown]
-# **Next step:** Cross-check the fresh kernel bounds against stored cases.
-# %%
 benchmark = json.loads(
     (root / "benchmarks/results/field_dependent_optics.json").read_text()
 )

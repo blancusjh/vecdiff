@@ -41,7 +41,8 @@ style()
 #
 # The geometric prescription and the wavefront have different roles. The former
 # defines surfaces, media, stops and folds; the latter is the phase input to this
-# reference calculation. Only the stored field point is represented.
+# reference calculation. This is not propagation through all 48 faces. Only the
+# stored field point is represented.
 # The wavefront map is in nm of optical path, and its piston-removed RMS is
 # measured over the unit pupil.
 # %%
@@ -69,8 +70,6 @@ def wavefront(u, v):
 
 
 rms = np.std(W[inside]) * wavelength * 1e3
-# %% [markdown]
-# **Read the result:** The stored wavefront is a reference, not a propagation through 48 faces.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(14, 5), layout="constrained")
 
@@ -224,9 +223,6 @@ dz = np.linspace(-0.8, 0.8, 321)
 XM, Z = np.meshgrid(xx, dz)
 e, h = spec.evaluate(np.stack((XM, 0 * XM, Z), axis=-1), backend="nufft")
 
-# %% [markdown]
-# **Meridional maps:** field components along x–z at y = 0.
-# %%
 fig, axes = plt.subplots(1, 2, figsize=(10, 7), layout="constrained")
 fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
@@ -320,8 +316,6 @@ print(
     f"Partial-coherence longitudinal electric-norm fraction: {partial[..., 2].sum() / partial.sum():.3%}"
 )
 
-# %% [markdown]
-# **Read the result:** Compare circuit lineouts after viewing the two-dimensional image.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(11, 4), layout="constrained")
 row = np.argmin(abs(x - 0.87))
@@ -382,9 +376,6 @@ period_counts = np.arange(20, 57, 2)
 half_pitches = period / (2 * period_counts)
 
 
-# %% [markdown]
-# **Next step:** Compute contrast from the vector transfer before plotting it.
-# %%
 def grating_contrast(periods, tf, sources):
     # Fourier coefficients for a centered 50% duty grating; DC transmission 1/2.
     M = np.zeros(count, complex)
@@ -404,9 +395,6 @@ def grating_contrast(periods, tf, sources):
     return (profile.max() - profile.min()) / (profile.max() + profile.min())
 
 
-# %% [markdown]
-# **Read the result:** Contrast curves keep TE and TM pupil assumptions separate.
-# %%
 fig, ax = plt.subplots(figsize=(9, 4.5), layout="constrained")
 
 for label, tf in [
@@ -426,8 +414,6 @@ ax.set(
 ax.legend()
 show(fig, "06_duv_te_tm_resolution")
 
-# %% [markdown]
-# **Next step:** Refine source and pixel sampling after the contrast curves.
 # %%
 finer_sources = disk_sources(0.6 * na / wavelength * count * pixel, step=1)
 probe_periods = [24, 36, 48]
@@ -480,9 +466,6 @@ airy = np.ones_like(arg)
 nonzero = arg != 0
 airy[nonzero] = (2 * j1(arg[nonzero]) / arg[nonzero]) ** 2
 
-# %% [markdown]
-# **Read the result:** Use refined radial and focal profiles as numerical controls.
-# %%
 fig, ax = plt.subplots(figsize=(9, 4), layout="constrained")
 fm = len(focal_axis) // 2
 ax.plot(

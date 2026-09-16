@@ -110,8 +110,6 @@ opl = last.optical_path + np.linalg.norm(focus - last.sampling.points, axis=-1)
 
 # Stigmatic optical path is checked before plotting rays.
 assert np.ptp(opl) / wavelength < 1e-7
-# %% [markdown]
-# **Read the result:** Both surfaces and the recovered optical path are shown together.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
 
@@ -177,25 +175,6 @@ focal_seconds = time.perf_counter() - start
 e = focal.electric
 peak = np.sum(abs(e) ** 2, axis=-1).max()
 
-# %% [markdown]
-# ### Meridional plane: x–z at y = 0
-#
-# Fix y at zero and vary z across the focus. The vertical axis is $z-f$;
-# this is a longitudinal slice, not the transverse focal observation plane.
-# %%
-z = np.linspace(-120, 120, 193) * wavelength
-XM, Z = np.meshgrid(x, z)
-start = time.perf_counter()
-meridional = result.transmitted.evaluate_local(
-    focus + np.stack((XM, 0 * XM, Z), axis=-1), radius=5 * wavelength, backend="auto"
-)
-meridional_seconds = time.perf_counter() - start
-em = meridional.electric
-field_seconds = focal_seconds + meridional_seconds
-
-# %% [markdown]
-# **Focal-plane maps:** vector field components in x–y at z = f.
-# %%
 fig, axes = plt.subplots(1, 4, figsize=(18, 5.5), layout="constrained")
 fig.suptitle("Focal observation plane: x–y at z = f")
 
@@ -236,9 +215,21 @@ polarization_map(fig, axes[3], e, x * 1e3, x * 1e3, title="Transverse polarizati
 show(fig, "09_two_interface_focal_fields")
 
 # %% [markdown]
-# **Meridional maps:** the same transmitted currents observed along x–z at
-# y = 0. These plots are separate from the focal x–y maps above.
+# ### Meridional plane: x–z at y = 0
+#
+# Fix y at zero and vary z across the focus. The vertical axis is $z-f$;
+# this is a longitudinal slice, not the transverse focal observation plane.
 # %%
+z = np.linspace(-120, 120, 193) * wavelength
+XM, Z = np.meshgrid(x, z)
+start = time.perf_counter()
+meridional = result.transmitted.evaluate_local(
+    focus + np.stack((XM, 0 * XM, Z), axis=-1), radius=5 * wavelength, backend="auto"
+)
+meridional_seconds = time.perf_counter() - start
+em = meridional.electric
+field_seconds = focal_seconds + meridional_seconds
+
 fig, axes = plt.subplots(1, 2, figsize=(8, 10), layout="constrained")
 fig.suptitle("Meridional plane: x–z at y = 0")
 
@@ -312,9 +303,6 @@ for angle in angles:
     )
     lines.append(np.sum(abs(values.electric) ** 2, axis=-1))
 
-# %% [markdown]
-# **Read the result:** Compare recomputed off-axis profiles with a shifted on-axis control.
-# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 
 for ax, angle, values in zip(axes, angles[1:], lines[1:]):
@@ -381,9 +369,6 @@ assert (
 )
 finite_peak = np.sum(abs(finite_fields[0]) ** 2, axis=-1).max()
 
-# %% [markdown]
-# **Read the result:** Finite-conjugate maps use the same physical surfaces for both objects.
-# %%
 # Give the two square physical maps equal slots above the nonspatial lineout.
 fig = plt.figure(figsize=(13, 10), layout="constrained")
 grid = fig.add_gridspec(2, 2, height_ratios=[2, 1])
@@ -453,8 +438,6 @@ compression = report["macroscopic_compression"]
 assert all(r["reference_converged"] for r in rows)
 assert compression["multiple_phase_source_quadrature_change"] < 1e-7
 
-# %% [markdown]
-# **Read the result:** Separate reference error, transport time, and phase-compression cost.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 
@@ -560,9 +543,6 @@ for j, (interface, record) in enumerate(zip(assembly.interfaces, result.modes[0]
 
 # Refine final-current quadrature and derivative step at held observations.
 
-# %% [markdown]
-# **Next step:** Refine the final current radiation at held-out image points.
-# %%
 held = focus + wavelength * np.array(
     [[-10, 0, -40], [-3, 2, 0], [0, 0, 0], [4, -2, 20], [10, 0, 40]]
 )

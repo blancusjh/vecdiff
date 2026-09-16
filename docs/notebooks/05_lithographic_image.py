@@ -127,8 +127,6 @@ print(
 mask = circuit_pattern(x)
 field = coherent_image(mask, transfer)
 image = np.sum(abs(field) ** 2, axis=-1)
-# %% [markdown]
-# **Read the result:** The mask, point response, and image share physical coordinates.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
 
@@ -211,8 +209,6 @@ for ax in axes.flat:
 
 show(fig, "05_complex_image_field")
 
-# %% [markdown]
-# **Read the result:** Read transverse polarization separately from complex components.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), layout="constrained")
 polarization_map(
@@ -249,9 +245,6 @@ start = perf_counter()
 partial = aerial_image(mask, transfer, sources)
 print(f"{len(sources)} equally weighted source points: {perf_counter() - start:.3f} s")
 
-# %% [markdown]
-# **Read the result:** Partial coherence adds source intensities, not complex amplitudes.
-# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
 
 for ax, values, title in zip(
@@ -343,9 +336,6 @@ constant = coherent_image(np.ones_like(mask), transfer)
 assert np.max(abs(np.sum(abs(constant) ** 2, axis=-1) - 1)) < 1e-10
 assert window_error < 1e-3
 
-# %% [markdown]
-# **Read the result:** Plot convergence only after window and normalization checks.
-# %%
 fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 ax.plot(x, image[row], label="512² point-response window")
 ax.plot(

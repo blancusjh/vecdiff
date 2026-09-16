@@ -119,8 +119,6 @@ for pol in ("s", "p"):
             )
 
     curves[pol] = np.array(R), np.array(T)
-# %% [markdown]
-# **Read the result:** Brewster and critical angles are marked on measured power curves.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), layout="constrained")
 
@@ -351,8 +349,6 @@ print(
 )
 # A spectral refinement check on complex E, including points in both media.
 
-# %% [markdown]
-# **Read the result:** Refine the angular spectrum using complex fields in both media.
 # %%
 probe = points[::60, ::75].reshape(-1, 3)
 a, b = beam(55, count=161), beam(55, count=321)

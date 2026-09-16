@@ -79,9 +79,7 @@ r = np.linspace(0, aperture, 1001)
 sag = surface.sag(r)
 opl = 1.5 * sag + np.sqrt(r * r + (focus[2] - sag) ** 2)
 na = aperture / np.sqrt(aperture**2 + (focus[2] - sag[-1]) ** 2)
-# %% [markdown]
-# **Read the result:** Geometry and optical-path spread are shown on physical coordinates.
-# %%
+
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 rfull = np.r_[-r[::-1], r]
 zfull = surface.sag(abs(rfull))
@@ -139,9 +137,6 @@ focal_seconds = perf_counter() - start
 peak = np.sum(abs(e) ** 2, axis=-1).max()
 
 
-# %% [markdown]
-# **Focal-plane maps:** total field and x, y, z vector components at z = f.
-# %%
 def vector_component_figure(field, xx, yy, vertical, plane, figsize):
     fig, axes = plt.subplots(1, 4, figsize=figsize, layout="constrained")
     fig.suptitle(plane)
@@ -202,10 +197,6 @@ start = perf_counter()
 em, hm = local.evaluate(xz, backend="nufft")
 meridional_seconds = perf_counter() - start
 
-# %% [markdown]
-# **Meridional maps:** the same components along x–z at y = 0, distinct from
-# the x–y focal observation plane above.
-# %%
 fig = vector_component_figure(
     em,
     x * 1e3,
@@ -266,8 +257,6 @@ circular = plane_wave(
 crad = interface_transform(circular, interface, sampling).transmitted
 ce, _ = crad.local_spectrum(focus, 15 * wavelength).evaluate(xy, backend="nufft")
 
-# %% [markdown]
-# **Read the result:** Show transverse polarization after measuring widths and flux.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), layout="constrained")
 polarization_map(
@@ -325,9 +314,6 @@ assert errors["Local / full radiation kernel"] < 3e-4
 assert errors["48×96 / 72×144 source nodes"] < 1e-7
 assert errors["NUFFT / direct spectral sum"] < 1e-8
 
-# %% [markdown]
-# **Read the result:** Plot the kernel and quadrature errors after the assertions.
-# %%
 fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
 ax.semilogy(
     range(len(points)),

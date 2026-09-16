@@ -204,8 +204,6 @@ axes[1].set(
 )
 show(fig, "01_width_power")
 
-# %% [markdown]
-# **Read the result:** Inspect the propagated output field and its polarization.
 # %%
 end = propagate(field, 30.0)
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.5), layout="constrained")
@@ -227,8 +225,6 @@ for ax in axes:
 
 show(fig, "01_output_polarization")
 
-# %% [markdown]
-# **Read the result:** Read the numerical checks alongside the two field figures.
 # %%
 print(
     f"Input longitudinal electric-norm fraction: {np.sum(abs(field.Ez) ** 2) / np.sum(field.norm2()):.4%}"
