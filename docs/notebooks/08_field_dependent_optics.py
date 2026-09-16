@@ -46,14 +46,9 @@ style()
 # vacuum wavelengths respectively.
 # %%
 # Resolve both physical configurations before drawing or propagating fields.
-# %%
+
 kinds = ("refraction", "reflection")
 geometries = {kind: configuration(kind) for kind in kinds}
-
-# %% [markdown]
-# ### Inspect the surfaces
-#
-# These curves and rays display the physical geometry and on-axis focus.
 # %%
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
@@ -99,12 +94,6 @@ angles = [0.0, 0.002, 0.01, 0.02]
 source_nr = 128
 source_nphi = 256
 
-# %% [markdown]
-# ### Sample each physical boundary
-#
-# Reuse a fixed surface grid for directions through the same geometry. The
-# incident field and its Fresnel transformation are recalculated for every angle.
-# %%
 boundaries = {}
 
 for kind in kinds:
@@ -116,11 +105,6 @@ for kind in kinds:
     boundaries[kind] = (interface, samples)
 
 
-# %% [markdown]
-# ### Incident plane wave for one direction
-#
-# Rotate both propagation direction and polarization to keep them transverse.
-# %%
 def incoming_wave(kind, angle_degrees):
     angle = np.deg2rad(angle_degrees)
     n1 = geometries[kind][1]
@@ -132,20 +116,10 @@ def incoming_wave(kind, angle_degrees):
     )
 
 
-# %% [markdown]
-# ### Observation grid
-#
-# The same local grid is centered on each angle's predicted observation point.
-# %%
 x = np.linspace(-15, 15, 301) * WAVELENGTH
 y = np.linspace(-4, 4, 101) * WAVELENGTH
 X, Y = np.meshgrid(x, y)
 
-# %% [markdown]
-# ### Independent surface transformations
-#
-# Transform each incident direction separately on its sampled physical face.
-# %%
 fields = {}
 lines = {}
 radiations = {}
@@ -176,7 +150,6 @@ for kind in kinds:
 print(
     f"Computed {2 * len(angles) * X.size:,} vector observations for eight distinct surface transformations in {time.perf_counter() - start:.2f} s"
 )
-
 # %% [markdown]
 # **Focal observation planes:** x–y at each surface's image-centre z.
 # The top row is refraction at z = 20 mm; the bottom is reflection at z = −5 mm.

@@ -41,10 +41,6 @@ style()
 # FFT propagation assumes periodic boundary conditions; the beam must remain
 # well inside the window.
 # %%
-# ### Wavelength and numerical grid
-#
-# Set the waist and periodic transverse sampling before constructing any field.
-# %%
 
 from vecdiff import (
     CartesianGrid,
@@ -59,25 +55,13 @@ wavelength, waist = 0.532, 1.2
 grid = CartesianGrid.from_spacing(0.1, 256)
 X, Y = grid.xy
 
-# %% [markdown]
-# ### Incident transverse field
-#
-# The input specifies the Gaussian $E_x$ waist and zero $E_y$ on a plane.
-# %%
 input_field = TransverseElectricField(
     np.exp(-(X * X + Y * Y) / waist**2), 0 * X, grid, PlaneDomain(), wavelength
 )
 
-# %% [markdown]
-# ### Maxwell completion and reference scale
-#
-# Complete the longitudinal component spectrally, then calculate the paraxial
-# Rayleigh length for comparison with the propagated field.
-# %%
 field = input_field.complete()
 zR = np.pi * waist**2 / wavelength
 print(f"Rayleigh range (paraxial reference): {zR:.3f} µm")
-
 # %% [markdown]
 # **Waist observation plane:** x–y at z = 0; both axes are transverse.
 # %%

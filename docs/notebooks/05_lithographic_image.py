@@ -56,6 +56,7 @@ style()
 # Import the spectral and image-formation tools.
 
 from time import perf_counter
+from numpy.polynomial.hermite import hermgauss
 from examples.macroscopic_focus import radiation, WAVELENGTH
 from examples.image_formation import (
     circuit_pattern,
@@ -63,10 +64,6 @@ from examples.image_formation import (
     aerial_image,
     disk_sources,
 )
-
-wavelength = WAVELENGTH
-focus = np.array([0.0, 0.0, 20.0])
-from numpy.polynomial.hermite import hermgauss
 from vecdiff import (
     ElectricSpectrum,
     EvenAsphere,
@@ -76,13 +73,8 @@ from vecdiff import (
     interface_transform,
 )
 
-
-# %% [markdown]
-# ### Incident beam spectrum
-#
-# Synthesize the broad Gaussian illumination from transverse plane-wave modes.
-# Each mode carries a transverse vector amplitude.
-# %%
+wavelength = WAVELENGTH
+focus = np.array([0.0, 0.0, 20.0])
 waist_mm = 4.0
 nodes, weights = hermgauss(24)
 KX, KY = np.meshgrid(2 * nodes / waist_mm, 2 * nodes / waist_mm)
@@ -97,40 +89,19 @@ beam = ElectricSpectrum(
     Medium(1.5),
 )
 
-# %% [markdown]
-# ### Refracting surface and numerical sampling
-#
-# Integrate the conic aperture using 64 radial and 192 azimuthal nodes.
-# %%
 surface = EvenAsphere(-0.1, -2.25)
 samples = sample_surface(surface, (0, 12.0), (0, 2 * np.pi), 64, 192)
 
-# %% [markdown]
-# ### Transform the illumination
-#
-# The transmitted surface currents define the point response used below.
-# %%
 rad = interface_transform(
     beam, DielectricInterface(surface, Medium(1.5), Medium()), samples
 ).transmitted
 
-# %% [markdown]
-# ### Image-plane sampling
-#
-# Pixel positions are in µm; the propagation API uses mm.
-# %%
 count = 512
 pixel = 0.012  # µm, image scale
 x = (np.arange(count) - count // 2) * pixel
 X, Y = np.meshgrid(x, x)
 
 
-# %% [markdown]
-# ### Point response and coherent transfer
-#
-# Evaluate the vector field on the image grid and Fourier-transform its
-# complex components. The on-axis gain sets the stated normalization.
-# %%
 def transfer_from_radiation(rad, count, pixel, defocus=0.0):
     axis = (np.arange(count) - count // 2) * pixel * 1e-3
     X, Y = np.meshgrid(axis, axis)
@@ -153,15 +124,9 @@ print(
     f"Local-kernel absolute E bound / PSF peak: {local.electric_error_bound / np.max(np.linalg.norm(psf, axis=-1)):.2%}"
 )
 
-# %% [markdown]
-# ### Mask and aerial image
-#
-# Apply the coherent transfer to the circuit mask before taking electric norm.
-# %%
 mask = circuit_pattern(x)
 field = coherent_image(mask, transfer)
 image = np.sum(abs(field) ** 2, axis=-1)
-
 # %% [markdown]
 # **Read the result:** The mask, point response, and image share physical coordinates.
 # %%

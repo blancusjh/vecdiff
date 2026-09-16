@@ -295,10 +295,7 @@ from vecdiff import (
 )
 from vecdiff.propagation.surface_radiation import SurfaceRadiation
 
-# ### Closed sphere and quadrature
-#
-# Join two hemispherical sampling grids into one closed surface.
-# %%
+
 sphere = Sphere(radius)
 halves = [
     sample_surface(sphere, bounds, (0, 2 * np.pi), 32, 64)
@@ -311,12 +308,6 @@ samples = SurfaceSampling(
     np.concatenate([s.weights for s in halves]),
 )
 
-# %% [markdown]
-# ### Incoming wave and first encounter
-#
-# Illuminate the closed surface at the resonance wavelength. This model
-# transforms only the illuminated trace at its first encounter.
-# %%
 wave = plane_wave(wavelength=resonance)
 out = interface_transform(
     wave,
@@ -326,12 +317,6 @@ out = interface_transform(
 )
 b = out.boundary
 
-# %% [markdown]
-# ### Scattered boundary currents
-#
-# Exterior radiation uses the difference between transmitted and incident
-# traces over the closed sampling surface.
-# %%
 scattered = SurfaceRadiation.from_boundary(
     samples,
     b.transmitted_E - b.incident_E,
@@ -340,7 +325,6 @@ scattered = SurfaceRadiation.from_boundary(
     Medium(),
     normal_sign=1,
 )
-
 # %% [markdown]
 # **Next step:** Evaluate both models on the same observation grid.
 # %%

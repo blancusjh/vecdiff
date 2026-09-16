@@ -72,21 +72,11 @@ style()
 # contribution. Its single-phase input is a leading WKB field, not an exact
 # Gaussian Maxwell solution; that approximation is measured below.
 # %%
-# ### Parameters and physical interfaces
-#
-# `configuration` provides the two actual faces, their media, and the focus.
-# %%
 
 wavelength = 0.000193368
 waist_mm = 1.0
 assembly, aperture, focus = configuration()
 
-# %% [markdown]
-# ### Incident field
-#
-# A plane-wave phase with a transverse Gaussian envelope defines the smooth
-# single-phase input. The envelope underfills the first aperture.
-# %%
 carrier = plane_wave(wavelength=wavelength)
 direction = carrier.wavevectors[0].real * wavelength / (2 * np.pi)
 polarization = carrier.amplitudes[0]
@@ -102,12 +92,6 @@ incoming = EikonalElectricField(
     wavelength,
 )
 
-# %% [markdown]
-# ### Entrance-surface quadrature
-#
-# Sample the first curved face over its 4-mm radius. The exit face is reached
-# by ray transport and its 3.5-mm aperture is enforced during propagation.
-# %%
 source_nr, source_nphi = 64, 128
 sampling = sample_surface(
     assembly.interfaces[0].surface,
@@ -117,26 +101,15 @@ sampling = sample_surface(
     source_nphi,
 )
 
-# %% [markdown]
-# ### Transport through both faces
-#
-# Preserve the vector Fresnel traces and optical path along each sampled ray.
-# %%
 start = time.perf_counter()
 result = propagate_high_frequency(incoming, assembly, sampling, apertures=(4.0, 3.5))
 transport_seconds = time.perf_counter() - start
 first, last = result.modes[0]
 
-# %% [markdown]
-# ### Optical-path check
-#
-# This geometric diagnostic is evaluated before the focal radiation maps.
-# %%
 opl = last.optical_path + np.linalg.norm(focus - last.sampling.points, axis=-1)
 
 # Stigmatic optical path is checked before plotting rays.
 assert np.ptp(opl) / wavelength < 1e-7
-
 # %% [markdown]
 # **Read the result:** Both surfaces and the recovered optical path are shown together.
 # %%

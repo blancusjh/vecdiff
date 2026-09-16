@@ -55,10 +55,7 @@ from vecdiff import (
 )
 from vecdiff.observables.electromagnetism import boundary_residuals, poynting
 
-# ### Material and interface parameters
-#
-# Set the vacuum wavelength and the two refractive indices first.
-# %%
+
 wavelength = 0.532
 n1, n2 = 1.5, 1.0
 interface = DielectricInterface(Plane(), Medium(n1), Medium(n2))
@@ -67,11 +64,6 @@ theta_c = np.degrees(np.arcsin(n2 / n1))
 print(f"Brewster angle: {theta_B:.6f}°; critical angle: {theta_c:.6f}°")
 
 
-# %% [markdown]
-# ### Incident polarization
-#
-# Construct a transverse plane wave for each angle and s or p state.
-# %%
 def incident_wave(angle, polarization):
     t = np.deg2rad(angle)
     e = (0, 1, 0) if polarization == "s" else (np.cos(t), 0, -np.sin(t))
@@ -80,21 +72,9 @@ def incident_wave(angle, polarization):
     )
 
 
-# %% [markdown]
-# ### Angular and boundary sampling
-#
-# Include the predicted special angles in the incidence sweep. Boundary
-# observations use a small set of points on the plane.
-# %%
 angles = np.unique(np.r_[np.linspace(0, 89, 600), theta_B, theta_c])
 q = np.c_[np.linspace(-2, 2, 31), np.zeros((31, 2))]
 
-# %% [markdown]
-# ### Fresnel sweep and continuity check
-#
-# Transform both polarizations independently and measure their power flux and
-# tangential boundary jumps.
-# %%
 curves = {}
 jumps = []
 snell_errors = []
@@ -139,7 +119,6 @@ for pol in ("s", "p"):
             )
 
     curves[pol] = np.array(R), np.array(T)
-
 # %% [markdown]
 # **Read the result:** Brewster and critical angles are marked on measured power curves.
 # %%
