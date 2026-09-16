@@ -12,6 +12,8 @@
 # mirror is the dielectric reflection branch ($1\to1.5$), not a metal or coating.
 # The reference theories remain outside the implementation.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 import json
@@ -42,6 +44,8 @@ style()
 # the surface radiation integral. Aperture diameters exceed 124,000 and 41,000
 # vacuum wavelengths respectively.
 # %%
+# Draw the refracting and reflecting surface geometries.
+
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
 for kind, ax in zip(["refraction", "reflection"], axes):
     surface, n1, n2, aperture, focus, mapping = configuration(kind)
@@ -75,6 +79,8 @@ show(fig, "08_macroscopic_geometry")
 # The patch radius is $4\lambda_0$; source quadrature must converge separately for
 # every illumination and observation region.
 # %%
+# Recompute each source direction and measure its actual focal field.
+
 angles = [0.0, 0.002, 0.01, 0.02]
 x = np.linspace(-15, 15, 301) * WAVELENGTH
 y = np.linspace(-4, 4, 101) * WAVELENGTH
@@ -97,6 +103,10 @@ for kind in ["refraction", "reflection"]:
 print(
     f"Computed {2 * len(angles) * X.size:,} vector observations for eight distinct surface transformations in {time.perf_counter() - start:.2f} s"
 )
+
+# %% [markdown]
+# **Read the result:** Each spot is recomputed for its source angle and surface type.
+# %%
 fig, axes = plt.subplots(2, 4, figsize=(17, 7), layout="constrained")
 for j, kind in enumerate(["refraction", "reflection"]):
     peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
@@ -122,6 +132,8 @@ show(fig, "08_field_dependent_spots")
 # peak normalization hides throughput or peak changes. The mismatch includes
 # both image displacement beyond the paraxial prediction and shape changes.
 # %%
+# Compare recomputed off-axis responses with shifted on-axis profiles.
+
 fig, axes = plt.subplots(2, 3, figsize=(15, 7), layout="constrained")
 for row, kind in enumerate(["refraction", "reflection"]):
     peak = lines[kind, 0.0].max()
@@ -149,6 +161,8 @@ show(fig, "08_shift_comparison")
 # focus. Ellipses show the transverse polarization, with low-intensity pixels
 # excluded; longitudinal electric energy is shown separately.
 # %%
+# Inspect one off-axis vector field in focal and meridional planes.
+
 kind = "refraction"
 angle = 0.002
 rad = radiations[kind, angle]
@@ -161,6 +175,10 @@ meridional = rad.evaluate_local(
 ).electric
 e = fields[kind, angle]
 peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
+
+# %% [markdown]
+# **Read the result:** Inspect longitudinal field and polarization off axis.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 scalar_map(
     fig,
@@ -199,6 +217,8 @@ show(fig, "08_off_axis_vector_field")
 # This small scene demonstrates field-dependent imaging directly; an extended
 # lithographic mask through a full multi-element system remains a separate task.
 # %%
+# Add independent source fields coherently or incoherently for a scene.
+
 scene_x = np.linspace(-3.5, 3.5, 301) * 1e-3
 scene_y = np.linspace(-0.8, 0.8, 101) * 1e-3
 SX, SY = np.meshgrid(scene_x, scene_y)
@@ -213,6 +233,10 @@ scene_fields = np.asarray(scene_fields)
 incoherent = np.mean(np.sum(abs(scene_fields) ** 2, axis=-1), axis=0)
 coherent = np.sum(abs(np.sum(scene_fields, axis=0) / np.sqrt(3)) ** 2, axis=-1)
 normalization = max(incoherent.max(), coherent.max())
+
+# %% [markdown]
+# **Read the result:** Coherent and incoherent scene images use different field combinations.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 for ax, values, title in zip(
     axes[:2],
@@ -252,7 +276,11 @@ show(fig, "08_direct_scene")
 # Neither comparison validates the local Fresnel boundary approximation itself;
 # notebook 07 tests that separate physical requirement.
 # %%
+# Check kernel bounds and source quadrature against stored benchmarks.
+
 checks = []
+
+# Check fresh E/H fields before reading stored benchmark rows.
 for kind, angle in [("refraction", 0.002), ("reflection", 0.02)]:
     rad = radiations[kind, angle]
     center = centers[kind, angle]
@@ -282,9 +310,15 @@ for kind, angle in [("refraction", 0.002), ("reflection", 0.02)]:
     print(
         f"{kind}: relative E/H kernel error={kernel:.3e}; source-quadrature change={quadrature:.3e}; absolute bounds passed"
     )
+
+# %% [markdown]
+# **Next step:** Cross-check the fresh kernel bounds against stored cases.
+# %%
 benchmark = json.loads(
     (root / "benchmarks/results/field_dependent_optics.json").read_text()
 )
+
+# Require every stored case to satisfy absolute kernel bounds.
 for row in benchmark["cases"]:
     assert (
         row["absolute_kernel_bounds_passed"]

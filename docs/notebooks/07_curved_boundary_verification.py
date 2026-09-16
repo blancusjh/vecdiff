@@ -16,6 +16,8 @@
 # amplitude, fitted phase, auxiliary-source solution, or reference boundary data
 # enter the calculation. A finite open aperture is not a complete dielectric body.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 import json
@@ -51,6 +53,8 @@ style()
 # ordinary tensor quadrature is not used to infer a singular boundary limit.
 # The next section uses target-centred near-field quadrature for that purpose.
 # %%
+# Construct and evaluate the finite curved surface field.
+
 surface = SphericalCap(2.0)
 samples = sample_surface(surface, (0, 1), (0, 2 * np.pi), 64, 128)
 incident = plane_wave()
@@ -72,6 +76,10 @@ et, ht = out.transmitted.evaluate(points[above], chunk=8)
 physical[below] = ei + er
 physical[above] = et
 reflected[below] = er
+
+# %% [markdown]
+# **Read the result:** Show the physical fields before using boundary residuals.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 for ax, values, title in zip(
     axes,
@@ -115,6 +123,8 @@ show(fig, "07_curved_fields")
 # $\rho/R=0.2$, $\phi=45^\circ$; this is a necessary pointwise test, not a proof
 # over the entire surface.
 # %%
+# Compare two-sided Green limits with source quadrature and offset refinements.
+
 from benchmarks.curved_boundary_limits import case
 
 fresh = case(10.0, 1.0, 1.5, illumination="gaussian")
@@ -123,6 +133,8 @@ report = json.loads(
 )
 rows = report["cases"]
 saved = rows[-1]
+
+# Verify a fresh convergence case before plotting stored sweeps.
 assert fresh["numerical_convergence_passed"]
 np.testing.assert_allclose(
     list(fresh["extrapolated_boundary_residuals"].values()),
@@ -130,6 +142,10 @@ np.testing.assert_allclose(
     rtol=2e-5,
     atol=2e-8,
 )
+
+# %% [markdown]
+# **Read the result:** Read quadrature and surface-offset trends separately.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 for key, label in [
     ("tangential_E", r"$E_t$"),
@@ -144,6 +160,8 @@ for key, label in [
         label=label,
     )
     axes[0].axhline(fresh["extrapolated_boundary_residuals"][key], lw=0.7, alpha=0.5)
+
+# Plot both index directions with the same offset convention.
 for indices in [[1.0, 1.5], [1.5, 1.0]]:
     subset = [
         r
@@ -191,6 +209,8 @@ print(
 # curvature. Localizing the incident field reduces the equal-index mismatch,
 # and the genuine dielectric test can be interpreted against that control.
 # %%
+# Inspect the four boundary jumps under controlled aperture changes.
+
 controls = [rows[2], rows[6], rows[7], rows[-2], rows[-1]]
 labels = [
     "Curved\nplane wave",
@@ -199,6 +219,10 @@ labels = [
     "Equal index\nlocalized",
     "Curved\nlocalized",
 ]
+
+# %% [markdown]
+# **Read the result:** The control apertures test whether the boundary error is physical.
+# %%
 fig, ax = plt.subplots(figsize=(10, 4.5), layout="constrained")
 positions = np.arange(len(controls))
 for j, key in enumerate(["tangential_E", "tangential_H", "normal_D", "normal_B"]):
@@ -216,6 +240,8 @@ ax.set(
 ax.axhline(1, color="k", ls="--", lw=1)
 ax.legend(ncol=4, fontsize=9)
 show(fig, "07_boundary_controls")
+
+# Report each aperture control beside its plotted residual.
 for label, row in zip(labels, controls):
     print(
         label.replace("\n", " "),
@@ -240,7 +266,13 @@ for label, row in zip(labels, controls):
 # It exposes errors that appear small only because the local illumination is weak.
 # The equal-index control undergoes the identical reconstruction.
 # %%
+# Move the observation point through the surface limit.
+
 scan = report["localized_probe_scan"]
+
+# %% [markdown]
+# **Read the result:** The position scan exposes the two-sided surface limit.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 for n2, label in [(1.0, "Equal-index control"), (1.5, "Curved dielectric")]:
     subset = [r for r in scan if r["indices"][1] == n2]

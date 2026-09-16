@@ -15,6 +15,8 @@
 # The layout is inspired by [Diffractio's reflection/refraction example](https://diffractio.readthedocs.io/en/latest/source/examples_scalar/reflection_refraction.html).
 # The calculation here uses vecdiff's vector Maxwell spectra, retaining evanescent transmission.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 
@@ -41,6 +43,8 @@ style()
 # The transmitted field decays as $e^{-\kappa z}$; zero transmitted normal power
 # does not mean zero transmitted electric field.
 # %%
+# Reconstruct E and H at each angle, then measure power and boundary jumps.
+
 from vecdiff import (
     Medium,
     Plane,
@@ -67,6 +71,9 @@ def incident_wave(angle, polarization):
     )
 
 
+# %% [markdown]
+# **Next step:** Measure s and p polarizations at each incidence angle.
+# %%
 angles = np.unique(np.r_[np.linspace(0, 89, 600), theta_B, theta_c])
 q = np.c_[np.linspace(-2, 2, 31), np.zeros((31, 2))]
 curves = {}
@@ -103,6 +110,10 @@ for pol in ("s", "p"):
                 abs(n2 * np.sin(measured) - n1 * np.sin(np.deg2rad(angle)))
             )
     curves[pol] = np.array(R), np.array(T)
+
+# %% [markdown]
+# **Read the result:** Brewster and critical angles are marked on measured power curves.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), layout="constrained")
 for pol, (R, T) in curves.items():
     axes[0].plot(angles, R, label=f"$R_{pol}$")
@@ -124,6 +135,8 @@ axes[0].set(
 )
 axes[1].set(ylabel=r"$|R+T-1|$", title="Energy balance of reconstructed E and H")
 show(fig, "02_angles_power")
+
+# Validate reconstructed boundary traces, Snell law, and power balance.
 assert max(max(row.values()) for row in jumps) < 2e-12
 assert max(snell_errors) < 1e-12
 assert curves["p"][0][np.argmin(abs(angles - theta_B))] < 1e-25
@@ -148,6 +161,9 @@ print(f"Maximum Snell residual: {max(snell_errors):.3g}")
 # propagating and evanescent transmitted modes. The plane-wave identities above
 # remain exact; a finite beam has no single refracted angle at this transition.
 # %%
+# Build a finite angular spectrum and reconstruct the field in each medium.
+
+
 def beam(angle, pol="s", count=161, waist=2.0):
     k1 = 2 * np.pi * n1 / wavelength
     delta = np.linspace(-6 / (k1 * waist), 6 / (k1 * waist), count)
@@ -171,6 +187,8 @@ z = np.linspace(-8, 8, 481)
 X, Z = np.meshgrid(x, z)
 points = np.stack((X, 0 * X, Z), axis=-1)
 lower = Z < 0
+
+# Include partial reflection, Brewster, critical, and TIR cases.
 cases = [
     (25.0, "s", "Partial reflection"),
     (theta_B, "p", "Brewster-centred beam"),
@@ -178,6 +196,10 @@ cases = [
     (55.0, "s", "Total internal reflection"),
 ]
 beam_results = []
+
+# %% [markdown]
+# **Read the result:** Each panel reconstructs the field on the correct side of the interface.
+# %%
 fig, axes = plt.subplots(2, 2, figsize=(13, 9), layout="constrained")
 for ax, (angle, pol, title) in zip(axes.flat, cases):
     incoming = beam(angle, pol)
@@ -213,6 +235,8 @@ show(fig, "02_beam_refraction_tir")
 # beam directions. All four panels below use the same incident amplitude scale;
 # none is independently peak-normalized.
 # %%
+# Separate the incident, reflected, transmitted, and physical total fields.
+
 incoming, out, e = beam_results[-1]
 separate = []
 for spectrum, region in [
@@ -241,6 +265,8 @@ show(fig, "02_separate_branches")
 # We compare the computed decay to this formula, and evaluate all four boundary
 # conditions after summing the finite-beam spectra at 301 interface positions.
 # %%
+# Measure evanescent decay, finite-beam boundary jumps, and angular convergence.
+
 wave = incident_wave(55, "s")
 out = interface_transform(wave, interface)
 kappa = (2 * np.pi / wavelength) * np.sqrt(n1**2 * np.sin(np.deg2rad(55)) ** 2 - n2**2)
@@ -259,8 +285,12 @@ axes[0].set(
     ylabel=r"$|E_y(z)/E_y(0)|^2$",
     title="Evanescent intensity penetration",
 )
+
+# Check all four Maxwell jumps for the finite beams.
 probe = np.c_[np.linspace(-10, 10, 301), np.zeros((301, 2))]
 finite_jumps = []
+
+# Reconstruct both sides of each finite-beam boundary.
 for incoming, out, _ in beam_results:
     ei, hi = incoming.evaluate(probe)
     er, hr = out.reflected.evaluate(probe)
@@ -290,12 +320,18 @@ axes[1].set(
 )
 axes[1].legend(fontsize=9)
 show(fig, "02_evanescent_boundary")
+
+# Compare decay with its analytic exponent and then check boundary jumps.
 assert np.max(abs(decay - np.exp(-2 * kappa * zz))) < 1e-12
 assert max(max(row.values()) for row in finite_jumps) < 2e-12
 print(
     f"Amplitude depth = {1 / kappa * 1e3:.2f} nm; intensity depth = {1 / (2 * kappa) * 1e3:.2f} nm"
 )
 # A spectral refinement check on complex E, including points in both media.
+
+# %% [markdown]
+# **Read the result:** Refine the angular spectrum using complex fields in both media.
+# %%
 probe = points[::60, ::75].reshape(-1, 3)
 a, b = beam(55, count=161), beam(55, count=321)
 
@@ -321,6 +357,8 @@ assert change < 2e-4
 # s-polarized component. Both are scalar field maps with `cmap="hot"`.
 # The interface is at z=0; evanescent transmission is visibly nonzero above it.
 # %%
+# Zoom into the interface to resolve the oscillatory and evanescent near field.
+
 zoom_x = np.linspace(-3, 3, 501)
 zoom_z = np.linspace(-0.5, 0.7, 361)
 ZX, ZZ = np.meshgrid(zoom_x, zoom_z)

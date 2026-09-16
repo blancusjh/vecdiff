@@ -18,6 +18,8 @@
 # [Mie algorithm documentation](https://miepython.readthedocs.io/en/latest/07_algorithm.html)
 # provides the independent multipole reference.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 
@@ -44,6 +46,8 @@ style()
 # interpret it. The search interval is explicit and the selected peak is refined
 # numerically rather than chosen by plotting resolution.
 # %%
+# Scan the independent Mie reference for a sphere resonance.
+
 import miepython
 from scipy.signal import find_peaks
 from scipy.optimize import minimize_scalar
@@ -67,6 +71,10 @@ valleys, _ = find_peaks(-qsca)
 near = valleys[abs(valleys - j) > 5]
 v = near[np.argmin(abs(near - j))]
 off_resonance = float(wavelengths[v])
+
+# %% [markdown]
+# **Read the result:** The Mie scan identifies the wavelength used in the field maps.
+# %%
 fig, ax = plt.subplots(figsize=(10, 4), layout="constrained")
 ax.plot(wavelengths * 1e3, qsca, label=r"$Q_{sca}$")
 ax.plot(
@@ -91,6 +99,8 @@ ax.set(
 )
 ax.legend(fontsize=9)
 show(fig, "04_sphere_resonance_scan")
+
+# Lossless Mie extinction and scattering must agree.
 assert np.max(abs(qext - qsca)) < 1e-10
 print(f"Selected resonance size parameter: {2 * np.pi * radius / resonance:.6f}")
 # %% [markdown]
@@ -105,6 +115,8 @@ print(f"Selected resonance size parameter: {2 * np.pi * radius / resonance:.6f}"
 # The electric and magnetic maps are distinct observables; $Z_0H$ is vecdiff's
 # magnetic-field convention.
 # %%
+# Evaluate resonant and off-resonant E/H fields in the same meridional window.
+
 from matplotlib.patches import Circle
 from matplotlib.colors import LogNorm
 
@@ -117,6 +129,10 @@ for w in [off_resonance, resonance]:
     reference.append(
         mie_fields(points, radius, wavelength=w, sphere_index=sphere_index)
     )
+
+# %% [markdown]
+# **Read the result:** Compare resonance and off-resonance on the same field scale.
+# %%
 fig, axes = plt.subplots(2, 3, figsize=(15, 8), layout="constrained")
 scales = [
     max(np.sum(abs(pair[0]) ** 2, axis=-1).max() for pair in reference),
@@ -148,6 +164,10 @@ for row, ((e, h), w) in enumerate(zip(reference, [off_resonance, resonance])):
         axes[row, col].set_aspect("equal")
 show(fig, "04_sphere_meridional_fields")
 # A full-volume quadrature, not a meridional average, measures stored electric norm.
+
+# %% [markdown]
+# **Read the result:** Check the independent field reference before comparing models.
+# %%
 from numpy.polynomial.legendre import leggauss
 
 u, wu = leggauss(12)
@@ -175,6 +195,8 @@ for w in [off_resonance, resonance]:
 # multipole truncation while comparing complex E and H in both media.
 # This controls the **Mie reference**; it is not validation of the core method.
 # %%
+# Probe two-sided Mie boundary limits and multipole convergence.
+
 from vecdiff import Medium
 from vecdiff.observables.electromagnetism import boundary_residuals
 
@@ -211,6 +233,10 @@ for delta in [1e-4, 1e-6, 1e-8]:
             magnetic_scale=1,
         )
     )
+
+# %% [markdown]
+# **Read the result:** Track boundary jumps as the two-sided offset shrinks.
+# %%
 fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 for key in rows[0]:
     ax.loglog([1e-4, 1e-6, 1e-8], [r[key] for r in rows], "o-", label=key)
@@ -231,6 +257,8 @@ reference_change = np.linalg.norm(
 ) / np.linalg.norm(np.concatenate(more, axis=-1))
 print(f"Extra multipoles: relative complex E/H change {reference_change:.3g}")
 print("Smallest-offset jumps:", rows[-1])
+
+# Control both the boundary offset and multipole truncation.
 assert max(rows[-1].values()) < 1e-4 and reference_change < 1e-7
 # %% [markdown]
 # ## 4. Put the current spectral approximation beside the Mie field
@@ -245,6 +273,8 @@ assert max(rows[-1].values()) < 1e-4 and reference_change < 1e-7
 # singular boundary-limit evaluator. Both maps use the same absolute scale and
 # the error is pointwise complex-vector E error, normalized by incident amplitude.
 # %%
+# Compare the single-encounter spectral model with the full Mie field.
+
 from vecdiff import (
     Sphere,
     SurfaceSampling,
@@ -282,6 +312,10 @@ scattered = SurfaceRadiation.from_boundary(
     Medium(),
     normal_sign=1,
 )
+
+# %% [markdown]
+# **Next step:** Evaluate both models on the same observation grid.
+# %%
 xx = np.linspace(-1.6, 1.6, 101)
 zz = np.linspace(-2, 3, 151)
 ZZ, XX = np.meshgrid(zz, xx)
@@ -294,6 +328,10 @@ approx = np.full(p.shape, np.nan + 0j)
 approx[inside] = out.transmitted.evaluate(p[inside])[0]
 approx[outside] = wave.evaluate(p[outside])[0] + scattered.evaluate(p[outside])[0]
 truth = mie_fields(p, radius, wavelength=resonance, sphere_index=sphere_index)[0]
+
+# %% [markdown]
+# **Read the result:** Map where the single-encounter model differs from full Mie feedback.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 vmax = np.max(np.sum(abs(truth[valid]) ** 2, axis=-1))
 for ax, values, title in zip(
@@ -324,6 +362,8 @@ for ax, values, title in zip(
     ax.add_patch(Circle((0, 0), radius, fill=False, color="cyan"))
     ax.set_aspect("equal")
 show(fig, "04_spectral_vs_mie")
+
+# Report errors inside and outside the sphere separately.
 for name, mask in [("Interior", inside), ("Exterior", outside)]:
     error = np.linalg.norm(approx[mask] - truth[mask]) / np.linalg.norm(truth[mask])
     print(f"{name} complex E relative error at the selected resonance: {error:.2%}")

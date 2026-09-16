@@ -21,6 +21,8 @@
 # response here comes from vecdiff's **main per-k Fresnel surface calculation**.
 # No Richards–Wolf amplitudes enter this notebook.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 
@@ -51,6 +53,8 @@ style()
 # The calculation uses mm internally and µm for the mask coordinates. The
 # finite point-response window is a numerical approximation checked below.
 # %%
+# Form a vector point response, transfer kernel, and coherent mask image.
+
 from time import perf_counter
 from examples.macroscopic_focus import radiation, WAVELENGTH
 from examples.image_formation import (
@@ -73,6 +77,10 @@ from vecdiff import (
     interface_transform,
 )
 
+
+# %% [markdown]
+# **Next step:** Sample the incident beam spectrum and physical curved aperture.
+# %%
 waist_mm = 4.0
 nodes, weights = hermgauss(24)
 KX, KY = np.meshgrid(2 * nodes / waist_mm, 2 * nodes / waist_mm)
@@ -97,6 +105,9 @@ x = (np.arange(count) - count // 2) * pixel
 X, Y = np.meshgrid(x, x)
 
 
+# %% [markdown]
+# **Read the result:** Build the transfer kernel from the vector point response.
+# %%
 def transfer_from_radiation(rad, count, pixel, defocus=0.0):
     axis = (np.arange(count) - count // 2) * pixel * 1e-3
     X, Y = np.meshgrid(axis, axis)
@@ -121,6 +132,10 @@ print(
 mask = circuit_pattern(x)
 field = coherent_image(mask, transfer)
 image = np.sum(abs(field) ** 2, axis=-1)
+
+# %% [markdown]
+# **Read the result:** The mask, point response, and image share physical coordinates.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
 for ax, values, title in zip(
     axes,
@@ -151,7 +166,11 @@ show(fig, "05_mask_psf_image")
 # A longitudinal field can carry pattern information; it is not automatically
 # an unmodulated background.
 # %%
+# Display complex image components before reducing them to intensity.
+
 fig, axes = plt.subplots(2, 3, figsize=(14, 8), layout="constrained")
+
+# Keep component magnitude and phase in separate rows.
 for j, name in enumerate(["x", "y", "z"]):
     scalar_map(
         fig,
@@ -191,6 +210,10 @@ for j, name in enumerate(["x", "y", "z"]):
 for ax in axes.flat:
     ax.set_aspect("equal")
 show(fig, "05_complex_image_field")
+
+# %% [markdown]
+# **Read the result:** Read transverse polarization separately from complex components.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), layout="constrained")
 polarization_map(
     fig, axes[0], field, x, x, title="Coherent image transverse polarization"
@@ -216,6 +239,8 @@ show(fig, "05_polarization_lineout")
 # is exactly periodic on this cell. Its radius is $\sigma\,NA/\lambda_0$.
 # The point-source approximation and discrete source quadrature are explicit.
 # %%
+# Combine independent source points as intensities for partial coherence.
+
 na = 12 / np.sqrt(12**2 + (20 - rad.sampling.surface.sag(12)) ** 2)
 period = count * pixel
 cutoff = na / (wavelength * 1e3)
@@ -223,6 +248,10 @@ sources = disk_sources(0.6 * cutoff * period)
 start = perf_counter()
 partial = aerial_image(mask, transfer, sources)
 print(f"{len(sources)} equally weighted source points: {perf_counter() - start:.3f} s")
+
+# %% [markdown]
+# **Read the result:** Partial coherence adds source intensities, not complex amplitudes.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
 for ax, values, title in zip(
     axes,
@@ -252,6 +281,8 @@ print(
 # plane, not by blurring an intensity image. The central lineout shows the loss
 # of pattern modulation. The zero-defocus gain remains fixed across all planes.
 # %%
+# Repeat the image calculation at explicit defocus values.
+
 defocuses = [-0.6, 0, 0.6]  # µm
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), layout="constrained")
 for ax, dz in zip(axes, defocuses):
@@ -279,6 +310,8 @@ show(fig, "05_defocused_pattern")
 # the change in the aerial image. Neither test validates the isoplanatic model
 # of a real off-axis optical system.
 # %%
+# Refine the image and point-response windows without changing the mask.
+
 wide, _, _ = transfer_from_radiation(rad, 2 * count, pixel)
 wide_image = coherent_image(np.tile(mask, (2, 2)), wide / gain)
 # The mask repeats every count pixels; compare one complete cell.
@@ -297,12 +330,18 @@ print(
 delta = np.zeros_like(mask)
 delta[0, 0] = 1
 recovered = coherent_image(delta, transfer)
+
+# Test transfer normalization before interpreting image convergence.
 assert np.allclose(
     recovered, np.fft.ifft2(transfer, axes=(0, 1)), rtol=1e-10, atol=1e-12
 )
 constant = coherent_image(np.ones_like(mask), transfer)
 assert np.max(abs(np.sum(abs(constant) ** 2, axis=-1) - 1)) < 1e-10
 assert window_error < 1e-3
+
+# %% [markdown]
+# **Read the result:** Plot convergence only after window and normalization checks.
+# %%
 fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 ax.plot(x, image[row], label="512² point-response window")
 ax.plot(

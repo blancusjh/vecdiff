@@ -19,6 +19,8 @@
 # image cell. Mirror coating losses, pupil-dependent transmission and mask/resist
 # physics are absent. The prescription import alone does not supply these.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 
@@ -43,6 +45,8 @@ style()
 # The wavefront map is in nm of optical path, and its piston-removed RMS is
 # measured over the unit pupil.
 # %%
+# Read the stored optical prescription and wavefront reference.
+
 import json
 from scipy.interpolate import RegularGridInterpolator
 from vecdiff.IO import read_prescription
@@ -64,7 +68,13 @@ def wavefront(u, v):
 
 
 rms = np.std(W[inside]) * wavelength * 1e3
+
+# %% [markdown]
+# **Read the result:** The stored wavefront is a reference, not a propagation through 48 faces.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(14, 5), layout="constrained")
+
+# Trace each encounter by physical surface type.
 colors = {"refract": "tab:blue", "reflect": "tab:red", "stop": "black"}
 for encounter in system.encounters:
     a = encounter.semidiameter
@@ -89,6 +99,8 @@ axes[0].set(
     ylabel="Meridional radius (mm)",
     title="Imported 48-encounter DUV geometry",
 )
+
+# Show the stored wavefront separately from the prescription layout.
 scalar_map(
     fig,
     axes[1],
@@ -107,6 +119,8 @@ show(fig, "06_duv_layout_wavefront")
 print(
     f"{data['name']}; λ={wavelength * 1e3:.3f} nm, NA={na}, n={index}, reduction={data['reduction']}:1"
 )
+
+# Check prescription count and stored focal parameters.
 assert len(system.encounters) == 48 and np.isclose(
     system.wavelength, data["wavelength_mm"]
 )
@@ -124,6 +138,8 @@ assert len(system.encounters) == 48 and np.isclose(
 # and pattern imaging. This avoids showing an ideal PSF while imaging with a
 # different, aberrated transfer.
 # %%
+# Build a vector pupil transfer and its focal point-spread function.
+
 from references.projection import pupil_transfer
 from vecdiff import ElectricSpectrum, Medium
 from examples.image_formation import (
@@ -151,6 +167,10 @@ focal_axis = np.linspace(-0.3, 0.3, 301)
 PX, PY = np.meshgrid(focal_axis, focal_axis)
 focal_e, _ = spec.evaluate(np.stack((PX, PY, 0 * PX), axis=-1), backend="nufft")
 focal_norm = np.sum(abs(focal_e) ** 2, axis=-1)
+
+# %% [markdown]
+# **Read the result:** Read all vector PSF components against one stated scale.
+# %%
 fig, axes = plt.subplots(1, 4, figsize=(16, 4), layout="constrained")
 for j, ax in enumerate(axes):
     values = focal_norm if j == 0 else abs(focal_e[..., j - 1]) ** 2
@@ -181,10 +201,16 @@ print(
 # medium. The meridional map resolves the focal region in nanometres.
 # A polarization ellipse describes only the transverse pair $(E_x,E_y)$.
 # %%
+# Inspect the meridional field and transverse polarization near focus.
+
 xx = np.linspace(-0.3, 0.3, 241)
 dz = np.linspace(-0.8, 0.8, 321)
 XM, Z = np.meshgrid(xx, dz)
 e, h = spec.evaluate(np.stack((XM, 0 * XM, Z), axis=-1), backend="nufft")
+
+# %% [markdown]
+# **Read the result:** The meridional window and polarization describe distinct observables.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 5), layout="constrained")
 scalar_map(
     fig,
@@ -232,6 +258,8 @@ assert np.allclose(actual, expected, rtol=1e-9, atol=1e-12)
 # $\sigma=0.6$; source weights sum to one, so increasing source count does not
 # artificially increase illumination power.
 # %%
+# Convolve the circuit mask with the complex vector transfer.
+
 mask = circuit_pattern(x)
 coherent = coherent_image(mask, transfer)
 sources = disk_sources(0.6 * na / wavelength * count * pixel, step=2)
@@ -262,6 +290,10 @@ show(fig, "06_duv_circuit_image")
 print(
     f"Partial-coherence longitudinal electric-norm fraction: {partial[..., 2].sum() / partial.sum():.3%}"
 )
+
+# %% [markdown]
+# **Read the result:** Compare circuit lineouts after viewing the two-dimensional image.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(11, 4), layout="constrained")
 row = np.argmin(abs(x - 0.87))
 axes[0].plot(x, mask[row], ":", label="Mask amplitude")
@@ -294,6 +326,8 @@ show(fig, "06_duv_lineout_source")
 # scalar transfer amplitude. It is a defined scalar approximation, not another
 # Maxwell solution.
 # %%
+# Compare TE/TM grating contrast, source sampling, and image pixels.
+
 ty, _, _ = pupil_transfer(
     FX,
     FY,
@@ -319,6 +353,9 @@ period_counts = np.arange(20, 57, 2)
 half_pitches = period / (2 * period_counts)
 
 
+# %% [markdown]
+# **Next step:** Compute contrast from the vector transfer before plotting it.
+# %%
 def grating_contrast(periods, tf, sources):
     # Fourier coefficients for a centered 50% duty grating; DC transmission 1/2.
     M = np.zeros(count, complex)
@@ -334,6 +371,9 @@ def grating_contrast(periods, tf, sources):
     return (profile.max() - profile.min()) / (profile.max() + profile.min())
 
 
+# %% [markdown]
+# **Read the result:** Contrast curves keep TE and TM pupil assumptions separate.
+# %%
 fig, ax = plt.subplots(figsize=(9, 4.5), layout="constrained")
 for label, tf in [
     ("TE / y polarization", ty),
@@ -350,6 +390,10 @@ ax.set(
 )
 ax.legend()
 show(fig, "06_duv_te_tm_resolution")
+
+# %% [markdown]
+# **Next step:** Refine source and pixel sampling after the contrast curves.
+# %%
 finer_sources = disk_sources(0.6 * na / wavelength * count * pixel, step=1)
 probe_periods = [24, 36, 48]
 changes = [
@@ -371,6 +415,8 @@ t2, _, _ = pupil_transfer(
 e2 = np.fft.fftshift(np.fft.ifft2(t2, axes=(0, 1)), axes=(0, 1))
 x2 = (np.arange(2 * count) - count) * pixel / 2
 w2 = fwhm(x2 * 1e3, np.sum(abs(e2[count]) ** 2, axis=-1))
+
+# Compare pixel refinement after the source calculation.
 print(f"12 → 6 nm pixels: x-FWHM {fwhm(x * 1e3, intensity[mid]):.3f} → {w2:.3f} nm")
 # %% [markdown]
 # ## 6. Distinguish pupil quadrature from focal-pixel resolution
@@ -380,6 +426,8 @@ print(f"12 → 6 nm pixels: x-FWHM {fwhm(x * 1e3, intensity[mid]):.3f} → {w2:.
 # Airy curve below is an independent scalar, unaberrated circular-pupil reference;
 # the aberrated vector x/y profiles need not equal it at high NA.
 # %%
+# Check focal profiles against aperture and period refinements.
+
 from scipy.special import j1
 
 f3 = np.fft.fftfreq(2 * count, d=pixel)
@@ -396,6 +444,10 @@ arg = 2 * np.pi * na * focal_axis / wavelength
 airy = np.ones_like(arg)
 nonzero = arg != 0
 airy[nonzero] = (2 * j1(arg[nonzero]) / arg[nonzero]) ** 2
+
+# %% [markdown]
+# **Read the result:** Use refined radial and focal profiles as numerical controls.
+# %%
 fig, ax = plt.subplots(figsize=(9, 4), layout="constrained")
 fm = len(focal_axis) // 2
 ax.plot(

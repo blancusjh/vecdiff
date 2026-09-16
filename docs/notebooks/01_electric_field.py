@@ -14,6 +14,8 @@
 # **Questions:** Where is the waist? Does the numerical beam follow the paraxial
 # width prediction? How large is $E_z$, and is the normal power conserved?
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 
@@ -39,6 +41,8 @@ style()
 # FFT propagation assumes periodic boundary conditions; the beam must remain
 # well inside the window.
 # %%
+# Specify the sampled waist field and complete its missing longitudinal component.
+
 from vecdiff import (
     CartesianGrid,
     PlaneDomain,
@@ -57,6 +61,10 @@ input_field = TransverseElectricField(
 field = input_field.complete()
 zR = np.pi * waist**2 / wavelength
 print(f"Rayleigh range (paraxial reference): {zR:.3f} µm")
+
+# %% [markdown]
+# **Read the result:** Compare transverse and longitudinal content at the waist.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), layout="constrained")
 for ax, values, title in zip(
     axes,
@@ -92,6 +100,8 @@ show(fig, "01_waist_vector")
 # 241 axial planes and show both the total electric norm and the longitudinal
 # component on their stated, absolute input-amplitude scales.
 # %%
+# Propagate plane by plane; record meridional intensity, width, edge leakage, and flux.
+
 zs = np.linspace(0, 30, 241)
 meridional = []
 longitudinal = []
@@ -123,6 +133,10 @@ for z in zs:
             * 1e-12
         )
     )
+
+# %% [markdown]
+# **Read the result:** The dashed radius is a paraxial reference, not a fitted curve.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), layout="constrained")
 scalar_map(
     fig,
@@ -159,6 +173,8 @@ show(fig, "01_meridional_propagation")
 # not an exact high-NA standard. The power calculation uses modal Poynting flux,
 # not the electric norm.
 # %%
+# Compare beam width and normal power, then inspect the output polarization.
+
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), layout="constrained")
 axes[0].plot(zs, widths, label="Maxwell spectrum, total-electric second moment")
 axes[0].plot(zs, waist * np.sqrt(1 + (zs / zR) ** 2), "--", label="Paraxial Gaussian")
@@ -175,6 +191,10 @@ axes[1].set(
     title="Conserved normal power (periodic cell)",
 )
 show(fig, "01_width_power")
+
+# %% [markdown]
+# **Read the result:** Inspect the propagated output field and its polarization.
+# %%
 end = propagate(field, 30.0)
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.5), layout="constrained")
 scalar_map(
@@ -192,11 +212,17 @@ polarization_map(
 for ax in axes:
     ax.set(xlim=(-6, 6), ylim=(-6, 6), aspect="equal")
 show(fig, "01_output_polarization")
+
+# %% [markdown]
+# **Read the result:** Read the numerical checks alongside the two field figures.
+# %%
 print(
     f"Input longitudinal electric-norm fraction: {np.sum(abs(field.Ez) ** 2) / np.sum(field.norm2()):.4%}"
 )
 print(f"Maximum relative power drift: {np.max(abs(np.array(flux) / flux[0] - 1)):.3g}")
 print(f"Maximum fraction in outermost pixels: {max(edge):.3g}")
+
+# Flux drift and window-edge leakage must remain below tolerance.
 assert np.max(abs(np.array(flux) / flux[0] - 1)) < 1e-10
 assert max(edge) < 1e-6
 
@@ -209,6 +235,9 @@ assert max(edge) < 1e-6
 # Changing the input Gaussian without also changing its wavelength or waist
 # preserves the same physical problem.
 # %%
+# Refine pixel spacing and physical window independently around the same beam.
+
+
 def output_on_grid(dx, count):
     g = CartesianGrid.from_spacing(dx, count)
     xx, yy = g.xy
@@ -218,6 +247,7 @@ def output_on_grid(dx, count):
     return propagate(f, 30.0)
 
 
+# Hold wavelength and waist fixed while changing one grid property.
 fine = output_on_grid(0.05, 512)
 wide = output_on_grid(0.1, 512)
 base = end.components
@@ -247,8 +277,12 @@ assert resolution < 1e-6 and window < 1e-5
 # a numerically growing evanescent re-reference to a distant global origin.
 # This does not make backward evanescent continuation well-conditioned.
 # %%
+# Check that two forward steps agree with one step of the same total distance.
+
 first = propagate(field, 10.0)
 continued = propagate(first, 20.0)
+
+# Compare complex vector components, not only intensities.
 composition_error = np.linalg.norm(
     continued.components - end.components
 ) / np.linalg.norm(end.components)

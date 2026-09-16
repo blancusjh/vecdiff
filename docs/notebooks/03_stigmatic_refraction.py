@@ -16,6 +16,8 @@
 # of the complete dielectric element. The surface is an exit diopter; no entrance
 # face or coating is implied.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 
@@ -42,6 +44,8 @@ style()
 # A stigmatic surface has constant $L$. This geometric criterion fixes phase;
 # the Fresnel transformation still determines the amplitudes and polarization.
 # %%
+# Construct the conic interface and verify equal optical path to the focus.
+
 from time import perf_counter
 from vecdiff import (
     EvenAsphere,
@@ -68,6 +72,10 @@ r = np.linspace(0, aperture, 1001)
 sag = surface.sag(r)
 opl = 1.5 * sag + np.sqrt(r * r + (focus[2] - sag) ** 2)
 na = aperture / np.sqrt(aperture**2 + (focus[2] - sag[-1]) ** 2)
+
+# %% [markdown]
+# **Read the result:** Geometry and optical-path spread are shown on physical coordinates.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 rfull = np.r_[-r[::-1], r]
 zfull = surface.sag(abs(rfull))
@@ -91,6 +99,8 @@ axes[1].set(
     title="Stigmatic optical path, before diffraction",
 )
 show(fig, "03_stigmatic_geometry")
+
+# Equal path is a geometric check, independent of focal amplitude.
 assert np.ptp(opl) / wavelength < 1e-8
 print(
     f"Image-side NA = {na:.6f}; aperture diameter / wavelength = {2 * aperture / wavelength:,.0f}"
@@ -108,6 +118,8 @@ print(f"Fresnel traces and local-spectrum construction: {construction:.3f} s")
 # normalization. Each component has an explicit colorbar; the total is not
 # silently substituted for $E_x$.
 # %%
+# Evaluate complex focal and meridional vector fields on physical coordinates.
+
 x = np.linspace(-3, 3, 241) * wavelength
 z = np.linspace(-12, 12, 321) * wavelength
 X, Y = np.meshgrid(x, x)
@@ -119,6 +131,10 @@ e, h = local.evaluate(xy, backend="nufft")
 em, hm = local.evaluate(xz, backend="nufft")
 seconds = perf_counter() - start
 peak = np.sum(abs(e) ** 2, axis=-1).max()
+
+# %% [markdown]
+# **Read the result:** Keep component scales explicit when reading the vector field maps.
+# %%
 fig, axes = plt.subplots(2, 4, figsize=(16, 8), layout="constrained")
 for row, field, xx, yy, vertical in [
     (0, e, x * 1e3, x * 1e3, "y (µm)"),
@@ -168,6 +184,8 @@ print(
 # input. Ellipses are drawn only where the transverse norm exceeds 1% of its peak;
 # phase and polarization at field zeros are undefined.
 # %%
+# Measure spot width and encircled flux separately from electric-field maps.
+
 from vecdiff.observables.electromagnetism import poynting
 
 intensity = np.sum(abs(e) ** 2, axis=-1)
@@ -201,6 +219,10 @@ circular = plane_wave(
 )
 crad = interface_transform(circular, interface, sampling).transmitted
 ce, _ = crad.local_spectrum(focus, 15 * wavelength).evaluate(xy, backend="nufft")
+
+# %% [markdown]
+# **Read the result:** Show transverse polarization after measuring widths and flux.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), layout="constrained")
 polarization_map(
     fig, axes[0], e, x * 1e3, x * 1e3, title="Linear x input: focal polarization"
@@ -218,6 +240,8 @@ show(fig, "03_stigmatic_polarization")
 # The bound covers only the first of these. None measures the error of the
 # local Fresnel boundary approximation against a globally solved dielectric.
 # %%
+# Compare radiation kernels, source quadrature, and spectral evaluation.
+
 points = focus + wavelength * np.array(
     [[a, b, c] for a in [-3, 0, 3] for b in [-1, 1] for c in [-12, 0, 12]]
 )
@@ -247,9 +271,15 @@ for name, value in errors.items():
 print(
     f"Absolute E bound / focal peak amplitude: {local.electric_error_bound / np.sqrt(peak):.4%}"
 )
+
+# Require agreement after each numerical refinement.
 assert errors["Local / full radiation kernel"] < 3e-4
 assert errors["48×96 / 72×144 source nodes"] < 1e-7
 assert errors["NUFFT / direct spectral sum"] < 1e-8
+
+# %% [markdown]
+# **Read the result:** Plot the kernel and quadrature errors after the assertions.
+# %%
 fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
 ax.semilogy(
     range(len(points)),

@@ -17,6 +17,8 @@
 # intermediate caustics, vignetting, grazing and evanescent transmission. It is
 # not a replacement for the general spectral method in arbitrary regimes.
 # %%
+# Locate this checkout and initialize inline figures.
+
 from pathlib import Path
 import sys
 import json
@@ -67,6 +69,8 @@ style()
 # contribution. Its single-phase input is a leading WKB field, not an exact
 # Gaussian Maxwell solution; that approximation is measured below.
 # %%
+# Transport the input phase through both curved faces and recover optical path.
+
 wavelength = 0.000193368
 start = time.perf_counter()
 result, focus = response(wavelength=wavelength, waist=1.0)
@@ -74,7 +78,13 @@ transport_seconds = time.perf_counter() - start
 assembly, aperture, _ = configuration()
 first, last = result.modes[0]
 opl = last.optical_path + np.linalg.norm(focus - last.sampling.points, axis=-1)
+
+# Stigmatic optical path is checked before plotting rays.
 assert np.ptp(opl) / wavelength < 1e-7
+
+# %% [markdown]
+# **Read the result:** Both surfaces and the recovered optical path are shown together.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
 for interface, radius, label in zip(
     assembly.interfaces, [4.0, 3.5], ["Entrance asphere", "Exit sphere"]
@@ -119,6 +129,8 @@ print(
 # colorbar, normalized to the same total electric-norm peak.
 # The longitudinal window spans 464 µm, while the transverse window spans 7.73 µm.
 # %%
+# Evaluate the second-face currents at focal and meridional observations.
+
 x = np.linspace(-20, 20, 161) * wavelength
 z = np.linspace(-1200, 1200, 193) * wavelength
 X, Y = np.meshgrid(x, x)
@@ -134,7 +146,13 @@ field_seconds = time.perf_counter() - start
 e = focal.electric
 em = meridional.electric
 peak = np.sum(abs(e) ** 2, axis=-1).max()
+
+# %% [markdown]
+# **Read the result:** The final-current field maps retain explicit component normalization.
+# %%
 fig, axes = plt.subplots(2, 3, figsize=(15, 9), layout="constrained")
+
+# Plot total and individual focal components against one focal peak.
 scalar_map(
     fig,
     axes[0, 0],
@@ -165,6 +183,8 @@ scalar_map(
     ylabel="y (µm)",
     label=r"$|E_z|^2$ / total focal peak",
 )
+
+# Use the same peak when comparing focal and meridional maps.
 scalar_map(
     fig,
     axes[1, 0],
@@ -185,6 +205,8 @@ scalar_map(
     ylabel="z − f (µm)",
     label=r"$|E_z|^2$ / total focal peak",
 )
+
+# Draw transverse polarization separately from scalar intensity.
 polarization_map(
     fig, axes[1, 2], e, x * 1e3, x * 1e3, title="Transverse polarization at focus"
 )
@@ -202,6 +224,8 @@ print(
 # each angle, followed by current radiation. A translated on-axis line is drawn
 # solely as a comparison and never used to calculate an image.
 # %%
+# Propagate displaced source directions independently through both faces.
+
 angles = [0.0, 0.02, 0.1]
 line_x = np.linspace(-20, 20, 401) * wavelength
 lines = []
@@ -214,6 +238,10 @@ for angle in angles:
         backend="auto",
     )
     lines.append(np.sum(abs(values.electric) ** 2, axis=-1))
+
+# %% [markdown]
+# **Read the result:** Compare recomputed off-axis profiles with a shifted on-axis control.
+# %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
 for ax, angle, values in zip(axes, angles[1:], lines[1:]):
     ax.plot(line_x * 1e3, values / lines[0].max(), label="Recomputed two-face response")
@@ -244,6 +272,8 @@ show(fig, "09_two_interface_off_axis")
 # precomputed image. This recovers the specialized finite-conjugate use case
 # within the same transport algorithm and then tests departure from stigmatism.
 # %%
+# Recover finite-conjugate fields from unchanged physical surfaces.
+
 from examples.macroscopic_element import finite_conjugate_response
 
 fx = np.linspace(-25, 25, 161) * wavelength
@@ -270,6 +300,10 @@ assert (
     < 1e-7
 )
 finite_peak = np.sum(abs(finite_fields[0]) ** 2, axis=-1).max()
+
+# %% [markdown]
+# **Read the result:** Finite-conjugate maps use the same physical surfaces for both objects.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
 for ax, field, offset in zip(axes[:2], finite_fields, [0.0, 50.0]):
     scalar_map(
@@ -313,19 +347,29 @@ show(fig, "09_finite_conjugates")
 # an exact full-Maxwell error or speedup. The beam spectrum is refined to 25×25
 # Gauss–Hermite modes; the field amplitude at its truncation edge is below $10^{-5}$.
 # %%
+# Compare inter-face transport and phase compression with direct references.
+
 from benchmarks.high_frequency_transport import propagation_case
 
 report = json.loads(
     (root / "benchmarks/results/high_frequency_transport.json").read_text()
 )
 fresh = propagation_case(100)
+
+# Test the direct reference and source quadrature before timing.
 assert fresh["reference_converged"]
 assert fresh["complex_EH_relative_error"] < 0.001
 rows = report["propagation"]
 compression = report["macroscopic_compression"]
 assert all(r["reference_converged"] for r in rows)
 assert compression["multiple_phase_source_quadrature_change"] < 1e-7
+
+# %% [markdown]
+# **Read the result:** Separate reference error, transport time, and phase-compression cost.
+# %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+
+# First panel: field error against direct first-face radiation.
 size = [r["radius_over_wavelength"] for r in rows]
 axes[0].loglog(
     size,
@@ -345,6 +389,8 @@ axes[0].set(
     title="Against direct first-face radiation",
 )
 axes[0].legend(fontsize=8)
+
+# Second panel: time for the same held observations.
 axes[1].loglog(
     size,
     [r["direct_seconds"][-1] for r in rows],
@@ -366,6 +412,8 @@ axes[1].set(
     title="Five observations at the second face",
 )
 axes[1].legend(fontsize=8)
+
+# Third panel: full two-face image cost for one or many phases.
 axes[2].bar(
     ["One phase", "625 phases"],
     [compression["single_phase_seconds"], compression["multiple_phase_seconds"][-1]],
@@ -394,6 +442,8 @@ print(
 # distinction. Doubling numerical resolutions must not be confused with reducing
 # the omitted high-frequency wave correction.
 # %%
+# Check local Fresnel laws, ray-tube power, and final-current refinement.
+
 for j, (interface, record) in enumerate(zip(assembly.interfaces, result.modes[0])):
     b = record.boundary
     q = record.sampling
@@ -418,6 +468,12 @@ for j, (interface, record) in enumerate(zip(assembly.interfaces, result.modes[0]
     print(
         f"Face {j + 1}: local Fresnel residual={max(residual.values()):.3e}; reflected power={-pr / pin:.6f}; transmitted power={pt / pin:.6f}"
     )
+
+# Refine final-current quadrature and derivative step at held observations.
+
+# %% [markdown]
+# **Next step:** Refine the final current radiation at held-out image points.
+# %%
 held = focus + wavelength * np.array(
     [[-10, 0, -40], [-3, 2, 0], [0, 0, 0], [4, -2, 20], [10, 0, 40]]
 )
