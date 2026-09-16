@@ -180,7 +180,7 @@ print(
     f"Transport through both faces: {transport_seconds:.4f} s; samples: {len(last.sampling.points):,}; OPL spread: {np.ptp(opl) / wavelength:.3e} wavelengths"
 )
 # %% [markdown]
-# ## 3. Resulting focal electric field, meridional structure and polarization
+# ## 3. Observe the two-face image in distinct planes
 #
 # The final equivalent currents are constructed from the transmitted vector
 # fields on the **second** face. The following maps evaluate those currents.
@@ -188,29 +188,43 @@ print(
 # colorbar, normalized to the same total electric-norm peak.
 # The spatial meridional map spans 46.4 µm axially and 7.73 µm transversely.
 # A separate on-axis lineout retains the broader 464-µm axial range.
+# %% [markdown]
+# ### Focal observation plane: x–y at z = f
+#
+# Fix z at the final focus (40 mm). Both axes are transverse image coordinates.
 # %%
-# Evaluate the second-face currents at focal and meridional observations.
 
 x = np.linspace(-20, 20, 161) * wavelength
-z = np.linspace(-120, 120, 193) * wavelength
 X, Y = np.meshgrid(x, x)
-XM, Z = np.meshgrid(x, z)
 start = time.perf_counter()
 focal = result.transmitted.evaluate_local(
     focus + np.stack((X, Y, 0 * X), axis=-1), radius=5 * wavelength, backend="auto"
 )
-meridional = result.transmitted.evaluate_local(
-    focus + np.stack((XM, 0 * XM, Z), axis=-1), radius=5 * wavelength, backend="auto"
-)
-field_seconds = time.perf_counter() - start
+focal_seconds = time.perf_counter() - start
 e = focal.electric
-em = meridional.electric
 peak = np.sum(abs(e) ** 2, axis=-1).max()
 
 # %% [markdown]
-# **Read the result:** Square focal maps and tall meridional maps use separate layouts.
+# ### Meridional plane: x–z at y = 0
+#
+# Fix y at zero and vary z across the focus. The vertical axis is $z-f$;
+# this is a longitudinal slice, not the transverse focal observation plane.
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(15, 5.5), layout="constrained")
+z = np.linspace(-120, 120, 193) * wavelength
+XM, Z = np.meshgrid(x, z)
+start = time.perf_counter()
+meridional = result.transmitted.evaluate_local(
+    focus + np.stack((XM, 0 * XM, Z), axis=-1), radius=5 * wavelength, backend="auto"
+)
+meridional_seconds = time.perf_counter() - start
+em = meridional.electric
+field_seconds = focal_seconds + meridional_seconds
+
+# %% [markdown]
+# **Focal-plane maps:** vector field components in x–y at z = f.
+# %%
+fig, axes = plt.subplots(1, 4, figsize=(18, 5.5), layout="constrained")
+fig.suptitle("Focal observation plane: x–y at z = f")
 
 # Plot total and individual focal components against one focal peak.
 scalar_map(
@@ -243,16 +257,17 @@ scalar_map(
     ylabel="y (µm)",
     label=r"$|E_z|^2$ / total focal peak",
 )
+
+# Polarization is also evaluated on the transverse focal grid.
+polarization_map(fig, axes[3], e, x * 1e3, x * 1e3, title="Transverse polarization")
 show(fig, "09_two_interface_focal_fields")
 
-# The meridional maps need a taller frame; the polarization map is square.
-fig, axes = plt.subplots(
-    1,
-    3,
-    figsize=(15, 10),
-    gridspec_kw={"width_ratios": [1, 1, 2]},
-    layout="constrained",
-)
+# %% [markdown]
+# **Meridional maps:** the same transmitted currents observed along x–z at
+# y = 0. These plots are separate from the focal x–y maps above.
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(8, 10), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 
 # Use the same peak when comparing focal and meridional maps.
 scalar_map(
@@ -276,11 +291,7 @@ scalar_map(
     label=r"$|E_z|^2$ / total focal peak",
 )
 
-# Draw transverse polarization separately from scalar intensity.
-polarization_map(
-    fig, axes[2], e, x * 1e3, x * 1e3, title="Transverse polarization at focus"
-)
-show(fig, "09_two_interface_fields")
+show(fig, "09_two_interface_meridional_fields")
 
 # Preserve the broader longitudinal view as a one-dimensional observable.
 z_long = np.linspace(-1200, 1200, 241) * wavelength

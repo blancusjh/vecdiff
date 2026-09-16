@@ -230,9 +230,11 @@ cases = [
 beam_results = []
 
 # %% [markdown]
-# **Read the result:** Each panel reconstructs the field on the correct side of the interface.
+# **Meridional plane:** x–z at y = 0. Each panel reconstructs the physical
+# field on the correct side of the interface.
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(13, 9), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 
 for ax, (angle, pol, title) in zip(axes.flat, cases):
     incoming = beam(angle, pol)
@@ -284,6 +286,7 @@ for spectrum, region in [
     separate.append(values)
 
 fig, axes = plt.subplots(1, 4, figsize=(16, 4.5), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 
 for ax, values, title in zip(
     axes,
@@ -405,6 +408,7 @@ ZX, ZZ = np.meshgrid(zoom_x, zoom_z)
 zoom_points = np.stack((ZX, 0 * ZX, ZZ), axis=-1)
 zoom_e = physical_field(beam(55), zoom_points.reshape(-1, 3)).reshape(zoom_points.shape)
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
     fig,
     axes[0],

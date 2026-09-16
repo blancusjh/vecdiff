@@ -142,46 +142,37 @@ print(
 )
 print(f"Fresnel traces and local-spectrum construction: {construction:.3f} s")
 # %% [markdown]
-# ## 2. Evaluate the focal electric and magnetic fields
+# ## 2. Observe the electric and magnetic fields near the focus
 #
 # The local expansion is built from the **computed equivalent currents** on the
 # surface, with no Richards–Wolf pupil. It is restricted to a ball around the
 # focus and carries a bound on its radiation-kernel approximation. Coordinates
 # in the following plots are converted from mm to µm.
 #
-# Both transverse and meridional maps use the same focal total-norm peak as
-# normalization. Each component has an explicit colorbar; the total is not
-# silently substituted for $E_x$.
+# Both planes use the same focal total-norm peak as normalization. Each
+# component has an explicit colorbar.
+# %% [markdown]
+# ### Focal observation plane: x–y at z = f
+#
+# Here $z=f=20$ mm is fixed. Both plotted axes are transverse coordinates.
 # %%
-# Evaluate complex focal and meridional vector fields on physical coordinates.
 
 x = np.linspace(-3, 3, 241) * wavelength
-z = np.linspace(-12, 12, 321) * wavelength
 X, Y = np.meshgrid(x, x)
-XM, Z = np.meshgrid(x, z)
 xy = focus + np.stack((X, Y, 0 * X), axis=-1)
-xz = focus + np.stack((XM, 0 * XM, Z), axis=-1)
 start = perf_counter()
 e, h = local.evaluate(xy, backend="nufft")
-em, hm = local.evaluate(xz, backend="nufft")
-seconds = perf_counter() - start
+focal_seconds = perf_counter() - start
 peak = np.sum(abs(e) ** 2, axis=-1).max()
 
-# %% [markdown]
-# **Read the result:** Keep component scales explicit when reading the vector field maps.
-# %%
-fig, axes = plt.subplots(
-    2,
-    4,
-    figsize=(18, 14),
-    gridspec_kw={"height_ratios": [1, 2.5]},
-    layout="constrained",
-)
 
-for row, field, xx, yy, vertical in [
-    (0, e, x * 1e3, x * 1e3, "y (µm)"),
-    (1, em, x * 1e3, z * 1e3, "z − f (µm)"),
-]:
+# %% [markdown]
+# **Focal-plane maps:** total field and x, y, z vector components at z = f.
+# %%
+def vector_component_figure(field, xx, yy, vertical, plane, figsize):
+    fig, axes = plt.subplots(1, 4, figsize=figsize, layout="constrained")
+    fig.suptitle(plane)
+
     for col in range(4):
         values = (
             np.sum(abs(field) ** 2, axis=-1)
@@ -191,30 +182,68 @@ for row, field, xx, yy, vertical in [
         title = ["Total electric norm", r"$|E_x|^2$", r"$|E_y|^2$", r"$|E_z|^2$"][col]
         scalar_map(
             fig,
-            axes[row, col],
+            axes[col],
             values / peak,
             xx,
             yy,
             title,
             ylabel=vertical,
             label="Component / focal total peak",
-            vmax=max(np.max(values) / peak, 1e-4),
+            vmax=max(np.max(values) / peak, 1e-14),
         )
 
         if np.max(values) / peak < 1e-14:
-            axes[row, col].text(
+            axes[col].text(
                 0.5,
                 0.5,
                 "Numerically negligible\n(< 10⁻¹⁴ of focal peak)",
-                transform=axes[row, col].transAxes,
+                transform=axes[col].transAxes,
                 ha="center",
                 color="white",
                 fontsize=9,
             )
 
-show(fig, "03_stigmatic_vector_fields")
+    return fig
+
+
+fig = vector_component_figure(
+    e,
+    x * 1e3,
+    x * 1e3,
+    "y (µm)",
+    "Focal observation plane: x–y at z = f",
+    (18, 5),
+)
+show(fig, "03_stigmatic_focal_fields")
+
+# %% [markdown]
+# ### Meridional plane: x–z at y = 0
+#
+# This is a longitudinal slice through the focus. The vertical coordinate is
+# $z-f$, so positive and negative values lie after and before the focal plane.
+# %%
+z = np.linspace(-12, 12, 321) * wavelength
+XM, Z = np.meshgrid(x, z)
+xz = focus + np.stack((XM, 0 * XM, Z), axis=-1)
+start = perf_counter()
+em, hm = local.evaluate(xz, backend="nufft")
+meridional_seconds = perf_counter() - start
+
+# %% [markdown]
+# **Meridional maps:** the same components along x–z at y = 0, distinct from
+# the x–y focal observation plane above.
+# %%
+fig = vector_component_figure(
+    em,
+    x * 1e3,
+    z * 1e3,
+    "z − f (µm)",
+    "Meridional plane: x–z at y = 0",
+    (18, 11),
+)
+show(fig, "03_stigmatic_meridional_fields")
 print(
-    f"{e.shape[0] * e.shape[1] + em.shape[0] * em.shape[1]:,} E/H observations: {seconds:.3f} s"
+    f"{e.shape[0] * e.shape[1] + em.shape[0] * em.shape[1]:,} E/H observations: {focal_seconds + meridional_seconds:.3f} s"
 )
 # %% [markdown]
 # ## 3. Measure the focal spot and polarization

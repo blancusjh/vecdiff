@@ -193,9 +193,11 @@ focal_e, _ = spec.evaluate(np.stack((PX, PY, 0 * PX), axis=-1), backend="nufft")
 focal_norm = np.sum(abs(focal_e) ** 2, axis=-1)
 
 # %% [markdown]
-# **Read the result:** Read all vector PSF components against one stated scale.
+# **Focal observation plane:** x–y at z = 0. Read all vector PSF components
+# against one stated total-norm scale.
 # %%
 fig, axes = plt.subplots(1, 4, figsize=(18, 5.5), layout="constrained")
+fig.suptitle("Focal observation plane: x–y at z = 0")
 
 for j, ax in enumerate(axes):
     values = focal_norm if j == 0 else abs(focal_e[..., j - 1]) ** 2
@@ -220,14 +222,18 @@ print(
     f"Longitudinal electric-norm fraction in full cell: {np.sum(abs(psf[..., 2]) ** 2) / intensity.sum():.2%}"
 )
 # %% [markdown]
-# ## 3. Examine through-focus propagation and focal polarization
+# ## 3. Examine the meridional field and focal polarization separately
 #
 # The homogeneous propagation below evaluates the vector `ElectricSpectrum`;
 # every populated mode satisfies $\mathbf k\cdot\mathbf E=0$ in the immersion
 # medium. The meridional map resolves the focal region in nanometres.
 # A polarization ellipse describes only the transverse pair $(E_x,E_y)$.
+# %% [markdown]
+# ### Meridional plane: x–z at y = 0
+#
+# The horizontal coordinate is x; the vertical coordinate is defocus from z=0.
+# These maps are longitudinal slices, not focal observation-plane maps.
 # %%
-# Inspect the meridional field and transverse polarization near focus.
 
 xx = np.linspace(-0.3, 0.3, 241)
 dz = np.linspace(-0.8, 0.8, 321)
@@ -235,15 +241,10 @@ XM, Z = np.meshgrid(xx, dz)
 e, h = spec.evaluate(np.stack((XM, 0 * XM, Z), axis=-1), backend="nufft")
 
 # %% [markdown]
-# **Read the result:** The meridional window and polarization describe distinct observables.
+# **Meridional maps:** field components along x–z at y = 0.
 # %%
-fig, axes = plt.subplots(
-    1,
-    3,
-    figsize=(15, 7),
-    gridspec_kw={"width_ratios": [1, 1, 2]},
-    layout="constrained",
-)
+fig, axes = plt.subplots(1, 2, figsize=(10, 7), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
     fig,
     axes[0],
@@ -252,7 +253,7 @@ scalar_map(
     dz * 1e3,
     "Meridional total field",
     xlabel="x (nm)",
-    ylabel="Defocus (nm)",
+    ylabel="z − f (nm)",
     label="Electric norm / focal peak",
 )
 scalar_map(
@@ -263,13 +264,23 @@ scalar_map(
     dz * 1e3,
     "Meridional longitudinal field",
     xlabel="x (nm)",
-    ylabel="Defocus (nm)",
+    ylabel="z − f (nm)",
     label="Longitudinal norm / focal peak",
 )
+show(fig, "06_duv_meridional_fields")
+
+# %% [markdown]
+# ### Focal observation plane: x–y at z = 0
+#
+# Polarization uses `focal_e`, evaluated earlier on the transverse focal grid.
+# Both axes now lie in the image plane; defocus is fixed at zero.
+# %%
+fig, ax = plt.subplots(figsize=(6, 6), layout="constrained")
+fig.suptitle("Focal observation plane: x–y at z = 0")
 polarization_map(
-    fig, axes[2], focal_e, focal_axis, focal_axis, title="Focal transverse polarization"
+    fig, ax, focal_e, focal_axis, focal_axis, title="Transverse polarization"
 )
-show(fig, "06_duv_meridional_polarization")
+show(fig, "06_duv_focal_polarization")
 # Same field via FFT and continuous spectrum at held-out focal pixels.
 ix = np.arange(mid - 12, mid + 13, 3)
 iy = np.arange(mid - 12, mid + 13, 4)

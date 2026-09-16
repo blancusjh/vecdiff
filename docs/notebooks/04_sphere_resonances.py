@@ -132,9 +132,11 @@ for w in [off_resonance, resonance]:
     )
 
 # %% [markdown]
-# **Read the result:** Compare resonance and off-resonance on the same field scale.
+# **Meridional plane:** z–x at y = 0. Compare resonance and off-resonance
+# on the same field scale.
 # %%
 fig, axes = plt.subplots(2, 3, figsize=(16, 8), layout="constrained")
+fig.suptitle("Meridional plane: z–x at y = 0")
 scales = [
     max(np.sum(abs(pair[0]) ** 2, axis=-1).max() for pair in reference),
     max((abs(pair[0][..., 2]) ** 2).max() for pair in reference),
@@ -359,6 +361,7 @@ truth = mie_fields(p, radius, wavelength=resonance, sphere_index=sphere_index)[0
 # **Read the result:** Map where the single-encounter model differs from full Mie feedback.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(16, 5.5), layout="constrained")
+fig.suptitle("Meridional plane: z–x at y = 0")
 vmax = np.max(np.sum(abs(truth[valid]) ** 2, axis=-1))
 
 for ax, values, title in zip(

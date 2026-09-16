@@ -79,9 +79,10 @@ zR = np.pi * waist**2 / wavelength
 print(f"Rayleigh range (paraxial reference): {zR:.3f} µm")
 
 # %% [markdown]
-# **Read the result:** Compare transverse and longitudinal content at the waist.
+# **Waist observation plane:** x–y at z = 0; both axes are transverse.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), layout="constrained")
+fig.suptitle("Waist observation plane: x–y at z = 0")
 
 for ax, values, title in zip(
     axes,
@@ -112,7 +113,7 @@ for ax, values, title in zip(
 
 show(fig, "01_waist_vector")
 # %% [markdown]
-# ## 2. Propagate and extract an actual meridional field
+# ## 2. Propagate in the meridional x–z plane at y = 0
 #
 # Each spatial frequency acquires $e^{ik_z z}$, with the decaying branch for
 # evanescent waves. We retain the complex field. The following x–z maps use
@@ -159,9 +160,10 @@ for z in zs:
     )
 
 # %% [markdown]
-# **Read the result:** The dashed radius is a paraxial reference, not a fitted curve.
+# **Meridional plane:** x–z at y = 0. The dashed radius is a paraxial reference.
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(12, 9), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
     fig,
     axes[0],

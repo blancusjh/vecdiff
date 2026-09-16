@@ -178,9 +178,11 @@ print(
 )
 
 # %% [markdown]
-# **Read the result:** Each spot is recomputed for its source angle and surface type.
+# **Focal observation planes:** x–y at each surface's image-centre z.
+# The top row is refraction at z = 20 mm; the bottom is reflection at z = −5 mm.
 # %%
 fig, axes = plt.subplots(2, 4, figsize=(18, 6), layout="constrained")
+fig.suptitle("Focal x–y planes: refraction z = 20 mm; reflection z = −5 mm")
 
 for j, kind in enumerate(["refraction", "reflection"]):
     peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
@@ -233,52 +235,69 @@ for row, kind in enumerate(["refraction", "reflection"]):
 
 show(fig, "08_shift_comparison")
 # %% [markdown]
-# ## 4. Through-focus structure and polarization of the off-axis image
+# ## 4. Observe the off-axis image in two distinct planes
 #
 # The refracting conic at $0.002^\circ$ already departs strongly from its stigmatic
 # on-axis image. Meridional coordinates are physical offsets from the predicted
 # focus. Ellipses show the transverse polarization, with low-intensity pixels
 # excluded; longitudinal electric energy is shown separately.
 # %%
-# Inspect one off-axis vector field in focal and meridional planes.
+# Select one source direction and retain the on-axis normalization.
 
 kind = "refraction"
 angle = 0.002
 rad = radiations[kind, angle]
 center = centers[kind, angle]
+peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
+
+# %% [markdown]
+# ### Meridional plane: x–z at y = 0
+#
+# This longitudinal slice passes through the predicted image centre. The
+# vertical axis is the physical offset $z-z_{center}$, not a transverse y axis.
+# %%
 z = np.linspace(-10, 10, 151) * WAVELENGTH
 xm = np.linspace(-6, 9, 151) * WAVELENGTH
 XM, Z = np.meshgrid(xm, z)
 meridional = rad.evaluate_local(
     center + np.stack((XM, 0 * XM, Z), axis=-1), radius=4 * WAVELENGTH
 ).electric
-e = fields[kind, angle]
-peak = np.sum(abs(fields[kind, 0.0]) ** 2, axis=-1).max()
 
 # %% [markdown]
-# **Read the result:** Inspect longitudinal field and polarization off axis.
+# **Meridional map:** electric norm in the x–z slice at y = 0.
 # %%
-fig, axes = plt.subplots(
-    1,
-    3,
-    figsize=(17, 6),
-    gridspec_kw={"width_ratios": [1.2, 2, 2]},
-    layout="constrained",
-)
+fig, ax = plt.subplots(figsize=(7, 6), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 scalar_map(
     fig,
-    axes[0],
+    ax,
     np.sum(abs(meridional) ** 2, axis=-1) / peak,
     xm * 1e3,
     z * 1e3,
     "Off-axis meridional field",
     xlabel="x − predicted image (µm)",
-    ylabel="z − f (µm)",
+    ylabel="z − image centre (µm)",
     label="Electric norm² / on-axis peak",
 )
+show(fig, "08_off_axis_meridional_field")
+
+# %% [markdown]
+# ### Focal observation plane: x–y at z = image centre
+#
+# The focal field below is evaluated at fixed z. Both plot axes are transverse
+# offsets from the predicted image centre; it is separate from the x–z slice.
+# %%
+e = fields[kind, angle]
+
+# %% [markdown]
+# **Focal-plane maps:** longitudinal electric component and transverse
+# polarization in x–y at the image-centre z coordinate.
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(14, 4.5), layout="constrained")
+fig.suptitle("Focal observation plane: x–y at z = image centre")
 scalar_map(
     fig,
-    axes[1],
+    axes[0],
     abs(e[..., 2]) ** 2 / peak,
     x * 1e3,
     y * 1e3,
@@ -288,9 +307,10 @@ scalar_map(
     label=r"$|E_z|^2$ / on-axis total peak",
 )
 polarization_map(
-    fig, axes[2], e, x * 1e3, y * 1e3, title="Off-axis transverse polarization"
+    fig, axes[1], e, x * 1e3, y * 1e3, title="Off-axis transverse polarization"
 )
-show(fig, "08_off_axis_vector_field")
+axes[1].set_xlabel("x − predicted image (µm)")
+show(fig, "08_off_axis_focal_fields")
 # %% [markdown]
 # ## 5. Form a scene by propagating each source, then combine fields
 #

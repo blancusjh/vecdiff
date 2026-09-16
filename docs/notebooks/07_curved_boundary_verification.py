@@ -106,9 +106,11 @@ physical[above] = et
 reflected[below] = er
 
 # %% [markdown]
-# **Read the result:** Show the physical fields before using boundary residuals.
+# **Meridional plane:** x–z at y = 0. Show the physical fields before using
+# boundary residuals.
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), layout="constrained")
+fig.suptitle("Meridional plane: x–z at y = 0")
 
 for ax, values, title in zip(
     axes,
