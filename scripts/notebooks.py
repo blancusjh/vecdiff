@@ -26,7 +26,7 @@ maintained numerical dependency requires re-executing the suite before merge.
     paths = set()
     for pattern in ('vecdiff/**/*.py', 'references/**/*.py', 'examples/*.py',
                     'benchmarks/**/*.py', 'benchmarks/results/*.json',
-                    'docs/notebooks/*.py', 'scripts/*.py'):
+                    'docs/notebooks/*.py', 'scripts/*.py', 'examples/data/*.csv', 'examples/data/*.json'):
         paths.update(ROOT.glob(pattern))
     for name in ('pyproject.toml', 'requirements-validation.txt'):
         if (ROOT/name).exists(): paths.add(ROOT/name)
@@ -94,8 +94,10 @@ def main():
             manager._kernel_spec = KernelSpec(argv=[sys.executable, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
                                               display_name="vecdiff validation", language="python")
             start = time.perf_counter()
+            # An injected manager is not owned by nbclient; close each kernel
+            # after execution so the nine-notebook run does not leak sockets.
             NotebookClient(nb, km=manager, timeout=600, allow_errors=False,
-                           resources={"metadata": {"path": str(ROOT)}}).execute()
+                           resources={"metadata": {"path": str(ROOT)}}).execute(cleanup_kc=True)
             figures = sum("image/png" in item.get("data", {})
                           for cell in nb.cells for item in cell.get("outputs", []))
             if figures == 0:

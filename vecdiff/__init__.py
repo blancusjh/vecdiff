@@ -14,6 +14,10 @@ from .sampling.surface_sampling import SurfaceSampling, sample_surface
 from .surfaces.surface import Surface, Plane, FreeformSurface
 from .surfaces.axisymmetric import AxisymmetricSurface, Sphere, SphericalCap
 from .surfaces.cartesian_oval import CartesianOval
+from .surfaces.asphere import EvenAsphere
+from .fields.local_spectrum import LocalElectricSpectrum
+from .fields.eikonal_field import EikonalElectricField
+from .interfaces.optical_system import OpticalSystem, SurfaceEncounter
 from .interfaces.dielectric_interface import DielectricInterface
 from .interfaces.assembly import InterfaceAssembly
 from .propagation.propagation import propagate, spectrum_of
@@ -21,6 +25,7 @@ from .propagation.interface_transform import interface_transform
 from .propagation.layered_propagation import propagate_layers, LayeredElectricField
 from .propagation.multiple_scattering import coherent_feedback, FeedbackResult, ConvergenceError
 from .propagation.interface_assembly import propagate_interfaces, AssemblyElectricField
+from .propagation.high_frequency import propagate_high_frequency, sample_high_frequency, HighFrequencyResult
 
 __version__ = "0.3.0"
 __all__ = ["ElectricField", "TransverseElectricField", "ElectricSpectrum", "plane_wave", "Medium",
@@ -28,4 +33,6 @@ __all__ = ["ElectricField", "TransverseElectricField", "ElectricSpectrum", "plan
            "Surface", "Plane", "FreeformSurface", "AxisymmetricSurface", "Sphere", "SphericalCap", "CartesianOval",
            "DielectricInterface", "propagate", "spectrum_of", "interface_transform",
            "LayerStack", "LayeredElectricField", "propagate_layers", "coherent_feedback", "FeedbackResult",
-           "ConvergenceError", "InterfaceAssembly", "propagate_interfaces", "AssemblyElectricField"]
+           "ConvergenceError", "InterfaceAssembly", "propagate_interfaces", "AssemblyElectricField",
+           "EvenAsphere", "LocalElectricSpectrum", "OpticalSystem", "SurfaceEncounter",
+           "EikonalElectricField", "propagate_high_frequency", "sample_high_frequency", "HighFrequencyResult"]

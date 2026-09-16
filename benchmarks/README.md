@@ -19,3 +19,5 @@ memory for R=50,100,200 wavelengths in `results/macroscopic.json`.
 bandwidth, period, and surface quadrature of the coherent two-cap assembly.
 Both studies retain unresolved errors. `python -m benchmarks.plot_macroscopic`
 regenerates the README plot from the committed measurements.
+
+`python -m benchmarks.macroscopic_focus` separates local spectral expansion error from radial and azimuthal quadrature controls at 200 to 51,715 wavelengths. It compares radiation kernels, not exact dielectric fields.

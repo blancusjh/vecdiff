@@ -1,0 +1,73 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "vecdiff": "0.3.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8",
+    "finufft": "2.5.1",
+    "miepython": "3.3.0"
+  },
+  "vacuum_wavelength_mm": 0.000193368,
+  "observation_ball_wavelengths": 13,
+  "source_quadrature": [
+    32,
+    64
+  ],
+  "held_out_points": 50,
+  "cases": [
+    {
+      "radius_over_wavelength": 200.0,
+      "radius_mm": 0.0386736,
+      "construction_seconds": 0.005277879001369001,
+      "spectral_sample_seconds": 0.00356212499900721,
+      "reference_sample_seconds": 0.03617786399991019,
+      "relative_EH_kernel_error": 0.026618468085376278,
+      "radial_quadrature_change": 6.171256656245111e-14,
+      "azimuthal_quadrature_change": 3.7596925896788806e-14,
+      "combined_quadrature_change": 4.8285003581291664e-14,
+      "electric_absolute_bound": 619.3159477005242,
+      "magnetic_absolute_bound": 619.0332362209384
+    },
+    {
+      "radius_over_wavelength": 2000.0,
+      "radius_mm": 0.38673599999999997,
+      "construction_seconds": 0.004411232999700587,
+      "spectral_sample_seconds": 0.0027098210011899937,
+      "reference_sample_seconds": 0.032300774997565895,
+      "relative_EH_kernel_error": 0.0026675647245904544,
+      "radial_quadrature_change": 5.939106173999186e-13,
+      "azimuthal_quadrature_change": 4.031515889449576e-13,
+      "combined_quadrature_change": 5.61362221272357e-13,
+      "electric_absolute_bound": 604.0484921823102,
+      "magnetic_absolute_bound": 603.7722808366218
+    },
+    {
+      "radius_over_wavelength": 20000.0,
+      "radius_mm": 3.86736,
+      "construction_seconds": 0.004258123000909109,
+      "spectral_sample_seconds": 0.0027728260029107332,
+      "reference_sample_seconds": 0.03343374200267135,
+      "relative_EH_kernel_error": 0.0002667622000628441,
+      "radial_quadrature_change": 1.2704541072050803e-11,
+      "azimuthal_quadrature_change": 3.681784498770131e-12,
+      "combined_quadrature_change": 1.3029624012091474e-11,
+      "electric_absolute_bound": 602.5634419118962,
+      "magnetic_absolute_bound": 602.2878640982816
+    },
+    {
+      "radius_over_wavelength": 51714.86492077283,
+      "radius_mm": 10.0,
+      "construction_seconds": 0.0040951279988803435,
+      "spectral_sample_seconds": 0.0026273570001649205,
+      "reference_sample_seconds": 0.034160355000494746,
+      "relative_EH_kernel_error": 0.0001031665646596364,
+      "radial_quadrature_change": 1.7127765845107645e-11,
+      "azimuthal_quadrature_change": 9.292640009691776e-12,
+      "combined_quadrature_change": 1.487330871773995e-11,
+      "electric_absolute_bound": 602.4625181591459,
+      "magnetic_absolute_bound": 602.1869834084325
+    }
+  ],
+  "scope": "Approximation error relative to the same prescribed-current radiation, not dielectric-boundary accuracy."
+}

@@ -1,0 +1,243 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "vecdiff": "0.3.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8",
+    "finufft": "2.5.1",
+    "miepython": "3.3.0"
+  },
+  "method": "One ray per initial sample and incident spectral mode; vector Fresnel transformations; ray-tube spreading; final current radiation.",
+  "scope": "Explicit leading high-frequency approximation between interfaces. Direct full-Green controls use an independently defined 625-mode beam. No shift invariance. No intermediate edge diffraction, caustic crossing or resonant feedback.",
+  "propagation": [
+    {
+      "radius_over_wavelength": 100,
+      "wavelength_mm": 0.1,
+      "incident_modes": 625,
+      "observation_count": 5,
+      "source_nodes": [
+        9216,
+        20736
+      ],
+      "direct_seconds": [
+        4.127559952999945,
+        10.044305389999863
+      ],
+      "transport_seconds": 4.052715255000294,
+      "complex_EH_relative_error": 0.0008826504088172261,
+      "single_phase_relative_error": 0.25902065589043316,
+      "single_phase_seconds": 0.006822225999712828,
+      "single_phase_speedup": 1472.2915057962994,
+      "input_edge_amplitude": 8.496565950487382e-06,
+      "direct_quadrature_change": 4.460126857666469e-14,
+      "derivative_step_change": 5.38719151710802e-12,
+      "speedup_vs_fine_direct": 2.478413793716957,
+      "reference_converged": true
+    },
+    {
+      "radius_over_wavelength": 200,
+      "wavelength_mm": 0.05,
+      "incident_modes": 625,
+      "observation_count": 5,
+      "source_nodes": [
+        9216,
+        20736
+      ],
+      "direct_seconds": [
+        4.251001810000162,
+        9.88218675400094
+      ],
+      "transport_seconds": 4.109934942000109,
+      "complex_EH_relative_error": 0.000441700375933609,
+      "single_phase_relative_error": 0.12995021433670648,
+      "single_phase_seconds": 0.005533493000257295,
+      "single_phase_speedup": 1785.8858326090667,
+      "input_edge_amplitude": 8.442247010784095e-06,
+      "direct_quadrature_change": 2.1172726443071637e-13,
+      "derivative_step_change": 5.4643724161791805e-12,
+      "speedup_vs_fine_direct": 2.404463061693077,
+      "reference_converged": true
+    },
+    {
+      "radius_over_wavelength": 500,
+      "wavelength_mm": 0.02,
+      "incident_modes": 625,
+      "observation_count": 5,
+      "source_nodes": [
+        18750,
+        42075
+      ],
+      "direct_seconds": [
+        8.867549827999028,
+        20.08124035400033
+      ],
+      "transport_seconds": 3.868890640000245,
+      "complex_EH_relative_error": 0.00017703216280560524,
+      "single_phase_relative_error": 0.05203408880232152,
+      "single_phase_seconds": 0.005437757999970927,
+      "single_phase_speedup": 3692.9264513256553,
+      "input_edge_amplitude": 8.426754313112478e-06,
+      "direct_quadrature_change": 3.3330351642313947e-09,
+      "derivative_step_change": 5.467084071723215e-12,
+      "speedup_vs_fine_direct": 5.190438868026276,
+      "reference_converged": true
+    },
+    {
+      "radius_over_wavelength": 1000,
+      "wavelength_mm": 0.01,
+      "incident_modes": 625,
+      "observation_count": 5,
+      "source_nodes": [
+        75000,
+        168750
+      ],
+      "direct_seconds": [
+        36.97075878200121,
+        85.93771801200091
+      ],
+      "transport_seconds": 3.5962697890008712,
+      "complex_EH_relative_error": 8.855851094490383e-05,
+      "single_phase_relative_error": 0.026021082084712984,
+      "single_phase_seconds": 0.005375787000957644,
+      "single_phase_speedup": 15986.07199219239,
+      "input_edge_amplitude": 8.424530770108189e-06,
+      "direct_quadrature_change": 1.4061862405090903e-12,
+      "derivative_step_change": 5.462871396521481e-12,
+      "speedup_vs_fine_direct": 23.89634900997693,
+      "reference_converged": true
+    }
+  ],
+  "systems": [
+    {
+      "wavelength_mm": 0.1,
+      "angle_degrees": 0.0,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.09941353700014588,
+      "line_evaluation_seconds": 0.3482485410004301,
+      "source_quadrature_and_derivative_change": 5.524623636600443e-12,
+      "on_axis_optical_path_spread_wavelengths": 1.4210854715202004e-13,
+      "peak": 119.25519513846417,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.1,
+      "angle_degrees": 0.002,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.09442666699942492,
+      "line_evaluation_seconds": 0.3199076769997191,
+      "source_quadrature_and_derivative_change": 5.6064140290963156e-12,
+      "on_axis_optical_path_spread_wavelengths": null,
+      "peak": 119.25515490902758,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.1,
+      "angle_degrees": 0.02,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.15695279899955494,
+      "line_evaluation_seconds": 0.3094050279996736,
+      "source_quadrature_and_derivative_change": 5.584422165317287e-12,
+      "on_axis_optical_path_spread_wavelengths": null,
+      "peak": 119.25470616722052,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.01,
+      "angle_degrees": 0.0,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.09343562400135852,
+      "line_evaluation_seconds": 0.3210029679994477,
+      "source_quadrature_and_derivative_change": 5.548076486579597e-12,
+      "on_axis_optical_path_spread_wavelengths": 1.4210854715202004e-12,
+      "peak": 11925.600610440693,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.01,
+      "angle_degrees": 0.002,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.09201811899947643,
+      "line_evaluation_seconds": 0.31107926399999997,
+      "source_quadrature_and_derivative_change": 5.6156995371629014e-12,
+      "on_axis_optical_path_spread_wavelengths": null,
+      "peak": 11925.596246615542,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.01,
+      "angle_degrees": 0.02,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.09008267400167824,
+      "line_evaluation_seconds": 0.3111560590004956,
+      "source_quadrature_and_derivative_change": 5.5740494710849095e-12,
+      "on_axis_optical_path_spread_wavelengths": null,
+      "peak": 11925.199577114303,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.000193368,
+      "angle_degrees": 0.0,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.0905578809997678,
+      "line_evaluation_seconds": 0.3168828889993165,
+      "source_quadrature_and_derivative_change": 4.350602601419235e-11,
+      "on_axis_optical_path_spread_wavelengths": 7.349124320053992e-11,
+      "peak": 31894153.480010737,
+      "peak_offset_wavelengths": 0.0
+    },
+    {
+      "wavelength_mm": 0.000193368,
+      "angle_degrees": 0.002,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.09221980199981772,
+      "line_evaluation_seconds": 0.3123787810000067,
+      "source_quadrature_and_derivative_change": 6.768832420174059e-12,
+      "on_axis_optical_path_spread_wavelengths": null,
+      "peak": 31890159.426241845,
+      "peak_offset_wavelengths": -0.08000000000000007
+    },
+    {
+      "wavelength_mm": 0.000193368,
+      "angle_degrees": 0.02,
+      "surface_samples": 8192,
+      "interfaces": 2,
+      "transport_seconds": 0.10179711599994334,
+      "line_evaluation_seconds": 0.3263904020004702,
+      "source_quadrature_and_derivative_change": 7.871253402962753e-12,
+      "on_axis_optical_path_spread_wavelengths": null,
+      "peak": 31582738.52287677,
+      "peak_offset_wavelengths": -0.96
+    }
+  ],
+  "macroscopic_compression": {
+    "wavelength_mm": 0.000193368,
+    "radius_over_wavelength": 51714.86492077283,
+    "waist_mm": 1.0,
+    "interfaces": 2,
+    "spectral_modes": 625,
+    "single_phase_samples": 2048,
+    "multiple_phase_samples": [
+      720000,
+      1280000
+    ],
+    "observation_count": 17,
+    "multiple_phase_seconds": [
+      19.01788008299991,
+      30.79261625000072
+    ],
+    "single_phase_seconds": 0.034694662999754655,
+    "single_vs_multiple_phase_relative_EH_error": 0.00021756699755104308,
+    "multiple_phase_source_quadrature_change": 1.6818530984877547e-11,
+    "speedup": 887.5317869557767,
+    "scope": "Final two-interface image-field comparison of one eikonal versus 625 separately transported phase components. Both use the high-frequency inter-surface approximation; final radiation uses the full Green kernel."
+  }
+}

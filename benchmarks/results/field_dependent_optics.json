@@ -1,0 +1,167 @@
+{
+  "versions": {
+    "python": "3.12.13",
+    "vecdiff": "0.3.0",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8",
+    "finufft": "2.5.1",
+    "miepython": "3.3.0"
+  },
+  "wavelength_mm": 0.000193368,
+  "scope": "Distinct per-k incident directions; actual refracting conic or reflecting paraboloid; fixed-source Green kernel checks. No translated PSF. No claim of global dielectric-boundary accuracy or complete multi-surface transport.",
+  "cases": [
+    {
+      "kind": "refraction",
+      "angle_degrees": 0.0,
+      "center_mm": [
+        0.0,
+        0.0,
+        20.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.2755854700008058,
+      "kernel_relative_EH_error": 5.541213212606452e-05,
+      "surface_quadrature_relative_EH_change": 6.030316953658864e-12,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 9436753928.699732,
+      "peak_offset_wavelengths": 0.0,
+      "peak_relative_to_on_axis": 1.0,
+      "translated_on_axis_intensity_relative_error": 0.0
+    },
+    {
+      "kind": "refraction",
+      "angle_degrees": 0.002,
+      "center_mm": [
+        0.0010471975516219238,
+        0.0,
+        20.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.461419236002257,
+      "kernel_relative_EH_error": 2.9438394821640163e-05,
+      "surface_quadrature_relative_EH_change": 6.2193845466212426e-12,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 5303622080.205102,
+      "peak_offset_wavelengths": 1.375,
+      "peak_relative_to_on_axis": 0.5620176302441613,
+      "translated_on_axis_intensity_relative_error": 1.6718885932091223
+    },
+    {
+      "kind": "refraction",
+      "angle_degrees": 0.01,
+      "center_mm": [
+        0.005235987809148759,
+        0.0,
+        20.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.298526981001487,
+      "kernel_relative_EH_error": 5.0613193788943976e-05,
+      "surface_quadrature_relative_EH_change": 1.9768201924174592e-11,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 534448655.99511486,
+      "peak_offset_wavelengths": 2.5,
+      "peak_relative_to_on_axis": 0.05663479836744618,
+      "translated_on_axis_intensity_relative_error": 10.891993082344829
+    },
+    {
+      "kind": "refraction",
+      "angle_degrees": 0.02,
+      "center_mm": [
+        0.010471975937292153,
+        0.0,
+        20.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.5038118619995657,
+      "kernel_relative_EH_error": 5.3772288545797844e-05,
+      "surface_quadrature_relative_EH_change": 2.6284635734221876e-11,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 211343161.48865744,
+      "peak_offset_wavelengths": 2.875,
+      "peak_relative_to_on_axis": 0.022395747847774802,
+      "translated_on_axis_intensity_relative_error": 24.612920253653204
+    },
+    {
+      "kind": "reflection",
+      "angle_degrees": 0.0,
+      "center_mm": [
+        0.0,
+        0.0,
+        -5.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.2780772719997913,
+      "kernel_relative_EH_error": 0.00023106016819127875,
+      "surface_quadrature_relative_EH_change": 1.1613709177205296e-12,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 81148537.83836329,
+      "peak_offset_wavelengths": 0.0,
+      "peak_relative_to_on_axis": 1.0,
+      "translated_on_axis_intensity_relative_error": 0.0
+    },
+    {
+      "kind": "reflection",
+      "angle_degrees": 0.002,
+      "center_mm": [
+        0.00017453292527032065,
+        0.0,
+        -5.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 0.9971176149992971,
+      "kernel_relative_EH_error": 0.00022357947143272877,
+      "surface_quadrature_relative_EH_change": 1.6879745653201488e-12,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 80303022.61052561,
+      "peak_offset_wavelengths": 0.125,
+      "peak_relative_to_on_axis": 0.9895806474107786,
+      "translated_on_axis_intensity_relative_error": 0.18343256062748703
+    },
+    {
+      "kind": "reflection",
+      "angle_degrees": 0.01,
+      "center_mm": [
+        0.0008726646348581266,
+        0.0,
+        -5.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.3266464839980472,
+      "kernel_relative_EH_error": 0.00021054094849679467,
+      "surface_quadrature_relative_EH_change": 2.568046549215492e-12,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 69565736.28258206,
+      "peak_offset_wavelengths": 0.5,
+      "peak_relative_to_on_axis": 0.8572641989082714,
+      "translated_on_axis_intensity_relative_error": 0.8749749320645649
+    },
+    {
+      "kind": "reflection",
+      "angle_degrees": 0.02,
+      "center_mm": [
+        0.0017453293228820257,
+        0.0,
+        -5.0
+      ],
+      "source_nodes": 32768,
+      "patch_count": 7,
+      "construction_and_line_seconds": 1.3204287290063803,
+      "kernel_relative_EH_error": 0.00019003032883773937,
+      "surface_quadrature_relative_EH_change": 3.103818704463889e-12,
+      "absolute_kernel_bounds_passed": true,
+      "peak": 45611716.84356054,
+      "peak_offset_wavelengths": 0.875,
+      "peak_relative_to_on_axis": 0.5620768785065825,
+      "translated_on_axis_intensity_relative_error": 1.6121995994834257
+    }
+  ]
+}

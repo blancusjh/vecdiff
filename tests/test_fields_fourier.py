@@ -61,3 +61,17 @@ def test_rigid_frame_propagation():
     wave = plane_wave(r[:, 2], r[:, 0]); field = wave.field(domain, grid)
     out = propagate(field, .23)
     np.testing.assert_allclose(out.components, wave.field(out.domain, grid).components, atol=1e-14)
+
+
+def test_forward_propagation_composes_on_fine_grid_away_from_global_origin():
+    """Forward decay must not re-amplify FFT roundoff at the previous plane."""
+    import numpy as np
+    from vecdiff import CartesianGrid, PlaneDomain, Frame, TransverseElectricField, propagate
+    grid=CartesianGrid.from_spacing(.08,128)
+    x,y=grid.xy
+    domain=PlaneDomain(Frame(origin=[0,0,10.]))
+    initial=TransverseElectricField(np.exp(-(x*x+y*y)/1.2**2),0*x,grid,domain,.532)
+    once=propagate(initial,1.)
+    twice=propagate(propagate(initial,.25),.75)
+    np.testing.assert_allclose(twice.components,once.components,rtol=1e-11,atol=1e-12)
+    np.testing.assert_allclose(twice.domain.frame.origin,[0,0,11.])
