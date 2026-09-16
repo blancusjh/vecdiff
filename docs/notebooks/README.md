@@ -18,6 +18,6 @@ Install `.[notebooks,validation,nufft]` in this checkout and use that Python
 kernel. Each notebook locates the repository when started from a subdirectory.
 `python scripts/notebooks.py --check --execute` checks synchronization and runs
 every cell in order and requires embedded PNG figures in every executed notebook.
-The notebooks explicitly enable inline rendering, including in headless CI.
-CI runs this command explicitly; a source-only check is
-not reported as a successful Jupyter execution.
+The notebooks explicitly enable inline rendering, including in headless
+environments. Run this command locally to verify Jupyter execution; a
+source-only check does not execute any cells.
