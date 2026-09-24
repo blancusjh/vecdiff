@@ -1,0 +1,12 @@
+python module _taylor_core
+  interface
+    subroutine taylor_product(a,b,left,right,starts,result,np,nc,nt)
+      integer intent(hide),depend(a) :: np=shape(a,0),nc=shape(a,1)
+      integer intent(hide),depend(left) :: nt=shape(left,0)
+      complex*16 dimension(np,nc),intent(in) :: a,b
+      integer dimension(nt),intent(in) :: left,right
+      integer dimension(nc+1),intent(in) :: starts
+      complex*16 dimension(np,nc),intent(out) :: result
+    end subroutine taylor_product
+  end interface
+end python module _taylor_core

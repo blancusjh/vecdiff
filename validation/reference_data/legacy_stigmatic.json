@@ -1,0 +1,15 @@
+{
+  "revision": "7a1a235",
+  "branch": "claude/transfer-matrix-geometric-factor-664h9g",
+  "source": "/private/tmp/vecdiff-architecture-audit-20260915/stigmatic",
+  "coordinates": "metres after explicit mm conversion",
+  "field": "complex Cartesian E, legacy numerical source amplitude 1 interpreted as 1 V/m",
+  "geometry": "n0=1, ni=1.5, object=-10 mm, image=6 mm; 95% grazing aperture",
+  "reference": "legacy full Green radiation of physical-optics currents",
+  "quadrature": {
+    "radial": 320,
+    "azimuthal": 96
+  },
+  "claim": "geometry/transfer preservation and Debye asymptotic comparison; not exact dielectric scattering",
+  "excluded": "legacy Debye helper with the audited longitudinal sign discrepancy"
+}

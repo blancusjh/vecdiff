@@ -1,0 +1,60 @@
+python module _reference_core
+  interface
+    subroutine bem_assemble(nt,ne,nq,nn,nf,corners,triangles,edge_ids,factors,n0,n1,q,w,qn,wn,qf,wf,far_ratio,matrix)
+      integer intent(hide),depend(corners) :: nt=shape(corners,2)
+      integer intent(in) :: ne
+      integer intent(hide),depend(q) :: nq=len(q)
+      integer intent(hide),depend(qn) :: nn=len(qn)
+      integer intent(hide),depend(qf) :: nf=len(qf)
+      double precision dimension(3,3,nt),intent(in) :: corners
+      integer dimension(3,nt),intent(in) :: triangles,edge_ids
+      double precision dimension(3,nt),intent(in) :: factors
+      double precision intent(in) :: n0,n1
+      double precision dimension(nq),intent(in) :: q,w
+      double precision dimension(nn),intent(in) :: qn,wn
+      double precision dimension(nf),intent(in) :: qf,wf
+      double precision intent(in) :: far_ratio
+      complex*16 dimension(2*ne,2*ne),intent(out) :: matrix
+    end subroutine
+    subroutine bem_fields(nt,ne,np,nq,nf,corners,edge_ids,factors,coefficients,points,faces,index,side,q,w,qf,wf,far_ratio,electric,magnetic)
+      integer intent(hide),depend(corners) :: nt=shape(corners,2)
+      integer intent(hide),depend(coefficients) :: ne=len(coefficients)/2
+      integer intent(hide),depend(points) :: np=shape(points,1)
+      integer intent(hide),depend(q) :: nq=len(q)
+      integer intent(hide),depend(qf) :: nf=len(qf)
+      double precision dimension(3,3,nt),intent(in) :: corners
+      integer dimension(3,nt),intent(in) :: edge_ids
+      double precision dimension(3,nt),intent(in) :: factors
+      complex*16 dimension(2*ne),intent(in) :: coefficients
+      double precision dimension(3,np),intent(in) :: points
+      integer dimension(np),intent(in) :: faces
+      double precision intent(in) :: index
+      integer intent(in) :: side
+      double precision dimension(nq),intent(in) :: q,w
+      double precision dimension(nf),intent(in) :: qf,wf
+      double precision intent(in) :: far_ratio
+      complex*16 dimension(3,np),intent(out) :: electric,magnetic
+    end subroutine
+    subroutine fem_assemble(nt,corners,gradients,volumes,signs,indices,n0,incident,center,halfwidth,pml_width,strength,matrices,rhs)
+      integer intent(hide),depend(corners) :: nt=shape(corners,2)
+      double precision dimension(3,4,nt),intent(in) :: corners,gradients
+      double precision dimension(nt),intent(in) :: volumes,indices
+      integer dimension(6,nt),intent(in) :: signs
+      double precision intent(in) :: n0,pml_width,strength
+      complex*16 dimension(3,4,nt),intent(in) :: incident
+      double precision dimension(3),intent(in) :: center,halfwidth
+      complex*16 dimension(6,6,nt),intent(out) :: matrices
+      complex*16 dimension(6,nt),intent(out) :: rhs
+    end subroutine
+    subroutine fem_fields(nt,np,gradients,signs,coefficients,cells,bary,electric,magnetic)
+      integer intent(hide),depend(gradients) :: nt=shape(gradients,2)
+      integer intent(hide),depend(cells) :: np=len(cells)
+      double precision dimension(3,4,nt),intent(in) :: gradients
+      integer dimension(6,nt),intent(in) :: signs
+      complex*16 dimension(6,nt),intent(in) :: coefficients
+      integer dimension(np),intent(in) :: cells
+      double precision dimension(4,np),intent(in) :: bary
+      complex*16 dimension(3,np),intent(out) :: electric,magnetic
+    end subroutine
+  end interface
+end python module

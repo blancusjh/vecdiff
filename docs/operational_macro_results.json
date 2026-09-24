@@ -1,0 +1,43 @@
+{
+  "geometry_m": {
+    "radius": 0.002,
+    "aperture": 0.0002,
+    "thickness": 0.0001,
+    "cell_width": 0.0006
+  },
+  "wavelength_m": 5.32e-07,
+  "runs": [
+    {
+      "count": 384,
+      "max_sine": 0.85,
+      "seconds": 1.7786100000375882,
+      "rank": 11,
+      "iterations": 4,
+      "inverse_residual": 1.583281480340249e-11,
+      "magnetic_error": 0.0008439831453747087,
+      "flux_error": 9.82834680307576e-09
+    },
+    {
+      "count": 512,
+      "max_sine": 0.85,
+      "seconds": 3.700035999994725,
+      "rank": 13,
+      "iterations": 4,
+      "inverse_residual": 1.5879077977982037e-11,
+      "magnetic_error": 0.0008439803837317083,
+      "flux_error": 9.828400981959362e-09
+    },
+    {
+      "count": 512,
+      "max_sine": 0.2,
+      "seconds": 3.6682040420128033,
+      "rank": 10,
+      "iterations": 6,
+      "inverse_residual": 1.2557991325186053e-05,
+      "magnetic_error": 0.0008440734690886707,
+      "flux_error": 9.670638290160127e-09
+    }
+  ],
+  "grid_change": 4.99467969742064e-07,
+  "angular_band_change": 2.6891754016613484e-07
+}

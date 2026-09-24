@@ -1,0 +1,19 @@
+[build-system]
+requires = ["meson-python>=0.18", "ninja>=1.11", "numpy>=2.0"]
+build-backend = "mesonpy"
+
+[project]
+name = "vecdiff-general"
+version = "0.1.0"
+description = "Explicit vector optical propagation and dielectric scattering"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26", "scipy>=1.14"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "matplotlib>=3.8"]
+nufft = ["finufft>=2.3"]
+reference-mesh = ["gmsh>=4.13"]
+notebooks = ["matplotlib>=3.8", "nbformat>=5.10", "nbclient>=0.10", "ipykernel>=6"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,47 @@
+[
+  {
+    "branch": "origin",
+    "sha": "8fe2145",
+    "ancestor_of_macroscopic": false
+  },
+  {
+    "branch": "origin/claude/generalize-software-todo-6cfhnz",
+    "sha": "2ee5743",
+    "ancestor_of_macroscopic": true
+  },
+  {
+    "branch": "origin/claude/merge-beaches-branches-qb40h3",
+    "sha": "bca5755",
+    "ancestor_of_macroscopic": true
+  },
+  {
+    "branch": "origin/claude/repository-theory-94zcp4",
+    "sha": "4669440",
+    "ancestor_of_macroscopic": true
+  },
+  {
+    "branch": "origin/claude/transfer-matrix-geometric-factor-664h9g",
+    "sha": "7a1a235",
+    "ancestor_of_macroscopic": true
+  },
+  {
+    "branch": "origin/feature/macroscopic-spectral-fields",
+    "sha": "5b8e6f3",
+    "ancestor_of_macroscopic": true
+  },
+  {
+    "branch": "origin/feature/spectral-interactions",
+    "sha": "b5d93c3",
+    "ancestor_of_macroscopic": false
+  },
+  {
+    "branch": "origin/main",
+    "sha": "8fe2145",
+    "ancestor_of_macroscopic": false
+  },
+  {
+    "branch": "origin/refactor/physical-ontology",
+    "sha": "2701457",
+    "ancestor_of_macroscopic": false
+  }
+]

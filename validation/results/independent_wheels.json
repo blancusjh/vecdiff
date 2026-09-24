@@ -1,0 +1,12 @@
+{
+  "general": {
+    "wheel": "vecdiff_general-0.1.0-cp312-cp312-macosx_26_0_arm64.whl",
+    "other_package_installed": false,
+    "pytest": "........................................................................ [ 34%]\n..........ssss.......................................................... [ 69%]\n................................................................         [100%]\n204 passed, 4 skipped in 20.47s"
+  },
+  "stigmatic": {
+    "wheel": "vecdiff_stigmatic-0.1.0-py3-none-any.whl",
+    "other_package_installed": false,
+    "pytest": "........................                                                 [100%]\n24 passed in 0.86s"
+  }
+}

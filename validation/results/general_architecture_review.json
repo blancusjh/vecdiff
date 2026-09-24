@@ -1,0 +1,25 @@
+{
+  "shared_boundary": {
+    "shared_face_error": "overlapping material regions have no unique assignment"
+  },
+  "aperture_and_chart": {
+    "quadrature_nodes_outside_smaller_aperture": 96,
+    "quadrature_retains_chart": false,
+    "oversized_quadrature_rejected": "quadrature nodes at interface 0 exceed its prescribed aperture; construct a quadrature within the aperture"
+  },
+  "axis_regularity": {
+    "normal_returned_at_nondifferentiable_apex": [
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "surface_grid_contract": {
+    "polar_grid_error": "surface currents require a SurfaceGrid with area weights"
+  },
+  "fft_lattice_contract": {
+    "incompatible_fft_lattice_rejected": "transverse wavevectors must match the centered FFT lattice and ordering"
+  }
+}

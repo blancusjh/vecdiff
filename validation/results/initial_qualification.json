@@ -1,0 +1,49 @@
+{
+  "python": "3.12.12",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "full_suite": "47 passed",
+  "independent_wheels": {
+    "general": "31 passed without stigmatic installed",
+    "stigmatic": "10 passed without general installed"
+  },
+  "stigmatic_bulk_maxwell_residuals": {
+    "curl_E": 1.3372609676461973e-07,
+    "curl_H": 1.3412110259798418e-07,
+    "div_E": 1.103671845396702e-08,
+    "div_H": 6.549941966986213e-09
+  },
+  "debye_vs_legacy_green_relative_complex_E": 8.109912473501952e-05,
+  "legacy_comparison_note": "prescribed-current Green reference versus Debye approximation; no gain, phase or sign fit",
+  "general_example": {
+    "wavelength0_m": 5.32e-07,
+    "incident_W": 9.85947652592912e-16,
+    "reflected_W": 3.941007867512807e-17,
+    "transmitted_W": 9.465375739177809e-16,
+    "relative_power_balance": 3.2004169923074996e-15,
+    "boundary_residuals": {
+      "tangential_E": 1.827956217868039e-15,
+      "tangential_H": 1.7731094760799287e-15,
+      "normal_D": 1.6238694688015764e-16,
+      "normal_B": 1.4708661711811858e-16
+    },
+    "input_roundoff_removed_rms_V_per_m": 9.602834306034157e-16,
+    "input_evanescent_removed_rms_V_per_m": 7.399643842298786e-08,
+    "scope": "periodic FFT cell, homogeneous air and glass, exact planar modal boundary model"
+  },
+  "stigmatic_example": {
+    "wavelength0_m": 5.32e-07,
+    "power_budget": {
+      "incident_W": 1.210018183658213e-08,
+      "reflected_W": 1.0024880484510908e-09,
+      "transmitted_W": 1.109769378813104e-08,
+      "balance_W": 0.0
+    },
+    "relative_ray_power_balance": 0.0,
+    "relative_optical_path_variation": 3.652049423109067e-16,
+    "focal_window_power_W": 1.0828828137051015e-08,
+    "peak_electric_norm2_V2_per_m2": 22513487.01477767,
+    "scope": "real conjugates, geometric reference-sphere transfer, direct vector Debye focusing",
+    "power_note": "finite-window focal power is reported without renormalization; ray transfer and Debye are distinct models"
+  }
+}

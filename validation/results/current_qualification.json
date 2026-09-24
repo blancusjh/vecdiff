@@ -1,0 +1,311 @@
+{
+  "date": "2026-09-17",
+  "python": "3.12.12",
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "tests": {
+    "total_passed": 207,
+    "general": 176,
+    "stigmatic": 24,
+    "external": 7
+  },
+  "notebooks": {
+    "executed": 6,
+    "errors": 0,
+    "report": "notebooks.json",
+    "executed_code_cells": 48,
+    "retained_figures": 40,
+    "complete_animations": 3,
+    "recorded_cell_warnings": 0
+  },
+  "conventions": {
+    "length": "metre",
+    "electric": "V/m",
+    "magnetic": "A/m",
+    "time": "exp(-i omega t)"
+  },
+  "polarization_presentation": {
+    "targeted_tests_passed": 43,
+    "visual_cases": 22,
+    "physical_stills": 10,
+    "animation_review_frames": 9,
+    "animation_frame_counts": {
+      "total_internal_reflection": 32,
+      "radial_finite_pupil_focus": 48,
+      "stigmatic_circular_focus": 48
+    },
+    "markers": "Single closed silhouettes for static linear and instantaneous electric arrows; rotation-head tips on the ellipse, bases following the preceding arc; no point markers or separately outlined shafts",
+    "placement": "Exact native Cartesian strides or native polar rings; explicit alternate layouts interpolate complex components at exact display coordinates; dark positions remain empty; whole glyphs stay within the plot and polar annulus",
+    "centering_checks": "All-cycle fixed origins, head alignment, translated centers, zero crossings, absence of scatter markers, symmetric empty central null and continuous-outline linear glyphs",
+    "radial_focus_grid": [
+      768,
+      768
+    ],
+    "radial_focus_spacing_m": 8e-08,
+    "component_view_width_m": 6e-06,
+    "gallery": "output/polarization/index.html",
+    "guide": "docs/POLARIZATION.md",
+    "physical_notebook": "general/docs/notebooks/06_polarization_of_vector_beams.ipynb",
+    "matched_lens_maps": "general/docs/notebooks/05_refraction_and_focusing_by_a_lens.ipynb",
+    "physical_claim": "Projected electric polarization on the declared grid plane; no new propagation model",
+    "radial_focus_peak_abs_Ez_V_per_m": 1.354,
+    "azimuthal_focus_peak_abs_Ez_V_per_m": 1.87e-10,
+    "maximum_demonstrated_ASM_relative_flux_change": 0.0,
+    "stigmatic_modified": false,
+    "intensity_sizing": {
+      "default_scale_by_intensity": true,
+      "size_power": 0.25,
+      "min_size_fraction": 0.5,
+      "formula": "radius / maximum_radius = 0.5 + 0.5 * (I / I_peak)^0.25",
+      "comparisons": "Uniform, radius proportional to intensity, radius proportional to amplitude, compressed with readability floor; identical positions across panels",
+      "figure": "output/polarization/intensity_size_comparison.png",
+      "ratios": "output/polarization/intensity_sizing.json",
+      "physical_meaning": "Projected electric norm, independently normalized per map; display cue, not a physical length"
+    },
+    "distribution_checks": "Exact rows, radii and periodic azimuths; annular containment; affine complex interpolation and periodic polar seam; no extrapolation; identical static and animated phasors",
+    "display_interpolation_check": {
+      "case": "Notebook 06 finite-pupil radial focus, 768 x 768 Cartesian grid, 80 nm spacing",
+      "reference": "Direct evaluation of the same propagated plane-wave spectrum at exact display-ring positions",
+      "display_positions": 120,
+      "transverse_complex_relative_rms_error": 0.0017469100573213989,
+      "max_normalized_jones_state_sine_error": 0.011552907525140479,
+      "rms_normalized_jones_state_sine_error": 0.0033124062480755848,
+      "scope": "Historical 120-position display interpolation measurement; does not establish propagation convergence or validate a different grid or current glyph count"
+    },
+    "phase_readout": "Above the plot, without covering glyphs",
+    "incoherent_ensembles": "Weighted Stokes sum; polarized-component ellipses with projected DoP opacity; no coherent phasor average or single phase",
+    "colormaps": "hot or inferno for fields; grayscale glyph faces, outlines and handedness legend",
+    "adaptive_density": "Bright-core area and normalized-Stokes variation; neighboring Cartesian cells or whole polar rings use nested 1/2/4 spacing; secondary radial maxima retained; narrow native annuli constrain cross-band spacing",
+    "additional_regressions": [
+      "Bright core remains sampled in a large weak halo",
+      "Changing normalized polarization receives more detail than a uniform state",
+      "Intensity size switch preserves positions",
+      "Small subplots reduce count",
+      "Narrow annuli fit glyphs in full and small figures",
+      "No overlap, exact rows/rings, fixed animation centers and phase remain checked"
+    ]
+  },
+  "matched_legacy": {
+    "general_green_relative_complex_E_error": 3.410748964200662e-12,
+    "dedicated_debye_general_green_relative_complex_E_difference": 8.109912632518967e-05,
+    "general_radial_32_48_relative_change": 6.1760563251302855e-12,
+    "claim": "prescribed physical-optics current model; not exact closed-body scattering"
+  },
+  "curved_probe": {
+    "quadrature_E_change_V_per_m": 2.386531705969082e-13,
+    "extrapolated_residuals": {
+      "tangential_E": 0.00904503147434019,
+      "tangential_H": 0.035765845890420235,
+      "normal_D": 0.1474996926117739,
+      "normal_B": 2.8070482804290532e-15
+    },
+    "claim": "reported model/finite-patch error after quadrature refinement; no assertion of exact boundary solution",
+    "historical_specification": "Retired curved-interface notebook; physical parameters retained in docs/VALIDATION.md"
+  },
+  "style": {
+    "formatter": "ruff",
+    "line_length": 88,
+    "indentation_spaces": 4,
+    "check": "passed for general code and notebooks"
+  },
+  "source_repository_status_matches_baseline": true,
+  "architecture": {
+    "fourier": "Mathematical array transforms only; no optical imports",
+    "angular_spectrum": "propagation/angular_spectrum.py",
+    "interfaces": "Independent transmission and reflection operators; no aggregate Fresnel class",
+    "branch_checks": "Unrequested coefficient function is replaced with a failing sentinel in tests",
+    "fourier_api": "transform/inverse for cartesian, polar and nonuniform coordinates; explicit continuous measures; general only for nonuniform mode",
+    "polar": "Hankel and angular transforms consolidated in polar.py",
+    "grids": "CartesianGrid and PolarGrid declare coordinate chart, array order and physical embedding; PlaneGrid is an alias",
+    "fields": "Four files including __init__.py in each library; polarization moved to observables",
+    "general_geometry": "Mathematical geometry only; spatial extent in volumes.py; VolumeBetweenSurfaces replaces LensVolume",
+    "review": "docs/GENERAL_ARCHITECTURE_REVIEW.md; FFT lattice/origin validation and aperture-node bounds fixed; geometry, chart and topology findings remain open",
+    "general_discrete_fourier": "Centered FFT2/IFFT2 on axes (0,1), NumPy normalization; frequency_grid((x,y)) in cycles/unit; modal normalization belongs to propagation",
+    "general_polar": "FT2/IFT2 and first-axis HT/IHT; angular expansion and radial quadrature remain in polar.py",
+    "general_nufft": "NUFFT(g,x,q) signed unnormalized sum; direct or FINUFFT in 1\u20133 dimensions; weighted continuous forward/inverse functions"
+  },
+  "volume_refinement": {
+    "stigmatic_files_checked": 47,
+    "stigmatic_changes": [],
+    "source_repository_status_matches_baseline": true,
+    "general_wheel_tests_passed": 67,
+    "review_observations": "general_architecture_review.json",
+    "retired_notebook_reexecuted_at_that_stage": "general/docs/notebooks/01_space_matter_fields.ipynb"
+  },
+  "fourier_refinement": {
+    "tests_passed": 106,
+    "independent_general_wheel_tests_passed": 75,
+    "stigmatic_files_unchanged": 47,
+    "source_repository_status_matches_baseline": true,
+    "conventions": "general FFT2/IFFT2 centered, axes (0,1); frequency_grid returns cycles per coordinate unit; continuous transform retains angular-frequency convention",
+    "retired_notebook_reexecuted_at_that_stage": "general/docs/notebooks/02_fourier_and_propagation.ipynb"
+  },
+  "polar_nufft_refinement": {
+    "tests_passed": 119,
+    "stigmatic_files_unchanged": 47,
+    "source_repository_status_matches_baseline": true,
+    "inverse_claim": "Polar, Hankel and nonuniform inverse integrals are finite quadrature approximations; no general exact discrete inverse is claimed",
+    "independent_general_wheel_tests_passed": 88,
+    "retired_notebook_reexecuted_at_that_stage": "general/docs/notebooks/02_fourier_and_propagation.ipynb"
+  },
+  "representation_and_aperture_contracts": {
+    "tests_passed": 131,
+    "stigmatic_files_unchanged": 47,
+    "source_repository_status_matches_baseline": true,
+    "fft": "Centered transverse lattice and ordering, exact central reference origin; arbitrary modes stay in PlaneWaveExpansion",
+    "aperture": "Local radial node containment checked before scattering; no clipping, renormalization, coverage certificate or stop model",
+    "independent_general_wheel_tests_passed": 100,
+    "retired_notebooks_reexecuted_at_that_stage": [
+      "general/docs/notebooks/02_fourier_and_propagation.ipynb",
+      "general/docs/notebooks/03_dielectric_boundaries.ipynb"
+    ]
+  },
+  "physical_notebook_replacement": {
+    "removed": 13,
+    "created": 5,
+    "library_source_changed": false,
+    "collection": "general/docs/notebooks",
+    "models": "Planar scattering and layers; analytic slab TE0; prescribed finite-edge apertures; forward high-frequency lens with final Green diffraction"
+  },
+  "gots_surface": {
+    "tests_added": 15,
+    "notebook": "general/docs/notebooks/05_refraction_and_focusing_by_a_lens.ipynb",
+    "optical_path_error_wavelengths": 2.55e-14,
+    "ray_direction_error": 3.34e-16,
+    "local_flux_relative_error": 1.79e-16,
+    "quadrature_relative_complex_E_change": 7.24e-15,
+    "scope": "Finite real conjugates and collimated input z0=-inf; positive unequal indices; vertex-connected graph; general library only",
+    "historical_measurements": "Finite-conjugate notebook before matched-lens replacement"
+  },
+  "matched_lenses": {
+    "additional_tests": 7,
+    "vertex_radius_m": -4.256e-05,
+    "diameter_m": 5.1072e-05,
+    "central_thickness_m": 1.064e-05,
+    "image_z_m": 9.576e-05,
+    "shared": "entrance face, materials, beam, aperture, central thickness, vertex curvature, observation grids, per-observable color scales",
+    "previous_small_aperture_metrics": {
+      "optical_path_error_wavelengths": 2.55e-14,
+      "ray_direction_error": 2.54e-16,
+      "local_flux_relative_error": 2.03e-16,
+      "quadrature_relative_complex_E_change": 8.04e-15
+    },
+    "wide_aperture": {
+      "radius_wavelengths": 48,
+      "beam_waist_wavelengths": 48,
+      "edge_thickness_m": 2.128e-06,
+      "sphere_edge_optical_path_error_wavelengths": -1.571931984137915,
+      "sphere_on_axis_E_norm2": 118.2700760766209,
+      "stigmatic_on_axis_E_norm2": 616.751155301304,
+      "same_image_plane_ratio": 5.214769244772818,
+      "quadrature": [
+        72,
+        192
+      ],
+      "reference_quadrature": [
+        96,
+        256
+      ],
+      "sphere_map_probe_error": 3.8119408999222245e-14,
+      "stigmatic_map_probe_error": 1.17e-13,
+      "optical_path_error_wavelengths": 5.09e-14,
+      "ray_direction_error": 4.46e-16,
+      "local_flux_relative_error": 1.79e-16,
+      "spherical_focus_quadrature_error": 3.93e-14,
+      "stigmatic_focus_quadrature_error": 1.98e-14,
+      "spherical_sampled_peak_z_m": 8.051e-05
+    }
+  },
+  "application_notebooks": {
+    "planar_consolidation": "01_planar_dielectric_optics.ipynb",
+    "all_focal_intensity_maps": "Dedicated complete-field polarization studies retain overlays; scalar references, single components, flux panels and circuit intensity comparisons omit them",
+    "gallery": "output/applications/index.html",
+    "ideal_imaging_tests_passed": 11,
+    "physical_checks": [
+      "Passed normal Poynting power",
+      "Image inversion for even and odd grids",
+      "Signed mapping of offset coordinate windows",
+      "Maxwell transversality and dispersion",
+      "Low-NA scalar limit",
+      "Jones attenuation and inverse compensation",
+      "Fresnel reflected plus transmitted normal power",
+      "Incoherent detector and Stokes sums"
+    ],
+    "fresnel_compensation_complex_field_relative_error": 1.97e-15,
+    "fresnel_compensation_target_amplitude_scale": 0.743797,
+    "hologram_intended_half_plane_power_fractions": {
+      "ring": 0.9815,
+      "spots": 0.9988
+    },
+    "hologram_display": {
+      "shape": [
+        257,
+        257
+      ],
+      "spacing_m": 3.90625e-08,
+      "method": "FINUFFT evaluation of the physical focal spectrum"
+    },
+    "duv_source_8_to_16_relative_intensity_change": 0.04528,
+    "scope": "Ideal aplanatic pupil and thin-mask models; DUV is an ideal two-objective 4f relay, not a manufactured multi-surface prescription or resist model",
+    "general_canvas_helpers_removed": [
+      "compare_polarization",
+      "plot_components"
+    ],
+    "stigmatic_implementation_files_checked": 41,
+    "stigmatic_implementation_changes": [],
+    "retained_applications": [
+      "08_compensating_fresnel_transmission.ipynb",
+      "10_single_lens_lithography.ipynb"
+    ],
+    "holography_in": "06_polarization_of_vector_beams.ipynb",
+    "retired_standalone": [
+      "07_projection_and_magnification.ipynb",
+      "09_polarization_selective_holography.ipynb",
+      "11_duv_projection_and_illumination.ipynb"
+    ],
+    "compensation": {
+      "incident_index": 2.4,
+      "transmitted_index": 1,
+      "NA": 0.995,
+      "annulus_inner_fraction": 0.9,
+      "incident_power_W": 1e-12,
+      "uniform_complex_vector_shape_error": 0.209947,
+      "uniform_throughput": 0.68915,
+      "compensated_throughput": 0.553234,
+      "pupil_385_to_577_probe_relative_change": 0.00153,
+      "material_model": "Ideal nonabsorbing dielectric; no specific glass or measured material claim",
+      "presentation": {
+        "intensity_scale": "Shared linear absolute scale; inferno with exact black zero",
+        "glyph_layout": "Automatic whole-ring refinement; default density",
+        "glyph_radius": "0.5 + 0.5 * (I_transverse / peak)^0.25",
+        "projected_intensity_cutoff": 0.002,
+        "glyphs_inside_0_2_um": 33,
+        "scope": "Presentation only; propagation unchanged"
+      }
+    },
+    "duv_source_16_to_32_relative_intensity_change": 0.01926,
+    "duv_source_32_to_64_relative_intensity_change": 0.00769,
+    "duv_display_source_angles": 32,
+    "duv_normal_transmitted_power_W": {
+      "x": 6.653e-13,
+      "y": 6.851e-13
+    },
+    "circuit_asset": {
+      "path": "general/docs/assets/circuit_pattern.png",
+      "source_revision": "7a1a235ba3138b1318956e3c5659fa04ea6d8dc7",
+      "original_pixel_pitch_m": 3.2e-08,
+      "reticle_content_width_m": 1.792e-05,
+      "claim": "Original branch schematic circuit; not identified as an Intel processor layout"
+    },
+    "figure_review": "docs/FIGURE_REVIEW.md",
+    "overlay_control": "plot_intensity(..., polarization=False) bypasses glyph rendering; component-intensity regression test",
+    "visual_review": {
+      "central_focus": "output/adaptive-review/08_3.png",
+      "circuit_intensity_comparison": "output/applications/10_single_lens_lithography_04.png",
+      "circuit_total_field_polarization": "output/applications/10_single_lens_lithography_05.png",
+      "aperture": "output/adaptive-review/04_3.png",
+      "guide": "docs/FIGURE_REVIEW.md",
+      "matched_lens": "output/applications/05_refraction_and_focusing_by_a_lens_10.png"
+    },
+    "holography_overlay": "No glyphs on separate x/y channels; combined coherent field alone carries its polarization over total |E|\u00b2. Coherent field sum asserted before rendering."
+  }
+}

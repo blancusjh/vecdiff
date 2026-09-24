@@ -1,0 +1,50 @@
+[
+  {
+    "radius_over_wavelength": 100,
+    "wavelength_mm": 0.1,
+    "incident_modes": 625,
+    "observation_count": 5,
+    "source_nodes": [
+      9216,
+      20736
+    ],
+    "direct_seconds": [
+      2.654746125001111,
+      5.912745333000203
+    ],
+    "transport_seconds": 2.2320394159905845,
+    "complex_EH_relative_error": 0.0008826504088161363,
+    "single_phase_relative_error": 0.2590206558904319,
+    "single_phase_seconds": 0.003064625008846633,
+    "single_phase_speedup": 1929.353612899431,
+    "input_edge_amplitude": 8.496565950412709e-06,
+    "direct_quadrature_change": 4.9372024248529054e-14,
+    "derivative_step_change": 5.3985728286313945e-12,
+    "speedup_vs_fine_direct": 2.6490326696924,
+    "reference_converged": true
+  },
+  {
+    "radius_over_wavelength": 200,
+    "wavelength_mm": 0.05,
+    "incident_modes": 625,
+    "observation_count": 5,
+    "source_nodes": [
+      9216,
+      20736
+    ],
+    "direct_seconds": [
+      2.255725209004595,
+      5.033397708000848
+    ],
+    "transport_seconds": 2.195809791999636,
+    "complex_EH_relative_error": 0.0004417003759338399,
+    "single_phase_relative_error": 0.12995021433670276,
+    "single_phase_seconds": 0.0024483750021317974,
+    "single_phase_speedup": 2055.8115907972733,
+    "input_edge_amplitude": 8.442247010709426e-06,
+    "direct_quadrature_change": 2.087142325393574e-13,
+    "derivative_step_change": 5.483687806979007e-12,
+    "speedup_vs_fine_direct": 2.2922740058541837,
+    "reference_converged": true
+  }
+]
