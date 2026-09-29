@@ -1,6 +1,9 @@
 """Independent vector edge-element FEM with Cartesian absorbing PML."""
 
+import hashlib
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
 
 import numpy as np
@@ -183,6 +186,42 @@ class TetrahedralMesh:
         return cells, bary
 
 
+def _fingerprint(mesh, source, interior, pml_strength):
+    """Hash of everything that determines the solved edge coefficients."""
+    digest = hashlib.sha256()
+    for array in (
+        mesh.vertices,
+        mesh.tetrahedra,
+        mesh.interior,
+        mesh.center,
+        source.wavevectors,
+        source.amplitudes,
+        source.origin,
+    ):
+        array = np.ascontiguousarray(array)
+        digest.update(str((array.shape, array.dtype)).encode())
+        digest.update(array.tobytes())
+    digest.update(
+        repr(
+            (
+                source.wavelength0,
+                source.region.material.n,
+                interior.material.n,
+                float(mesh.halfwidth)
+                if np.ndim(mesh.halfwidth) == 0
+                else tuple(np.ravel(mesh.halfwidth)),
+                float(mesh.pml_width),
+                pml_strength,
+            )
+        ).encode()
+    )
+    native = Path(__file__).resolve().parents[4] / "native"
+    for path in (Path(__file__), native / "fem.f90", native / "reference_math.f90"):
+        if path.exists():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:20]
+
+
 class DielectricFEM:
     """First-family Nédélec FEM with quadratic Cartesian complex stretching.
 
@@ -190,9 +229,22 @@ class DielectricFEM:
     measures the weak discrete equations, not continuum accuracy. The lowest
     order H is cellwise constant: pointwise curl-H/Helmholtz finite differences
     are not a meaningful convergence test. Use field, flux, mesh and PML studies.
+
+    cache: a directory (or the VECDIFF_FEM_CACHE environment variable) where
+    solved coefficients are stored under a hash of the mesh, source, indices,
+    PML settings and solver sources, and reloaded instead of solving again.
     """
 
-    def __init__(self, source, mesh, interior, *, pml_strength=3.0, max_unknowns=40000):
+    def __init__(
+        self,
+        source,
+        mesh,
+        interior,
+        *,
+        pml_strength=3.0,
+        max_unknowns=40000,
+        cache=None,
+    ):
         from . import _reference_core
 
         if not isinstance(source, PlaneWaveExpansion) or not isinstance(
@@ -208,13 +260,30 @@ class DielectricFEM:
             raise ValueError(
                 f"FEM needs {self.unknowns} edge unknowns (limit {max_unknowns})"
             )
-        start = perf_counter()
         scale = self.wavelength0
+        self._gradients = np.asfortranarray((mesh.gradients * scale).transpose(2, 1, 0))
+        self._signs = np.asfortranarray(mesh.signs.T)
+        cache = cache or os.environ.get("VECDIFF_FEM_CACHE")
+        stored = None
+        if cache:
+            stored = Path(cache) / (
+                "fem_" + _fingerprint(mesh, source, interior, pml_strength) + ".npz"
+            )
+            if stored.exists():
+                with np.load(stored) as data:
+                    self.coefficients = data["coefficients"]
+                    self.free = data["free"]
+                    self.algebraic_residual = float(data["algebraic_residual"])
+                    self.assembly_seconds = float(data["assembly_seconds"])
+                    self.solve_seconds = float(data["solve_seconds"])
+                self._local = np.asfortranarray(self.coefficients[mesh.edge_ids].T)
+                self.loaded_from = stored
+                return
+        self.loaded_from = None
+        start = perf_counter()
         corners = mesh.vertices[mesh.tetrahedra] / scale
         points = np.einsum("qa,tac->tqc", _BARY, corners) * scale
         incident = source.evaluate(PointGrid(points)).electric.values
-        self._gradients = np.asfortranarray((mesh.gradients * scale).transpose(2, 1, 0))
-        self._signs = np.asfortranarray(mesh.signs.T)
         indices = np.where(mesh.interior, interior.material.n, self.exterior.material.n)
         matrices, rhs = _reference_core.fem_assemble(
             corners.transpose(2, 1, 0),
@@ -260,6 +329,16 @@ class DielectricFEM:
             / max(np.linalg.norm(vector), np.finfo(float).tiny)
         )
         self._local = np.asfortranarray(self.coefficients[ids].T)
+        if stored is not None:
+            stored.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(
+                stored,
+                coefficients=self.coefficients,
+                free=self.free,
+                algebraic_residual=self.algebraic_residual,
+                assembly_seconds=self.assembly_seconds,
+                solve_seconds=self.solve_seconds,
+            )
 
     def evaluate(self, grid, *, side=None):
         from . import _reference_core

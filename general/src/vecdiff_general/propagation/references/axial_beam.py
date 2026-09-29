@@ -70,7 +70,13 @@ class AxialBeamSphere:
         # about k times the largest distance from the centre is enough there.
         reach = k * (abs(waist_z - center_z) + 4 * waist)
         if order is None:
-            order = int(np.ceil(max(size, inner, reach) + 8 * max(size, inner, reach) ** (1 / 3) + 20))
+            order = int(
+                np.ceil(
+                    max(size, inner, reach)
+                    + 8 * max(size, inner, reach) ** (1 / 3)
+                    + 20
+                )
+            )
         self.order = order
         # Scattered coefficients have decayed past this order; beyond it the
         # outgoing h1 only adds roundoff times a huge number.
@@ -97,7 +103,8 @@ class AxialBeamSphere:
         weight = top / 2 * w * np.sin(alpha)
         c = np.cos(alpha)
         spectrum = (
-            waist**2 / (4 * np.pi)
+            waist**2
+            / (4 * np.pi)
             * np.exp(-((k * np.sin(alpha) * waist) ** 2) / 4)
             * k**2
             * np.exp(1j * k * c * (center_z - waist_z))
@@ -147,7 +154,11 @@ class AxialBeamSphere:
         r = np.linalg.norm(points, axis=-1)
         if side == "interior" and np.any(r > self.radius):
             raise ValueError("interior terms need points inside the sphere")
-        if side == "exterior" and set(terms) != {"incident"} and np.any(r <= self.radius):
+        if (
+            side == "exterior"
+            and set(terms) != {"incident"}
+            and np.any(r <= self.radius)
+        ):
             raise ValueError("exterior terms need points outside the sphere")
         index = self.n_sphere if side == "interior" else self.n_exterior
         A, B = self._alphas(side, terms)
@@ -158,7 +169,11 @@ class AxialBeamSphere:
         regular = np.array([t == "incident" for t in terms])
         for start in range(0, len(points), chunk):
             p = points[start : start + chunk]
-            rho = self.k0 * index * np.maximum(np.linalg.norm(p, axis=-1), 1e-12 * self.radius)
+            rho = (
+                self.k0
+                * index
+                * np.maximum(np.linalg.norm(p, axis=-1), 1e-12 * self.radius)
+            )
             for kind, rows, count in (
                 ("j", regular | (side == "interior"), self.order),
                 ("h1", ~regular & (side == "exterior"), self.exterior_order),

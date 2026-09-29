@@ -17,14 +17,6 @@ py.extension_module('_reference_core',
   fortran_args: openmp_flags,
   dependencies: gomp,
   subdir: 'vecdiff_general/propagation/references', install: true)
-taylor_bindings = custom_target('taylor-bindings',
-  input: 'native/taylor.pyf',
-  output: ['_taylor_coremodule.c', '_taylor_core-f2pywrappers.f'],
-  command: [py, '-m', 'numpy.f2py', '@INPUT@', '--build-dir', '@OUTDIR@'])
-py.extension_module('_taylor_core',
-  ['native/taylor.f90', taylor_bindings, f2py_inc / 'fortranobject.c'],
-  include_directories: include_directories(numpy_inc, f2py_inc),
-  subdir: 'vecdiff_general/propagation/experiments', install: true)
 cache_dirs = run_command(py, ['-c',
   'from pathlib import Path; import sys; root = Path(sys.argv[1]); print(*sorted({str(p.parent.relative_to(root) / "__pycache__") for p in root.rglob("*.py")}), sep=chr(10))',
   meson.current_source_dir() / 'src/vecdiff_general'], check: true).stdout().strip().split('\n')

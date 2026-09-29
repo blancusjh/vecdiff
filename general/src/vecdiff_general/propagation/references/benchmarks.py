@@ -214,7 +214,6 @@ def compare_case(
     run_fem=True,
     weak=False,
     max_fem_unknowns=40000,
-    interaction=None,
 ):
     """One geometry/parameter group, main method first at every resolution.
 
@@ -224,8 +223,6 @@ def compare_case(
     are bounded first-order implementations, not macroscopic accelerated solvers.
     window_apertures is the full FFT-cell width divided by the clear radius.
     Vary it independently of grids to distinguish periodic replicas from spacing.
-    interaction is passed to propagate_high_frequency (for example
-    experiments.orders.OrderInteraction(3)); None keeps the eikonal Fresnel T.
     """
     if not np.isfinite(window_apertures) or window_apertures <= 2:
         raise ValueError("window_apertures must be finite and greater than two")
@@ -295,10 +292,7 @@ def compare_case(
             row["window_apertures"] = window_apertures
             row["transform_backend"] = "Cartesian FFT ASM; variable-height Q"
             row["field_definition"] = (
-                "unmodified R Q^-1 T Q R; edges keep outside light, stops cut"
-                if interaction is None
-                else f"R Q^-1 T Q R with {type(interaction).__name__}"
-                f"(order {getattr(interaction, 'order', '?')}); edges keep outside light, stops cut"
+                "R Q^-1 T Q R with conditional finite-rim coupling; stops cut"
             )
             checks = fast_boundary_checks(solution, system)
             reconstructed = [
@@ -320,7 +314,11 @@ def compare_case(
             row["status"] = (
                 "central chart behind a 0.45R stop; the reference is the whole sphere"
                 if geometry == "sphere"
-                else "single pass: no rim scattering or internal returns"
+                else (
+                    "forward coupled rim; no sidewall reflection or internal returns"
+                    if solution.coupled_elements
+                    else "single pass: no rim scattering or internal returns"
+                )
             )
             for r in checks:
                 output["boundary"].append(dict(method=name, resolution=resolution, **r))
@@ -379,9 +377,7 @@ def compare_case(
         grid = CartesianGrid(axis, axis, system.interfaces[0].surface.frame)
         start = perf_counter()
         try:
-            solution = propagate_high_frequency(
-                source, system, grid, interaction=interaction
-            )
+            solution = propagate_high_frequency(source, system, grid)
         except ValueError as exc:
             if "TIR" not in str(exc) and "incident" not in str(exc):
                 raise

@@ -64,6 +64,9 @@ vecdiff_general/
         high_frequency.py           repeated R Q^-1 T Q R and outgoing ASM
         interface_assembly.py       forward sequence and coherent plane prescription
         multiple_scattering.py      explicit linear feedback equation with residual
+        imaging.py                  ideal aplanatic pupils, focus and scalar images
+        references/                 native BEM/FEM, Mie, Debye terms, meshing,
+                                    periodic-layer reference, benchmarks
     comparisons/
         curved_interface.py         comparison-only Fresnel currents
         surface_radiation.py        comparison-only dyadic Green and local/Weyl tools
@@ -126,7 +129,7 @@ Small `evaluate`/`propagate` convenience methods delegate to the responsible ope
 
 ## Readability contract
 
-Four spaces, conventional operator spacing, descriptive physical names, one logical operation per statement, and blank lines between validation, geometry, phase, and amplitude steps are enforced and reviewed. Transform normalization, units, frame conventions and approximation domains are documented beside the relevant routines. See [CODE_STYLE.md](CODE_STYLE.md).
+Four spaces, conventional operator spacing, descriptive physical names, one logical operation per statement, and blank lines between validation, geometry, phase, and amplitude steps are enforced and reviewed. Transform normalization, units, frame conventions and approximation domains are documented beside the relevant routines.
 
 ## Mathematical transforms and physical operators
 
@@ -194,13 +197,6 @@ It has no material, wavelength or field. `MaterialRegion` in
 `media/distribution.py` associates a spatial volume with a dielectric, and
 `MaterialDistribution` evaluates the resulting piecewise refractive index.
 
-The former general API `LensVolume` is renamed `VolumeBetweenSurfaces` and the
-former `geometry/domains.py` is removed. The geometry and membership behavior
-are preserved. The stigmatic architecture is intentionally unchanged while
-these general-library boundaries are refined.
-
-See the [general review](GENERAL_ARCHITECTURE_REVIEW.md) for reproduced gaps and the proposed next sequence.
-
 ## General polar and nonuniform interface
 
 General polar operations use `FT2(g, coordinates, frequencies)` and `IFT2(G, ...)`,
@@ -223,12 +219,12 @@ against the corresponding prescribed aperture before scattering. The radius
 bounds numerical support without defining a stop model. Node containment,
 complete aperture coverage and quadrature accuracy are separate claims.
 
-See [operational propagation](OPERATIONAL_PROPAGATION.md) for the equations, inverse, sampling contracts, measured errors and limitations.
+See [propagation](PROPAGATION.md) for the equations, inverse, sampling contracts, edges and stops, and limitations.
 
 Independent full-wave comparisons live in `propagation/references`: our Fortran
 PMCHWT/RWG dielectric BEM and Nédélec vector FEM/PML, plus analytical Mie spheres.
 Python owns validated meshes, units and solve orchestration; the native core
 assembles operators and reconstructs fields. They are
 explicit imports and are never selected by primary propagation. See
-[reference propagation](REFERENCE_PROPAGATION.md) and notebook 07 for their
+[validation](VALIDATION.md) and notebook 06 for their
 scope, independent physical checks, execution timings and convergence limits.

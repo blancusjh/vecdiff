@@ -3,12 +3,15 @@
 from dataclasses import dataclass
 
 import numpy as np
+import scipy.fft
 
-from ..fields import ElectricField, ElectromagneticField
+from ..fields import ElectricField, ElectromagneticField, TransverseElectricField
 from ..fields.eikonal import EikonalField
 from ..fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
+from ..fourier.cartesian import FFT2, IFFT2, frequency_grid
 from ..sampling import CartesianGrid
 from ..surfaces import FreeformSurface
+from .angular_spectrum import angular_spectrum
 from .operators import PlanarASM, SurfaceTransport, fresnel_transmission
 
 
@@ -22,6 +25,8 @@ class HighFrequencySolution:
     exterior_spectra[mode] holds, for each element with a finite edge, the
     light that passed outside it, at the element's exit vertex plane. It is
     added to the field sent onward, so it is included in transmitted.
+    coupled_elements lists entrance/exit interface pairs that used the
+    approximate two-medium rim propagation.
     """
 
     transmitted: tuple[PlaneSpectrum, ...]
@@ -30,6 +35,7 @@ class HighFrequencySolution:
     transports: tuple[tuple, ...]
     interface_spectra: tuple[tuple[PlaneSpectrum, ...], ...]
     exterior_spectra: tuple[tuple[PlaneSpectrum, ...], ...] = ()
+    coupled_elements: tuple[tuple[int, int], ...] = ()
 
     def evaluate(self, grid, *, backend="auto", **kwargs):
         fields = []
@@ -276,6 +282,110 @@ def _local_directions(spectrum, transport, illuminated):
     return directions
 
 
+def _rim_planes(system, start, end, wavelength0):
+    """Return the two flat rim planes of an axisymmetric, two-face element."""
+    if end != start + 1 or any(system.stops[start : end + 1]):
+        return None
+    a = system.apertures[start]
+    if a is None or system.apertures[end] != a:
+        return None
+    first, last = system.interfaces[start], system.interfaces[end]
+    if np.isclose(first.plus.material.n, first.minus.material.n):
+        return None
+    azimuth = np.linspace(0, 2 * np.pi, 16, endpoint=False)
+    rim = a * np.column_stack((np.cos(azimuth), np.sin(azimuth)))
+    h1, h2 = first.surface.height(rim), last.surface.height(rim)
+    if np.ptp(h1) > 1e-10 * wavelength0 or np.ptp(h2) > 1e-10 * wavelength0:
+        return None
+    z1 = float(h1[0])
+    separation = float(
+        (last.surface.frame.origin - first.surface.frame.origin)
+        @ first.surface.frame.normal
+    )
+    z2 = separation + float(h2[0])
+    if z2 <= z1:
+        return None
+    return z1, z2
+
+
+def _rim_band(values, plane, region, wavelength0, max_sine):
+    """Re-expand a two-component plane field into forward Maxwell modes."""
+    fx, fy = frequency_grid(plane.coordinates)
+    k = 2 * np.pi * region.material.n / wavelength0
+    keep = fx**2 + fy**2 <= (max_sine * k / (2 * np.pi)) ** 2
+    limited = IFFT2(FFT2(values) * keep[..., None])
+    return angular_spectrum(
+        TransverseElectricField(plane, wavelength0, limited),
+        region,
+        evanescent="discard",
+    )
+
+
+def _couple_rim(inside, outside, aperture, z1, z2, *, max_sine, step):
+    """Forward split-step coupling between glass and air across a finite rim.
+
+    This is a two-medium approximation. It propagates in each homogeneous
+    medium exactly per slice, then exchanges transverse E at the radial mask.
+    The sqrt(index ratio) factors preserve the normal-incidence flux scale;
+    they do not impose the complete vector sidewall boundary conditions.
+    """
+    plane = inside.grid
+    lam = inside.expansion.wavelength0
+    inner, outer = inside.expansion.region, outside.expansion.region
+    n_in, n_out = inner.material.n, outer.material.n
+    xy = (plane.points - plane.frame.origin) @ plane.frame.basis[:, :2]
+    clear = np.linalg.norm(xy, axis=-1) <= aperture
+    mask = clear[..., None]
+    asm = PlanarASM()
+    e_in = asm(inside, z1).electric.values @ plane.frame.basis[:, :2]
+    e_out = asm(outside, z1).electric.values @ plane.frame.basis[:, :2]
+    in_from_out = np.sqrt(n_out / n_in)
+    out_from_in = np.sqrt(n_in / n_out)
+    field = np.where(mask, e_in + in_from_out * e_out, e_out + out_from_in * e_in)
+
+    slices = max(1, int(np.ceil((z2 - z1) / (step * lam))))
+    if slices > 4096:
+        raise ValueError("rim_step requests more than 4096 axial slices")
+    dz = (z2 - z1) / slices
+    fx, fy = frequency_grid(plane.coordinates)
+    frequency2 = (2 * np.pi) ** 2 * (fx**2 + fy**2)
+    phases = [
+        np.fft.ifftshift(
+            np.exp(
+                1j
+                * np.sqrt(((2 * np.pi * n / lam) ** 2 - frequency2).astype(complex))
+                * dz
+            )
+        )
+        for n in (n_in, n_out)
+    ]
+    for _ in range(slices):
+        from_in = np.where(mask, field, 0)
+        from_out = np.where(mask, 0, field)
+        through_in = scipy.fft.ifft2(
+            scipy.fft.fft2(from_in + in_from_out * from_out, axes=(0, 1), workers=-1)
+            * phases[0][..., None],
+            axes=(0, 1),
+            workers=-1,
+        )
+        through_out = scipy.fft.ifft2(
+            scipy.fft.fft2(from_out + out_from_in * from_in, axes=(0, 1), workers=-1)
+            * phases[1][..., None],
+            axes=(0, 1),
+            workers=-1,
+        )
+        field = np.where(mask, through_in, through_out)
+
+    # plane is the entrance vertex, while field is currently at z2.
+    exit_plane = plane.translated(z2 * plane.frame.normal)
+    in_spec = _rim_band(np.where(mask, field, 0), exit_plane, inner, lam, max_sine)
+    out_spec = _rim_band(np.where(mask, 0, field), exit_plane, outer, lam, 0.999)
+    return (
+        asm.spectrum(in_spec, -z2),
+        asm.spectrum(out_spec, -z2),
+    )
+
+
 def propagate_high_frequency(
     source,
     system,
@@ -285,7 +395,8 @@ def propagate_high_frequency(
     transport_tolerance=1e-10,
     inverse_tolerance=1e-9,
     max_iterations=200,
-    interaction=None,
+    rim_coupling="auto",
+    rim_step=0.05,
 ):
     """Compose Q -> T -> Q^-1, then R to each following vertex plane.
 
@@ -305,26 +416,28 @@ def propagate_high_frequency(
     Fresnel, a simple model of leaving through the sidewall (exact for an
     index-matched element). A stop cuts everything on its chart outside its
     radius, including light passing outside the element. Sidewall reflection
-    and light entering through a sidewall are not modeled. No returning
-    branches are fed back. The user must resolve phase, curvature and edges and
+    and light entering through a sidewall are not modeled by the uncoupled
+    path. For a thick, two-face element with a circular rim and no stop,
+    rim_coupling='auto' uses a forward two-medium slice approximation when
+    the diameter is between four and ten wavelengths, its centre thickness
+    is at most four wavelengths, and
+    a²/(wavelength × centre thickness) <= 8. 'off' retains the original
+    separated path; 'on' requests coupling for every supported element.
+    Neither option solves reflected sidewall or returning branches. The user
+    must resolve phase, curvature and edges and
     verify both FFT-cell padding and grid convergence. No Green kernel is used.
 
-    interaction replaces the eikonal Fresnel step T. It is called as
-    interaction(interface, modes, Q_in, incident, mask, inside) with the
-    incident plane-wave spectrum in modes, and returns a FresnelEncounter; see
-    experiments.orders.OrderInteraction. It requires a PlaneWaveExpansion or
-    PlaneSpectrum source. Edges, stops and outside light are unchanged.
     """
     if not isinstance(grid, CartesianGrid):
         raise TypeError(
             "operational propagation requires a padded CartesianGrid, not surface quadrature"
         )
+    if rim_coupling not in ("auto", "off", "on"):
+        raise ValueError("rim_coupling must be 'auto', 'off', or 'on'")
+    if not np.isfinite(rim_step) or rim_step <= 0:
+        raise ValueError("rim_step must be a positive finite fraction of wavelength")
     first = system.interfaces[0]
     context = source.expansion if isinstance(source, PlaneSpectrum) else source
-    if interaction is not None and not isinstance(
-        source, (PlaneSpectrum, PlaneWaveExpansion)
-    ):
-        raise TypeError("an interaction needs plane-wave incident modes")
     if context.region != first.minus:
         raise ValueError("source region does not match the first incident medium")
     if not np.allclose(
@@ -343,11 +456,39 @@ def propagate_high_frequency(
     if np.any(np.diff(positions) <= 0):
         raise ValueError("interface vertices must be in forward order")
 
-    starts, ends = set(), {}
+    starts, ends, coupled = set(), {}, {}
     for start, end, enclosed in _elements(system):
         if enclosed:
             starts.add(start)
             ends[end] = start
+            if rim_coupling != "off":
+                planes = _rim_planes(system, start, end, context.wavelength0)
+                if planes is not None:
+                    aperture = system.apertures[start]
+                    centre_thickness = positions[end] - positions[start]
+                    fresnel_number = aperture**2 / (
+                        context.wavelength0 * centre_thickness
+                    )
+                    diameter = 2 * aperture / context.wavelength0
+                    if rim_coupling == "on" or (
+                        4 <= diameter <= 10
+                        and centre_thickness <= 4 * context.wavelength0
+                        and fresnel_number <= 8
+                    ):
+                        coupled[start] = (end, *planes)
+                elif (
+                    rim_coupling == "on"
+                    and system.apertures[start] is not None
+                    and not np.isclose(
+                        system.interfaces[start].minus.material.n,
+                        system.interfaces[start].plus.material.n,
+                    )
+                ):
+                    raise ValueError(
+                        "rim coupling requires two axisymmetric faces with "
+                        "equal circular edges and no stops"
+                    )
+    coupled_exits = {end for end, *_ in coupled.values()}
     ambient = first.minus
 
     # Geometry and Q factorizations are shared by all independent phases.
@@ -392,21 +533,7 @@ def propagate_high_frequency(
     outgoing, all_encounters, all_reports, all_spectra = [], [], [], []
     all_exterior = []
     branches = _branches(source)
-    if isinstance(source, PlaneWaveExpansion):
-        occupied = [i for i, a in enumerate(source.amplitudes) if np.any(a)]
-        first_modes = [
-            PlaneWaveExpansion(
-                source.wavevectors[i : i + 1],
-                source.amplitudes[i : i + 1],
-                source.origin,
-                source.wavelength0,
-                source.region,
-            )
-            for i in occupied
-        ]
-    else:
-        first_modes = [getattr(source, "expansion", None)] * len(branches)
-    for branch, branch_modes in zip(branches, first_modes):
+    for branch in branches:
         current = None
         encounters, reports, spectra, exteriors = [], [], [], []
         pending = None
@@ -447,7 +574,6 @@ def propagate_high_frequency(
                     positions[index],
                 )
             incident = _masked(incident, pupil)
-            present = pupil
             if index in starts and aperture is not None:
                 # Beyond the entrance edge the field stays in the source medium.
                 outside = _masked(incident, ~clear)
@@ -461,18 +587,25 @@ def propagate_high_frequency(
                         positions[index],
                     )
                 incident = _masked(incident, clear)
-                present = pupil & clear
             # Beyond a surface edge there is no optical face: the chart's flat
             # extension is crossed at normal incidence, because local phase
             # directions of weak diffraction tails are not meaningful rays.
             directions = np.where(clear[..., None], directions, Q_in.grid.normals)
-            if interaction is None:
-                encounter = fresnel_transmission(incident, interface, directions)  # T
-            else:
-                modes = branch_modes if index == 0 else current.expansion
-                encounter = interaction(
-                    interface, modes, Q_in, incident, present, clear
+            if index in coupled_exits:
+                # Rim diffraction may create exit-face TIR, which the forward
+                # interface operator cannot represent. Keep the supported
+                # transmitted branch and discard those samples explicitly.
+                cosine = np.abs(np.sum(directions * Q_in.grid.normals, axis=-1))
+                sine2 = np.maximum(0, 1 - cosine**2)
+                total_reflection = clear & (
+                    interface.minus.material.n**2 * sine2
+                    >= interface.plus.material.n**2
                 )
+                incident = _masked(incident, ~total_reflection)
+                directions = np.where(
+                    total_reflection[..., None], Q_in.grid.normals, directions
+                )
+            encounter = fresnel_transmission(incident, interface, directions)  # T
             current, report = Q_out.inverse(
                 encounter.transmitted,
                 tolerance=inverse_tolerance,
@@ -481,6 +614,18 @@ def propagate_high_frequency(
             encounters.append(encounter)
             reports.append(report)
             spectra.append(current)  # this interface's own Q^-1 result
+            if index in coupled and pending is not None:
+                _, z1, z2 = coupled[index]
+                current, exterior = _couple_rim(
+                    current,
+                    pending[0],
+                    system.apertures[index],
+                    z1,
+                    z2,
+                    max_sine=max_sine,
+                    step=rim_step,
+                )
+                pending = (exterior, positions[index])
             if index in ends and pending is not None:
                 carried = PlanarASM().spectrum(
                     pending[0], positions[index] - pending[1]
@@ -500,4 +645,5 @@ def propagate_high_frequency(
         tuple(operators),
         tuple(all_spectra),
         tuple(all_exterior),
+        tuple((start, end) for start, (end, *_rest) in coupled.items()),
     )

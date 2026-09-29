@@ -1,10 +1,13 @@
 """Centered Cartesian Fourier transforms of numerical arrays."""
 
 import numpy as np
+import scipy.fft
 
 
 def FFT2(g: np.ndarray) -> np.ndarray:
     """Centered 2D FFT on axes (0, 1), with NumPy's default normalization.
+
+    Computed with scipy.fft on all available cores.
 
     Arrays have order (y, x, ...). Trailing components or batches are untouched.
     The spatial reference is index (ny // 2, nx // 2); zero frequency is centered.
@@ -15,7 +18,7 @@ def FFT2(g: np.ndarray) -> np.ndarray:
         raise ValueError("FFT input must be finite with two nonempty spatial axes")
 
     g_ = np.fft.ifftshift(g, axes=(0, 1))
-    G_ = np.fft.fft2(g_, axes=(0, 1))
+    G_ = scipy.fft.fft2(g_, axes=(0, 1), workers=-1)
     G = np.fft.fftshift(G_, axes=(0, 1))
 
     return G
@@ -33,7 +36,7 @@ def IFFT2(G: np.ndarray) -> np.ndarray:
         raise ValueError("FFT input must be finite with two nonempty spatial axes")
 
     G_ = np.fft.ifftshift(G, axes=(0, 1))
-    g_ = np.fft.ifft2(G_, axes=(0, 1))
+    g_ = scipy.fft.ifft2(G_, axes=(0, 1), workers=-1)
     g = np.fft.fftshift(g_, axes=(0, 1))
 
     return g

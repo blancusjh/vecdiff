@@ -229,3 +229,36 @@ def test_bem_cache_reloads_identical_currents(tmp_path):
     np.testing.assert_array_equal(first.coefficients, second.coefficients)
     other = DielectricBEM(source, mesh, glass, cache=tmp_path, quadrature=5)
     assert other.loaded_from is None
+
+
+def test_finite_rim_coupling_improves_a_lens_field_against_bem():
+    """Compare complex vector fields over a common detector patch, not peaks."""
+    wavelength = 532e-9
+    source, glass, volume, system = lens_case(4, wavelength0=wavelength)
+    radius = 2 * wavelength
+    count = 192
+    axis = (np.arange(count) - count // 2) * (24 * radius / count)
+    grid = o.CartesianGrid(axis, axis, system.interfaces[0].surface.frame)
+    old = o.propagate_interfaces(source, system, grid, rim_coupling="off")
+    improved = o.propagate_interfaces(source, system, grid)
+    assert old.coupled_elements == ()
+    assert improved.coupled_elements == ((0, 1),)
+
+    coordinate = np.linspace(-wavelength, wavelength, 21)
+    x, y = np.meshgrid(coordinate, coordinate)
+    detector = o.PointGrid(np.stack((x, y, np.full_like(x, 2.192e-6)), axis=-1))
+    reference = (
+        DielectricBEM(source, surface_mesh(volume, 2 * radius / 12), glass)
+        .evaluate(detector)
+        .electric.values
+    )
+    denominator = np.linalg.norm(reference)
+    old_error = np.linalg.norm(old.evaluate(detector).electric.values - reference)
+    new_error = np.linalg.norm(improved.evaluate(detector).electric.values - reference)
+    assert new_error / denominator < 0.20
+    assert new_error < old_error / 2
+
+    # Smaller bodies were found to overshoot with the slice approximation.
+    source, _, _, system = lens_case(2, wavelength0=wavelength)
+    small = o.propagate_interfaces(source, system, grid)
+    assert small.coupled_elements == ()

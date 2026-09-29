@@ -8,12 +8,13 @@ band-limited least-squares solve of the tangential electric trace, NOT Q with
 from dataclasses import dataclass
 
 import numpy as np
+import scipy.fft
 from scipy.sparse.linalg import LinearOperator, lsmr
 from scipy.special import jv
 
 from ..fields import ElectricField, ElectromagneticField
 from ..fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
-from ..fourier.cartesian import FFT2, IFFT2, frequency_grid
+from ..fourier.cartesian import FFT2, frequency_grid
 from ..interfaces.directions import reflected_direction, transmitted_direction
 from ..interfaces.fresnel import (
     apply_fresnel,
@@ -151,20 +152,31 @@ class SurfaceTransport:
             self.spectral.append(self.active * frequency_phase * factor)
             if order:
                 previous, current = current, 2 * t * current - previous
+        # The same terms in unshifted FFT order: each sum then needs one shift.
+        self._terms = [
+            (np.fft.ifftshift(weight), np.fft.ifftshift(factor))
+            for weight, factor in zip(self.spatial, self.spectral)
+        ]
 
     def _synthesize(self, coefficients):
-        return sum(
-            weight[..., None] * IFFT2(factor[..., None] * coefficients)
-            for weight, factor in zip(self.spatial, self.spectral)
+        shifted = np.fft.ifftshift(coefficients, axes=(0, 1))
+        total = sum(
+            weight[..., None]
+            * scipy.fft.ifft2(factor[..., None] * shifted, axes=(0, 1), workers=-1)
+            for weight, factor in self._terms
         )
+        return np.fft.fftshift(total, axes=(0, 1))
 
     def _adjoint(self, values):
-        return sum(
+        shifted = np.fft.ifftshift(values, axes=(0, 1))
+        total = sum(
             factor.conj()[..., None]
-            * FFT2(weight.conj()[..., None] * values)
-            / self.size
-            for weight, factor in zip(self.spatial, self.spectral)
+            * scipy.fft.fft2(
+                weight.conj()[..., None] * shifted, axes=(0, 1), workers=-1
+            )
+            for weight, factor in self._terms
         )
+        return np.fft.fftshift(total, axes=(0, 1)) / self.size
 
     def _complete(self, transverse):
         longitudinal = (

@@ -7,19 +7,13 @@ Two independent vector optical propagation libraries, organized around **space, 
 
 The packages have separate source trees, distributions, and tests. Neither imports the other. Their corresponding foundational types are intentionally implemented locally; external validation compares physical results. The original repository and its branches remain intact.
 
-The common [Fourier API and typed grids](docs/FOURIER_AND_GRIDS.md) provide Cartesian and polar transforms with explicit physical coordinates.
+Documentation:
 
-[Full-wave references](docs/REFERENCE_PROPAGATION.md) and
-[notebook 07](general/docs/notebooks/07_full_wave_reference_validation.ipynb)
-compare the operational method with our Fortran dielectric BEM and vector FEM
-solvers, plus analytical Mie spheres. Tables group parameters within each
-geometry and retain boundary checks, convergence, field plots and timings.
-
-[Surface edges and pupils](docs/PUPILS_AND_EDGES.md): a lens edge no longer cuts the field; only explicitly declared stops do. Keeping the light that passes outside a lens reduces the on-axis error against full-wave references by up to half.
-
-The [general architecture review](docs/GENERAL_ARCHITECTURE_REVIEW.md) records the latest separation of geometry and volumes, reproduced gaps, and the next proposed steps. Stigmatic architecture changes are deferred.
-
-Start with the **[executed notebook guide](docs/NOTEBOOKS.md)** or the **[implemented architecture](docs/ARCHITECTURE.md)**. The seven notebooks cover planar optics, aperture diffraction, explicit lens focusing, vector beams, ideal projection, Fresnel compensation, polarization-selective holography, and scalar/vector lithography including an ideal DUV reduction relay. Field intensity maps use hot or inferno. Grayscale polarization glyphs appear only on figures intended to show the polarization of a complete vector field; component, scalar-reference and circuit-comparison panels omit them. Projection and DUV are combined in the imaging notebook; holography is part of the vector-beam notebook. The [polarization guide](docs/POLARIZATION.md) describes automatic figure sizing, intensity-aware ellipse placement, and animation.
+- [Notebooks](docs/NOTEBOOKS.md): six executed physical studies in `general/notebooks/`.
+- [Architecture](docs/ARCHITECTURE.md): responsibilities, units and source map.
+- [Propagation](docs/PROPAGATION.md): the R Q⁻¹ T Q R path, edges and stops, GOTS surfaces, ideal imaging.
+- [Fourier API and grids](docs/FOURIER_AND_GRIDS.md): Cartesian, polar and nonuniform transforms with physical coordinates.
+- [Validation](docs/VALIDATION.md): tests, full-wave references (BEM, FEM, Mie) and their limits.
 
 ## Install and verify
 
@@ -32,21 +26,16 @@ python3 -m venv .venv
 .venv/bin/python -m pip install --no-build-isolation -e './general[test,notebooks,nufft,reference-mesh]'
 .venv/bin/python -m pip install -e './stigmatic[test,notebooks,nufft]' ruff
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/notebooks.py
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .
 ```
 
-Both libraries require NumPy and SciPy. Matplotlib, Jupyter execution, and FINUFFT are optional extras. Gmsh (`reference-mesh`) generates meshes for the reference notebook. Neither package requires the other. Either can be installed alone with `python -m pip install ./general` or `python -m pip install ./stigmatic`.
-
-```sh
-.venv/bin/python scripts/notebooks.py --check
-.venv/bin/python scripts/verify_independent_wheels.py
-.venv/bin/python general/examples/planar_interface.py
-.venv/bin/python stigmatic/examples/focal_field.py --plot
-```
-
-The notebook runner uses the calling interpreter and a project-local kernel specification. Executed outputs are retained in the notebooks. `requirements-dev.lock` records the qualified development environment; the libraries' dependency declarations are in their individual `pyproject.toml` files. The root `pyproject.toml` configures code style.
+Both libraries require NumPy and SciPy. Matplotlib, Jupyter execution, FINUFFT
+and Gmsh (`reference-mesh`) are optional extras. Neither package requires the
+other; either installs alone with `python -m pip install ./general` or
+`python -m pip install ./stigmatic`. `requirements-dev.lock` records the
+qualified development environment; the root `pyproject.toml` configures code
+style. See [notebooks](docs/NOTEBOOKS.md#run) to execute the notebooks.
 
 ## Organization
 
@@ -69,11 +58,11 @@ src/vecdiff_<general or stigmatic>/
 Fourier routines accept numerical arrays and lattice parameters only. Optical
 angular-spectrum construction and propagation live in `propagation/`. Interface
 transmission and reflection are separate operators, each returning the requested
-field on its existing surface. See [the operator example](docs/INTERFACE_OPERATORS.md).
+field on its existing surface. See [propagation](docs/PROPAGATION.md#electric-field-operators-at-one-interface).
 
 The general package keeps spatial volumes in `volumes.py`, separate from mathematical geometry and material assignment.
 
-The general package also has `io/prescription.py` for explicit SI JSON optical prescriptions. Each distribution has `tests/` and `examples/`; the physical notebooks are in `general/docs/notebooks/`. External cross-library qualification lives in `validation/`.
+The general package also has `io/prescription.py` for explicit SI JSON optical prescriptions. Each distribution has its own `tests/`; the physical notebooks are in `general/notebooks/`. External cross-library checks live in `validation/`.
 
 ## Physical contracts
 
@@ -136,6 +125,10 @@ Direct, Hankel, and optional NUFFT Debye evaluation preserve all complex Cartesi
 
 ## Qualification and limits
 
-Read [validation](docs/VALIDATION.md) for checks and measured errors, and [implementation status](docs/IMPLEMENTATION_STATUS.md) for supported regimes and remaining extensions. The notebooks state their physical models and distinguish numerical convergence from model accuracy.
-
-The general Green calculation reproduces the saved stigmatic physical-optics reference without phase or amplitude fitting. That preservation check does not turn either physical-optics model into an exact closed-body dielectric solver. The [original audit](docs/ARCHITECTURE_REVIEW.md) and [earlier blueprint](docs/SEPARATE_ARCHITECTURES_AND_PHYSICAL_CHECKS.md) remain historical design evidence; the implemented architecture document describes the current tree.
+Read [validation](docs/VALIDATION.md) for the checks and their limits. The
+notebooks state their physical models and distinguish numerical convergence
+from model accuracy. The operational method is a forward single-pass model:
+eligible finite lenses include approximate rim coupling, while sidewall
+reflection and internal returns are absent. Its accuracy against
+full-wave references depends on the element Fresnel number
+([propagation](docs/PROPAGATION.md#validity-element-fresnel-number)).
