@@ -242,8 +242,10 @@ class ChartAtoms:
     """Atoms on a graph surface z = h(x): E and H envelopes on chart grids.
 
     centres (A, 2) chart coordinates of the footprints, carriers (A, 2) the
-    tangential phase gradient q, electric/magnetic (A, M, M, 3) Cartesian
-    envelopes: E(x) = electric(x - centre) exp(i q . x) on the surface.
+    tangential phase gradient q, curvatures (A, 2, 2) a quadratic chart phase
+    C, electric/magnetic (A, M, M, 3) Cartesian envelopes:
+    E(x) = electric(y) exp(i q . x + i y.C y / 2), y = x - centre, on the surface.
+    The quadratic carrier removes the surface-curvature chirp from envelopes.
     """
 
     centres: np.ndarray
@@ -251,6 +253,7 @@ class ChartAtoms:
     electric: np.ndarray
     magnetic: np.ndarray
     step: float
+    curvatures: np.ndarray
 
     @property
     def size(self):
@@ -258,15 +261,29 @@ class ChartAtoms:
 
     def evaluate(self, points, *, tolerance=1e-12):
         """E and H at chart points (P, 2) on the surface."""
-        values = AtomField(
-            self.centres,
-            np.zeros(len(self.centres)),
-            self.carriers,
-            np.concatenate((self.electric, self.magnetic), axis=-1),
-            self.step,
-            1.0,
-        ).evaluate(points, tolerance=tolerance)
-        return values[:, :3], values[:, 3:]
+        points = np.asarray(points, float)
+        local, xi = _grid(self.size, self.step)
+        half = -local[0]
+        XU, XV = np.meshgrid(xi, xi)
+        freq = np.column_stack((XU.ravel(), XV.ravel()))
+        out = np.zeros((len(points), 6), complex)
+        for centre, carrier, curvature, E, H in zip(
+            self.centres, self.carriers, self.curvatures, self.electric, self.magnetic
+        ):
+            rel = points - centre
+            inside = np.all(np.abs(rel) <= half, axis=1)
+            if not inside.any():
+                continue
+            coeff = _spectrum(np.concatenate((E, H), -1)).reshape(freq.shape[0], -1)
+            values = NUFFT(
+                coeff, freq, rel[inside], sign=1, backend="nufft", tolerance=tolerance
+            )
+            y = rel[inside]
+            chirp = 0.5 * np.einsum("pi,ij,pj->p", y, curvature, y)
+            out[inside] += (
+                values * np.exp(1j * (points[inside] @ carrier + chirp))[:, None]
+            )
+        return out[:, :3], out[:, 3:]
 
 
 def _on_surface(surface, xy):
@@ -302,7 +319,7 @@ def surface_transport(atoms, surface, index, *, size, step, tolerance=1e-8):
     LX, LY = np.meshgrid(local, local)
     local_c, xi = _grid(atoms.size, atoms.step)
     XU, XV = np.meshgrid(xi, xi)
-    centres, carriers, electric, magnetic = [], [], [], []
+    centres, carriers, electric, magnetic, curvatures = [], [], [], [], []
     for x_a, z_a, kappa, u in zip(
         atoms.centres, atoms.heights, atoms.carriers, atoms.envelopes
     ):
@@ -363,9 +380,20 @@ def surface_transport(atoms, surface, index, *, size, step, tolerance=1e-8):
             (spatial * p)[..., None] * values[:, :, m]
             for m, p in enumerate(polynomials)
         )
-        chart = chart * valid[..., None]
+        # Quadratic chart carrier: C = kz0 * Hessian(h) at the footprint, fitted
+        # to the tangent-plane residual; removed analytically at the samples.
+        basis = np.stack((0.5 * LX**2, LX * LY, 0.5 * LY**2, np.ones_like(LX)), -1)
+        fit = np.linalg.lstsq(basis[valid], r[valid], rcond=None)[0]
+        curvature = kz0 * np.array([[fit[0], fit[1]], [fit[1], fit[2]]])
+        chirp = 0.5 * (
+            curvature[0, 0] * LX**2
+            + 2 * curvature[0, 1] * LX * LY
+            + curvature[1, 1] * LY**2
+        )
+        chart = chart * (valid * np.exp(-1j * chirp))[..., None]
         centres.append(x_f)
         carriers.append(kappa + kz0 * g)
+        curvatures.append(curvature)
         electric.append(chart[..., :3])
         magnetic.append(chart[..., 3:])
     return ChartAtoms(
@@ -374,69 +402,88 @@ def surface_transport(atoms, surface, index, *, size, step, tolerance=1e-8):
         np.array(electric),
         np.array(magnetic),
         step,
+        np.array(curvatures),
     )
 
 
-def _local_wavevector(chart, surface, k):
-    """3D incident wavevector per chart sample from the tangential phase gradient."""
+def _chart_geometry(chart, surface):
+    """Chart points of every atom, their validity and surface gradients (batched)."""
     local, _ = _grid(chart.size, chart.step)
     LX, LY = np.meshgrid(local, local)
-    out = np.empty(chart.electric.shape, float)
-    for a, (x_f, q, E) in enumerate(zip(chart.centres, chart.carriers, chart.electric)):
-        dominant = E[..., np.argmax(np.sum(abs(E) ** 2, axis=(0, 1)))]
-        # Exact derivative of the band-limited envelope (spectral, periodic grid).
-        _, xi = _grid(chart.size, chart.step)
-        spectrum = _spectrum(dominant[..., None])[..., 0]
-        XU, XV = np.meshgrid(xi, xi)
-        gx = _envelope((1j * XU * spectrum)[..., None])[..., 0]
-        gy = _envelope((1j * XV * spectrum)[..., None])[..., 0]
-        lit = abs(dominant) > 1e-6 * abs(dominant).max()
-        with np.errstate(all="ignore"):
-            wx = q[0] + np.where(lit, np.nan_to_num((gx / dominant).imag), 0)
-            wy = q[1] + np.where(lit, np.nan_to_num((gy / dominant).imag), 0)
-        # A dark sample's phase gradient is noise: use the atom's carrier there.
-        beyond = wx**2 + wy**2 >= (0.999 * k) ** 2
-        wx, wy = np.where(beyond, q[0], wx), np.where(beyond, q[1], wy)
-        chart_xy = np.stack((x_f[0] + LX, x_f[1] + LY), -1)
-        valid = _on_surface(surface, chart_xy)
-        g = np.zeros(chart_xy.shape)
-        g[valid] = surface.gradient(chart_xy[valid])
-        wg = wx * g[..., 0] + wy * g[..., 1]
-        gg = 1 + g[..., 0] ** 2 + g[..., 1] ** 2
-        disc = np.maximum(wg**2 - gg * (wx**2 + wy**2 - k**2), 0)
-        kz = (wg + np.sqrt(disc)) / gg
-        out[a] = np.stack((wx - kz * g[..., 0], wy - kz * g[..., 1], kz), -1)
-    return out
+    xy = np.stack(
+        (chart.centres[:, 0, None, None] + LX, chart.centres[:, 1, None, None] + LY), -1
+    )
+    valid = _on_surface(surface, xy)
+    gradient = np.zeros(xy.shape)
+    gradient[valid] = surface.gradient(xy[valid])
+    return xy, valid, gradient
+
+
+def _local_wavevector(chart, k, gradient):
+    """3D incident wavevector per chart sample from the tangential phase gradient.
+
+    All atoms at once: the dominant component's envelope is differentiated
+    exactly (spectrally, it is band-limited) and the tangential wavevector q +
+    grad(arg) is lifted to 3D with the forward root on the local tangent plane.
+    """
+    atoms = np.arange(len(chart.centres))
+    component = np.argmax(np.sum(abs(chart.electric) ** 2, axis=(1, 2)), axis=-1)
+    dominant = chart.electric[atoms, :, :, component]
+    _, xi = _grid(chart.size, chart.step)
+    XU, XV = np.meshgrid(xi, xi)
+    spectrum = np.fft.fft2(np.fft.ifftshift(dominant, axes=(1, 2)), axes=(1, 2))
+    gx = np.fft.fftshift(np.fft.ifft2(1j * XU * spectrum, axes=(1, 2)), axes=(1, 2))
+    gy = np.fft.fftshift(np.fft.ifft2(1j * XV * spectrum, axes=(1, 2)), axes=(1, 2))
+    peak = abs(dominant).max(axis=(1, 2))[:, None, None]
+    lit = abs(dominant) > 1e-6 * peak
+    local, _ = _grid(chart.size, chart.step)
+    LX, LY = np.meshgrid(local, local)
+    C = chart.curvatures
+    q = chart.carriers[:, None, None, :] + np.stack(
+        (
+            C[:, 0, 0, None, None] * LX + C[:, 0, 1, None, None] * LY,
+            C[:, 1, 0, None, None] * LX + C[:, 1, 1, None, None] * LY,
+        ),
+        -1,
+    )
+    with np.errstate(all="ignore"):
+        wx = q[..., 0] + np.where(lit, np.nan_to_num((gx / dominant).imag), 0)
+        wy = q[..., 1] + np.where(lit, np.nan_to_num((gy / dominant).imag), 0)
+    # A dark sample's phase gradient is noise: use the atom's carrier there.
+    beyond = wx**2 + wy**2 >= (0.999 * k) ** 2
+    wx = np.where(beyond, q[..., 0], wx)
+    wy = np.where(beyond, q[..., 1], wy)
+    wg = wx * gradient[..., 0] + wy * gradient[..., 1]
+    gg = 1 + gradient[..., 0] ** 2 + gradient[..., 1] ** 2
+    kz = (wg + np.sqrt(np.maximum(wg**2 - gg * (wx**2 + wy**2 - k**2), 0))) / gg
+    return np.stack((wx - kz * gradient[..., 0], wy - kz * gradient[..., 1], kz), -1)
 
 
 def transmit_chart(chart, surface, interface, wavelength0):
-    """T: local Fresnel transmission of chart atoms (carriers unchanged)."""
+    """T: local Fresnel transmission of chart atoms (carriers unchanged), batched."""
     from ..fields import ElectricField, ElectromagneticField
     from ..sampling import SurfaceGrid
     from .operators import fresnel_transmission
 
     k = 2 * np.pi * interface.minus.material.n / wavelength0
-    wavevectors = _local_wavevector(chart, surface, k)
-    local, _ = _grid(chart.size, chart.step)
-    LX, LY = np.meshgrid(local, local)
-    electric, magnetic = np.empty_like(chart.electric), np.empty_like(chart.magnetic)
-    for a, x_f in enumerate(chart.centres):
-        xy = np.stack((x_f[0] + LX, x_f[1] + LY), -1)
-        valid = _on_surface(surface, xy)
-        grid = SurfaceGrid(
-            surface.points(xy[valid]), surface.normals(xy[valid]), np.ones(valid.sum())
-        )
-        trace = ElectromagneticField(
-            ElectricField(grid, wavelength0, chart.electric[a][valid]),
-            chart.magnetic[a][valid],
-        )
-        directions = wavevectors[a][valid]
-        directions = directions / np.linalg.norm(directions, axis=-1)[..., None]
-        encounter = fresnel_transmission(trace, interface, directions)
-        electric[a], magnetic[a] = 0, 0
-        electric[a][valid] = encounter.transmitted.electric.values
-        magnetic[a][valid] = encounter.transmitted.magnetic
-    return ChartAtoms(chart.centres, chart.carriers, electric, magnetic, chart.step)
+    xy, valid, gradient = _chart_geometry(chart, surface)
+    wavevectors = _local_wavevector(chart, k, gradient)[valid]
+    grid = SurfaceGrid(
+        surface.points(xy[valid]), surface.normals(xy[valid]), np.ones(valid.sum())
+    )
+    trace = ElectromagneticField(
+        ElectricField(grid, wavelength0, chart.electric[valid]), chart.magnetic[valid]
+    )
+    encounter = fresnel_transmission(
+        trace, interface, wavevectors / np.linalg.norm(wavevectors, axis=-1)[:, None]
+    )
+    electric = np.zeros_like(chart.electric)
+    magnetic = np.zeros_like(chart.magnetic)
+    electric[valid] = encounter.transmitted.electric.values
+    magnetic[valid] = encounter.transmitted.magnetic
+    return ChartAtoms(
+        chart.centres, chart.carriers, electric, magnetic, chart.step, chart.curvatures
+    )
 
 
 def _refracted_carrier(q, g, k):
@@ -446,41 +493,87 @@ def _refracted_carrier(q, g, k):
     return q - kz * g
 
 
+def _upsample(envelope, factor):
+    """Exact band-limited interpolation of an envelope onto a grid ``factor`` times finer."""
+    if factor == 1:
+        return envelope
+    size = envelope.shape[0]
+    fine = size * factor
+    spectrum = np.fft.fftshift(_spectrum(envelope), axes=(0, 1))
+    pad = (fine - size) // 2
+    padded = np.zeros((fine, fine) + envelope.shape[2:], complex)
+    padded[pad : pad + size, pad : pad + size] = spectrum
+    return _envelope(np.fft.ifftshift(padded, axes=(0, 1)))
+
+
+def _quadratic(C, X, Y):
+    return 0.5 * (C[0, 0] * X**2 + 2 * C[0, 1] * X * Y + C[1, 1] * Y**2)
+
+
 def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
-    """Q^-1: chart atoms (E, H after T) -> plane atoms at their footprint heights."""
+    """Q^-1: chart atoms (E, H after T) -> plane atoms at their footprint heights.
+
+    The chart's quadratic phase C is continuous across the interface, while
+    the radiation kernel's curvature is kz0' H in the onward medium: their
+    difference D = C - kz0' H is the transmitted wavefront curvature relative
+    to the surface. Envelopes are band-limited, so they are interpolated
+    exactly (spectral zero padding) onto a grid fine enough for D before the
+    currents are radiated.
+    """
     k = 2 * np.pi * index / wavelength0
     impedance = Z0 / index
-    local_c, _ = _grid(chart.size, chart.step)
-    LX, LY = np.meshgrid(local_c, local_c)
     _, xi = _grid(size, step)
     XU, XV = np.meshgrid(xi, xi)
     dxi = 2 * np.pi / (size * step)
+    coarse, coarse_xi = _grid(chart.size, chart.step)
+    CX, CY = np.meshgrid(coarse, coarse)
+    fit_basis = np.stack((0.5 * CX**2, CX * CY, 0.5 * CY**2, np.ones_like(CX)), -1)
     centres, heights, carriers, envelopes = [], [], [], []
-    for x_f, q, E, H in zip(
-        chart.centres, chart.carriers, chart.electric, chart.magnetic
+    for x_f, q, curvature, E, H in zip(
+        chart.centres, chart.carriers, chart.curvatures, chart.electric, chart.magnetic
     ):
+        h0 = surface.height(x_f[None])[0]
+        g = surface.gradient(x_f[None])[0]
+        kappa = _refracted_carrier(q, g, k)
+        kz0 = np.sqrt(k**2 - kappa @ kappa)
+        # Residual chirp D on the coarse grid decides the refinement.
+        xy = np.stack((x_f[0] + CX, x_f[1] + CY), -1)
+        valid = _on_surface(surface, xy)
+        r = _heights(surface, xy, valid) - h0 - g[0] * CX - g[1] * CY
+        fit = np.linalg.lstsq(fit_basis[valid], r[valid], rcond=None)[0]
+        D = curvature - kz0 * np.array([[fit[0], fit[1]], [fit[1], fit[2]]])
+        magnitude = np.linalg.norm(_spectrum(np.concatenate((E, H), -1)), axis=-1)
+        XC, YC = np.meshgrid(coarse_xi, coarse_xi)
+        occupied = magnitude > tolerance * magnitude.max()
+        envelope_band = max(np.abs(XC[occupied]).max(), np.abs(YC[occupied]).max())
+        band = envelope_band + np.abs(D).sum(axis=1).max() * abs(coarse[0])
+        factor = max(1, int(np.ceil(1.2 * band * chart.step / np.pi)))
+        E, H = _upsample(E, factor), _upsample(H, factor)
+        local, _ = _grid(chart.size * factor, chart.step / factor)
+        LX, LY = np.meshgrid(local, local)
         xy = np.stack((x_f[0] + LX, x_f[1] + LY), -1)
         valid = _on_surface(surface, xy)
         normals = np.zeros(xy.shape[:-1] + (3,))
         normals[valid] = surface.normals(xy[valid])
         area = np.zeros(xy.shape[:-1])
-        area[valid] = surface.area_jacobian(xy[valid]) * chart.step**2
-        J = np.cross(normals, H) * area[..., None]
-        M = -np.cross(normals, E) * area[..., None]
-        h0 = surface.height(x_f[None])[0]
-        g = surface.gradient(x_f[None])[0]
+        area[valid] = surface.area_jacobian(xy[valid]) * (chart.step / factor) ** 2
+        currents = (
+            np.concatenate((np.cross(normals, H), -np.cross(normals, E)), -1)
+            * area[..., None]
+        )
         r = _heights(surface, xy, valid) - h0 - g[0] * LX - g[1] * LY
         r_mid = (r[valid].max() + r[valid].min()) / 2
         r_half = (r[valid].max() - r[valid].min()) / 2
         r = np.where(valid, r, r_mid)
-        kappa = _refracted_carrier(q, g, k)
-        kz0 = np.sqrt(k**2 - kappa @ kappa)
+        # Integrand without its linear phase: currents exp(i(C-part) - i kz0' r).
+        compensated = (
+            currents * np.exp(1j * (_quadratic(curvature, LX, LY) - kz0 * r))[..., None]
+        )
         ku, kv = kappa[0] + XU, kappa[1] + XV
         kz = np.sqrt(np.maximum(k**2 - ku**2 - kv**2, 0))
-        # Significant band: chart-current frequencies p = xi + (kz - kz0) g.
-        currents = np.concatenate((J, M), -1)
-        chart_spectrum = np.linalg.norm(_spectrum(currents), axis=-1)
-        chart_band = chart_spectrum > tolerance * chart_spectrum.max()
+        fine_size, fine_step = chart.size * factor, chart.step / factor
+        spectrum = np.linalg.norm(_spectrum(compensated), axis=-1)
+        chart_band = spectrum > tolerance * spectrum.max()
         for _ in range(2):
             chart_band = (
                 chart_band | np.roll(chart_band, 1, 0) | np.roll(chart_band, -1, 0)
@@ -489,19 +582,21 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
                 chart_band | np.roll(chart_band, 1, 1) | np.roll(chart_band, -1, 1)
             )
         pu, pv = XU + (kz - kz0) * g[0], XV + (kz - kz0) * g[1]
-        cell = 2 * np.pi / (chart.size * chart.step)
-        iu = np.rint(pu / cell).astype(int) % chart.size
-        iv = np.rint(pv / cell).astype(int) % chart.size
-        inside = (np.abs(pu) < np.pi / chart.step) & (np.abs(pv) < np.pi / chart.step)
+        cell = 2 * np.pi / (fine_size * fine_step)
+        iu = np.rint(pu / cell).astype(int) % fine_size
+        iv = np.rint(pv / cell).astype(int) % fine_size
+        inside = (np.abs(pu) < np.pi / fine_step) & (np.abs(pv) < np.pi / fine_step)
         propagating = (ku**2 + kv**2 < k**2) & inside & chart_band[iv, iu]
         kzb = kz[propagating]
-        carrier_z = (kzb.max() + kzb.min()) / 2
-        rank = _chebyshev_rank((kzb.max() - kzb.min()) / 2 * r_half, tolerance)
+        # exp(-i kz r) = exp(-i kz0 r) exp(-i (kz - kz0) r): the second factor is low rank.
+        offset = kzb - kz0
+        carrier_z = (offset.max() + offset.min()) / 2
+        rank = _chebyshev_rank((offset.max() - offset.min()) / 2 * r_half, tolerance)
         t = (r - r_mid) / r_half if r_half > 0 else np.zeros_like(r)
         spatial = np.exp(-1j * carrier_z * r_half * t)
         sources = np.concatenate(
             [
-                (currents * (spatial * p)[..., None]).reshape(-1, 6)
+                (compensated * (spatial * p)[..., None]).reshape(-1, 6)
                 for p in _chebyshev(t, rank)
             ],
             -1,
@@ -516,14 +611,16 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
         ).reshape(-1, rank, 6)
         coefficients = np.stack(
             [
-                (1 if m == 0 else 2) * (-1j) ** m * jv(m, (kzb - carrier_z) * r_half)
+                (1 if m == 0 else 2) * (-1j) ** m * jv(m, (offset - carrier_z) * r_half)
                 for m in range(rank)
             ],
             -1,
         )
         transform = (
             np.einsum("pm,pmc->pc", coefficients, integrals)
-            * np.exp(-1j * kzb * r_mid)[:, None]
+            * np.exp(-1j * (offset - carrier_z) * r_mid - 1j * carrier_z * r_mid)[
+                :, None
+            ]
         )
         Jt, Mt = transform[:, :3], transform[:, 3:]
         khat = np.stack((ku[propagating], kv[propagating], kzb), -1) / k
@@ -531,13 +628,13 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
             khat, Mt
         )
         amplitude = -(k / (8 * np.pi**2 * kzb))[:, None] * bracket
-        spectrum = np.zeros((size, size, 3), complex)
+        spectrum_out = np.zeros((size, size, 3), complex)
         # Chart carrier and footprint phase: exp(i kz0' g . x_f) (the xi . x_f parts cancel).
-        spectrum[propagating] = amplitude * dxi**2 * np.exp(1j * kz0 * (g @ x_f))
+        spectrum_out[propagating] = amplitude * dxi**2 * np.exp(1j * kz0 * (g @ x_f))
         centres.append(x_f)
         heights.append(h0)
         carriers.append(kappa)
-        envelopes.append(_envelope(spectrum))
+        envelopes.append(_envelope(spectrum_out))
     return AtomField(
         np.array(centres),
         np.array(heights),
