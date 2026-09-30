@@ -211,6 +211,7 @@ def compare_case(
     bem_divisors=(4, 6),
     fem_sizes=(0.26, 0.18),
     run_bem=True,
+    run_muller=True,
     run_fem=True,
     weak=False,
     max_fem_unknowns=40000,
@@ -223,6 +224,9 @@ def compare_case(
     are bounded first-order implementations, not macroscopic accelerated solvers.
     window_apertures is the full FFT-cell width divided by the clear radius.
     Vary it independently of grids to distinguish periodic replicas from spacing.
+    "BEM" is the PMCHWT formulation; "Müller" is the second-kind Müller
+    formulation on the same meshes (an independent derivation of the same
+    boundary-value problem, with a bounded spectrum).
     """
     if not np.isfinite(window_apertures) or window_apertures <= 2:
         raise ValueError("window_apertures must be finite and greater than two")
@@ -411,6 +415,16 @@ def compare_case(
                 perf_counter() - start,
                 mesh_seconds,
             )
+            if run_muller:
+                start = perf_counter()
+                solution = DielectricBEM(source, mesh, interior, formulation="muller")
+                record(
+                    "Müller",
+                    len(mesh.triangles),
+                    solution,
+                    perf_counter() - start,
+                    mesh_seconds,
+                )
     else:
         rows.append(
             dict(

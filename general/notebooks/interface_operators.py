@@ -408,3 +408,409 @@ def inverse_comparison(
         CACHE.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, default=float))
     return result
+
+
+# ----------------------------------------------------------------------------
+# Ball lens: two interfaces, a focus behind the lens, exact Debye references.
+# ----------------------------------------------------------------------------
+
+BALL = dict(
+    radius=100.0, n=1.5, waist=20.0, lattice=280, half=65.0, aperture=0.0, edge=1.5
+)
+
+
+def _profile(rho, parameters):
+    """Incident E_x on the waist plane: Gaussian, or an erf-edged flat top."""
+    if parameters["aperture"] > 0:
+        from scipy.special import erfc
+
+        return 0.5 * erfc((rho - parameters["aperture"]) / parameters["edge"])
+    return np.exp(-(rho**2) / parameters["waist"] ** 2)
+
+
+def _ball_sphere(parameters):
+    """AxialBeamSphere for the beam _profile (its coefficients are linear in the
+    beam: p and q follow from the profile's Hankel transform, as the class
+    computes them for a Gaussian)."""
+    from scipy.special import j0
+    from vecdiff_general.propagation.references.axial_beam import (
+        AxialBeamSphere,
+        _pi_tau,
+    )
+
+    R = parameters["radius"]
+    lens = AxialBeamSphere(
+        waist=parameters["waist"],
+        waist_z=-R - 5.0,
+        center_z=0.0,
+        radius=R,
+        n_sphere=parameters["n"],
+    )
+    if parameters["aperture"] <= 0:
+        return lens
+    k = lens.k0 * lens.n_exterior
+    top = min(
+        np.pi / 2, np.arcsin(min(1.0, 2 * np.sqrt(37) / (k * parameters["edge"])))
+    )
+    t, w = np.polynomial.legendre.leggauss(max(400, 2 * lens.order))
+    alpha = top / 2 * (t + 1)
+    weight = top / 2 * w * np.sin(alpha)
+    c = np.cos(alpha)
+    reach = parameters["aperture"] + 8 * parameters["edge"]
+    r, wr = np.polynomial.legendre.leggauss(int(4 * k * reach / np.pi) + 200)
+    rho = reach / 2 * (r + 1)
+    wrho = reach / 2 * wr
+    # 2D Fourier transform of the radial profile / (4 pi^2): Hankel transform.
+    transform = (
+        j0(np.outer(k * np.sin(alpha), rho)) @ (_profile(rho, parameters) * rho * wrho)
+    ) / (2 * np.pi)
+    spectrum = transform * k**2 * np.exp(1j * k * c * (0.0 - (-R - 5.0)))
+    pi, tau = _pi_tau(lens.order, c)
+    n = lens.orders[:, None]
+    scale = 2 * np.pi / (n * (n + 1))
+    lens.p = scale[:, 0] * ((pi + c * tau) * spectrum * weight).sum(-1)
+    lens.q = scale[:, 0] * ((tau + c * pi) * spectrum * weight).sum(-1)
+    return lens
+
+
+def _ball_worker(job):
+    import warnings
+
+    warnings.simplefilter("ignore")
+    points, parameters = job
+    E, H = _ball_sphere(parameters).fields(points, "exterior", [1, "mie", "incident"])
+    return E, H
+
+
+def ball_reference(points, *, cache_name, workers=10, **overrides):
+    """Exact exterior fields behind the ball lens: Debye p = 1 and full Mie.
+
+    p = 1 is the wave that crossed both faces once (the physics of our
+    one-way pipeline); "total" is incident + Mie scattering, with every
+    internal return. Computed in parallel over point chunks and cached.
+    """
+    from concurrent.futures import ProcessPoolExecutor
+
+    parameters = dict(BALL, **overrides)
+    points = np.asarray(points, float)
+    key = _key(
+        name=cache_name,
+        shape=list(points.shape),
+        **{k: float(v) for k, v in parameters.items()},
+    )
+    path = CACHE / "ball" / f"{cache_name}_{key}.npz"
+    if path.exists():
+        return dict(np.load(path))
+    flat = points.reshape(-1, 3)
+    chunks = np.array_split(flat, workers * 4)
+    with ProcessPoolExecutor(workers) as pool:
+        parts = list(pool.map(_ball_worker, [(c, parameters) for c in chunks]))
+    E = np.concatenate([p[0] for p in parts], axis=1)
+    H = np.concatenate([p[1] for p in parts], axis=1)
+    shape = points.shape
+    data = dict(
+        points=points,
+        p1_E=E[0].reshape(shape),
+        p1_H=H[0].reshape(shape),
+        total_E=(E[1] + E[2]).reshape(shape),
+        total_H=(H[1] + H[2]).reshape(shape),
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, **data)
+    return data
+
+
+def _beam_spectrum(grid, region, parameters, waist_z, plane_z):
+    """The reference's beam: E_x Gaussian at z = waist_z, propagating modes only,
+    as a PlaneSpectrum on ``grid`` (a lattice at plane_z)."""
+    X, Y = np.meshgrid(grid.u, grid.v)
+    values = np.zeros(grid.shape + (2,), complex)
+    values[..., 0] = _profile(np.hypot(X, Y), parameters)
+    at_waist = o.CartesianGrid(grid.u, grid.v, o.Frame([0, 0, waist_z]))
+    spectrum = o.angular_spectrum(
+        o.TransverseElectricField(at_waist, WAVELENGTH, values),
+        region,
+        evanescent="discard",
+    )
+    return _translate(spectrum, grid, plane_z - waist_z)
+
+
+def _translate(spectrum, grid, distance):
+    """The same plane-wave expansion referred to the parallel plane ``grid``."""
+    expansion = spectrum.expansion
+    phase = np.exp(1j * expansion.wavevectors[:, 2] * distance)
+    phase[np.abs(expansion.wavevectors[:, 2].imag) > 0] = 0
+    ny, nx = grid.shape
+    moved = o.PlaneWaveExpansion(
+        expansion.wavevectors,
+        expansion.amplitudes * phase[:, None],
+        grid.points[ny // 2, nx // 2],
+        WAVELENGTH,
+        expansion.region,
+    )
+    return o.fields.spectrum.PlaneSpectrum(grid, moved)
+
+
+def _poynting_directions(E, H, normals):
+    """Local energy-flow direction; in the dark (flux below 1e-8 of its peak,
+    where it is roundoff) the surface normal, which carries no field there."""
+    S = np.real(np.cross(E, np.conj(H)))
+    norm = np.linalg.norm(S, axis=-1)
+    lit = norm > 1e-8 * norm.max()
+    out = normals.copy()
+    out[lit] = S[lit] / norm[lit][:, None]
+    return out
+
+
+def ball_ours(**overrides):
+    """Our pipeline through the ball lens with the explicit Q^-1 on lattices.
+
+    Gaussian beam (the reference's) -> Q onto the entry cap (exact plane-wave
+    evaluation) -> T -> explicit Q^-1 -> ASM to the exit tangent plane -> Q onto
+    the exit cap -> T -> explicit Q^-1. Returns the outgoing expansion in air
+    (propagating modes) and the stage times.
+    """
+    p = dict(BALL, **overrides)
+    R, n = p["radius"], p["n"]
+    air = o.HomogeneousRegion("air", o.Dielectric(1.0))
+    glass = o.HomogeneousRegion("glass", o.Dielectric(n))
+    count = p["lattice"]
+    axis = (np.arange(count) - count // 2) * (2 * p["half"] / count)
+    seconds = {}
+    clock = time.perf_counter()
+    entry_plane = o.CartesianGrid(axis, axis, o.Frame([0, 0, -R]))
+    entry_cap = o.SphericalCap(R, o.Frame([0, 0, -R]))
+    entry = o.SurfaceTransport(entry_plane, entry_cap, glass, WAVELENGTH)
+    exit_plane = o.CartesianGrid(axis, axis, o.Frame([0, 0, R]))
+    exit_cap = o.SphericalCap(-R, o.Frame([0, 0, R]))
+    leave = o.SurfaceTransport(exit_plane, exit_cap, glass, WAVELENGTH)
+    seconds["build"] = time.perf_counter() - clock
+
+    clock = time.perf_counter()
+    beam = _beam_spectrum(entry_plane, air, p, -R - 5.0, -R)
+    values = beam.expansion.evaluate(
+        o.PointGrid(entry.grid.points), backend="nufft", tolerance=1e-12
+    )
+    incident = o.ElectromagneticField(
+        o.ElectricField(entry.grid, WAVELENGTH, values.electric.values), values.magnetic
+    )
+    trace = o.fresnel_transmission(
+        incident,
+        o.DielectricInterface(entry_cap, air, glass),
+        _poynting_directions(
+            incident.electric.values, incident.magnetic, entry.grid.normals
+        ),
+    ).transmitted
+    inside = entry.radiate(
+        o.ElectromagneticField(
+            o.ElectricField(entry.grid, WAVELENGTH, trace.electric.values),
+            trace.magnetic,
+        )
+    )
+    seconds["entry face (Q, T, Q^-1)"] = time.perf_counter() - clock
+
+    clock = time.perf_counter()
+    at_exit = _translate(inside, exit_plane, 2 * R)
+    on_exit = leave.forward(at_exit)
+    trace = o.fresnel_transmission(
+        on_exit,
+        o.DielectricInterface(exit_cap, glass, air),
+        _poynting_directions(
+            on_exit.electric.values, on_exit.magnetic, leave.grid.normals
+        ),
+    ).transmitted
+    out_transport = o.SurfaceTransport(exit_plane, exit_cap, air, WAVELENGTH)
+    outgoing = out_transport.radiate(
+        o.ElectromagneticField(
+            o.ElectricField(out_transport.grid, WAVELENGTH, trace.electric.values),
+            trace.magnetic,
+        )
+    ).expansion
+    seconds["R + exit face (Q, T, Q^-1)"] = time.perf_counter() - clock
+    live = np.linalg.norm(outgoing.amplitudes, axis=-1) > 0
+    active = o.PlaneWaveExpansion(
+        outgoing.wavevectors[live],
+        outgoing.amplitudes[live],
+        outgoing.origin,
+        WAVELENGTH,
+        air,
+    )
+    return active, seconds
+
+
+def ball_comparison(
+    *, aperture=35.0, meridional=(161, 241), focal=121, focal_half=12.0
+):
+    """Ours and exact (p = 1, full Mie) on the meridional section and the focal
+    plane of the ball lens; everything cached (the full run takes minutes)."""
+    parameters = dict(BALL, aperture=aperture)
+    key = _key(
+        kind="ball_comparison",
+        meridional=list(meridional),
+        focal=focal,
+        focal_half=focal_half,
+        **{k: float(v) for k, v in parameters.items()},
+    )
+    path = CACHE / "ball" / f"comparison_{key}.npz"
+    if path.exists():
+        return dict(np.load(path))
+    R = parameters["radius"]
+    x = np.linspace(-45, 45, meridional[0])
+    z = np.linspace(R + 3, 2.4 * R, meridional[1])
+    X, Z = np.meshgrid(x, z)
+    section = np.stack((X, np.zeros_like(X), Z), -1)
+    clock = time.perf_counter()
+    ours, seconds = ball_ours(aperture=aperture)
+    total_seconds = time.perf_counter() - clock
+    reference = ball_reference(
+        section,
+        cache_name="meridional_flat" if aperture else "meridional",
+        aperture=aperture,
+    )
+    focus = z[
+        np.argmax(np.linalg.norm(reference["p1_E"][:, meridional[0] // 2], axis=-1))
+    ]
+    f = np.linspace(-focal_half, focal_half, focal)
+    FX, FY = np.meshgrid(f, f)
+    plane = np.stack((FX, FY, np.full_like(FX, focus)), -1)
+    focal_reference = ball_reference(
+        plane, cache_name="focal_flat" if aperture else "focal", aperture=aperture
+    )
+
+    def evaluate(pts):
+        return ours.evaluate(
+            o.PointGrid(pts.reshape(-1, 3)), backend="nufft", tolerance=1e-12
+        )
+
+    a, b = evaluate(section), evaluate(plane)
+    data = dict(
+        focus=focus,
+        section=section,
+        plane=plane,
+        ours_section_E=a.electric.values.reshape(section.shape),
+        ours_plane_E=b.electric.values.reshape(plane.shape),
+        ours_plane_H=b.magnetic.reshape(plane.shape),
+        seconds_total=total_seconds,
+        **{f"exact_section_{k}": reference[f"{k}_E"] for k in ("p1", "total")},
+        **{f"exact_plane_{k}": focal_reference[f"{k}_E"] for k in ("p1", "total")},
+        **{f"exact_plane_{k}_H": focal_reference[f"{k}_H"] for k in ("p1", "total")},
+        **{f"seconds {k}": v for k, v in seconds.items()},
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, **data)
+    return data
+
+
+def phase_space_sphere(ka, *, tile, dense=101, cache=True):
+    """Phase-space pipeline (Q, T, Q^-1, R on atoms) on the air-to-glass sphere.
+
+    Plane wave in air, apodized by an erf edge at 0.36 R, as plane atoms at the
+    vertex plane -> Q -> T -> Q^-1 -> R to the ground-truth window. Grid steps
+    follow each stage's band: the window's, plus the non-quadratic surface
+    residual on the chart and the refracted wavefront curvature on the output.
+    Returns errors against the stored exact fields, stage times, and the
+    field on a dense window (for maps).
+    """
+    from vecdiff_general.propagation import phase_space as ps
+
+    path = (
+        CACHE
+        / "phase_space"
+        / f"sphere_{_key(ka=float(ka), tile=float(tile), dense=dense)}.npz"
+    )
+    if cache and path.exists():
+        return dict(np.load(path))
+    truth = ground_truth(ka, "entry")
+    R = float(truth["radius"])
+    k, n2 = 2 * np.pi / WAVELENGTH, N_GLASS
+    cap = o.SphericalCap(R)
+
+    def field(xy):
+        values = np.zeros(xy.shape[:-1] + (3,), complex)
+        values[..., 0] = _edge(xy, R)
+        return values
+
+    sharpness = 4.0
+    sigma = tile / sharpness
+    window_band = 2 * np.sqrt(np.log(1e9)) / sigma
+    support = tile + 2 * np.sqrt(np.log(1e9)) * sigma
+
+    def plan(band):
+        step = np.pi / (1.25 * band)
+        return step, int(np.ceil(support / step / 2)) * 2 + 4
+
+    p_step, p_size = plan(window_band)
+    c_step, c_size = plan(window_band + k * (support / 2) ** 3 / (2 * R**3))
+    o_step, o_size = plan(window_band + n2 * k * (support / 2) / (3 * R))
+    air = o.HomogeneousRegion("air", o.Dielectric(N_AIR))
+    glass = o.HomogeneousRegion("glass", o.Dielectric(n2))
+    times = {}
+    clock = time.perf_counter()
+    atoms = ps.AtomField.from_function(
+        field,
+        lambda xy: np.zeros(xy.shape),
+        k,
+        extent=0.42 * R,
+        tile=tile,
+        step=p_step,
+        size=p_size,
+        sharpness=sharpness,
+        tolerance=1e-9,
+    )
+    times["atoms"] = time.perf_counter() - clock
+    clock = time.perf_counter()
+    chart = ps.surface_transport(
+        atoms, cap, N_AIR, size=c_size, step=c_step, tolerance=1e-8
+    )
+    times["Q"] = time.perf_counter() - clock
+    clock = time.perf_counter()
+    transmitted = ps.transmit_chart(
+        chart, cap, o.DielectricInterface(cap, air, glass), WAVELENGTH
+    )
+    times["T"] = time.perf_counter() - clock
+    clock = time.perf_counter()
+    out = ps.radiate(
+        transmitted, cap, n2, WAVELENGTH, size=o_size, step=o_step, tolerance=1e-8
+    )
+    times["Q^-1"] = time.perf_counter() - clock
+    window = truth["window_points"]
+    clock = time.perf_counter()
+    moved = out.propagate_to(window[0, 0, 2])
+    ours = moved.evaluate(window[..., :2].reshape(-1, 2)).reshape(window.shape)
+    times["R + evaluation"] = time.perf_counter() - clock
+    surface = truth["surface_points"]
+    near = np.hypot(surface[..., 0], surface[..., 1]) < 0.25 * R
+    E_inc, _ = chart.evaluate(surface[near][:, :2])
+    E_tr, _ = transmitted.evaluate(surface[near][:, :2])
+
+    def gap(a, b):
+        return float(np.linalg.norm(a - b) / np.linalg.norm(b))
+
+    side = np.linspace(-0.15, 0.15, dense) * R
+    X, Y = np.meshgrid(side, side)
+    dense_field = moved.evaluate(np.column_stack((X.ravel(), Y.ravel()))).reshape(
+        X.shape + (3,)
+    )
+    exact_dense = sphere_single_interface(
+        np.stack((X, Y, np.full_like(X, window[0, 0, 2])), -1), WAVELENGTH, R, N_AIR, n2
+    )["transmitted"][0]
+    data = dict(
+        ka=ka,
+        radius=R,
+        tile=tile,
+        atoms=len(atoms.centres),
+        grids=np.array([p_size, c_size, o_size]),
+        steps=np.array([p_step, c_step, o_step]),
+        error_Q=gap(E_inc, truth["surface_incident_E"][near]),
+        error_T=gap(E_tr, truth["surface_transmitted_E"][near]),
+        error_window=gap(ours, truth["window_transmitted_E"]),
+        dense_x=X,
+        dense_y=Y,
+        dense_ours=dense_field,
+        dense_exact=exact_dense,
+        **{f"seconds {k}": v for k, v in times.items()},
+    )
+    if cache:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(path, **data)
+    return data

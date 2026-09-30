@@ -1,6 +1,6 @@
 # Notebooks
 
-Six executed notebooks in [`general/notebooks/`](../general/notebooks/) study
+Seven executed notebooks in [`general/notebooks/`](../general/notebooks/) study
 optical phenomena with the general library. Each states its physical model,
 checks its numerical convergence and keeps its figures. Field maps are linear,
 with physical colorbars; polarization glyphs appear only on figures about the
@@ -14,6 +14,7 @@ polarization of a complete vector field.
 | [04 · Compensating Fresnel transmission](../general/notebooks/04_compensating_fresnel_transmission.ipynb) | A stigmatic diopter (Cartesian oval, z₀ = −10 mm → zᵢ = 6 mm, NA 0.84096): local Fresnel transmission and energy conservation give p/s transfer weights; dividing the entrance field by them recovers the transverse Airy focus at equal input power. Airy and first-minimum contours, throughput and quadrature checks. |
 | [05 · Vector imaging and lithography](../general/notebooks/05_single_lens_lithography.ipynb) | A schematic circuit reticle through a visible single lens and an ideal 193 nm 4× relay with partial coherence; scalar versus vector contrast on vertical and horizontal trace groups. |
 | [06 · Full-wave reference validation](../general/notebooks/06_full_wave_reference_validation.ipynb) | Our method (24a FFT cells) against BEM, FEM and analytic Mie for spheres and lenses; 6λ₀ lenses comparing separated and coupled rim propagation; weak macroscopic lenses up to 2000λ₀. |
+| [07 · Macroscopic interface operators](../general/notebooks/07_macroscopic_interface_operators.ipynb) | Q, T and the explicit Q⁻¹ against exact Maxwell fields at macroscopic size: a single spherical interface up to ka = 10⁵, a glass ball lens (meridional section and focal plane) against exact Debye p = 1 and full Mie, ray-transport Q⁻¹, and lattice versus phase-space cost. |
 
 ## Models and interpretation
 
