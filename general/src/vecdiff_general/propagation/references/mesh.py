@@ -15,6 +15,164 @@ def gauss_rule(order):
     return (q + 1) / 2, w / 2
 
 
+def triangle_quadrature(corners, order=4):
+    """Collapsed Gauss product rule on triangles (T, 3, 3): points and weights.
+
+    Exact for polynomials of total degree 2*order - 2 on each flat triangle.
+    """
+    q, w = gauss_rule(order)
+    u, v = np.meshgrid(q, q, indexing="ij")
+    weights = (w[:, None] * w[None, :] * (1 - u)).ravel()
+    bary = np.stack(((1 - u) * (1 - v), u, (1 - u) * v), -1).reshape(-1, 3)
+    points = np.einsum("qa,tac->tqc", bary, corners)
+    cross = np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0])
+    return points, np.linalg.norm(cross, axis=1)[:, None] * weights
+
+
+@dataclass(frozen=True)
+class DualBasis:
+    """Buffa–Christiansen functions on the barycentric refinement of a SurfaceMesh.
+
+    Every coarse triangle is split into six through its centroid and edge
+    midpoints; sub-triangle ``6 t + 2 i + s`` has the coarse corner ``i`` of
+    triangle ``t`` as its first vertex. On a sub-triangle with corners P_k the
+    dual function of coarse edge ``rows[s, j]`` is the div-conforming linear field
+
+        b(x) = sum_k flux[s, j, k] (x - P_k) / (2 area[s]),
+
+    i.e. ``flux[s, j, k]`` is its outward flux through the side opposite P_k.
+    ``rows`` is padded with -1. Each b is scaled by its coarse edge length.
+    ``apex`` is the coarse vertex at which each sub-triangle sits.
+    """
+
+    corners: np.ndarray
+    parents: np.ndarray
+    apex: np.ndarray
+    areas: np.ndarray
+    normals: np.ndarray
+    rows: np.ndarray
+    flux: np.ndarray
+
+    def sample(self, order=3):
+        """Quadrature points, weights and every function value per sub-triangle.
+
+        Returns points (S, Q, 3), weights (S, Q) and values (S, J, Q, 3) of the
+        functions ``rows[s, j]`` (zero in padded slots).
+        """
+        points, weights = triangle_quadrature(self.corners, order)
+        half = (points[:, None, :, :] - self.corners[:, :, None, :]) / (
+            2 * self.areas[:, None, None, None]
+        )
+        return points, weights, np.einsum("sjk,skqc->sjqc", self.flux, half)
+
+    def gram(self, mesh):
+        """Dense mixed Gram matrix G[a, b] = <n x b_a, f_b> with RWG f_b.
+
+        The integrand is quadratic on each flat sub-triangle, so the degree-4
+        rule used here is exact.
+        """
+        points, weights, values = self.sample(3)
+        parent = self.parents
+        rwg = mesh.factors[parent][:, :, None, None] * (
+            points[:, None, :, :] - mesh.corners[parent][:, :, None, :]
+        )
+        rotated = np.cross(self.normals[:, None, None, :], values)
+        local = np.einsum("sjqc,saqc,sq->sja", rotated, rwg, weights)
+        used = np.broadcast_to((self.rows >= 0)[:, :, None], local.shape)
+        rows = np.broadcast_to(self.rows[:, :, None], local.shape)
+        columns = np.broadcast_to(mesh.edge_ids[parent][:, None, :], local.shape)
+        gram = np.zeros((len(mesh.edges), len(mesh.edges)))
+        np.add.at(gram, (rows[used], columns[used]), local[used])
+        return gram
+
+
+def buffa_christiansen(mesh):
+    """Dual (BC) basis of a closed manifold SurfaceMesh, one function per edge.
+
+    Construction of A. Buffa and S. H. Christiansen, "A dual finite element
+    complex on the barycentric refinement", Math. Comp. 76 (2007) 1743-1769,
+    with the explicit coefficients of F. P. Andriulli et al., "A multiplicative
+    Calderon preconditioner for the electric field integral equation", IEEE
+    TAP 56 (2008) 2398-2412. For coarse edge m from vertex v+ to v- the
+    function carries unit flux (times |m|) from the dual cell of v+ to that of
+    v-, half through each barycentric segment centroid-midpoint(m)-centroid.
+    Inside the 2N sub-triangles of a vertex cell every sub-triangle takes the
+    same share 1/(2N) of the divergence; the remaining circulation is fixed by
+    zero flux through both halves of m itself (the BC gauge). The rotated
+    functions n x b pair stably (uniform inf-sup) with RWG functions under
+    <n x b, f>, which is what a second-kind (identity + compact) formulation
+    needs for its identity term.
+    """
+    triangles, vertices = mesh.triangles, mesh.vertices
+    nt = len(triangles)
+    centroids = mesh.corners.mean(axis=1)
+    midpoints = vertices[mesh.edges].mean(axis=1)
+    lengths = np.linalg.norm(
+        vertices[mesh.edges[:, 0]] - vertices[mesh.edges[:, 1]], axis=1
+    )
+    # Coarse corner i of triangle t: first edge (V_i, V_i+1) then second edge
+    # (V_i, V_i-1), counter-clockwise about the outward normal.
+    first = mesh.edge_ids[:, [2, 0, 1]]
+    second = mesh.edge_ids[:, [1, 2, 0]]
+    corners = np.empty((6 * nt, 3, 3))
+    for i in range(3):
+        v = vertices[triangles[:, i]]
+        corners[2 * i :: 6] = np.stack((v, midpoints[first[:, i]], centroids), 1)
+        corners[2 * i + 1 :: 6] = np.stack((v, centroids, midpoints[second[:, i]]), 1)
+    # Ordered cells: the counter-clockwise ring of sub-triangles around a vertex.
+    incident = [[] for _ in vertices]
+    for t in range(nt):
+        for i in range(3):
+            incident[triangles[t, i]].append((t, i))
+    rings = []
+    for v, members in enumerate(incident):
+        by_first = {first[t, i]: (t, i) for t, i in members}
+        if len(by_first) != len(members) or len(members) < 3:
+            raise ValueError(f"mesh is not manifold at vertex {v}")
+        ring, (t, i) = [], members[0]
+        for _ in members:
+            ring.append((t, i))
+            following = by_first.get(second[t, i])
+            if following is None:
+                raise ValueError(f"mesh is not manifold at vertex {v}")
+            t, i = following
+        if (t, i) != members[0] or len({x for x in ring}) != len(members):
+            raise ValueError(f"mesh is not manifold at vertex {v}")
+        rings.append(ring)
+    width = max(len(ring) for ring in rings)
+    rows = np.full((6 * nt, width), -1, dtype=np.int32)
+    flux = np.zeros((6 * nt, width, 3))
+    for v, ring in enumerate(rings):
+        n = len(ring)
+        cell = [6 * t + 2 * i + s for t, i in ring for s in (0, 1)]
+        # Radial flux F_r from cell[r-1] to cell[r] (r = 1..2n-1) when the
+        # ring starts just after the half of edge m; F_0 = F_2n = 0.
+        radial = np.concatenate(([0.0], (np.arange(1, 2 * n) - n) / (2 * n), [0.0]))
+        for j, (t, i) in enumerate(ring):
+            m = first[t, i]
+            sign = lengths[m] * (1.0 if mesh.edges[m, 0] == v else -1.0)
+            for r in range(1, 2 * n + 1):
+                s = cell[(2 * j + r - 1) % (2 * n)]
+                outer = 0.5 if r in (1, 2 * n) else 0.0
+                # Local sides: opposite v (outer), opposite X (next radial),
+                # opposite Y (previous radial), for the sub-triangle (v, X, Y).
+                rows[s, j] = m
+                flux[s, j] = sign * np.array([outer, radial[r], -radial[r - 1]])
+    cross = np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0])
+    areas = np.linalg.norm(cross, axis=1) / 2
+    for array in (corners, rows, flux, areas):
+        array.setflags(write=False)
+    return DualBasis(
+        corners,
+        np.repeat(np.arange(nt, dtype=np.int32), 6),
+        np.repeat(triangles, 2, axis=1).ravel(),
+        areas,
+        cross / (2 * areas[:, None]),
+        rows,
+        flux,
+    )
+
+
 @dataclass
 class SurfaceMesh:
     """Closed, consistently outward oriented triangular dielectric boundary.
@@ -95,12 +253,7 @@ class SurfaceMesh:
         return self.vertices[self.triangles]
 
     def quadrature(self, order=4):
-        q, w = gauss_rule(order)
-        u, v = np.meshgrid(q, q, indexing="ij")
-        weights = (w[:, None] * w[None, :] * (1 - u)).ravel()
-        bary = np.stack(((1 - u) * (1 - v), u, (1 - u) * v), -1).reshape(-1, 3)
-        points = np.einsum("qa,tac->tqc", bary, self.corners)
-        return points, 2 * self.areas[:, None] * weights
+        return triangle_quadrature(self.corners, order)
 
     def boundary_grid(self):
         """Face-centre traces, away from edges where traces are not unique."""

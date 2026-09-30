@@ -12,7 +12,7 @@ fc = meson.get_compiler('fortran')
 gomp = fc.find_library('gomp', required: false)
 openmp_flags = gomp.found() and fc.has_argument('-fopenmp') ? ['-fopenmp'] : []
 py.extension_module('_reference_core',
-  ['native/reference_math.f90', 'native/bem.f90', 'native/fem.f90', bindings, f2py_inc / 'fortranobject.c'],
+  ['native/reference_math.f90', 'native/bem.f90', 'native/muller.f90', 'native/fem.f90', bindings, f2py_inc / 'fortranobject.c'],
   include_directories: include_directories(numpy_inc, f2py_inc),
   fortran_args: openmp_flags,
   dependencies: gomp,

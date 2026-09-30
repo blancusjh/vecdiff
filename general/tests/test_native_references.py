@@ -262,3 +262,151 @@ def test_finite_rim_coupling_improves_a_lens_field_against_bem():
     source, _, _, system = lens_case(2, wavelength0=wavelength)
     small = o.propagate_interfaces(source, system, grid)
     assert small.coupled_elements == ()
+
+
+def _relative(actual, expected):
+    return np.linalg.norm(actual - expected) / np.linalg.norm(expected)
+
+
+def test_buffa_christiansen_dual_basis_is_div_conforming_and_stably_paired():
+    from collections import defaultdict
+
+    from vecdiff_general.propagation.references.mesh import buffa_christiansen
+
+    _, v, _ = problem()
+    conditions = []
+    for level in (0, 1, 2, 3):
+        mesh = SurfaceMesh.sphere(v, level)
+        dual = buffa_christiansen(mesh)
+        assert dual.corners.shape == (6 * len(mesh.triangles), 3, 3)
+        assert_allclose(dual.areas.sum(), mesh.areas.sum(), rtol=1e-13)
+        if level <= 1:
+            # Outward fluxes of each function cancel across every shared sub-edge
+            # (normal continuity) and sum to zero (a source cell and a sink cell).
+            net = defaultdict(float)
+            total = np.zeros(len(mesh.edges))
+            for s, corners in enumerate(np.round(dual.corners, 12)):
+                for j, m in enumerate(dual.rows[s]):
+                    if m < 0:
+                        continue
+                    total[m] += dual.flux[s, j].sum()
+                    for k in range(3):
+                        side = sorted(map(tuple, corners[[(k + 1) % 3, (k + 2) % 3]]))
+                        net[m, tuple(side)] += dual.flux[s, j, k]
+            assert max(map(abs, net.values())) < 1e-14
+            assert abs(total).max() < 1e-14
+        conditions.append(np.linalg.cond(dual.gram(mesh)))
+    # Uniform inf-sup stability of <n x b, f>: bounded under refinement.
+    assert max(conditions) < 3.6
+    assert conditions[-1] < 1.1 * conditions[-2]
+
+
+def test_muller_bem_converges_to_mie_inside_and_outside():
+    s, v, g = problem()
+    inside = o.PointGrid([[0, 0, 0], [0.06, 0.09, 0.12], [-0.1, 0.05, -0.08]])
+    outside = o.PointGrid([[0.2, -0.15, 0.6], [0.1, 0.6, 0.15], [-0.5, 0.1, -0.3]])
+    exact = [MieSphere(s, v, g).evaluate(grid) for grid in (inside, outside)]
+    errors, jumps = [], []
+    for level in (0, 1, 2):
+        mesh = SurfaceMesh.sphere(v, level)
+        sol = DielectricBEM(s, mesh, g, formulation="muller")
+        assert sol.algebraic_residual < 1e-12
+        row = []
+        for grid, reference in zip((inside, outside), exact):
+            field = sol.evaluate(grid)
+            row += [
+                _relative(field.electric.values, reference.electric.values),
+                _relative(field.magnetic, reference.magnetic),
+            ]
+        errors.append(row)
+        jumps.append(max(boundary_residuals(sol, mesh.boundary_grid()).values()))
+    errors = np.array(errors)
+    # Measured (interior E, H, exterior E, H): 0.27 0.36 0.17 0.17 at level 0,
+    # 0.081 0.12 0.055 0.054 at level 1, 0.021 0.032 0.014 0.014 at level 2.
+    assert np.all(errors[1:] < 0.4 * errors[:-1])
+    assert errors[-1].max() < 0.035
+    assert jumps[2] < jumps[1] < jumps[0] and jumps[-1] < 0.16
+
+
+def test_muller_agrees_with_pmchwt_on_the_same_mesh():
+    s, v, g = problem()
+    grid = probes()
+    exact = MieSphere(s, v, g).evaluate(grid)
+    differences = []
+    for level in (1, 2):
+        mesh = SurfaceMesh.sphere(v, level)
+        pmchwt = DielectricBEM(s, mesh, g).evaluate(grid)
+        muller = DielectricBEM(s, mesh, g, formulation="muller").evaluate(grid)
+        difference = max(
+            _relative(muller.electric.values, pmchwt.electric.values),
+            _relative(muller.magnetic, pmchwt.magnetic),
+        )
+        discretization = min(
+            _relative(pmchwt.electric.values, exact.electric.values),
+            _relative(pmchwt.magnetic, exact.magnetic),
+        )
+        differences.append(difference)
+        # Two formulations on one discrete space agree well inside the mesh error.
+        assert difference < 0.3 * discretization
+    assert differences[1] < 0.5 * differences[0]  # Measured 0.010 -> 0.0041.
+
+
+def test_muller_conditioning_stays_bounded_while_pmchwt_grows():
+    from scipy.sparse.linalg import gmres
+
+    def iterations(system):
+        count = []
+        _, info = gmres(
+            system.matrix,
+            system.rhs,
+            rtol=1e-6,
+            restart=system.unknowns,
+            maxiter=1,
+            callback=count.append,
+            callback_type="pr_norm",
+        )
+        assert info == 0
+        return len(count)
+
+    s, v, g = problem()
+    table = {"pmchwt": [], "muller": []}
+    for level in (0, 1, 2):
+        mesh = SurfaceMesh.sphere(v, level)
+        for formulation, rows in table.items():
+            system = DielectricBEM(
+                s, mesh, g, formulation=formulation, keep_system=True
+            )
+            rows.append((np.linalg.cond(system.matrix), iterations(system)))
+    pmchwt, muller = np.array(table["pmchwt"]), np.array(table["muller"])
+    # Measured cond / GMRES(1e-6) iterations at 60, 240, 960 unknowns:
+    # PMCHWT 6.1/35, 11/69, 44/122; Müller 5.0/12, 6.0/13, 6.7/15.
+    assert np.all(muller[:, 0] < 8) and muller[2, 0] < 1.25 * muller[1, 0]
+    assert np.all(muller[:, 1] <= 18) and muller[2, 1] - muller[0, 1] <= 5
+    assert pmchwt[2, 0] > 3 * pmchwt[1, 0]
+    assert np.all(np.diff(pmchwt[:, 1]) > 25)
+    assert pmchwt[2, 1] > 6 * muller[2, 1]
+
+
+def test_muller_equal_index_scaling_cache_and_options(tmp_path):
+    results = []
+    for scale in (1, 532e-9):
+        s, v, g = problem(index=1, scale=scale)
+        sol = DielectricBEM(s, SurfaceMesh.sphere(v, 1), g, formulation="muller")
+        result = sol.evaluate(probes(scale))
+        expected = s.evaluate(probes(scale))
+        assert _relative(result.electric.values, expected.electric.values) < 0.01
+        assert _relative(result.magnetic, expected.magnetic) < 0.01
+        results.append(result.electric.values)
+    assert_allclose(*results, atol=1e-12)
+    s, v, g = problem()
+    mesh = SurfaceMesh.sphere(v, 0)
+    pmchwt = DielectricBEM(s, mesh, g, cache=tmp_path)
+    muller = DielectricBEM(s, mesh, g, cache=tmp_path, formulation="muller")
+    again = DielectricBEM(s, mesh, g, cache=tmp_path, formulation="muller")
+    assert muller.loaded_from is None and again.loaded_from is not None
+    assert not np.allclose(pmchwt.coefficients, muller.coefficients)
+    np.testing.assert_array_equal(muller.coefficients, again.coefficients)
+    with pytest.raises(ValueError, match="formulation"):
+        DielectricBEM(s, mesh, g, formulation="cfie")
+    with pytest.raises(ValueError, match="unknowns"):
+        DielectricBEM(s, mesh, g, formulation="muller", max_unknowns=10)

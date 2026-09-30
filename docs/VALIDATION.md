@@ -27,7 +27,7 @@ oriented surface. Electric amplitude squared is not labelled SI intensity.
 | Edges and stops | Index-matched element invisible to 1e-12; inside and outside light recombine to the incident wave; stops cut outside light |
 | GOTS surfaces | Constant optical path and independent Snell refraction for both index orderings |
 | Ideal imaging | Passed normal power, Maxwell transversality, low-NA scalar agreement, inverse pupil compensation |
-| Full-wave references | Mie convergence, BEM/FEM interface traces, equal-index media, flux, resource limits |
+| Full-wave references | Mie convergence, BEM/FEM interface traces, equal-index media, flux, resource limits, Müller/PMCHWT agreement and conditioning |
 | Stigmatic library | Constant optical path, reference-sphere flux, Debye direct/Hankel/NUFFT agreement, Fresnel pupil Parseval power |
 | Cross-library | Maxwell residuals of the dedicated Debye focus; general Green radiation against the saved legacy stigmatic fixture |
 
@@ -39,7 +39,7 @@ falls back to Green integration. The comparison API is
 
 | Method | Formulation | Core / solve | Numerical controls |
 | --- | --- | --- | --- |
-| `DielectricBEM` | PMCHWT boundary integral equations, RWG currents on triangles | Own Fortran / dense LAPACK | Surface mesh; regular, adjacent, self and field quadrature |
+| `DielectricBEM` | PMCHWT (default) or Müller (`formulation="muller"`) boundary integral equations, RWG currents on triangles | Own Fortran / dense LAPACK | Surface mesh; regular, adjacent, self and field quadrature |
 | `DielectricFEM` | Vector curl-curl scattered field, first-family Nédélec tetrahedra, Cartesian PML | Own Fortran / sparse SuperLU | Volume mesh, padding, PML width and strength |
 | `MieSphere` | Lorenz–Mie multipoles | Python / SciPy | Multipole order |
 
@@ -111,6 +111,69 @@ Stratton–Chu alone is a representation given boundary data; PMCHWT supplies th
 equations for that data. Self panels use target-centred Duffy integration,
 adjacent panels refinable product quadrature, distant pairs a 3×3 rule. Assembly
 and field evaluation run in parallel with OpenMP.
+
+#### Müller formulation
+
+`DielectricBEM(..., formulation="muller")` solves for the same `j`, `m` in the
+same RWG basis, so `evaluate`, caching and `max_unknowns` are shared. The
+equations come from the second-kind Müller formulation instead. It combines the
+rotated traces of both sides, weighted by `n²` for E and 1 for H, so that the
+hypersingular parts of `n² T` cancel:
+
+\[
+\begin{aligned}
+ j-n\times(K_e-K_i)j-n\times(n_e^2T_e-n_i^2T_i)m&=n\times Z_0H_{inc},\\
+ m-\tfrac1c\,n\times(n_e^2K_e-n_i^2K_i)m+\tfrac1c\,n\times(n_e^2T_e-n_i^2T_i)j
+ &=-\tfrac{n_e^2}{c}\,n\times E_{inc},
+\end{aligned}
+\qquad c=\tfrac{n_e^2+n_i^2}{2},
+\]
+
+with `T = i k0 (S + ∇∇·S/k²)` and `K = ∇×S` (principal value) as in PMCHWT.
+The system is identity plus compact on smooth boundaries and has no interior
+resonances. The identity is only well conditioned with a stable pairing, so
+the equations are tested with rotated Buffa–Christiansen functions `n × b` on
+the barycentric refinement (Buffa and Christiansen, *Math. Comp.* 76 (2007)
+1743–1769; coefficients as in Andriulli et al., *IEEE TAP* 56 (2008)
+2398–2412). This is the mixed RWG/BC Müller scheme of Yan, Jin and Nie,
+*IEEE TAP* 59 (2011) 1299–1310. The integral terms become `⟨b, K f⟩` and,
+after integration by parts with the div-conforming `b`, the PMCHWT `L`
+kernels. Both kernels are formed at identical points so the `∇∇` parts cancel
+exactly. Test sub-triangles use the same rules as PMCHWT: Duffy inside the
+source panel, the product rule when touching it, 3×3 when distant.
+
+The measurements below use a sphere of radius 0.3 λ with `n = 1.5`
+(`ka = 1.88`) on icosphere levels 0–3, lit by an `x`-polarized plane wave, on
+10 OpenMP threads. GMRES is unrestarted with relative residual 1e-6. Field
+errors are relative to Mie over two interior and two exterior probes.
+
+| Unknowns | Gram cond `⟨n×b, f⟩` | Cond PMCHWT | Cond Müller | GMRES PMCHWT | GMRES Müller | E error vs Mie, PMCHWT | E error vs Mie, Müller | E difference Müller − PMCHWT |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 60 | 2.15 | 6.1 | 5.0 | 35 | 12 | 0.24 | 0.22 | 0.037 |
+| 240 | 2.86 | 11 | 6.0 | 69 | 13 | 0.067 | 0.067 | 0.0078 |
+| 960 | 3.13 | 44 | 6.7 | 122 | 15 | 0.016 | 0.017 | 0.0030 |
+| 3840 | 3.34 | 186 | 7.0 | 212 | 16 | 0.0035 | 0.0044 | 0.0013 |
+
+Testing with rotated RWG functions would give the Gram `⟨n×f, f⟩`, which is
+numerically singular (cond ≈ 10¹⁷ at levels 1–3), so it is not used.
+
+At `ka = 5` (radius 0.796 λ) with 240, 960 and 3840 unknowns:
+
+- Müller: cond 20, 17, 18; GMRES iterations 28, 27, 28.
+- PMCHWT: cond 24, 11, 25; GMRES iterations 82, 138, 244.
+- E errors vs Mie: 0.27, 0.074, 0.019 (Müller) and 0.21, 0.059, 0.014 (PMCHWT).
+
+On the gmsh plano-convex and biconvex lenses (430–890 unknowns) the two
+formulations agree to 2–3 %. Müller's condition number there (15–28) stays
+below PMCHWT's (28–39).
+
+At equal mesh Müller is slightly less accurate than PMCHWT, not more. Its
+value is an independently derived set of equations with a bounded spectrum.
+Assembly loops over 6× as many (sub-triangle, panel) pairs and cannot use
+PMCHWT's symmetry, so it takes about 12× the PMCHWT time. Measured times are
+1.6 s at 960 unknowns, 19–26 s at 3840, and 33 s plus a 1.5 s solve at 4980
+(a gmsh `ka = 5` sphere near the default limit, 0.4 GB dense, E error vs Mie
+0.014).
 
 ### FEM
 
