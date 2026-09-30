@@ -398,8 +398,8 @@ def small_reference(shape, diameter):
     The meridional section y = 0 covers |x| <= 1.6a from just behind the exit
     vertex to 1.5 paraxial back focal lengths. The detector plane is the axial
     maximum of the finer BEM more than one wavelength behind the exit vertex;
-    its half-widths in x and y end at the minimum after the third secondary
-    maximum of the finer BEM's transverse intensity on that axis.
+    the square window ends at the minimum after the third secondary maximum
+    of the finer BEM's transverse intensity, averaged over the x and y axes.
     """
     lam = WAVELENGTH
 
@@ -427,16 +427,14 @@ def small_reference(shape, diameter):
         axial = np.sum(abs(arrays[f"section_{SMALL_BEM_DIVISORS[-1]}"][60]) ** 2, -1)
         focus = float(z[np.argmax(np.where(z > exit_z + lam, axial, 0))])
         line = np.linspace(-(2 * a + 12 * lam), 2 * a + 12 * lam, 1601)
-        halves = []
+        cuts = []
         for axis in (0, 1):
             points = np.zeros((len(line), 3))
             points[:, axis], points[:, 2] = line, focus
             E = fine.evaluate(o.PointGrid(points)).electric.values
-            halves.append(
-                _secondary_maxima_edge(line, np.sum(abs(E[:, :2]) ** 2, -1))
-            )
-        fx = np.linspace(-halves[0], halves[0], 121)
-        fy = np.linspace(-halves[1], halves[1], 121)
+            cuts.append(np.sum(abs(E[:, :2]) ** 2, -1))
+        half = _secondary_maxima_edge(line, (cuts[0] + cuts[1]) / 2)
+        fx = fy = np.linspace(-half, half, 121)
         FX, FY = np.meshgrid(fx, fy)
         focal = np.stack((FX, FY, np.full_like(FX, focus)), -1)
         for divisor, solver in solvers.items():
@@ -497,6 +495,12 @@ def small_lens(shape, diameter, *, grid=384, window=24):
     out.update(
         error_section=_relative(out["section_ours"], arrays[f"section_{fine}"]),
         error_focal=_relative(out["focal_ours"], arrays[f"focal_{fine}"]),
+        **{
+            f"error_focal_{c}": _relative(
+                out["focal_ours"][..., i], arrays[f"focal_{fine}"][..., i]
+            )
+            for i, c in enumerate("xyz")
+        },
         peak_ratio=peak(out["focal_ours"]) / peak(arrays[f"focal_{fine}"]),
         bem_change_section=_relative(
             arrays[f"section_{coarse}"], arrays[f"section_{fine}"]
