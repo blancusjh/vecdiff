@@ -992,6 +992,7 @@ def plot_focal_polarization(
     *,
     axis=None,
     reference_intensity=None,
+    floor=None,
     glyph="line",
     density=6.0,
     title="Focal-plane polarization",
@@ -1000,8 +1001,11 @@ def plot_focal_polarization(
     """Focal-plane polarization map in the notebooks' common style.
 
     Background: transverse intensity divided by its on-axis value (by default
-    the sample nearest the chart origin), on ``hot`` with LogNorm(1e-5, 1), so
-    weak side lobes and minima stay distinct. Glyphs: dense black transverse
+    the sample nearest the chart origin), on ``hot`` with a logarithmic scale
+    from ``floor`` to 1, so weak side lobes and minima stay distinct. The
+    default floor is half the plane's deepest minimum, never below 1e-5: a
+    plane whose minima stay far above 1e-5 (light passing beside a small lens)
+    would otherwise use only the top of the scale. Glyphs: dense black transverse
     polarization directions (glyph='ellipse' for rotating states) on a dense
     lattice; their size follows intensity on a log scale, from 0.15 of full
     size at 1e-5 of the peak, so weak side lobes keep readable glyphs.
@@ -1009,24 +1013,29 @@ def plot_focal_polarization(
     """
     from matplotlib.colors import LogNorm
 
+    electric = field.electric if isinstance(field, ElectromagneticField) else field
+    grid = electric.grid
+    values = electric.values
+    if values.shape[-1] == 3:
+        values = values @ grid.frame.basis[:, :2]
+    transverse = np.sum(abs(values) ** 2, -1)
     if reference_intensity is None:
-        electric = field.electric if isinstance(field, ElectromagneticField) else field
-        grid = electric.grid
         if isinstance(grid, CartesianGrid):
-            centre = electric.values[np.argmin(abs(grid.v)), np.argmin(abs(grid.u))]
+            reference_intensity = float(
+                transverse[np.argmin(abs(grid.v)), np.argmin(abs(grid.u))]
+            )
         else:
-            centre = electric.values[np.argmin(grid.radius)].mean(axis=0)
-        if centre.shape[-1] == 3:
-            centre = centre @ grid.frame.basis[:, :2]
-        reference_intensity = float(np.sum(abs(centre) ** 2))
+            reference_intensity = float(transverse[np.argmin(grid.radius)].mean())
+    if floor is None:
+        floor = max(1e-5, 0.5 * float(transverse.min()) / reference_intensity)
     settings = dict(
         crop=False,
         glyph_color="black",
         size_scale="log",
         size_floor=0.15,
         cmap="hot",
-        norm=LogNorm(1e-5, 1),
-        min_intensity_fraction=1e-5,
+        norm=LogNorm(floor, 1),
+        min_intensity_fraction=min(floor, 0.5),
         colorbar_label="Transverse intensity / on-axis value",
     )
     settings.update(options)
