@@ -12,3 +12,7 @@ dist/
 .jupyter/
 .ipynb_checkpoints/
 .trash/
+
+# Built LaTeX documents
+docs/**/*.pdf
+docs/**/*.synctex.gz
