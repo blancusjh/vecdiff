@@ -120,3 +120,204 @@ def sphere_case(ka, *, spacing=0.5, probes=31, cache=True):
         CACHE.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, indent=1, default=float))
     return result
+
+
+def _exit_face(ka, spacing):
+    """Glass-to-air sphere exit (a converging face): lattice, surface, media."""
+    radius = ka * WAVELENGTH / (2 * np.pi * N_GLASS)
+    half = 0.45 * radius
+    count = 2 * int(np.ceil(half / spacing))
+    axis = (np.arange(count) - count // 2) * (2 * half / count)
+    glass = o.HomogeneousRegion("glass", o.Dielectric(N_GLASS))
+    air = o.HomogeneousRegion("air", o.Dielectric(N_AIR))
+    return radius, o.CartesianGrid(axis, axis), o.SphericalCap(-radius), glass, air
+
+
+def _edge(xy, radius):
+    return 0.5 * erfc(
+        (np.hypot(xy[..., 0], xy[..., 1]) - 0.36 * radius) / (0.025 * radius)
+    )
+
+
+def _transmit(surface, glass, air, xy, radius):
+    """Local Fresnel T of the axial plane wave in glass at chart points xy."""
+    points, normals = surface.points(xy), surface.normals(xy)
+    grid = o.SurfaceGrid(points, normals, np.ones(points.shape[:-1]))
+    phase = np.exp(1j * 2 * np.pi * N_GLASS / WAVELENGTH * points[..., 2])[..., None]
+    incident = o.ElectromagneticField(
+        o.ElectricField(grid, WAVELENGTH, phase * np.array([1.0, 0, 0])),
+        phase * np.array([0, N_GLASS / Z0, 0]),
+    )
+    encounter = o.fresnel_transmission(
+        incident,
+        o.DielectricInterface(surface, glass, air),
+        np.broadcast_to([0, 0, 1.0], points.shape),
+    )
+    edge = _edge(xy, radius)[..., None]
+    return (
+        points,
+        normals,
+        encounter.transmitted.electric.values * edge,
+        encounter.transmitted.magnetic * edge,
+        encounter.transmitted_directions,
+    )
+
+
+def _ray_landing(surface, glass, air, xy, radius, z):
+    points, normals, E, _, d = _transmit(surface, glass, air, xy, radius)
+    s = (z - points[..., 2]) / d[..., 2]
+    return points, normals, E, d, s, points[..., :2] + s[..., None] * d[..., :2]
+
+
+def ray_field(ka, z, targets_xy, *, spacing=0.5):
+    """Geometrical-optics transport of the transmitted trace to the plane z.
+
+    Each target is traced back to its surface point (the ray map is inverted by
+    interpolation, then refined by Newton steps), where T is evaluated exactly.
+    Phase: optical path; amplitude: ray-tube Jacobian |E|^2 (d.n) dA_Sigma =
+    |E'|^2 d_z dA_plane. Undefined where the ray map folds (caustics).
+    """
+    from scipy.interpolate import griddata
+
+    radius, grid, surface, glass, air = _exit_face(ka, spacing)
+    # Coarse ray map on a sub-lattice for the initial inversion.
+    coarse = np.linspace(-0.45 * radius, 0.45 * radius, 161)
+    U, V = np.meshgrid(coarse, coarse)
+    xy = np.stack((U, V), -1)
+    *_, landing = _ray_landing(surface, glass, air, xy, radius, z)
+    guess = np.stack(
+        [
+            griddata(
+                landing.reshape(-1, 2),
+                xy.reshape(-1, 2)[:, i],
+                targets_xy,
+                method="linear",
+            )
+            for i in (0, 1)
+        ],
+        -1,
+    )
+    field = np.full(targets_xy.shape[:-1] + (3,), np.nan + 0j)
+    det = np.full(targets_xy.shape[:-1], np.nan)
+    reached = np.isfinite(guess).all(-1)
+    if not reached.any():
+        return field, det
+    guess, goal = guess[reached], targets_xy[reached]
+    step = 1e-4 * radius
+
+    def landing_and_jacobian(xy):
+        base = _ray_landing(surface, glass, air, xy, radius, z)
+        du = _ray_landing(surface, glass, air, xy + [step, 0], radius, z)[-1]
+        dv = _ray_landing(surface, glass, air, xy + [0, step], radius, z)[-1]
+        jac = np.stack(((du - base[-1]) / step, (dv - base[-1]) / step), -1)
+        return base, jac
+
+    for _ in range(8):  # Newton on landing(xy) = target, kept inside the chart
+        base, jac = landing_and_jacobian(guess)
+        with np.errstate(all="ignore"):
+            update = np.linalg.solve(jac, (base[-1] - goal)[..., None])[..., 0]
+        guess = guess - np.where(np.isfinite(update), update, 0)
+        norm = np.hypot(guess[..., 0], guess[..., 1])
+        guess *= np.minimum(1, 0.5 * radius / np.maximum(norm, 1e-300))[..., None]
+    (points, normals, E, d, s, landed), jac = landing_and_jacobian(guess)
+    # Geometrical optics is defined only where the ray actually lands there.
+    converged = np.linalg.norm(landed - goal, axis=-1) < 1e-6 * radius
+    jacobian = np.linalg.det(jac)
+    area = surface.area_jacobian(guess)
+    with np.errstate(all="ignore"):
+        tube = np.sqrt(area * np.sum(d * normals, -1) / (np.abs(jacobian) * d[..., 2]))
+    values = E * (tube * np.exp(1j * 2 * np.pi * N_AIR / WAVELENGTH * s))[..., None]
+    values[~converged] = np.nan
+    field[reached] = values
+    det[reached] = np.where(converged, jacobian, np.nan)
+    return field, det
+
+
+def wave_spectrum(ka, *, spacing=0.5):
+    """T + explicit Q^-1 on the exit face: the exact-to-tolerance wave reference."""
+    radius, grid, surface, glass, air = _exit_face(ka, spacing)
+    clock = time.perf_counter()
+    transport = o.SurfaceTransport(grid, surface, air, WAVELENGTH)
+    build = time.perf_counter() - clock
+    clock = time.perf_counter()
+    _, _, E, H, _ = _transmit(surface, glass, air, transport.xy, radius)
+    fresnel = time.perf_counter() - clock
+    trace = o.ElectromagneticField(o.ElectricField(transport.grid, WAVELENGTH, E), H)
+    clock = time.perf_counter()
+    expansion = transport.radiate(trace).expansion
+    inverse = time.perf_counter() - clock
+    live = np.linalg.norm(expansion.amplitudes, axis=-1) > 0
+    active = o.PlaneWaveExpansion(
+        expansion.wavevectors[live],
+        expansion.amplitudes[live],
+        expansion.origin,
+        WAVELENGTH,
+        air,
+    )
+    return active, dict(build=build, fresnel=fresnel, inverse=inverse)
+
+
+def ray_versus_wave(
+    ka=1000,
+    *,
+    planes=(2.0, 0.5, 1.0, 1.5, 1.8, 2.0),
+    samples=241,
+    spacing=0.5,
+    cache=True,
+):
+    """Transverse cuts behind a converging sphere face: ray transport vs waves.
+
+    planes: first entry in wavelengths behind the vertex, the rest in units of R
+    (the paraxial focus of the face is at 2R).
+    """
+    parameters = dict(ka=ka, planes=list(planes), samples=samples, spacing=spacing)
+    path = CACHE / f"ray_wave_{_key(**parameters)}.json"
+    if cache and path.exists():
+        return json.loads(path.read_text())
+    radius = ka * WAVELENGTH / (2 * np.pi * N_GLASS)
+    wave, seconds = wave_spectrum(ka, spacing=spacing)
+    rows = []
+    for index, plane in enumerate(planes):
+        z = plane if index == 0 else plane * radius
+        half = max(0.36 * radius * abs(1 - z / (2 * radius)) * 1.3, 25 * WAVELENGTH)
+        x = np.linspace(-half, half, samples)
+        targets = np.stack((x, np.zeros_like(x)), -1)
+        clock = time.perf_counter()
+        ours = wave.evaluate(
+            o.PointGrid(np.column_stack((targets, np.full(len(x), z)))),
+            backend="nufft",
+            tolerance=1e-12,
+        ).electric.values
+        t_wave = time.perf_counter() - clock
+        clock = time.perf_counter()
+        ray, det = ray_field(ka, z, targets, spacing=spacing)
+        t_ray = time.perf_counter() - clock
+        ok = np.isfinite(ray).all(-1)
+        error = (
+            np.linalg.norm(ray[ok] - ours[ok]) / np.linalg.norm(ours[ok])
+            if ok.any()
+            else np.nan
+        )
+        peak_ratio = np.nanmax(np.linalg.norm(ray, axis=-1) ** 2) / np.max(
+            np.linalg.norm(ours, axis=-1) ** 2
+        )
+        rows.append(
+            dict(
+                z=z,
+                x=x.tolist(),
+                wave_intensity=(np.linalg.norm(ours, axis=-1) ** 2).tolist(),
+                ray_intensity=(np.linalg.norm(ray, axis=-1) ** 2).tolist(),
+                relative_error=float(error),
+                peak_ratio=float(peak_ratio),
+                min_abs_jacobian=float(np.nanmin(np.abs(det))),
+                seconds_wave=t_wave,
+                seconds_ray=t_ray,
+            )
+        )
+    result = dict(
+        parameters, radius=radius, wave_setup_seconds=seconds, planes_result=rows
+    )
+    if cache:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(result, default=float))
+    return result
