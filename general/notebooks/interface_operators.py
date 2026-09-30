@@ -30,6 +30,79 @@ def _key(**parameters):
     ]
 
 
+GROUND_SIZES = (1e3, 3e3, 1e4, 3e4, 1e5)
+FACES = {
+    # face: (incident index, transmitted index, interior flag, sign of cap radius)
+    "entry": (N_AIR, N_GLASS, False, 1.0),  # air -> glass, convex toward the source
+    "exit": (N_GLASS, N_AIR, True, -1.0),  # glass -> air, a converging lens exit
+}
+
+
+def ground_truth(ka, face="entry", *, window=21, surface=31, cache=True):
+    """Exact single-interface sphere fields for benchmarking Q, T and Q^-1.
+
+    ka is the size parameter in the incident medium; R = ka lambda / (2 pi n_i).
+    The vertex is at the origin and the wave travels along +z, x polarized.
+    Stored (complex SI phasors, unit incident |E|):
+    * surface: a (surface x surface) chart grid over |x|, |y| <= 0.45 R on the
+      cap; incident, reflected and transmitted E and H there, with normals;
+    * window: a (window x window) grid over |x|, |y| <= 0.15 R on the plane two
+      wavelengths past the cap, where the transmitted E and H live.
+    The reference is exact Maxwell (stable Debye-series first term); its
+    interface conditions are checked when stored.
+    """
+    n_i, n_t, interior, sign = FACES[face]
+    parameters = dict(ka=float(ka), face=face, window=window, surface=surface)
+    path = CACHE / "ground_truth" / f"{face}_ka{ka:.0e}_{_key(**parameters)}.npz"
+    if cache and path.exists():
+        return dict(np.load(path))
+    radius = ka * WAVELENGTH / (2 * np.pi * n_i)
+    cap = o.SphericalCap(sign * radius)
+    chart = np.linspace(-0.45, 0.45, surface) * radius
+    xy = np.stack(np.meshgrid(chart, chart), -1)
+    points, normals = cap.points(xy), cap.normals(xy)
+    probe = np.linspace(-0.15, 0.15, window) * radius
+    X, Y = np.meshgrid(probe, probe)
+    corner = cap.height(np.array([[0.15 * radius, 0.15 * radius]]))[0]
+    height = (max(corner, 0.0) if sign > 0 else 0.0) + 2 * WAVELENGTH
+    targets = np.stack((X, Y, np.full_like(X, height)), -1)
+    clock = time.perf_counter()
+    on_surface = sphere_single_interface(
+        points, WAVELENGTH, radius, n_i, n_t, interior=interior
+    )
+    beyond = sphere_single_interface(
+        targets, WAVELENGTH, radius, n_i, n_t, interior=interior
+    )
+    seconds = time.perf_counter() - clock
+    jumps = [
+        np.linalg.norm(
+            np.cross(normals, on_surface["incident"][i] + on_surface["reflected"][i])
+            - np.cross(normals, on_surface["transmitted"][i])
+        )
+        / np.linalg.norm(np.cross(normals, on_surface["transmitted"][i]))
+        for i in (0, 1)
+    ]
+    data = dict(
+        ka=ka,
+        radius=radius,
+        n_incident=n_i,
+        n_transmitted=n_t,
+        surface_points=points,
+        surface_normals=normals,
+        window_points=targets,
+        seconds=seconds,
+        tangential_E_jump=jumps[0],
+        tangential_H_jump=jumps[1],
+    )
+    for key in ("incident", "reflected", "transmitted"):
+        data[f"surface_{key}_E"], data[f"surface_{key}_H"] = on_surface[key]
+    data["window_transmitted_E"], data["window_transmitted_H"] = beyond["transmitted"]
+    if cache:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(path, **data)
+    return data
+
+
 def sphere_case(ka, *, spacing=0.5, probes=31, cache=True):
     """Error and cost of T + explicit Q^-1 for an air-to-glass sphere of size ka."""
     parameters = dict(ka=ka, spacing=spacing, probes=probes)
