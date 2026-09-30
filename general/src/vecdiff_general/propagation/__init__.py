@@ -17,6 +17,7 @@ from .operators import (
     fresnel_transmission,
 )
 from .propagation import propagate, propagate_spectrum
+from .tiled_transport import TiledSurfaceTransport
 
 __all__ = [
     "angular_spectrum",
@@ -34,6 +35,7 @@ __all__ = [
     "coherent_feedback",
     "PlanarASM",
     "SurfaceTransport",
+    "TiledSurfaceTransport",
     "FresnelEncounter",
     "InverseReport",
     "fresnel_transmission",

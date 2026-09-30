@@ -269,6 +269,17 @@ class SurfaceTransport:
             ElectricField(self.grid, self.wavelength0, electric), magnetic
         )
 
+    def radiate(self, trace):
+        """Explicit Q^-1 from tangential E and H with the exact global Q^H.
+
+        No least-squares fit: see tiled_transport.radiated_spectrum.
+        """
+        from .tiled_transport import radiated_spectrum
+
+        return radiated_spectrum(
+            self, trace, lambda v: self._adjoint(v) * self.size * self.active[..., None]
+        )
+
     def inverse(self, trace, *, tolerance=1e-9, max_iterations=200):
         """Q^-1: fit physical surface-tangential E in L2(dS) with outgoing modes.
 

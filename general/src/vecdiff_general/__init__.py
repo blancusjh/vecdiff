@@ -27,6 +27,7 @@ from .propagation.operators import (
     fresnel_transmission,
 )
 from .propagation.propagation import propagate
+from .propagation.tiled_transport import TiledSurfaceTransport
 from .sampling import CartesianGrid, PlaneGrid, PointGrid, PolarGrid, SurfaceGrid
 from .sampling.surface_sampling import sample_surface
 from .surfaces import (
@@ -89,6 +90,7 @@ __all__ = [
     "boundary_residuals",
     "PlanarASM",
     "SurfaceTransport",
+    "TiledSurfaceTransport",
     "FresnelEncounter",
     "InverseReport",
     "fresnel_transmission",
