@@ -1,0 +1,135 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newcommand{\ve}[1]{\bm{#1}}
+\newcommand{\kp}{\boldsymbol\kappa}
+
+\title{Phase-space $R$, $Q$, $T$, $Q^{-1}$ for macroscopic interfaces\\[2pt]
+\large Experimental formulation, for review before implementation}
+\date{30 September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Every lattice operator of the library samples the bare field at the Nyquist
+rate of its full angular band. For a macroscopic interface this is
+$N\sim(2a\,\mathrm{NA}/\lambda)^2$ samples ($2\times10^8$ for the 4.6~mm
+diopter), so no operator acting on it can run in seconds. A smooth macroscopic
+field carries far less information: locally it is one plane wave with a slowly
+varying envelope. We propose to represent fields on planes \emph{and on the
+interface} as sums of local plane-wave atoms whose carriers are removed, and to
+apply $R$, $Q$, $T$ and $Q^{-1}$ atom by atom, each to a prescribed tolerance.
+The Nyquist lattice of the bare field is never formed. Cost and memory then
+follow the field's phase-space content, not its size in wavelengths.
+\end{abstract}
+
+\section{What was learned}
+\begin{itemize}
+\item $T$ (local Fresnel) is accurate at macroscopic scale: against the exact
+single-interface sphere its surface error falls from $5\times10^{-2}$
+($ka=10^2$) to $8\times10^{-6}$ ($ka=3\times10^3$).
+\item The explicit $Q^{-1}$ (Love equivalence, Weyl expansion, both traces, no
+iterations) reproduces exact Maxwell fields to $6\times10^{-6}$ at $ka=10^3$;
+the least-squares inverse gave $10^{-2}$.
+\item Operators on the Nyquist lattice fail the runtime target however they
+are organised: the global $Q$ took 277~s at $ka=3\times10^3$ ($8\times10^5$
+nodes); a tiled $Q$ with tilted tangent planes was exact to $10^{-8}$ but took
+22--37~s there and did not finish at $ka=10^4$. Its tiles still sampled the
+carrier at $\lambda/2$.
+\end{itemize}
+
+\section{Representation}
+On a plane $\Pi$ (coordinates $\ve x\in\mathbb R^2$) a field is
+\begin{equation}
+ \ve E(\ve x)=\sum_a \ve u_a(\ve x-\ve x_a)\,e^{i\kp_a\cdot\ve x},
+ \label{eq:atoms}
+\end{equation}
+where each atom $a$ has a centre $\ve x_a$, a carrier $\kp_a$ and a smooth
+vector envelope $\ve u_a$ supported (to tolerance) in a window of width $w$.
+The envelope is sampled on its own small grid at the envelope Nyquist rate,
+set by the window and by the residual local band, not by $k$. Atoms come from
+a partition of unity $\sum_a\chi_a=1$ (smooth windows with Gaussian spectral
+decay) applied to the field, each piece demodulated by its dominant local
+wavevector; a piece with several significant local wavevectors (crossing
+beams, near a caustic) splits into several atoms. Atoms below the tolerance
+are dropped. Optionally the carrier also removes a local quadratic phase
+(local wavefront curvature), which keeps envelopes smooth for converging or
+diverging fields.
+
+On the interface $\Sigma$ ($z=h(\ve x)$ over the chart) the trace has the same
+form with chart carriers $\ve q_a$: the tangential phase gradient.
+
+\paragraph{Why the size is small.} A smooth beam of aperture $D$ has at each
+place a local band of width $\sim2\pi/w$ around one carrier. With windows of
+Fresnel scale $w\sim\sqrt{\lambda L}$ ($L$ the distance over which the
+envelope changes) the number of atoms is $\sim(D/w)^2$, each with a few hundred
+envelope samples. For the diopter this is $10^3$--$10^5$ numbers instead of
+$2\times10^8$.
+
+\section{Operators on atoms}
+\paragraph{$R_z$ (plane to plane, exact ASM).} An atom's angular spectrum is
+its envelope spectrum shifted by $\kp_a$. Propagation multiplies it by
+$e^{ik_z(\kp)z}$. Write
+$k_z(\kp)=k_z(\kp_a)+\ve v_a\cdot(\kp-\kp_a)+\delta(\kp)$ with
+$\ve v_a=-\kp_a/k_z(\kp_a)$: the constant is a phase, the linear term a shift
+of the centre by $-\ve v_a z$ (the ray displacement), and $\delta$ the local
+diffraction, applied exactly by one small FFT on the envelope grid. $R_z$ is
+translation invariant, so all atoms with one carrier share one kernel.
+
+\paragraph{$Q$ (plane to $\Sigma$).} For an atom with footprint centred at
+$\ve x_f$ (its centre displaced along its ray to the surface), expand
+$h(\ve x)=h_0+\ve g\cdot(\ve x-\ve x_f)+r(\ve x)$. The constant and tilt give
+a phase and a new chart carrier $\ve q=\kp+k_z(\kp)\,\ve g$ (exactly, per
+envelope frequency). The residual $r$ is small over one footprint, so
+$e^{ik_z r}$ needs a low-rank Chebyshev expansion. The output is a chart
+atom with carrier $\ve q_a$, sampled at envelope rate.
+
+\paragraph{$T$ (local Fresnel).} Phase matching keeps the tangential phase
+gradient continuous across $\Sigma$: $T$ does not change chart carriers. It
+multiplies each envelope sample by the local $3\times3$ Fresnel matrix, which
+varies slowly. Transmitted and reflected traces are chart atoms on each side.
+
+\paragraph{$Q^{-1}$ (explicit, $\Sigma$ to plane).} For each chart atom,
+Love's currents $\ve J=\ve n\times\ve H$, $\ve M=-\ve n\times\ve E$ radiate
+into the region beyond $\Sigma$:
+$\ve A(\kp)=-\frac{k}{8\pi^2k_z}\big[Z(\mathsf I-\hat k\hat k)\tilde{\ve J}
+-\hat k\times\tilde{\ve M}\big]$, with $\tilde{\ve J}$ the surface integral
+of $\ve J e^{-i\ve k\cdot\ve r}$ over the atom's footprint. Its band sits
+around the refracted carrier; it is returned as one plane atom on the next
+plane, centred at the back-projected footprint. No iterations.
+
+\section{Error control}
+Each truncation is bounded by one tolerance $\varepsilon$: window tails and
+dropped atoms ($\le\varepsilon$ of the field norm); envelope band limits;
+Chebyshev rank ($\le\varepsilon$ by the Bessel tail bound); per-atom FFT
+aliasing (envelope grids hold the displaced, spread atom). Re-partitioning
+after each operator keeps envelopes smooth. The only model error is the local
+Fresnel $T$, measured separately against exact fields.
+
+\section{Validation and targets}
+\begin{itemize}
+\item Each operator against the existing exact lattice operators ($R$, $Q$,
+$Q^H$, explicit $Q^{-1}$) on small cells, to $\varepsilon$.
+\item The full pipeline $R\,Q^{-1}TQ\,R$ against the exact single-interface
+sphere for $ka=10^3\ldots10^5$ (both faces), and against the Müller and
+PMCHWT solvers for non-spherical elements at mid scale.
+\item Runtime: under five minutes is the acceptance limit for any stage;
+the goal is under one second for a macroscopic interface, with compiled
+per-atom kernels. Memory is reported against the field's own storage.
+\end{itemize}
+
+\section{Open questions}
+\begin{itemize}
+\item Window width: fixed Fresnel scale, or adapted per region from the
+local wavefront curvature and the surface curvature.
+\item Carrier model: linear phase only, or linear plus quadratic (local
+wavefront curvature), which keeps envelopes small near foci.
+\item Fields that are not locally single-valued (caustics, edges): more
+atoms per window; the cost then grows with the true phase-space content.
+\end{itemize}
+
+\end{document}
