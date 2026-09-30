@@ -195,3 +195,57 @@ def test_comparison_window_is_explicit_and_fast_evaluation_matches_direct():
     )
     with pytest.raises(ValueError, match="window_apertures"):
         compare_case("plano-convex", 1, window_apertures=2)
+
+
+@pytest.mark.parametrize("interior", [True, False])
+def test_stable_single_interface_sphere_is_exact_beyond_the_direct_series(interior):
+    from vecdiff_general.propagation.references.debye import (
+        _sphere_single_interface_direct,
+        sphere_single_interface,
+    )
+
+    wavelength = 532e-9
+    n1, n2 = (1.5, 1.0) if interior else (1.0, 1.5)
+    rng = np.random.default_rng(3)
+    for ka in (30, 100):
+        radius = ka * wavelength / (2 * np.pi * n1)
+        points = radius * np.column_stack(
+            (
+                rng.uniform(-0.3, 0.3, 40),
+                rng.uniform(-0.3, 0.3, 40),
+                rng.uniform(-0.03, 0.03, 40),
+            )
+        )
+        stable = sphere_single_interface(
+            points, wavelength, radius, n1, n2, interior=interior
+        )
+        direct = _sphere_single_interface_direct(
+            points, wavelength, radius, n1, n2, interior=interior
+        )
+        for key in ("reflected", "transmitted"):
+            for a, b in zip(stable[key], direct[key]):
+                assert np.max(abs(a - b)) <= 1e-11 * np.max(abs(b))
+
+    # ka = 3000: the direct series overflows; the stable one keeps the exact
+    # interface conditions (continuous tangential E and H on the sphere).
+    radius = 3000 * wavelength / (2 * np.pi * n1)
+    theta, phi = np.meshgrid(
+        np.linspace(0, 0.6, 12), np.linspace(0, 2 * np.pi, 4, endpoint=False)
+    )
+    side = 1 if interior else -1
+    normal = np.stack(
+        (
+            np.sin(theta) * np.cos(phi),
+            np.sin(theta) * np.sin(phi),
+            side * np.cos(theta),
+        ),
+        -1,
+    ).reshape(-1, 3)
+    centre = np.array([0, 0, -side * radius])
+    field = sphere_single_interface(
+        centre + radius * normal, wavelength, radius, n1, n2, interior=interior
+    )
+    for index in (0, 1):
+        inside = np.cross(normal, field["incident"][index] + field["reflected"][index])
+        outside = np.cross(normal, field["transmitted"][index])
+        assert np.linalg.norm(inside - outside) <= 1e-10 * np.linalg.norm(outside)

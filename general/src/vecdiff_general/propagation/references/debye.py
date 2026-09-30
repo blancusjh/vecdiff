@@ -128,7 +128,7 @@ def _spherical_radial(kind, n, x):
     return j + sign * 1j * y, dj + sign * 1j * dy
 
 
-def sphere_single_interface(
+def _sphere_single_interface_direct(
     points, wavelength0, radius, n_incident, n_transmitted, *, interior=False
 ):
     """Incident, reflected and transmitted (E, H) for an x-polarized wave."""
@@ -210,6 +210,131 @@ def sphere_single_interface(
         "incident": wave("j", k1, np.ones(nmax), -1j * np.ones(nmax), n_incident),
         "reflected": wave(ks, k1, te[:, 0], tm[:, 0], n_incident),
         "transmitted": wave(kt, k2, te[:, 1], tm[:, 1], n_transmitted),
+    }
+
+
+def _hankel_log_start(sign, x):
+    """log h_1 and the ratio h_1/h_0 for h = j + sign*i*y (sign=+1: h1, -1: h2)."""
+    log_h1 = np.log(-(x + 1j * sign) / x**2) + 1j * sign * x
+    return log_h1, 1 / x - 1j * sign
+
+
+def _hankel_log_table(sign, x, nmax):
+    """log h_n(x) and the logarithmic derivative h_n'/h_n for n = 1..nmax.
+
+    Ratios rho_n = h_n/h_(n-1) obey rho_(n+1) = (2n+1)/x - 1/rho_n, the dominant
+    (stable) direction for Hankel functions; nothing overflows at n >> x.
+    """
+    log_h = np.empty(nmax, complex)
+    derivative = np.empty(nmax, complex)
+    log_h[0], rho = _hankel_log_start(sign, x)
+    derivative[0] = 1 / rho - 2 / x
+    for n in range(2, nmax + 1):
+        rho = (2 * n - 1) / x - 1 / rho
+        log_h[n - 1] = log_h[n - 2] + np.log(rho)
+        derivative[n - 1] = 1 / rho - (n + 1) / x
+    return log_h, derivative
+
+
+def sphere_single_interface(
+    points, wavelength0, radius, n_incident, n_transmitted, *, interior=False
+):
+    """Incident, reflected and transmitted (E, H) for an x-polarized wave.
+
+    Numerically stable for macroscopic spheres (size parameter 10^4 and above).
+    The one-way coefficients are solved for the surface values of each partial
+    wave, a_n h_n(x1) and t_n h_n(x2), which stay bounded; radial functions are
+    evaluated as ratios h_n(kr)/h_n(kR) from stable logarithmic recurrences.
+    The series is summed order by order, so memory grows only with the number
+    of points. The incident term is the analytic plane wave it represents.
+    """
+    points = np.asarray(points, float)
+    shape = points.shape[:-1]
+    centre = np.array([0.0, 0.0, -radius if interior else radius])
+    p = points.reshape(-1, 3) - centre
+    r = np.linalg.norm(p, axis=-1)
+    th = np.arccos(np.clip(p[:, 2] / r, -1, 1))
+    ph = np.arctan2(p[:, 1], p[:, 0])
+    k0 = 2 * np.pi / wavelength0
+    k1, k2 = n_incident * k0, n_transmitted * k0
+    x1, x2 = k1 * radius, k2 * radius
+    nmax = int(max(x1, x2) + 8 * max(x1, x2) ** (1 / 3) + 20)
+    ns = np.arange(1, nmax + 1)
+    ks, kt = _outgoing(interior)
+    sign_s, sign_t = (1 if ks == "h1" else -1), (1 if kt == "h1" else -1)
+
+    # Surface values: incident j_n, and log-derivatives of the one-way waves.
+    zj = spherical_jn(ns, x1)
+    pj = (zj + x1 * spherical_jn(ns, x1, derivative=True)) / x1
+    log_s, dlog_s = _hankel_log_table(sign_s, x1, nmax)
+    log_t, dlog_t = _hankel_log_table(sign_t, x2, nmax)
+    gs, gt = 1 / x1 + dlog_s, 1 / x2 + dlog_t  # psi/z at the surface
+    ni, nt = n_incident, n_transmitted
+    # Unknowns alpha = a_n h_n(x1), tau = t_n h_n(x2) (TE, then TM).
+    te_alpha = (ni * pj - nt * gt * zj) / (nt * gt - ni * gs)
+    te_tau = te_alpha + zj
+    tm_alpha = 1j * (nt * pj - ni * gt * zj) / (nt * gs - ni * gt)
+    tm_tau = (ni * tm_alpha - 1j * ni * zj) / nt
+    En = (1j) ** ns * (2 * ns + 1) / (ns * (ns + 1))
+
+    pre = np.exp(1j * k1 * centre[2])
+    mu = np.cos(th)
+    st, sp, cp = np.sin(th), np.sin(ph), np.cos(ph)
+    rh = np.stack((st * cp, st * sp, mu), -1)
+    thh = np.stack((mu * cp, mu * sp, -st), -1)
+    phh = np.stack((-sp, cp, 0 * sp), -1)
+
+    def partial_waves(sign, k, log_surface, alpha, beta, index):
+        rho_arg = k * r
+        E = np.zeros(r.shape + (3,), complex)
+        H = np.zeros(r.shape + (3,), complex)
+        log_h, ratio = _hankel_log_start(sign, rho_arg)
+        pi_prev, pi_n = np.zeros_like(mu), np.ones_like(mu)
+        with np.errstate(over="ignore", invalid="ignore"):
+            for n in range(1, nmax + 1):
+                if n > 1:
+                    ratio = (2 * n - 1) / rho_arg - 1 / ratio
+                    log_h = log_h + np.log(ratio)
+                    pi_prev, pi_n = (
+                        pi_n,
+                        ((2 * n - 1) * mu * pi_n - n * pi_prev) / (n - 1),
+                    )
+                tau_n = n * mu * pi_n - (n + 1) * pi_prev
+                z = np.exp(log_h - log_surface[n - 1])
+                psi = z * (1 / rho_arg + 1 / ratio - (n + 1) / rho_arg)
+                zr = z / rho_arg
+                c, d = En[n - 1] * alpha[n - 1], En[n - 1] * beta[n - 1]
+                m_odd = (cp * pi_n * z)[:, None] * thh - (sp * tau_n * z)[:, None] * phh
+                m_even = (-sp * pi_n * z)[:, None] * thh - (cp * tau_n * z)[
+                    :, None
+                ] * phh
+                radial = n * (n + 1) * st * pi_n * zr
+                n_odd = (
+                    (sp * radial)[:, None] * rh
+                    + (sp * tau_n * psi)[:, None] * thh
+                    + (cp * pi_n * psi)[:, None] * phh
+                )
+                n_even = (
+                    (cp * radial)[:, None] * rh
+                    + (cp * tau_n * psi)[:, None] * thh
+                    - (sp * pi_n * psi)[:, None] * phh
+                )
+                E += c * m_odd + d * n_even
+                H += c * n_odd + d * m_even
+        E = pre * E
+        H = -1j * index * pre * H / Z0
+        return E.reshape(shape + (3,)), H.reshape(shape + (3,))
+
+    phase = np.exp(1j * k1 * points.reshape(-1, 3)[:, 2])
+    E_inc = np.zeros(r.shape + (3,), complex)
+    H_inc = np.zeros(r.shape + (3,), complex)
+    E_inc[:, 0] = phase
+    H_inc[:, 1] = n_incident / Z0 * phase
+
+    return {
+        "incident": (E_inc.reshape(shape + (3,)), H_inc.reshape(shape + (3,))),
+        "reflected": partial_waves(sign_s, k1, log_s, te_alpha, tm_alpha, ni),
+        "transmitted": partial_waves(sign_t, k2, log_t, te_tau, tm_tau, nt),
     }
 
 
