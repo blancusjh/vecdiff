@@ -272,10 +272,8 @@ class SurfaceTransport:
     def radiate(self, trace):
         """Explicit Q^-1 from tangential E and H with the exact global Q^H.
 
-        No least-squares fit: see tiled_transport.radiated_spectrum.
+        No least-squares fit: see radiated_spectrum.
         """
-        from .tiled_transport import radiated_spectrum
-
         return radiated_spectrum(
             self, trace, lambda v: self._adjoint(v) * self.size * self.active[..., None]
         )
@@ -432,3 +430,57 @@ def fresnel_transmission(trace, interface, directions):
         dt,
         float(error),
     )
+
+
+def radiated_spectrum(transport, trace, adjoint):
+    """Explicit Q^-1: outgoing PlaneSpectrum from tangential E and H on Sigma.
+
+    Love's equivalence with J = n x H, M = -n x E and the Weyl expansion give,
+    for every propagating mode above the surface,
+    A(k) = -k/(8 pi^2 kz) [Z (I - k^ k^) J~ - k^ x M~],
+    J~ = int_Sigma J exp(-i k.r) dS, evaluated by ``adjoint`` (Q^H on the
+    lattice). Both traces are used; no least-squares fit or iteration occurs.
+    The spectrum represents the field above the surface.
+    """
+    plane = transport.plane
+    basis = plane.frame.basis
+    normals = transport.grid.normals
+    weights = transport.grid.weights[..., None]
+    k, ku, kv, active = transport.k, transport.ku, transport.kv, transport.active
+    khat = [ku / k, kv / k, transport.kz / k]
+    impedance = Z0 / transport.region.material.n
+    # J = n x H first; its transverse-projected spectrum starts the amplitudes.
+    amplitudes = adjoint((np.cross(normals, trace.magnetic) @ basis) * weights)
+    projection = sum(khat[i] * amplitudes[..., i] for i in range(3))
+    for i in range(3):
+        amplitudes[..., i] -= khat[i] * projection
+    amplitudes *= impedance
+    del projection
+    # M = -n x E: subtract k^ x M~.
+    moment = adjoint((-np.cross(normals, trace.electric.values) @ basis) * weights)
+    amplitudes[..., 0] -= khat[1] * moment[..., 2] - khat[2] * moment[..., 1]
+    amplitudes[..., 1] -= khat[2] * moment[..., 0] - khat[0] * moment[..., 2]
+    amplitudes[..., 2] -= khat[0] * moment[..., 1] - khat[1] * moment[..., 0]
+    del moment
+    cell = transport.size * plane.weights.flat[0]
+    amplitudes *= (-(k / (2 * cell * np.where(active, transport.kz, 1.0))) * active)[
+        ..., None
+    ]
+    if not np.allclose(basis, np.eye(3)):
+        amplitudes = amplitudes @ basis.T
+    kz = np.sqrt((k**2 - ku**2 - kv**2).astype(complex))
+    wavevectors = (
+        ku[..., None] * plane.frame.u
+        + kv[..., None] * plane.frame.v
+        + kz[..., None] * plane.frame.normal
+    )
+    del kz
+    ny, nx = plane.shape
+    expansion = PlaneWaveExpansion(
+        wavevectors.reshape(-1, 3),
+        amplitudes.reshape(-1, 3),
+        plane.points[ny // 2, nx // 2],
+        transport.wavelength0,
+        transport.region,
+    )
+    return PlaneSpectrum(plane, expansion)
