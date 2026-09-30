@@ -1,4 +1,4 @@
-"""Data for notebook 07, section "6λ₀ lenses": BEM references and our fast path.
+"""Data for notebook 06: BEM and Mie references for small bodies, and our field.
 
 The BEM fields (two element sizes, lambda/3 and lambda/4) and the 6λ₀ sphere
 control against Mie are cached in .cache/lenses under a fingerprint of the
@@ -247,8 +247,12 @@ def _cached(stem, build):
         with np.load(npz) as data:
             return {key: data[key] for key in data.files}, json.loads(meta.read_text())
     arrays, info = build()
-    np.savez_compressed(npz, **arrays)
-    meta.write_text(json.dumps(info, indent=2) + "\n")
+    # Write to temporary names and rename: an interrupted run leaves no half file.
+    partial = Path(f"{stem}.partial.npz")
+    np.savez_compressed(partial, **arrays)
+    partial.replace(npz)
+    Path(f"{stem}.partial.json").write_text(json.dumps(info, indent=2) + "\n")
+    Path(f"{stem}.partial.json").replace(meta)
     return arrays, info
 
 
@@ -331,3 +335,228 @@ def validity(name):
         error_uncoupled=_relative(uncoupled[window], reference[window]),
         bem_change=_relative(coarse[window], reference[window]),
     )
+
+
+# ---------------------------------------------------------------------------
+# Small bodies (1-4 wavelengths): whole-map comparisons of ours with BEM, and of
+# BEM with Mie. Reference fields are cached; our field is recomputed each run.
+
+SMALL_SHAPES = ("plano-convex", "biconvex")
+SMALL_DIAMETERS = (1.0, 2.0, 4.0)
+SMALL_BEM_DIVISORS = (8, 12)  # triangles per diameter; the finer is the reference
+SPHERE_SUBDIVISIONS = {0.6: (1, 2, 3), 1.2: (1, 2), 2.0: (1, 2)}
+BEM_CACHE = ROOT / ".cache" / "bem"
+
+
+def _small_geometry(shape, diameter):
+    from vecdiff_general.propagation.references.benchmarks import comparison_geometry
+
+    return comparison_geometry(shape, diameter, WAVELENGTH)
+
+
+def _small_bem(source, volume, interior, edge):
+    solver = DielectricBEM(
+        source, surface_mesh(volume, edge), interior, cache=str(BEM_CACHE)
+    )
+    return solver, solver.assembly_seconds + solver.solve_seconds
+
+
+def _fresh_seconds(source, mesh, interior):
+    """Wall-clock assembly + solve of an uncached BEM (cached times vary with load)."""
+    start = perf_counter()
+    DielectricBEM(source, mesh, interior, cache=None)
+    return perf_counter() - start
+
+
+def _paraxial_back_focus(system):
+    """Back focal distance from the exit vertex (thick-lens matrices), metres."""
+    front, back = (i.surface for i in system.interfaces)
+    d = back.frame.origin[2] - front.frame.origin[2]
+    p1 = (INDEX - 1) / front.radius if hasattr(front, "radius") else 0.0
+    p2 = (1 - INDEX) / back.radius if hasattr(back, "radius") else 0.0
+    power = p1 + p2 - d / INDEX * p1 * p2
+    return (1 - d / INDEX * p1) / power
+
+
+def _secondary_maxima_edge(coordinate, intensity, count=3):
+    """Position just past the minimum that follows the count-th secondary maximum."""
+    half = coordinate >= 0
+    x, y = coordinate[half], intensity[half]
+    inner = np.arange(1, len(y) - 1)
+    maxima = inner[(y[inner] > y[inner - 1]) & (y[inner] >= y[inner + 1])]
+    minima = inner[(y[inner] < y[inner - 1]) & (y[inner] <= y[inner + 1])]
+    maxima = maxima[maxima > (minima[0] if len(minima) else 0)]
+    if len(maxima) < count:
+        return float(x[-1])
+    after = minima[minima > maxima[count - 1]]
+    return float(x[after[0]] if len(after) else x[-1])
+
+
+def small_reference(shape, diameter):
+    """BEM (two meshes) on the meridional section and a three-lobe focal plane.
+
+    The meridional section y = 0 covers |x| <= 1.6a from just behind the exit
+    vertex to 1.5 paraxial back focal lengths. The detector plane is the axial
+    maximum of the finer BEM more than one wavelength behind the exit vertex;
+    its half-widths in x and y end at the minimum after the third secondary
+    maximum of the finer BEM's transverse intensity on that axis.
+    """
+    lam = WAVELENGTH
+
+    def build():
+        source, interior, volume, system = _small_geometry(shape, diameter)
+        a = system.apertures[0]
+        exit_z = system.interfaces[-1].surface.frame.origin[2]
+        x = np.linspace(-1.6 * a, 1.6 * a, 121)
+        z = np.linspace(
+            exit_z + 0.05 * lam, exit_z + 1.5 * _paraxial_back_focus(system), 241
+        )
+        zz, xx = np.meshgrid(z, x)
+        section = np.stack((xx, 0 * xx, zz), -1)
+        arrays, info = dict(x=x, z=z, exit_z=np.array(exit_z), a=np.array(a)), {}
+        solvers = {}
+        for divisor in SMALL_BEM_DIVISORS:
+            solver, seconds = _small_bem(source, volume, interior, 2 * a / divisor)
+            solvers[divisor] = solver
+            arrays[f"section_{divisor}"] = solver.evaluate(
+                o.PointGrid(section.reshape(-1, 3))
+            ).electric.values.reshape(section.shape)
+            info[f"triangles_{divisor}"] = int(len(solver.mesh.triangles))
+            info[f"seconds_{divisor}"] = float(seconds)
+        fine = solvers[SMALL_BEM_DIVISORS[-1]]
+        axial = np.sum(abs(arrays[f"section_{SMALL_BEM_DIVISORS[-1]}"][60]) ** 2, -1)
+        focus = float(z[np.argmax(np.where(z > exit_z + lam, axial, 0))])
+        line = np.linspace(-(2 * a + 12 * lam), 2 * a + 12 * lam, 1601)
+        halves = []
+        for axis in (0, 1):
+            points = np.zeros((len(line), 3))
+            points[:, axis], points[:, 2] = line, focus
+            E = fine.evaluate(o.PointGrid(points)).electric.values
+            halves.append(
+                _secondary_maxima_edge(line, np.sum(abs(E[:, :2]) ** 2, -1))
+            )
+        fx = np.linspace(-halves[0], halves[0], 121)
+        fy = np.linspace(-halves[1], halves[1], 121)
+        FX, FY = np.meshgrid(fx, fy)
+        focal = np.stack((FX, FY, np.full_like(FX, focus)), -1)
+        for divisor, solver in solvers.items():
+            arrays[f"focal_{divisor}"] = solver.evaluate(
+                o.PointGrid(focal.reshape(-1, 3))
+            ).electric.values.reshape(focal.shape)
+        arrays.update(fx=fx, fy=fy, focus=np.array(focus))
+        return arrays, info
+
+    key = _digest(
+        shape,
+        repr(diameter),
+        repr(SMALL_BEM_DIVISORS),
+        inspect.getsource(bem),
+        inspect.getsource(meshing),
+        inspect.getsource(small_reference),
+        inspect.getsource(_secondary_maxima_edge),
+        inspect.getsource(_paraxial_back_focus),
+    )
+    return _cached(CACHE / f"small_{_slug(shape)}_{diameter:g}_{key}", build)
+
+
+def small_lens(shape, diameter, *, grid=384, window=24):
+    """Our field on the reference points, with errors against the finer BEM.
+
+    Ours: R Q^-1 T Q R on a Cartesian FFT cell of width window x a with
+    grid samples per axis (default rim coupling). Errors are relative L2 norms
+    of the complex E difference over the whole section or focal plane.
+    """
+    arrays, info = small_reference(shape, diameter)
+    source, interior, volume, system = _small_geometry(shape, diameter)
+    a = float(arrays["a"])
+    seconds_bem = _fresh_seconds(
+        source, surface_mesh(volume, 2 * a / SMALL_BEM_DIVISORS[-1]), interior
+    )
+    axis = (np.arange(grid) - grid // 2) * window * a / grid
+    start = perf_counter()
+    solution = o.propagate_interfaces(
+        source, system, o.CartesianGrid(axis, axis, system.interfaces[0].surface.frame)
+    )
+    seconds = perf_counter() - start
+    zz, xx = np.meshgrid(arrays["z"], arrays["x"])
+    section = np.stack((xx, 0 * xx, zz), -1)
+    FX, FY = np.meshgrid(arrays["fx"], arrays["fy"])
+    focal = np.stack((FX, FY, np.full_like(FX, float(arrays["focus"]))), -1)
+    ours = solution.evaluate(
+        o.PointGrid(np.concatenate((section.reshape(-1, 3), focal.reshape(-1, 3))))
+    ).electric.values
+    coarse, fine = SMALL_BEM_DIVISORS
+    out = dict(arrays)
+    out["section_ours"] = ours[: section[..., 0].size].reshape(section.shape)
+    out["focal_ours"] = ours[section[..., 0].size :].reshape(focal.shape)
+    centre = (len(arrays["fy"]) // 2, len(arrays["fx"]) // 2)
+
+    def peak(E):
+        return float(np.sum(abs(E[centre]) ** 2))
+
+    out.update(
+        error_section=_relative(out["section_ours"], arrays[f"section_{fine}"]),
+        error_focal=_relative(out["focal_ours"], arrays[f"focal_{fine}"]),
+        peak_ratio=peak(out["focal_ours"]) / peak(arrays[f"focal_{fine}"]),
+        bem_change_section=_relative(
+            arrays[f"section_{coarse}"], arrays[f"section_{fine}"]
+        ),
+        bem_change_focal=_relative(arrays[f"focal_{coarse}"], arrays[f"focal_{fine}"]),
+        seconds_ours=seconds,
+        seconds_bem=seconds_bem,
+        triangles=info[f"triangles_{fine}"],
+    )
+    return out
+
+
+def sphere_reference(diameter):
+    """BEM on refined icosahedral meshes against exact Mie behind a glass sphere.
+
+    Meridional section y = 0: |x| <= 1.6R, from 0.05 wavelength behind the
+    sphere to R + max(4R, 10 wavelengths). Errors are relative L2 norms of the
+    complex E difference over that section.
+    """
+    from vecdiff_general.propagation.references import MieSphere, SurfaceMesh
+
+    lam = WAVELENGTH
+
+    def build():
+        source, interior, volume, _ = _small_geometry("sphere", diameter)
+        R = diameter * lam / 2
+        x = np.linspace(-1.6 * R, 1.6 * R, 81)
+        z = np.linspace(R + 0.05 * lam, R + max(4 * R, 10 * lam), 161)
+        zz, xx = np.meshgrid(z, x)
+        points = o.PointGrid(np.stack((xx, 0 * xx, zz), -1).reshape(-1, 3))
+        arrays = dict(mie=MieSphere(source, volume, interior).evaluate(points).electric.values)
+        info = {}
+        for s in SPHERE_SUBDIVISIONS[diameter]:
+            solver = DielectricBEM(
+                source, SurfaceMesh.sphere(volume, s), interior, cache=str(BEM_CACHE)
+            )
+            arrays[f"bem_{s}"] = solver.evaluate(points).electric.values
+            info[f"triangles_{s}"] = int(len(solver.mesh.triangles))
+            info[f"seconds_{s}"] = float(solver.assembly_seconds + solver.solve_seconds)
+        return arrays, info
+
+    key = _digest(
+        repr(diameter),
+        repr(SPHERE_SUBDIVISIONS[diameter]),
+        inspect.getsource(bem),
+        inspect.getsource(sphere_reference),
+    )
+    arrays, info = _cached(CACHE / f"sphere_{diameter:g}_{key}", build)
+    from vecdiff_general.propagation.references import SurfaceMesh
+    source, interior, volume, _ = _small_geometry("sphere", diameter)
+    rows, previous = [], None
+    for s in SPHERE_SUBDIVISIONS[diameter]:
+        field = arrays[f"bem_{s}"]
+        rows.append(
+            dict(
+                triangles=info[f"triangles_{s}"],
+                error=_relative(field, arrays["mie"]),
+                change=None if previous is None else _relative(previous, field),
+                seconds=_fresh_seconds(source, SurfaceMesh.sphere(volume, s), interior),
+            )
+        )
+        previous = field
+    return rows

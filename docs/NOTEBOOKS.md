@@ -13,7 +13,7 @@ polarization of a complete vector field.
 | [03 · Refraction and focusing by a lens](../general/notebooks/03_refraction_and_focusing_by_a_lens.ipynb) | A spherical and a matched stigmatic (GOTS) lens through R Q⁻¹ T Q R: rays, meridional and focal fields, longitudinal fields, polarization and convergence. |
 | [04 · Compensating Fresnel transmission](../general/notebooks/04_compensating_fresnel_transmission.ipynb) | A stigmatic diopter (Cartesian oval, z₀ = −10 mm → zᵢ = 6 mm, NA 0.84096): local Fresnel transmission and energy conservation give p/s transfer weights; dividing the entrance field by them recovers the transverse Airy focus at equal input power. Airy and first-minimum contours, throughput and quadrature checks. |
 | [05 · Vector imaging and lithography](../general/notebooks/05_single_lens_lithography.ipynb) | A schematic circuit reticle through a visible single lens and an ideal 193 nm 4× relay with partial coherence; scalar versus vector contrast on vertical and horizontal trace groups. |
-| [06 · Full-wave reference validation](../general/notebooks/06_full_wave_reference_validation.ipynb) | Our method (24a FFT cells) against BEM, FEM and analytic Mie for spheres and lenses; 6λ₀ lenses comparing separated and coupled rim propagation; weak macroscopic lenses up to 2000λ₀. |
+| [06 · Our method against full-wave solvers](../general/notebooks/06_full_wave_reference_validation.ipynb) | Small bodies (1–6λ₀): BEM checked against Mie on spheres, then our field against BEM over whole meridional sections and three-lobe focal planes of plano-convex and biconvex lenses, and when rim coupling is needed for thick lenses. |
 | [07 · Macroscopic interface operators](../general/notebooks/07_macroscopic_interface_operators.ipynb) | Q, T and the explicit Q⁻¹ against exact Maxwell fields at macroscopic size: a single spherical interface up to ka = 10⁵, a glass ball lens (meridional section and focal plane) against exact Debye p = 1 and full Mie, ray-transport Q⁻¹, and lattice versus phase-space cost. |
 
 ## Models and interpretation
@@ -29,10 +29,9 @@ polarization of a complete vector field.
   They conserve normal power and Maxwell transversality in each homogeneous
   region but do not predict the aberrations of an unspecified objective. The
   lithography source quadrature is refined from 8 to 64 directions.
-- **06** compares our forward method, with conditional rim coupling, with full-wave
-  solutions that include sidewall reflection and internal returns. Differences
-  combine numerical error and modelling difference; see
-  [validation](VALIDATION.md#interpreting-the-comparisons) and the
+- **06** compares our forward method with BEM, which also includes reflections
+  inside the lens and sidewall scattering; at 1–4λ₀ the differences are mainly
+  this model difference. See the
   [element Fresnel number criterion](PROPAGATION.md#validity-element-fresnel-number).
 
 ## Run
@@ -46,8 +45,8 @@ cd general/notebooks
 ```
 
 Rerun a notebook after library changes; executed outputs are stored in the
-notebook. Notebook 06 caches expensive data (BEM currents, reference fields and
-the 6λ₀-lens references) in the git-ignored `.cache/` at the repository root.
+notebook. Notebooks 06 and 07 cache expensive data (BEM currents and reference fields)
+in the git-ignored `.cache/` at the repository root.
 The caches are keyed by numerical inputs and solver sources, so stale entries
-are never reused; delete `.cache/` to reclaim space. The 6λ₀-lens references
+are never reused; delete `.cache/` to reclaim space. Notebook 06's references
 come from `general/notebooks/lens_references.py`.
