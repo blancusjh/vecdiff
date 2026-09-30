@@ -222,7 +222,8 @@ complete aperture coverage and quadrature accuracy are separate claims.
 See [propagation](PROPAGATION.md) for the equations, inverse, sampling contracts, edges and stops, and limitations.
 
 Independent full-wave comparisons live in `propagation/references`: our Fortran
-PMCHWT/RWG dielectric BEM and Nédélec vector FEM/PML, plus analytical Mie spheres.
+PMCHWT/RWG dielectric BEM (with a second-kind Müller alternative tested by
+Buffa–Christiansen functions) and Nédélec vector FEM/PML, plus analytical Mie spheres.
 Python owns validated meshes, units and solve orchestration; the native core
 assembles operators and reconstructs fields. They are
 explicit imports and are never selected by primary propagation. See

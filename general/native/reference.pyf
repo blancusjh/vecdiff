@@ -16,6 +16,28 @@ python module _reference_core
       double precision intent(in) :: far_ratio
       complex*16 dimension(2*ne,2*ne),intent(out) :: matrix
     end subroutine
+    subroutine bem_assemble_muller(nt,ne,ns,nk,nq,nn,nf,corners,triangles,edge_ids,factors,sub_corners,sub_parent,sub_apex,sub_rows,sub_flux,n0,n1,q,w,qn,wn,qf,wf,far_ratio,matrix)
+      integer intent(hide),depend(corners) :: nt=shape(corners,2)
+      integer intent(in) :: ne
+      integer intent(hide),depend(sub_corners) :: ns=shape(sub_corners,2)
+      integer intent(hide),depend(sub_rows) :: nk=shape(sub_rows,0)
+      integer intent(hide),depend(q) :: nq=len(q)
+      integer intent(hide),depend(qn) :: nn=len(qn)
+      integer intent(hide),depend(qf) :: nf=len(qf)
+      double precision dimension(3,3,nt),intent(in) :: corners
+      integer dimension(3,nt),intent(in) :: triangles,edge_ids
+      double precision dimension(3,nt),intent(in) :: factors
+      double precision dimension(3,3,ns),intent(in) :: sub_corners
+      integer dimension(ns),intent(in) :: sub_parent,sub_apex
+      integer dimension(nk,ns),intent(in) :: sub_rows
+      double precision dimension(3,nk,ns),intent(in) :: sub_flux
+      double precision intent(in) :: n0,n1
+      double precision dimension(nq),intent(in) :: q,w
+      double precision dimension(nn),intent(in) :: qn,wn
+      double precision dimension(nf),intent(in) :: qf,wf
+      double precision intent(in) :: far_ratio
+      complex*16 dimension(2*ne,2*ne),intent(out) :: matrix
+    end subroutine
     subroutine bem_fields(nt,ne,np,nq,nf,corners,edge_ids,factors,coefficients,points,faces,index,side,q,w,qf,wf,far_ratio,electric,magnetic)
       integer intent(hide),depend(corners) :: nt=shape(corners,2)
       integer intent(hide),depend(coefficients) :: ne=len(coefficients)/2
