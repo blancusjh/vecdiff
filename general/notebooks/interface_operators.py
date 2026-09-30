@@ -551,15 +551,84 @@ def _translate(spectrum, grid, distance):
     return o.fields.spectrum.PlaneSpectrum(grid, moved)
 
 
-def _poynting_directions(E, H, normals):
-    """Local energy-flow direction; in the dark (flux below 1e-8 of its peak,
+def _poynting_directions(E, H, normals, dark=1e-8):
+    """Local energy-flow direction; in the dark (flux below ``dark`` of its peak,
     where it is roundoff) the surface normal, which carries no field there."""
     S = np.real(np.cross(E, np.conj(H)))
     norm = np.linalg.norm(S, axis=-1)
-    lit = norm > 1e-8 * norm.max()
+    lit = norm > dark * norm.max()
     out = normals.copy()
     out[lit] = S[lit] / norm[lit][:, None]
     return out
+
+
+def _ray_to_plane(transport, E, H, plane, region):
+    """Ray-transport Q^-1: a surface trace (after T) onto its tangent plane.
+
+    Each chart node carries its transmitted E along the local energy-flow
+    direction d to the plane (phase k s over the path s, amplitude from the
+    ray tube: |E'|^2 d_z dA_plane = |E|^2 (d.n) dA_Sigma). The landed values
+    are resampled onto the plane lattice by barycentric weights on the
+    triangulated landing points, each extrapolated with its own local plane
+    wave exp(i k d_xy . (g - L)). Returns the plane spectrum in ``region``,
+    restricted to the transport's band like the wave Q^-1; everything beyond
+    the plane is exact ASM.
+    """
+    from scipy.spatial import Delaunay
+
+    k = 2 * np.pi * region.material.n / WAVELENGTH
+    points, normals = transport.grid.points, transport.grid.normals
+    d = _poynting_directions(E, H, normals)
+    xy = transport.xy
+    s = (plane.frame.origin[2] - points[..., 2]) / d[..., 2]
+    landing = xy + s[..., None] * d[..., :2]
+    step = xy[0, 1, 0] - xy[0, 0, 0]
+    dLx = np.gradient(landing, step, axis=1)
+    dLy = np.gradient(landing, step, axis=0)
+    jacobian = dLx[..., 0] * dLy[..., 1] - dLx[..., 1] * dLy[..., 0]
+    area = transport.surface.area_jacobian(xy)
+    tube = np.sqrt(
+        np.maximum(area * np.sum(d * normals, -1), 0)
+        / np.maximum(np.abs(jacobian) * d[..., 2], 1e-300)
+    )
+    # A ray exists only where there is light: dark nodes carry no direction.
+    magnitude = np.linalg.norm(E, axis=-1)
+    lit = magnitude > 1e-6 * magnitude.max()
+    values = (E * (np.where(lit, tube, 0) * np.exp(1j * k * s))[..., None]).reshape(
+        -1, 3
+    )
+    L = landing.reshape(-1, 2)
+    q = k * d[..., :2].reshape(-1, 2)
+    X, Y = np.meshgrid(plane.u, plane.v)
+    G = np.column_stack((X.ravel(), Y.ravel()))
+    mesh = Delaunay(L)
+    simplex = mesh.find_simplex(G)
+    inside = simplex >= 0
+    vertices = mesh.simplices[simplex[inside]]
+    T = mesh.transform[simplex[inside]]
+    bary = np.einsum("pij,pj->pi", T[:, :2], G[inside] - T[:, 2])
+    weights = np.column_stack((bary, 1 - bary.sum(1)))
+    out = np.zeros((len(G), 3), complex)
+    for c in range(3):
+        j = vertices[:, c]
+        phase = np.exp(1j * np.sum(q[j] * (G[inside] - L[j]), -1))
+        out[inside] += weights[:, c, None] * values[j] * phase[:, None]
+    field = o.TransverseElectricField(
+        plane, WAVELENGTH, out.reshape(X.shape + (3,))[..., :2]
+    )
+    spectrum = o.angular_spectrum(field, region, evanescent="discard")
+    # Same output band as the wave Q^-1 (the transport's sin(theta) <= max_sine).
+    expansion = spectrum.expansion
+    amplitudes = expansion.amplitudes.reshape(X.shape + (3,)).copy()
+    amplitudes[~transport.active] = 0
+    band = o.PlaneWaveExpansion(
+        expansion.wavevectors,
+        amplitudes.reshape(-1, 3),
+        expansion.origin,
+        WAVELENGTH,
+        expansion.region,
+    )
+    return o.fields.spectrum.PlaneSpectrum(plane, band)
 
 
 def ball_ours(**overrides):
@@ -570,6 +639,7 @@ def ball_ours(**overrides):
     the exit cap -> T -> explicit Q^-1. Returns the outgoing expansion in air
     (propagating modes) and the stage times.
     """
+    inverse = overrides.pop("inverse", "wave")
     p = dict(BALL, **overrides)
     R, n = p["radius"], p["n"]
     air = o.HomogeneousRegion("air", o.Dielectric(1.0))
@@ -601,12 +671,17 @@ def ball_ours(**overrides):
             incident.electric.values, incident.magnetic, entry.grid.normals
         ),
     ).transmitted
-    inside = entry.radiate(
-        o.ElectromagneticField(
-            o.ElectricField(entry.grid, WAVELENGTH, trace.electric.values),
-            trace.magnetic,
+    if inverse == "ray":
+        inside = _ray_to_plane(
+            entry, trace.electric.values, trace.magnetic, entry_plane, glass
         )
-    )
+    else:
+        inside = entry.radiate(
+            o.ElectromagneticField(
+                o.ElectricField(entry.grid, WAVELENGTH, trace.electric.values),
+                trace.magnetic,
+            )
+        )
     seconds["entry face (Q, T, Q^-1)"] = time.perf_counter() - clock
 
     clock = time.perf_counter()
@@ -616,16 +691,25 @@ def ball_ours(**overrides):
         on_exit,
         o.DielectricInterface(exit_cap, glass, air),
         _poynting_directions(
-            on_exit.electric.values, on_exit.magnetic, leave.grid.normals
+            on_exit.electric.values,
+            on_exit.magnetic,
+            leave.grid.normals,
+            # Ray resampling leaves noise near 1e-8 of the peak in the dark.
+            dark=1e-6 if inverse == "ray" else 1e-8,
         ),
     ).transmitted
     out_transport = o.SurfaceTransport(exit_plane, exit_cap, air, WAVELENGTH)
-    outgoing = out_transport.radiate(
-        o.ElectromagneticField(
-            o.ElectricField(out_transport.grid, WAVELENGTH, trace.electric.values),
-            trace.magnetic,
-        )
-    ).expansion
+    if inverse == "ray":
+        outgoing = _ray_to_plane(
+            out_transport, trace.electric.values, trace.magnetic, exit_plane, air
+        ).expansion
+    else:
+        outgoing = out_transport.radiate(
+            o.ElectromagneticField(
+                o.ElectricField(out_transport.grid, WAVELENGTH, trace.electric.values),
+                trace.magnetic,
+            )
+        ).expansion
     seconds["R + exit face (Q, T, Q^-1)"] = time.perf_counter() - clock
     live = np.linalg.norm(outgoing.amplitudes, axis=-1) > 0
     active = o.PlaneWaveExpansion(
@@ -639,13 +723,14 @@ def ball_ours(**overrides):
 
 
 def ball_comparison(
-    *, aperture=35.0, meridional=(161, 241), focal=121, focal_half=12.0
+    *, aperture=35.0, meridional=(161, 241), focal=121, focal_half=12.0, inverse="wave"
 ):
     """Ours and exact (p = 1, full Mie) on the meridional section and the focal
-    plane of the ball lens; everything cached (the full run takes minutes)."""
+    plane of the ball lens; everything cached (the full run takes minutes).
+    inverse='ray' uses ray transport for Q^-1 at both faces."""
     parameters = dict(BALL, aperture=aperture)
     key = _key(
-        kind="ball_comparison",
+        kind="ball_comparison" if inverse == "wave" else f"ball_comparison_{inverse}",
         meridional=list(meridional),
         focal=focal,
         focal_half=focal_half,
@@ -660,7 +745,7 @@ def ball_comparison(
     X, Z = np.meshgrid(x, z)
     section = np.stack((X, np.zeros_like(X), Z), -1)
     clock = time.perf_counter()
-    ours, seconds = ball_ours(aperture=aperture)
+    ours, seconds = ball_ours(aperture=aperture, inverse=inverse)
     total_seconds = time.perf_counter() - clock
     reference = ball_reference(
         section,
