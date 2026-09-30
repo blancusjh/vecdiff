@@ -987,6 +987,62 @@ def plot_polarization(
     return axis
 
 
+def plot_focal_polarization(
+    field,
+    *,
+    axis=None,
+    reference_intensity=None,
+    glyph="line",
+    density=6.0,
+    title="Focal-plane polarization",
+    **options,
+):
+    """Focal-plane polarization map in the notebooks' common style.
+
+    Background: transverse intensity divided by its on-axis value (by default
+    the sample nearest the chart origin), on ``hot`` with LogNorm(1e-5, 1), so
+    weak side lobes and minima stay distinct. Glyphs: dense black transverse
+    polarization directions (glyph='ellipse' for rotating states) on a dense
+    lattice; their size follows intensity on a log scale, from 0.15 of full
+    size at 1e-5 of the peak, so weak side lobes keep readable glyphs.
+    Any plot_polarization option overrides these defaults. Axes read x, y.
+    """
+    from matplotlib.colors import LogNorm
+
+    if reference_intensity is None:
+        electric = field.electric if isinstance(field, ElectromagneticField) else field
+        grid = electric.grid
+        if isinstance(grid, CartesianGrid):
+            centre = electric.values[np.argmin(abs(grid.v)), np.argmin(abs(grid.u))]
+        else:
+            centre = electric.values[np.argmin(grid.radius)].mean(axis=0)
+        if centre.shape[-1] == 3:
+            centre = centre @ grid.frame.basis[:, :2]
+        reference_intensity = float(np.sum(abs(centre) ** 2))
+    settings = dict(
+        crop=False,
+        glyph_color="black",
+        size_scale="log",
+        size_floor=0.15,
+        cmap="hot",
+        norm=LogNorm(1e-5, 1),
+        min_intensity_fraction=1e-5,
+        colorbar_label="Transverse intensity / on-axis value",
+    )
+    settings.update(options)
+    axis = plot_polarization(
+        field,
+        axis=axis,
+        glyph=glyph,
+        density=density,
+        title=title,
+        reference_intensity=reference_intensity,
+        **settings,
+    )
+    axis.set(xlabel="x (µm)", ylabel="y (µm)")
+    return axis
+
+
 def plot_polarization_scalar(
     field,
     quantity="ellipticity",

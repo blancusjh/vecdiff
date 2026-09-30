@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import vecdiff_general as optics
-from vecdiff_general.visualization import plot_polarization
+from vecdiff_general.visualization import plot_focal_polarization, plot_polarization
 from vecdiff_general.visualization.polarization import (
     _layout_nodes,
     _size_fraction,
@@ -182,4 +182,30 @@ def test_line_glyphs_are_equal_centered_direction_segments():
 
     assert np.allclose(length, length[0], rtol=0.08)
     assert np.allclose(np.arctan2(direction[:, 1], direction[:, 0]) % np.pi, angle)
+    assert np.allclose(lines.get_colors()[:, :3], 0)
+
+
+def test_focal_style_scales_line_length_with_intensity():
+    axis_values = np.linspace(-6e-6, 6e-6, 121)
+    grid = optics.CartesianGrid(axis_values, axis_values)
+    x, y = np.meshgrid(axis_values, axis_values)
+    envelope = np.exp(-(x**2 + y**2) / (2 * (2e-6) ** 2))
+    values = np.zeros(grid.shape + (3,), complex)
+    values[..., 0] = envelope
+    field = optics.ElectricField(grid, WAVELENGTH, values)
+    figure, axis = plt.subplots(figsize=(5, 5))
+    plot_focal_polarization(field, axis=axis)
+    lines = next(
+        item for item in axis.collections if item.get_gid() == "polarization-lines"
+    )
+    segments = np.asarray(lines.get_segments())
+    labels = axis.get_xlabel(), axis.get_ylabel()
+    plt.close(figure)
+    centers = segments.mean(axis=1)
+    length = np.linalg.norm(segments[:, 1] - segments[:, 0], axis=1)
+    radius = np.linalg.norm(centers, axis=1)
+    # Longer where the amplitude is larger, all along x, black, labelled x/y.
+    assert length[np.argmin(radius)] > 2 * length[np.argmax(radius)]
+    assert np.corrcoef(radius, length)[0, 1] < -0.9
+    assert labels == ("x (µm)", "y (µm)")
     assert np.allclose(lines.get_colors()[:, :3], 0)
