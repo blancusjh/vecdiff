@@ -11,8 +11,8 @@ from .polarization import (
 )
 
 
-def animate_polarization(field, *, stride=None, frames=48, phase=0.0, **kwargs):
-    """Animate Re(E exp(-i phase)) inside the same adaptive ellipse map.
+def animate_polarization(field, *, frames=48, phase=0.0, **kwargs):
+    """Animate Re(E exp(-i phase)) inside the same ellipse map.
 
     Accepts plot_polarization options. The movie retains each local phasor's
     phase; electric arrows start at the fixed glyph centers, with their tips on
@@ -23,7 +23,7 @@ def animate_polarization(field, *, stride=None, frames=48, phase=0.0, **kwargs):
     from matplotlib.animation import FuncAnimation
 
     frames = positive_integer(frames, "frames")
-    axis = plot_polarization(field, stride=stride, phase=phase, **kwargs)
+    axis = plot_polarization(field, phase=phase, **kwargs)
     bodies = next(
         (
             item

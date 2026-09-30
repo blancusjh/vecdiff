@@ -7,13 +7,12 @@ the grid frame, never inferred from array order. Matplotlib is optional.
 
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
-from scipy.ndimage import maximum_filter
 from scipy.spatial import cKDTree
 
 from .._arrays import positive, positive_integer
 from ..fields import ElectricField, ElectromagneticField, TransverseElectricField
 from ..observables.polarization import ellipse_parameters, stokes
-from ..sampling import CartesianGrid, PointGrid, PolarGrid
+from ..sampling import CartesianGrid, PolarGrid
 
 
 def _plane_data(field, threshold):
@@ -211,298 +210,6 @@ def _evaluate_glyphs(electric, centers):
     return values
 
 
-def _layout_nodes(grid, center, spacing, limits, distribution, stride):
-    """Exact rows or rings; no nearest-neighbour displacement of a glyph."""
-    xmin, xmax, ymin, ymax = limits
-
-    if distribution == "cartesian":
-        if isinstance(grid, CartesianGrid):
-            axes = []
-
-            for coordinate, origin in zip((grid.u * 1e6, grid.v * 1e6), center):
-                step = max(
-                    stride, int(np.rint(spacing / (coordinate[1] - coordinate[0])))
-                )
-                step = int(np.ceil(step / stride)) * stride
-                anchor = int(np.argmin(abs(coordinate[::stride] - origin))) * stride
-                indices = np.arange(anchor % step, len(coordinate), step)
-                axes.append(coordinate[indices])
-
-            x, y = np.meshgrid(*axes)
-        else:
-            x_steps = np.arange(
-                np.ceil((xmin - center[0]) / spacing),
-                np.floor((xmax - center[0]) / spacing) + 1,
-            )
-            y_steps = np.arange(
-                np.ceil((ymin - center[1]) / spacing),
-                np.floor((ymax - center[1]) / spacing) + 1,
-            )
-            x, y = np.meshgrid(
-                center[0] + spacing * x_steps, center[1] + spacing * y_steps
-            )
-
-        return np.column_stack((x.ravel(), y.ravel()))
-
-    native = isinstance(grid, PolarGrid)
-
-    if native:
-        # The polar chart has a geometrical origin; intensity does not move it.
-        center = np.zeros(2)
-        available = grid.radius[::stride] * 1e6
-
-        if grid.radius[0] > 0:
-            # Start on an interior native ring. Starting on the inner boundary
-            # can leave every subsequent ring too close to an edge to fit.
-            margin = 1.25 * 0.46 * spacing
-            available = available[
-                (available >= grid.radius[0] * 1e6 + margin)
-                & (available <= grid.radius[-1] * 1e6 - margin)
-            ]
-
-        rings = []
-        last = -np.inf
-
-        for radius in available:
-            if radius - last >= spacing * (1 - 1e-12):
-                rings.append(radius)
-                last = radius
-    else:
-        corners = np.array([[xmin, ymin], [xmin, ymax], [xmax, ymin], [xmax, ymax]])
-        maximum_radius = np.max(np.linalg.norm(corners - center, axis=1))
-        rings = np.arange(0, maximum_radius + spacing / 2, spacing)
-
-    nodes = []
-
-    for radius in rings:
-        if radius == 0:
-            nodes.append(center[None, :])
-            continue
-
-        # Exact periodic angular steps; chord length stays at least spacing.
-        count = max(1, int(np.floor(np.pi / np.arcsin(min(1, spacing / (2 * radius))))))
-
-        if native:
-            eligible = np.arange(0, len(grid.azimuth), stride)
-            divisors = [
-                n
-                for n in range(1, count + 1)
-                if len(grid.azimuth) % n == 0 and (len(grid.azimuth) // n) % stride == 0
-            ]
-            count = max(divisors, default=1)
-            angles = grid.azimuth[
-                eligible[0] + np.arange(count) * (len(grid.azimuth) // count)
-            ]
-        else:
-            # Multiples of four retain the axes and quadrant symmetry.
-            count = max(4, 4 * (count // 4))
-            angles = np.arange(count) * 2 * np.pi / count
-
-        nodes.append(
-            center + radius * np.column_stack((np.cos(angles), np.sin(angles)))
-        )
-
-    return np.concatenate(nodes) if nodes else np.empty((0, 2))
-
-
-def _density_mask(centers, center, projected, peak, grid, distribution, states):
-    """Resolve bright features and changing polarization on nested rows or rings.
-
-    Normalized Stokes distances detect polarization changes without depending
-    on global phase or the undefined orientation of a circular state. Polar
-    rings are refined as whole rings, avoiding irregular missing angular nodes.
-    """
-    if not len(centers):
-        return np.empty(0, dtype=bool)
-
-    relative = np.nan_to_num(projected / peak)
-    neighbors = cKDTree(centers).query(centers, k=min(5, len(centers)))[1]
-    neighbors = np.atleast_2d(neighbors).reshape(len(centers), -1)
-    differences = np.linalg.norm(states[:, None] - states[neighbors], axis=-1)
-    reliable = np.minimum(relative[:, None], relative[neighbors]) > 0.002
-    variation = np.max(np.where(reliable, differences, 0), axis=1)
-
-    # A uniform plane wave needs an orientation key, not a dense carpet.
-    structured = np.ptp(relative[np.isfinite(projected)]) > 0.1
-    fine = ((relative >= 0.25) & structured) | (
-        (variation >= 0.35) & (relative >= 0.02)
-    )
-    medium = (
-        ((relative >= 0.20) & structured)
-        | ((variation >= 0.12) & (relative >= 0.005))
-        | ~structured
-    )
-
-    if distribution == "cartesian":
-        indices_by_axis = []
-        for coordinate, origin in zip(centers.T, center):
-            nodes, indices = np.unique(coordinate, return_inverse=True)
-            anchor = np.argmin(abs(nodes - origin))
-            indices_by_axis.append((indices, anchor, len(nodes)))
-
-        (ix, ax, nx), (iy, ay, ny) = indices_by_axis
-        # Refine neighboring lattice cells together, not isolated glyphs.
-        fine_grid = np.zeros((ny, nx), dtype=bool)
-        medium_grid = np.zeros((ny, nx), dtype=bool)
-        fine_grid[iy, ix], medium_grid[iy, ix] = fine, medium
-        fine = maximum_filter(fine_grid, size=3)[iy, ix]
-        medium = maximum_filter(medium_grid, size=3)[iy, ix]
-        half = ((ix - ax) % 2 == 0) & ((iy - ay) % 2 == 0)
-        quarter = ((ix - ax) % 4 == 0) & ((iy - ay) % 4 == 0)
-
-        return fine | (medium & half) | quarter
-
-    origin = np.zeros(2) if isinstance(grid, PolarGrid) else center
-    radius = np.linalg.norm(centers - origin, axis=1)
-    _, rings = np.unique(np.round(radius, 10), return_inverse=True)
-    keep = np.zeros(len(centers), dtype=bool)
-    ring_ids = np.unique(rings)
-
-    for ring in ring_ids:
-        indices = np.flatnonzero(rings == ring)
-        if np.any(fine[indices]):
-            level = 1
-        elif np.any(medium[indices]):
-            level = 2
-        else:
-            level = 4
-        # Preserve every radial station. Weak or slowly varying rings reduce
-        # angular density instead of opening unexplained radial gaps.
-        maximum_step = min(level, max(1, len(indices) // 4))
-        step = max(
-            candidate
-            for candidate in range(1, maximum_step + 1)
-            if len(indices) % candidate == 0
-        )
-        keep[indices[::step]] = True
-
-    return keep
-
-
-def _select_glyphs(
-    axis,
-    electric,
-    u,
-    v,
-    intensity,
-    visible,
-    density,
-    maximum,
-    stride,
-    distribution,
-    threshold,
-    adaptive_density,
-    ensemble=None,
-):
-    """Choose exact layout positions, mask dark states and keep full glyphs in view."""
-    density = positive(density, "density")
-    maximum = positive_integer(maximum, "max_glyphs")
-    stride = 1 if stride is None else positive_integer(stride, "stride")
-    grid = electric.grid
-
-    if not np.any(visible):
-        return np.empty((0, 2)), np.empty(0), np.empty((0, 3), dtype=complex)
-
-    coordinates = np.column_stack((u.ravel(), v.ravel())) * 1e6
-    mass = (intensity * grid.weights).ravel()
-    center = np.sum(coordinates * mass[:, None], axis=0) / mass.sum()
-    axis.figure.canvas.draw()
-    bounds = axis.get_window_extent().transformed(
-        axis.figure.dpi_scale_trans.inverted()
-    )
-    limits = (*axis.get_xlim(), *axis.get_ylim())
-    xmin, xmax, ymin, ymax = limits
-    data_per_inch = max((xmax - xmin) / bounds.width, (ymax - ymin) / bounds.height)
-    # Resolve the bright core before allocating any budget to the halo.
-    # Using all above-threshold area made a broad weak halo starve a tiny focus.
-    core = intensity >= 0.25 * intensity.max()
-    core_area = np.sum(grid.weights[core]) * 1e12
-    screen_spacing = 5.5 / 72 * data_per_inch / np.sqrt(density)
-    target = 65 if np.ptp(intensity) > 0.1 * intensity.max() else 260
-    target *= np.clip(bounds.width * bounds.height / 16, 0.25, 1.5)
-    spacing = max(screen_spacing, np.sqrt(core_area / (target * density)))
-
-    if isinstance(grid, PolarGrid) and grid.radius[0] > 0:
-        # A narrow annulus has a large area but little room across its width.
-        # Fit the first glyph ring inside the band before budgeting azimuths.
-        spacing = min(spacing, 0.6 * np.ptp(grid.radius) * 1e6)
-
-    while True:
-        centers = _layout_nodes(grid, center, spacing, limits, distribution, stride)
-        from ..observables.polarization import stokes_components
-
-        if ensemble is None:
-            values = _evaluate_glyphs(electric, centers)
-            components = values @ grid.frame.basis[:, :2]
-            projected = np.sum(abs(components) ** 2, axis=1)
-            parameters = stokes_components(components)
-        else:
-            members, weights = ensemble
-            values = np.stack(
-                [_evaluate_glyphs(member, centers) for member in members], axis=1
-            )
-            components = values @ grid.frame.basis[:, :2]
-            projected = np.sum(
-                abs(components) ** 2 * weights[None, :, None], axis=(1, 2)
-            )
-            parameters = np.sum(
-                stokes_components(components) * weights[None, :, None], axis=1
-            )
-        radius = 0.46 * spacing
-        x, y = centers.T
-        margin = np.minimum.reduce((x - xmin, xmax - x, y - ymin, ymax - y))
-        keep = np.isfinite(projected) & (projected > threshold * intensity.max())
-        if adaptive_density:
-            states = np.divide(
-                parameters[:, 1:],
-                projected[:, None],
-                out=np.zeros_like(parameters[:, 1:]),
-                where=projected[:, None] > threshold * intensity.max(),
-            )
-            keep &= _density_mask(
-                centers, center, projected, intensity.max(), grid, distribution, states
-            )
-
-        keep &= margin >= 1.25 * radius
-
-        if isinstance(grid, PolarGrid):
-            distance = np.linalg.norm(centers, axis=1)
-            keep &= distance + 1.25 * radius <= grid.radius[-1] * 1e6
-
-            if grid.radius[0] > 0:
-                keep &= distance - 1.25 * radius >= grid.radius[0] * 1e6
-
-        centers, values = centers[keep], values[keep]
-
-        if len(centers) <= maximum:
-            break
-
-        spacing *= max(1.12, np.sqrt(len(centers) / maximum))
-
-    radii = np.full(len(centers), radius)
-
-    if len(centers) > 1 and adaptive_density:
-        distances = cKDTree(centers).query(centers, k=2)[0][:, 1]
-        radii = np.minimum(0.46 * distances, radius)
-        x, y = centers.T
-        margin = np.minimum.reduce((x - xmin, xmax - x, y - ymin, ymax - y))
-
-        if isinstance(grid, PolarGrid):
-            distance = np.linalg.norm(centers, axis=1)
-            margin = np.minimum(margin, grid.radius[-1] * 1e6 - distance)
-            if grid.radius[0] > 0:
-                margin = np.minimum(margin, distance - grid.radius[0] * 1e6)
-
-        radii = np.minimum(radii, margin / 1.25)
-
-    return centers, radii, values
-
-
-def _glyph_size(relative_intensity, power, minimum):
-    """Compressed intensity cue with a smooth readability floor."""
-    return minimum + (1 - minimum) * np.clip(relative_intensity, 0, 1) ** power
-
-
 def _electric_arrows(starts, ends, radii, *, double=False):
     """One closed silhouette per arrow: shaft and head share a single border."""
     displacement = ends - starts
@@ -597,8 +304,326 @@ def _phase_geometry(vectors, centers, radii, phase):
     return segments, heads, owners
 
 
+def _structure_length(grid, parameters, threshold):
+    """Intensity-weighted length over which amplitude or polarization changes.
+
+    Uses sqrt(I) and the normalized Stokes vector, so optical phase (a tilted
+    plane wave, a defocus) does not count as structure. Returns metres, or inf
+    for a uniform field. An Airy pattern gives about lambda / (2 pi NA).
+    """
+    intensity = parameters[..., 0]
+    peak = intensity.max()
+    bright = intensity > max(threshold, 1e-3) * peak
+    amplitude = np.sqrt(intensity)
+    states = np.divide(
+        parameters[..., 1:],
+        intensity[..., None],
+        out=np.zeros_like(parameters[..., 1:]),
+        where=bright[..., None],
+    )
+    channels = np.concatenate((amplitude[..., None], states), axis=-1)
+
+    if isinstance(grid, CartesianGrid):
+        slopes = np.gradient(channels, grid.v, grid.u, axis=(0, 1))
+    else:
+        step = 2 * np.pi / len(grid.azimuth)
+        radial = np.gradient(channels, grid.radius, axis=0)
+        azimuthal = (np.roll(channels, -1, axis=1) - np.roll(channels, 1, axis=1)) / (
+            2 * step
+        )
+        radius = np.maximum(grid.radius, grid.radius[-1] * 1e-9)[:, None, None]
+        slopes = (radial, azimuthal / radius)
+
+    squared = sum(slope**2 for slope in slopes)
+    variation = squared[..., 0] + intensity * np.sum(squared[..., 1:], axis=-1) / 4
+    numerator = np.sum(grid.weights * intensity)
+    denominator = np.sum(grid.weights * variation)
+
+    return np.sqrt(numerator / denominator) if denominator > 0 else np.inf
+
+
+def _odd_lattice(lower, upper, spacing):
+    """Odd node count filling [lower, upper] with half-cell margins.
+
+    The middle node sits at the window center, so symmetric windows sample
+    their axes and no edge receives a wider empty band than the other.
+    """
+    count = max(1, 2 * int(np.floor(((upper - lower) / spacing - 1) / 2 + 0.5)) + 1)
+    step = (upper - lower) / count
+
+    return lower + (np.arange(count) + 0.5) * step, step
+
+
+def _ring_count(radius, spacing):
+    """Glyphs on one ring: arc pitch near spacing, quadrant symmetric if possible."""
+    if radius <= 0:
+        return 1
+
+    natural = max(1, int(np.rint(2 * np.pi * radius / spacing)))
+    quadrant = 4 * max(1, int(np.rint(natural / 4)))
+    chord = 2 * radius * np.sin(np.pi / quadrant)
+
+    return quadrant if 0.85 * spacing <= chord <= 1.25 * spacing else natural
+
+
+def _radial_stations(profile, start, end, step):
+    """Ring radii that put a glyph ring on every resolved bright ring.
+
+    A fixed radial pitch close to the ring period of a focus beats against it:
+    whole glyph rings fall into dark zeros and leave empty bands. Stations are
+    therefore taken first at prominent maxima of the azimuthal mean intensity
+    (strongest first, at least 0.8 pitch apart), then gaps are filled evenly at
+    about one pitch. start and end are always stations unless a maximum is near.
+    """
+    fine = np.linspace(start, end, max(3, int(np.ceil(8 * (end - start) / step)) + 1))
+    level = np.nan_to_num(profile(fine))
+    window = max(1, int(np.rint(1.5 * step / (fine[1] - fine[0]))))
+    maxima = []
+
+    for index in np.argsort(level)[::-1]:
+        value = level[index]
+
+        if value <= 0 or index in (0, len(fine) - 1):
+            continue
+
+        left = level[max(0, index - window) : index]
+        right = level[index + 1 : index + 1 + window]
+        near = level[max(0, index - 2) : index + 3]
+
+        # A diffraction ring falls below half its maximum on both sides within
+        # 1.5 pitches; aberration ripple and interpolation noise do not.
+        if value < near.max() or max(left.min(), right.min()) > 0.5 * value:
+            continue
+
+        if all(abs(fine[index] - chosen) >= 0.8 * step for chosen in maxima):
+            maxima.append(fine[index])
+
+    stations = sorted(maxima)
+
+    for anchor in (start, end):
+        if all(abs(anchor - chosen) >= 0.8 * step for chosen in stations):
+            stations.append(anchor)
+
+    stations = np.sort(stations)
+    filled = [stations[:1]]
+
+    for lower, upper in zip(stations[:-1], stations[1:]):
+        count = max(1, int(np.rint((upper - lower) / step)))
+        filled.append(lower + (upper - lower) * np.arange(1, count + 1) / count)
+
+    return np.concatenate(filled)
+
+
+def _layout_nodes(grid, spacing, limits, distribution, profile=None):
+    """Glyph centers filling the visible sampled region without empty bands.
+
+    Cartesian rows fill the view with half-cell margins. Polar rings are
+    concentric about the chart origin; their pitch is adjusted so the last ring
+    sits half a pitch inside the sampled disk (or the nearest view edge), and
+    each ring holds an even angular pitch. With profile (mean intensity versus
+    radius), rings follow the bright rings of the field; see _radial_stations.
+    Returns centers and nominal pitches.
+    """
+    xmin, xmax, ymin, ymax = limits
+
+    if distribution == "cartesian":
+        x, step_x = _odd_lattice(xmin, xmax, spacing)
+        y, step_y = _odd_lattice(ymin, ymax, spacing)
+        x, y = np.meshgrid(x, y)
+        centers = np.column_stack((x.ravel(), y.ravel()))
+
+        return centers, np.full(len(centers), min(step_x, step_y))
+
+    inner = 0.0
+
+    if isinstance(grid, PolarGrid):
+        inner, outer = grid.radius[0] * 1e6, grid.radius[-1] * 1e6
+        origin = np.zeros(2)
+        reach = outer
+    else:
+        origin = np.zeros(2)
+
+        if not (xmin < 0 < xmax and ymin < 0 < ymax):
+            origin = np.array([(xmin + xmax) / 2, (ymin + ymax) / 2])
+
+        outer = min(
+            origin[0] - xmin, xmax - origin[0], origin[1] - ymin, ymax - origin[1]
+        )
+        corners = np.array([[xmin, ymin], [xmin, ymax], [xmax, ymin], [xmax, ymax]])
+        reach = np.max(np.linalg.norm(corners - origin, axis=1))
+
+    if inner > 0:
+        count = max(1, int(np.rint((outer - inner) / spacing)))
+        step = (outer - inner) / count
+        rings = inner + (np.arange(int(np.ceil((reach - inner) / step))) + 0.5) * step
+    else:
+        count = max(1, int(np.rint(outer / spacing - 0.5)))
+        step = outer / (count + 0.5)
+        rings = np.arange(int(np.floor(reach / step + 0.5)) + 1) * step
+
+    rings = rings[rings <= reach * (1 + 1e-12)]
+
+    if profile is not None and len(rings) > 1:
+        rings = _radial_stations(profile, rings[0], rings[-1], step)
+
+    nodes = []
+
+    for radius in rings:
+        number = _ring_count(radius, step)
+        angles = np.arange(number) * 2 * np.pi / number
+        nodes.append(
+            origin + radius * np.column_stack((np.cos(angles), np.sin(angles)))
+        )
+
+    centers = np.concatenate(nodes)
+
+    return centers, np.full(len(centers), step)
+
+
+def _glyph_spacing(axis, grid, parameters, limits, density, threshold):
+    """Display pitch in micrometres: resolve structure, stay legible on screen."""
+    bounds = axis.get_window_extent().transformed(
+        axis.figure.dpi_scale_trans.inverted()
+    )
+    xmin, xmax, ymin, ymax = limits
+    data_per_inch = max((xmax - xmin) / bounds.width, (ymax - ymin) / bounds.height)
+    span = min(xmax - xmin, ymax - ymin)
+    legible = 0.17 * data_per_inch
+    sparse = span / 15
+    structure = 1.6 * _structure_length(grid, parameters, threshold) * 1e6
+
+    return np.clip(structure, legible, max(legible, sparse)) / np.sqrt(density)
+
+
+def _glyph_states(electric, centers, ensemble):
+    """Local projected phasors and Stokes values at the exact glyph centers."""
+    from ..observables.polarization import stokes_components
+
+    basis = electric.grid.frame.basis[:, :2]
+
+    if ensemble is None:
+        values = _evaluate_glyphs(electric, centers)
+        parameters = stokes_components(values @ basis)
+    else:
+        members, weights = ensemble
+        values = np.stack(
+            [_evaluate_glyphs(member, centers) for member in members], axis=1
+        )
+        parameters = np.sum(
+            stokes_components(values @ basis) * weights[None, :, None], axis=1
+        )
+
+    return values, parameters
+
+
+def _select_glyphs(
+    axis,
+    electric,
+    parameters,
+    limits,
+    density,
+    maximum,
+    distribution,
+    threshold,
+    ensemble,
+):
+    """Exact glyph centers, their local states and radii fitting view and support."""
+    density = positive(density, "density")
+    maximum = positive_integer(maximum, "max_glyphs")
+    grid = electric.grid
+    peak = parameters[..., 0].max()
+    axis.figure.canvas.draw()
+    spacing = _glyph_spacing(axis, grid, parameters, limits, density, threshold)
+    xmin, xmax, ymin, ymax = limits
+
+    profile = None
+
+    if distribution == "polar":
+        angles = np.arange(48) * 2 * np.pi / 48
+        directions = np.column_stack((np.cos(angles), np.sin(angles)))
+        origin = np.zeros(2)
+
+        if not isinstance(grid, PolarGrid) and not (
+            xmin < 0 < xmax and ymin < 0 < ymax
+        ):
+            origin = np.array([(xmin + xmax) / 2, (ymin + ymax) / 2])
+
+        def profile(radii):
+            points = origin + radii[:, None, None] * directions[None]
+            level = _glyph_states(electric, points.reshape(-1, 2), ensemble)[1][:, 0]
+
+            level = level.reshape(len(radii), -1)
+            finite = np.isfinite(level)
+
+            return np.sum(np.where(finite, level, 0), axis=1) / np.maximum(
+                finite.sum(axis=1), 1
+            )
+
+    while True:
+        centers, pitch = _layout_nodes(grid, spacing, limits, distribution, profile)
+        radii = 0.44 * pitch
+
+        if len(centers) > 1:
+            neighbour = cKDTree(centers).query(centers, k=2)[0][:, 1]
+            radii = np.minimum(radii, 0.44 * neighbour)
+
+        x, y = centers.T
+        margin = np.minimum.reduce((x - xmin, xmax - x, y - ymin, ymax - y))
+
+        if isinstance(grid, PolarGrid):
+            distance = np.linalg.norm(centers, axis=1)
+            margin = np.minimum(margin, grid.radius[-1] * 1e6 - distance)
+            if grid.radius[0] > 0:
+                margin = np.minimum(margin, distance - grid.radius[0] * 1e6)
+
+        # A node near a curved or clipped edge keeps its position and a slightly
+        # smaller glyph; only glyphs that would shrink by over 40 % are omitted.
+        margin = margin * (1 - 1e-9)
+        inside = margin >= 0.6 * radii
+        radii = np.minimum(radii, margin)
+        centers, radii = centers[inside], radii[inside]
+
+        if not len(centers):
+            return centers, radii, np.empty((0, 3), dtype=complex), np.empty((0, 4))
+
+        values, local = _glyph_states(electric, centers, ensemble)
+        keep = np.isfinite(local[:, 0]) & (local[:, 0] > threshold * peak)
+
+        if np.count_nonzero(keep) <= maximum:
+            return centers[keep], radii[keep], values[keep], local[keep]
+
+        spacing *= max(1.05, np.sqrt(np.count_nonzero(keep) / maximum))
+
+
+def _size_fraction(relative, scale, floor, threshold):
+    """Monotone display size in [floor, 1] for relative intensity in (threshold, 1].
+
+    'log' spreads the decades between threshold and the peak evenly, so weak
+    side lobes stay readable and their ordering is preserved. 'sqrt' follows
+    field amplitude, 'linear' follows intensity, a number p follows I**p.
+    """
+    relative = np.clip(relative, threshold, 1)
+
+    if scale == "log":
+        level = 1 - np.log(relative) / np.log(threshold) if threshold > 0 else 1
+    elif scale == "sqrt":
+        level = np.sqrt(relative)
+    elif scale == "linear":
+        level = relative
+    else:
+        level = relative**scale
+
+    return floor + (1 - floor) * np.clip(level, 0, 1)
+
+
 def _ellipse_curves(orientation, ellipticity, centers, radii):
-    """Phase-independent geometry; positive chi rotates u toward v."""
+    """Glyph geometry centered on its node; positive chi rotates u toward v.
+
+    Rotating states carry one head at the minor-axis vertex, tangent to the
+    trajectory, so the head is parallel to the major axis for thin ellipses.
+    Linear states are centered double-headed arrows along the oscillation,
+    which reproduces a pivot='middle' quiver without a false sign.
+    """
     angle = np.linspace(0, 2 * np.pi, 65)
     major = np.column_stack((np.cos(orientation), np.sin(orientation)))
     minor = np.column_stack((-np.sin(orientation), np.cos(orientation)))
@@ -608,23 +633,15 @@ def _ellipse_curves(orientation, ellipticity, centers, radii):
         + ratio[:, None, None] * minor[:, None, :] * np.sin(angle)[None, :, None]
     )
 
-    # Keep rotation markers away from the major-axis vertices. Linear states
-    # instead have two outward heads: oscillation, without a handedness claim.
-    rotating = np.abs(ratio) > 0.04
-    marker_angle = np.pi / 4
-    displacement = major * np.cos(marker_angle) + ratio[:, None] * minor * np.sin(
-        marker_angle
-    )
+    rotating = np.abs(ratio) > 0.05
     owners = np.concatenate((np.flatnonzero(rotating), np.flatnonzero(~rotating)))
-    anchors = centers[rotating] + radii[rotating, None] * displacement[rotating]
-    base_angle = marker_angle - 0.45
-    base_offset = major * np.cos(base_angle) + ratio[:, None] * minor * np.sin(
-        base_angle
-    )
-    bases = centers[rotating] + radii[rotating, None] * base_offset[rotating]
-    direction = anchors - bases
-    head_scale = np.linalg.norm(direction, axis=-1) / 0.48
-    heads = list(_arrow_triangles(anchors, direction, head_scale))
+    anchors = centers[rotating] + (radii * ratio)[rotating, None] * minor[rotating]
+    # d/dtheta at theta = pi/2 is -major; the sign of ratio already encodes handedness.
+    direction = -major[rotating]
+    # Center the head on the vertex instead of ending it there.
+    size = 0.95 * radii[rotating]
+    anchors += 0.24 * size[:, None] * direction
+    heads = list(_arrow_triangles(anchors, direction, size))
     half_axis = radii[~rotating, None] * major[~rotating]
     heads.extend(
         _electric_arrows(
@@ -635,7 +652,7 @@ def _ellipse_curves(orientation, ellipticity, centers, radii):
         )
     )
 
-    return curves, heads, owners
+    return curves, heads, owners, rotating
 
 
 def plot_polarization(
@@ -643,24 +660,27 @@ def plot_polarization(
     *,
     axis=None,
     density=1.0,
-    adaptive_density=True,
-    min_intensity_fraction=0.002,
-    max_glyphs=640,
+    distribution="auto",
+    min_intensity_fraction=1e-4,
+    max_glyphs=4000,
+    size_scale="log",
+    size_floor=0.4,
     crop=True,
     background=True,
-    intensity_gamma=0.3,
-    scale_by_intensity=True,
-    size_power=0.25,
-    min_size_fraction=0.5,
-    distribution="auto",
+    intensity_gamma=0.5,
     color_by="uniform",
     colorbar=True,
     legend=True,
     figsize=None,
     title="Polarization in the observation plane",
-    stride=None,
     phase=None,
     weights=None,
+    glyph="ellipse",
+    glyph_color="white",
+    cmap="inferno",
+    norm=None,
+    reference_intensity=None,
+    colorbar_label=None,
 ):
     """Draw polarization ellipses over projected |Eu|² + |Ev|².
 
@@ -669,28 +689,41 @@ def plot_polarization(
     polarization view. Automatic cropping follows intensity support, including
     displaced and disconnected lobes. crop=False preserves the sampled window.
 
-    density controls glyph count relative to physical figure space; max_glyphs
-    bounds it. Dark nodes are excluded by a fraction of peak projected intensity.
-    adaptive_density resolves the bright core and normalized-Stokes variation,
-    with nested coarser rows or rings elsewhere. Set False for uniform density.
-    distribution='auto' follows the grid chart: exact Cartesian rows or native
-    polar rings. An explicit alternate distribution linearly interpolates the
-    complex field at exact display positions, without modifying the input field.
-    Dark positions are omitted, never shifted toward brighter neighbours.
-    By default, relative glyph radius is 0.5 + 0.5 * (I / I_peak) ** 0.25.
-    size_power and min_size_fraction control this compressed intensity cue;
-    scale_by_intensity=False gives constant sizes. This is a display scale,
-    not a physical length. Glyphs use grayscale over an inferno intensity background.
-    color_by='uniform' uses white glyphs with dark outlines; 'handedness' uses
-    different gray levels. Rotation remains encoded by the arrow direction.
-    Static heads indicate rotation, or two-way linear oscillation. With phase
-    in radians, electric arrows start at the fixed glyph centers and end at
-    Re(E exp(-i phase)). Heads align with those vectors. No point markers are used.
-    A list/tuple of fields with nonnegative weights denotes an incoherent
-    ensemble. Glyphs show its polarized component; opacity is the projected
-    degree of polarization. Unpolarized states have no ellipse. Such an ensemble
-    has no single phase and cannot be animated as one electric phasor.
-    Background gamma changes contrast only. Returns the Matplotlib axis.
+    Every glyph is centered on its layout node. distribution='cartesian' fills
+    the view with an odd, window-centered lattice; 'polar' uses concentric
+    rings about the chart origin with an even arc pitch on every ring, the
+    outermost ring half a pitch inside the sampled disk. 'auto' follows the
+    grid chart. The complex field is linearly interpolated at the exact nodes;
+    angles and Stokes values are never interpolated, glyphs never shifted.
+
+    The pitch resolves the intensity-weighted amplitude/polarization length of
+    the field (a quarter of an Airy ring period, roughly), bounded by screen
+    legibility and at least 15 glyphs across the view. density multiplies the
+    glyph count per area; max_glyphs bounds it. Glyphs are omitted only where
+    projected intensity is below min_intensity_fraction of its peak.
+
+    size_scale maps intensity to glyph size: 'log' (default) spreads the decades
+    from min_intensity_fraction to the peak evenly, so weak rings keep readable
+    glyphs; 'sqrt' is amplitude, 'linear' intensity, a number p gives I**p;
+    None draws constant sizes. size_floor is the relative size at threshold.
+    This is a display scale, not a physical length.
+
+    Linear states are centered double-headed arrows, like a middle-pivot quiver.
+    Rotating states have one tangent head at the minor-axis vertex. Glyphs are
+    white with dark outlines; color_by='handedness' uses gray levels by sense.
+    With phase in radians, electric arrows start at the glyph centers and end
+    at Re(E exp(-i phase)). A list/tuple of fields with nonnegative weights is
+    an incoherent ensemble: glyphs show its polarized component, opacity is the
+    projected degree of polarization, and no single phase exists.
+    glyph='line' draws only the transverse polarization direction: a centered,
+    headless segment along the major axis (ellipticity and handedness are not
+    shown). glyph_color sets the glyph color; dark glyphs carry no outline.
+
+    The background is projected intensity, divided by reference_intensity when
+    given (for example an on-axis value shared by several panels). norm is any
+    Matplotlib normalization (LogNorm(1e-5, 1) shows weak lobes and minima);
+    otherwise intensity_gamma is a PowerNorm exponent (0.5 shows |E|). cmap and
+    colorbar_label set the color map and label. Returns the Matplotlib axis.
     """
     from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import PowerNorm, to_rgba_array
@@ -700,11 +733,22 @@ def plot_polarization(
     if color_by not in ("handedness", "uniform"):
         raise ValueError("color_by must be handedness or uniform")
 
-    intensity_gamma = positive(intensity_gamma, "intensity_gamma")
-    size_power = positive(size_power, "size_power")
+    if glyph not in ("ellipse", "line"):
+        raise ValueError("glyph must be ellipse or line")
 
-    if not np.isfinite(min_size_fraction) or not 0 <= min_size_fraction <= 1:
-        raise ValueError("min_size_fraction must lie in [0, 1]")
+    if glyph == "line" and phase is not None:
+        raise ValueError("phase arrows require ellipse glyphs")
+
+    if reference_intensity is not None:
+        reference_intensity = positive(reference_intensity, "reference_intensity")
+
+    intensity_gamma = positive(intensity_gamma, "intensity_gamma")
+
+    if size_scale not in (None, "log", "sqrt", "linear"):
+        size_scale = positive(size_scale, "size_scale")
+
+    if not np.isfinite(size_floor) or not 0 <= size_floor <= 1:
+        raise ValueError("size_floor must lie in [0, 1]")
 
     if distribution not in ("auto", "cartesian", "polar"):
         raise ValueError("distribution must be auto, cartesian, or polar")
@@ -723,7 +767,7 @@ def plot_polarization(
         members = tuple(_plane_data(member, 0)[0] for member in field)
         weights = ensemble_weights(members, weights)
         data = _plane_data(members[0], min_intensity_fraction)
-        electric, u, v, _, orientation, ellipticity, _ = data
+        electric, u, v, *_ = data
         parameters = ensemble_stokes(members, weights, electric.grid.frame.basis[:, :2])
         visible = parameters[..., 0] > min_intensity_fraction * parameters[..., 0].max()
         ensemble = members, weights
@@ -732,26 +776,39 @@ def plot_polarization(
             raise ValueError("weights require an ensemble of fields")
 
         data = _plane_data(field, min_intensity_fraction)
-        electric, u, v, parameters, orientation, ellipticity, visible = data
+        electric, u, v, parameters, _, _, visible = data
 
     intensity = parameters[..., 0]
     limits = _view_limits(u, v, visible, crop)
     axis = _prepare_axis(axis, limits, figsize, title)
 
     if background:
+        from matplotlib.colors import LogNorm
+
+        shown = (
+            intensity
+            if reference_intensity is None
+            else intensity / reference_intensity
+        )
+
+        if norm is None:
+            norm = PowerNorm(intensity_gamma, 0, shown.max() or 1)
+        elif isinstance(norm, LogNorm) and norm.vmin is not None:
+            # Zeros are the darkest color, not masked holes in the map.
+            shown = np.maximum(shown, norm.vmin)
+
         image = _draw_values(
-            axis,
-            electric.grid,
-            u,
-            v,
-            intensity,
-            cmap="inferno",
-            norm=PowerNorm(intensity_gamma, 0, intensity.max() or 1),
-            smooth=True,
+            axis, electric.grid, u, v, shown, cmap=cmap, norm=norm, smooth=True
         )
 
         if colorbar:
-            _colorbar(axis, image, r"$|E_u|^2 + |E_v|^2$ (V²/m²)")
+            if colorbar_label is None:
+                colorbar_label = (
+                    r"$|E_u|^2 + |E_v|^2$ (V²/m²)"
+                    if reference_intensity is None
+                    else r"$(|E_u|^2 + |E_v|^2)\,/\,I_{\mathrm{ref}}$"
+                )
+            _colorbar(axis, image, colorbar_label)
 
     if legend and color_by == "handedness":
         labels = ("Linear ↔", "u → v", "v → u")
@@ -774,20 +831,21 @@ def plot_polarization(
     distribution = (
         electric.grid.coordinate_system if distribution == "auto" else distribution
     )
-    centers, radii, values = _select_glyphs(
-        axis,
-        electric,
-        u,
-        v,
-        intensity,
-        visible,
-        density,
-        max_glyphs,
-        stride,
-        distribution,
-        min_intensity_fraction,
-        adaptive_density,
-        ensemble,
+    peak = intensity.max()
+    centers, radii, values, local = (
+        _select_glyphs(
+            axis,
+            electric,
+            parameters,
+            (*axis.get_xlim(), *axis.get_ylim()),
+            density,
+            max_glyphs,
+            distribution,
+            min_intensity_fraction,
+            ensemble,
+        )
+        if np.any(visible)
+        else (np.empty((0, 2)),) * 4
     )
 
     if not len(centers):
@@ -805,31 +863,14 @@ def plot_polarization(
         )
         return axis
 
-    degree = np.ones(len(centers))
+    # Stokes values at the nodes: no angle is ever interpolated.
+    polarized = np.linalg.norm(local[:, 1:], axis=1)
+    degree = np.clip(polarized / local[:, 0], 0, 1)
 
-    if ensemble is None:
-        points = (
-            electric.grid.frame.origin
-            + centers[:, :1] * 1e-6 * electric.grid.frame.u
-            + centers[:, 1:] * 1e-6 * electric.grid.frame.v
-        )
-        glyph_field = ElectricField(PointGrid(points), electric.wavelength0, values)
-        orientation, chi, amplitude = ellipse_parameters(
-            glyph_field, electric.grid.frame.basis[:, :2]
-        )
-    else:
-        from ..observables.polarization import stokes_components
-
-        local = values @ electric.grid.frame.basis[:, :2]
-        parameters = np.sum(stokes_components(local) * weights[None, :, None], axis=1)
-        polarized = np.linalg.norm(parameters[:, 1:], axis=1)
-        degree = np.clip(polarized / parameters[:, 0], 0, 1)
+    if ensemble is not None:
         keep = degree > 1e-3
-        centers, radii, parameters = centers[keep], radii[keep], parameters[keep]
-        polarized, degree = polarized[keep], degree[keep]
-        orientation = 0.5 * np.arctan2(parameters[:, 2], parameters[:, 1])
-        chi = 0.5 * np.arcsin(np.clip(parameters[:, 3] / polarized, -1, 1))
-        amplitude = np.sqrt(parameters[:, 0])
+        centers, radii, local = centers[keep], radii[keep], local[keep]
+        values, polarized, degree = values[keep], polarized[keep], degree[keep]
 
         if not len(centers):
             axis.text(
@@ -841,15 +882,55 @@ def plot_polarization(
                 color="white",
             )
             return axis
+    else:
+        degree = np.ones(len(centers))
 
-    if scale_by_intensity:
-        radii *= _glyph_size(
-            amplitude**2 / intensity.max(), size_power, min_size_fraction
+    orientation = 0.5 * np.arctan2(local[:, 2], local[:, 1])
+    chi = 0.5 * np.arcsin(
+        np.clip(
+            np.divide(
+                local[:, 3], polarized, out=np.zeros(len(local)), where=polarized > 0
+            ),
+            -1,
+            1,
+        )
+    )
+
+    if size_scale is not None:
+        radii = radii * _size_fraction(
+            local[:, 0] / peak, size_scale, size_floor, min_intensity_fraction
         )
 
-    curves, heads, owners = _ellipse_curves(orientation, chi, centers, radii)
-    rotating = np.abs(np.tan(chi)) > 0.04
-    colors = np.full(len(centers), "#ffffff", dtype="<U7")
+    radius_points = (
+        radii
+        * axis.get_window_extent().width
+        / np.ptp(axis.get_xlim())
+        * 72
+        / axis.figure.dpi
+    )
+
+    if glyph == "line":
+        half = (
+            0.65
+            * radii[:, None]
+            * np.column_stack((np.cos(orientation), np.sin(orientation)))
+        )
+        colors = to_rgba_array([glyph_color] * len(centers))
+        colors[:, 3] *= degree
+        lines = LineCollection(
+            np.stack((centers - half, centers + half), axis=1),
+            colors=colors,
+            linewidths=np.clip(0.14 * radius_points, 0.8, 1.6),
+            capstyle="butt",
+            zorder=3,
+        )
+        lines.set_gid("polarization-lines")
+        axis.add_collection(lines)
+
+        return axis
+
+    curves, heads, owners, rotating = _ellipse_curves(orientation, chi, centers, radii)
+    colors = np.array([glyph_color] * len(centers), dtype=object)
 
     if color_by == "handedness":
         colors[rotating & (chi > 0)] = "#cccccc"
@@ -866,14 +947,12 @@ def plot_polarization(
 
     outline_colors = curve_colors.copy()
     outline_colors[:, :3] = to_rgba_array("#151515")[0, :3]
-    radius_points = (
-        radii
-        * axis.get_window_extent().width
-        / np.ptp(axis.get_xlim())
-        * 72
-        / axis.figure.dpi
-    )
-    line_widths = np.clip(0.24 * radius_points, 0.35, 0.85)
+
+    if np.mean(to_rgba_array(glyph_color)[0, :3]) < 0.5:
+        # A dark outline around a dark glyph only thickens it.
+        outline_colors[:, 3] = 0
+
+    line_widths = np.clip(0.16 * radius_points, 0.3, 0.9)
     outlines = LineCollection(
         curves, colors=outline_colors, linewidths=line_widths + 0.45, zorder=2
     )
@@ -898,7 +977,7 @@ def plot_polarization(
         heads,
         facecolors=arrow_colors[owners],
         edgecolors="#151515",
-        linewidths=0.12,
+        linewidths=0.12 if np.mean(to_rgba_array(glyph_color)[0, :3]) >= 0.5 else 0,
         zorder=6,
     )
     arrows.set_gid("polarization-rotation")
@@ -958,7 +1037,7 @@ def plot_polarization_scalar(
     return axis
 
 
-def plot_ellipses(field, *, stride=None, axis=None, relative_threshold=0.03, **kwargs):
+def plot_ellipses(field, *, axis=None, relative_threshold=0.03, **kwargs):
     """Compatibility entry point; relative_threshold retains amplitude semantics.
 
     New code should use plot_polarization with min_intensity_fraction instead.
@@ -968,7 +1047,6 @@ def plot_ellipses(field, *, stride=None, axis=None, relative_threshold=0.03, **k
 
     return plot_polarization(
         field,
-        stride=stride,
         axis=axis,
         min_intensity_fraction=relative_threshold**2,
         **kwargs,

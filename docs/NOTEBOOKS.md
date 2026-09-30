@@ -11,7 +11,7 @@ polarization of a complete vector field.
 | [01 · Planar dielectric optics](../general/notebooks/01_planar_dielectric_optics.ipynb) | Reflection and refraction, Brewster and critical angles, evanescent fields, Fabry–Pérot layers, frustrated TIR, slab confinement and TIR retardance. |
 | [02 · Diffraction by apertures](../general/notebooks/02_diffraction_by_apertures.ipynb) | Slits, circular apertures, fringes and the Airy limit, with an FFT-window check. |
 | [03 · Refraction and focusing by a lens](../general/notebooks/03_refraction_and_focusing_by_a_lens.ipynb) | A spherical and a matched stigmatic (GOTS) lens through R Q⁻¹ T Q R: rays, meridional and focal fields, longitudinal fields, polarization and convergence. |
-| [04 · Compensating Fresnel transmission](../general/notebooks/04_compensating_fresnel_transmission.ipynb) | Inverse pupil illumination against a constant-amplitude pupil at equal input power: shape error, throughput and pupil convergence. |
+| [04 · Compensating Fresnel transmission](../general/notebooks/04_compensating_fresnel_transmission.ipynb) | A stigmatic diopter (Cartesian oval, z₀ = −10 mm → zᵢ = 6 mm, NA 0.84096): local Fresnel transmission and energy conservation give p/s transfer weights; dividing the entrance field by them recovers the transverse Airy focus at equal input power. Airy and first-minimum contours, throughput and quadrature checks. |
 | [05 · Vector imaging and lithography](../general/notebooks/05_single_lens_lithography.ipynb) | A schematic circuit reticle through a visible single lens and an ideal 193 nm 4× relay with partial coherence; scalar versus vector contrast on vertical and horizontal trace groups. |
 | [06 · Full-wave reference validation](../general/notebooks/06_full_wave_reference_validation.ipynb) | Our method (24a FFT cells) against BEM, FEM and analytic Mie for spheres and lenses; 6λ₀ lenses comparing separated and coupled rim propagation; weak macroscopic lenses up to 2000λ₀. |
 
@@ -21,7 +21,10 @@ polarization of a complete vector field.
   does not solve scattering from a conducting screen.
 - **03** uses a 128λ₀ cell; a fixed-spacing study up to 768λ₀ changes its
   fields by less than 6·10⁻⁴ of the peak.
-- **04** and **05** use the [ideal imaging operators](PROPAGATION.md#ideal-aplanatic-imaging).
+- **04** propagates through the real diopter surface: local Fresnel transmission
+  on the oval, energy conservation along ray tubes, and a Bessel (Debye) synthesis
+  of the image-space spectrum. No aplanatic objective is assumed.
+- **05** uses the [ideal imaging operators](PROPAGATION.md#ideal-aplanatic-imaging).
   They conserve normal power and Maxwell transversality in each homogeneous
   region but do not predict the aberrations of an unspecified objective. The
   lithography source quadrature is refined from 8 to 64 directions.

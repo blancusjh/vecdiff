@@ -1,0 +1,270 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newcommand{\ve}[1]{\bm{#1}}
+\newcommand{\er}{\ve e_\rho}
+\newcommand{\ep}{\ve e_\phi}
+\newcommand{\ez}{\ve e_z}
+\newcommand{\ex}{\ve e_x}
+
+\title{Fresnel and polarization compensation in a stigmatic diopter\\[2pt]
+\large Model behind notebook 04}
+\date{29 September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A Cartesian oval $\Sigma$ images an axial point without aberration, yet local
+Fresnel transmission, the tilt of the $p$ field and the ray-tube amplitude
+variation still distort the vector focus. We derive how a transmitted field on
+$\Sigma$ maps to the angular spectrum of the image space, why that map is the
+stationary-phase (Debye) limit of an exact surface-to-spectrum integral, and how
+dividing the entrance field by the resulting $p$ and $s$ transfer weights makes
+the transverse focal field exactly the Airy pattern. No aplanatic objective,
+sine condition or Richards--Wolf apodization is assumed.
+\end{abstract}
+
+\section{Geometry}
+
+The object point $P_0=(0,0,z_0)$ lies in a medium of index $n_o$, and its image
+$F=(0,0,z_i)$ in a medium of index $n_i$. The surface $\Sigma$ is the
+vertex-connected Cartesian oval (GOTS form) with the vertex at the origin:
+\begin{equation}
+ n_o\,|Q-P_0| + n_i\,|F-Q| = n_o|z_0| + n_i z_i \qquad \forall\,Q\in\Sigma .
+ \label{eq:oval}
+\end{equation}
+Every ray from $P_0$ therefore refracts towards $F$, and every ray reaches $F$ with
+the same optical path. Notebook~04 uses
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Quantity & Value \\
+\midrule
+Object conjugate $z_0$ & $-10$ mm (air, $n_o=1$) \\
+Image conjugate $z_i$ & $6$ mm (fused silica, $n_i=1.46$, inferred) \\
+Wavelength $\lambda_0$ & 532 nm \\
+Image-space NA $=n_i\sin\theta_{\max}$ & 0.84096 \\
+Clear semi-aperture $a$ (surface radius) & 2.29106 mm \\
+Sag at the rim & 2.7486 mm \\
+Largest incidence angle on $\Sigma$ & $88.57^\circ$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Points of $\Sigma$ are labelled by their cylindrical radius $r$ and azimuth
+$\phi$; $\er,\ep,\ez$ is the local cylindrical basis. For each $Q(r,\phi)$ let
+$\ve n$ be the unit normal, $\ve d_o=(Q-P_0)/|Q-P_0|$ the incident direction,
+$\ve d_i$ the Snell transmitted direction, $L_i=|F-Q|$ and
+$\cos\theta=\ve d_i\cdot\ez$. Stigmatism means $\ve d_i=(F-Q)/L_i$; the notebook
+verifies this to $6\times10^{-16}$ and the constancy of~\eqref{eq:oval} to
+$2\times10^{-11}\lambda_0$.
+
+\section{Entrance field and local transmission}
+
+\paragraph{Entrance field.} With $\tan a_0=r/(z_Q-z_0)$ the tilt of the incident
+ray, an x-polarized field made transverse to $\ve d_o$, with independent $p$ and
+$s$ amplitudes $a_p(r)$, $a_s(r)$, is
+\begin{equation}
+ \ve E_0 = a_p\cos\phi\,(\er-\tan a_0\,\ez) - a_s\sin\phi\,\ep .
+ \label{eq:entrance}
+\end{equation}
+Indeed $\ve d_o=\sin a_0\,\er+\cos a_0\,\ez$ gives $\ve E_0\cdot\ve d_o=0$. For
+$a_p=a_s=1$ the transverse components are constant, $E_{0x}=1$, $E_{0y}=0$: this
+is the \emph{uncompensated} illumination.
+
+\paragraph{Local Fresnel transmission.} With $\ve s=\ve d_o\times\ve n/|\cdot|$,
+$\ve p_o=\ve s\times\ve d_o$ and $\ve p_i=\ve s\times\ve d_i$,
+\begin{equation}
+ \ve E_t(Q) = \mathsf T\,\ve E_0,\qquad
+ \mathsf T = t_p\,\ve p_i\otimes\ve p_o + t_s\,\ve s\otimes\ve s ,
+ \label{eq:T}
+\end{equation}
+with the electric Fresnel coefficients
+$t_s=2n_o c_o/(n_o c_o+n_i c_i)$, $t_p=2n_o c_o/(n_i c_o+n_o c_i)$,
+$c_o=\ve d_o\cdot\ve n$, $c_i=\ve d_i\cdot\ve n$. This is the library operator
+\texttt{fresnel\_transmission\_matrix}; it is applied pointwise with the true
+normal of the oval. No propagation has happened yet: $\ve E_t(Q)$ is the
+transmitted field on $\Sigma$.
+
+\section{From the field on $\Sigma$ to the focal angular spectrum}
+
+We write the image-space field as a superposition of plane waves,
+\begin{equation}
+ \ve E(\ve r)=\int_{|\boldsymbol\kappa|\le k_0\mathrm{NA}}
+ \ve A(\boldsymbol\kappa)\,
+ e^{i[\boldsymbol\kappa\cdot\boldsymbol\rho+k_z(z-z_i)]}\,d^2\kappa,
+ \qquad k_z=\sqrt{k_i^2-\kappa^2},\ k_i=n_ik_0 ,
+ \label{eq:asm}
+\end{equation}
+with $\boldsymbol\rho$ measured from the axis. The task is to obtain
+$\ve A(\boldsymbol\kappa)$ from $\ve E_t$ on $\Sigma$.
+
+\subsection{Exact statement}
+
+The field just behind $\Sigma$ has the local form
+$\ve E(\ve x)\simeq\ve E_t(Q)\,e^{ik_0\Phi(\ve x)}$, where $\Phi$ is the optical
+path from $P_0$. Its angular spectrum is an integral over $\Sigma$ (for example
+the Stratton--Chu or Kirchhoff representation followed by a Fourier transform,
+or equivalently our operator $Q^{-1}$ followed by $R$):
+\begin{equation}
+ \ve A(\boldsymbol\kappa)=\int_\Sigma \mathsf K(\boldsymbol\kappa,Q)\,
+ \ve E_t(Q)\,
+ e^{\,i[k_0\Phi(Q)-\boldsymbol\kappa\cdot\boldsymbol\rho_Q-k_z(z_Q-z_i)]}\,dA_Q ,
+ \label{eq:exact}
+\end{equation}
+with a slowly varying kernel $\mathsf K$. Over the $4.6$~mm aperture the phase
+spans thousands of wavelengths, so~\eqref{eq:exact} is dominated by its
+stationary points.
+
+\subsection{Stationary phase}
+
+The phase in~\eqref{eq:exact} is stationary on $\Sigma$ where the transmitted
+wavevector $k_i\ve d_i$ has transverse part $\boldsymbol\kappa$. Because the
+diopter is stigmatic, the transmitted wavefront is a sphere centred on $F$ and
+there is exactly one such point $Q(\boldsymbol\kappa)$ for each $\boldsymbol\kappa$
+in the NA disk. Along each ray of a converging spherical wave the amplitude falls
+as $1/(\text{distance to }F)$, so the field near $\Sigma$ is
+\begin{equation}
+ \ve E\simeq \frac{\ve a(\ve d_i)}{L}\,e^{-ik_iL}\,e^{ik_0\Phi_F},
+ \qquad \ve a(\ve d_i)=L_i\,\ve E_t\bigl(Q(\ve d_i)\bigr),
+ \label{eq:sphere}
+\end{equation}
+with $L$ the distance to $F$ and $\Phi_F$ the constant optical path to the
+focus. This is the Debye setting: a spherical wave of angular amplitude $\ve a$
+converging on $F$. Its field near $F$ is
+\begin{equation}
+ \ve E(\ve r)=-\frac{ik_i}{2\pi}\int\ve a(\ve s)\,e^{ik_i\ve s\cdot(\ve r-F)}\,d\Omega ,
+ \qquad d\Omega=\frac{d^2\kappa}{k_i^2\cos\theta},
+\end{equation}
+and comparison with~\eqref{eq:asm} gives, up to the constant phase $-i$ common to
+all components,
+\begin{equation}
+ \boxed{\;\ve A(\boldsymbol\kappa)=
+ \frac{L_i}{2\pi\,k_i\cos\theta}\;\ve E_t\bigl(Q(\boldsymbol\kappa)\bigr)\;}
+ \label{eq:map}
+\end{equation}
+The Hessian of the phase in~\eqref{eq:exact} at the stationary point produces the
+same factor $L_i/\cos\theta$; the two derivations agree.
+
+\subsection{Energy conservation}
+
+Map~\eqref{eq:map} conserves power patch by patch. The power leaving
+$dA$ is $\tfrac{n_i}{2Z_0}|\ve E_t|^2(\ve d_i\cdot\ve n)\,dA$. That patch
+subtends $d\Omega=(\ve d_i\cdot\ve n)\,dA/L_i^2$ at $F$, and
+$d^2\kappa=k_i^2\cos\theta\,d\Omega$. The spectral power of the same patch is
+\[
+ \tfrac{n_i}{2Z_0}(2\pi)^2|\ve A|^2\cos\theta\,d^2\kappa
+ =\tfrac{n_i}{2Z_0}(2\pi)^2\frac{L_i^2|\ve E_t|^2}{(2\pi k_i\cos\theta)^2}
+   \cos\theta\,k_i^2\cos\theta\,d\Omega
+ =\tfrac{n_i}{2Z_0}|\ve E_t|^2(\ve d_i\cdot\ve n)\,dA .
+\]
+The notebook checks the integrated balance to better than $10^{-9}$.
+
+\subsection{What is neglected}
+
+Stationary phase keeps the ray contribution of each surface point and drops
+\begin{itemize}
+ \item diffraction from the aperture rim, of relative size
+ $\sim N_F^{-1/2}$ with Fresnel number
+ $N_F=n_i a^2/(\lambda_0 z_i)\approx 2.4\times10^3$;
+ \item curvature corrections of order $1/(k_iL_i)\sim10^{-5}$;
+ \item multiple reflections and any field not launched from $P_0$.
+\end{itemize}
+It is therefore the asymptotic limit of $Q^{-1}$ followed by the exact angular
+spectrum, not the discrete operator itself. The lattice operators
+$Q\to T\to Q^{-1}\to R$ would require about $10^4$ samples per axis across the
+aperture and are not used here. A direct test would compare both routes on a
+scaled-down diopter while $N_F$ grows.
+
+\section{Azimuthal structure and transfer weights}
+
+For the entrance field~\eqref{eq:entrance}, rotational symmetry of $\Sigma$ fixes
+the dependence on the spectral azimuth $\psi$
+($\boldsymbol\kappa=\kappa(\cos\psi,\sin\psi)$; the corresponding surface point
+has $\phi=\psi+\pi$):
+\begin{equation}
+ A_x=c_0+c_2\cos2\psi,\qquad A_y=c_2\sin2\psi,\qquad A_z=c_z\cos\psi ,
+ \label{eq:azimuth}
+\end{equation}
+with $c_0,c_2,c_z$ functions of $\kappa$. The notebook confirms this form at an
+independent azimuth to $10^{-12}$.
+
+The two channels are characterised by the transfer weights
+\begin{equation}
+ w_p(r)=A_x\big|_{a_p=1,\,a_s=0,\,\psi=0},\qquad
+ w_s(r)=A_x\big|_{a_p=0,\,a_s=1,\,\psi=\pi/2}.
+\end{equation}
+Through~\eqref{eq:entrance}, \eqref{eq:T} and~\eqref{eq:map} they contain the
+Fresnel coefficients $t_p,t_s$, the entrance obliquity, the tilt of $\ve p_i$ out
+of the transverse plane, and the ray-tube factor $L_i/\cos\theta$. For general
+$a_p,a_s$ the transverse spectrum is
+\begin{equation}
+ \ve A_\perp=a_p w_p\cos\psi\,\hat{\boldsymbol\kappa}-a_s w_s\sin\psi\,\hat{\boldsymbol\psi},
+\end{equation}
+so $c_0=\tfrac12(a_pw_p+a_sw_s)$ and $c_2=\tfrac12(a_pw_p-a_sw_s)$. Both weights
+fall towards the rim, and $w_s$ falls faster; with $a_p=a_s=1$ this makes
+$c_2\neq0$ and $c_0$ non-uniform.
+
+\section{Compensation}
+
+Choose
+\begin{equation}
+ a_p=C\,\frac{w_p(0)}{w_p(r)},\qquad a_s=C\,\frac{w_s(0)}{w_s(r)} .
+\end{equation}
+Then $a_pw_p=a_sw_s=C\,w_p(0)$ for every $r$ ($w_p(0)=w_s(0)$ on axis), so
+$c_2=0$ and $\ve A_\perp=C\,w_p(0)\,\ex$ is uniform over the NA disk. The constant
+$C$ equalises the incident power through $\Sigma$,
+$P_{\rm in}=\tfrac{n_o}{2Z_0}\int_\Sigma|\ve E_0|^2(\ve d_o\cdot\ve n)\,dA$, with that
+of the uncompensated field. The longitudinal part $A_z$ follows from
+transversality and is not prescribed.
+
+\section{Focal field}
+
+In the focal plane $z=z_i$ the $\psi$ integrals of~\eqref{eq:asm} with
+\eqref{eq:azimuth} follow from
+$\int_0^{2\pi}\cos(m\psi)\,e^{ix\cos(\psi-\varphi)}d\psi=2\pi i^mJ_m(x)\cos m\varphi$:
+\begin{align}
+ E_x&=F_0-F_2\cos2\varphi, & E_y&=-F_2\sin2\varphi, & E_z&=iF_z\cos\varphi,\\
+ F_0&=2\pi\!\int_0^{k_0\mathrm{NA}}\!c_0J_0(\kappa\rho)\,\kappa\,d\kappa, &
+ F_2&=2\pi\!\int_0^{k_0\mathrm{NA}}\!c_2J_2(\kappa\rho)\,\kappa\,d\kappa, &
+ F_z&=2\pi\!\int_0^{k_0\mathrm{NA}}\!c_zJ_1(\kappa\rho)\,\kappa\,d\kappa .
+\end{align}
+The integrals are evaluated with Gauss--Legendre quadrature (400 nodes; doubling
+changes them by less than $10^{-10}$ relative).
+
+For the compensated field $c_2=0$ and $c_0$ is constant, so
+\begin{equation}
+ \ve E_\perp=2\pi c_0\,(k_0\mathrm{NA})^2\,\frac{J_1(v)}{v}\,\ex,
+ \qquad v=k_0\,\mathrm{NA}\,\rho ,
+\end{equation}
+the Airy amplitude, with first zero at
+$r_A=3.8317/(k_0\mathrm{NA})=0.61\,\lambda_0/\mathrm{NA}$.
+
+\section{Results of notebook 04}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Quantity & Uncompensated & Compensated \\
+\midrule
+First transverse minimum along $x$ ($\mu$m) & 0.5177 & 0.3858 \\
+First transverse minimum along $y$ ($\mu$m) & 0.5471 & 0.3858 \\
+Airy first-zero radius $r_A$ ($\mu$m) & 0.38579 & 0.38579 \\
+Departure of $\ve E_\perp$ from the Airy focus & 47.2\,\% & $<10^{-4}$\,\% \\
+$\max|E_x/E_x(0)-2J_1(v)/v|$ & -- & $4\times10^{-14}$ \\
+Transmitted / incident power at $\Sigma$ & 0.858 & 0.537 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The compensation needs entrance amplitudes of 8--9 times the axial value near the
+rim, where incidence on $\Sigma$ approaches grazing ($88.6^\circ$) and both
+transfer weights fall to about 5\,\% of their axial value. This is why the
+recovered Airy focus costs throughput at equal incident power.
+
+\end{document}
