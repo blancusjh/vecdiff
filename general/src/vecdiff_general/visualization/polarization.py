@@ -1003,9 +1003,10 @@ def plot_focal_polarization(
     Background: transverse intensity divided by its on-axis value (by default
     the sample nearest the chart origin), on ``hot`` with a logarithmic scale
     from ``floor`` to 1, so weak side lobes and minima stay distinct. The
-    default floor is half the plane's deepest minimum, never below 1e-5: a
-    plane whose minima stay far above 1e-5 (light passing beside a small lens)
-    would otherwise use only the top of the scale. Glyphs: dense black transverse
+    default floor puts the plane's median intensity mid-scale (floor = median²)
+    and is never below 1e-5 or half the deepest minimum: a plane lit
+    throughout (light passing beside a small lens) would otherwise be
+    overexposed, while a tight focus keeps 1e-5. Glyphs: dense black transverse
     polarization directions (glyph='ellipse' for rotating states) on a dense
     lattice; their size follows intensity on a log scale, from 0.15 of full
     size at 1e-5 of the peak, so weak side lobes keep readable glyphs.
@@ -1027,7 +1028,8 @@ def plot_focal_polarization(
         else:
             reference_intensity = float(transverse[np.argmin(grid.radius)].mean())
     if floor is None:
-        floor = max(1e-5, 0.5 * float(transverse.min()) / reference_intensity)
+        relative = transverse / reference_intensity
+        floor = max(1e-5, 0.5 * float(relative.min()), float(np.median(relative)) ** 2)
     settings = dict(
         crop=False,
         glyph_color="black",
