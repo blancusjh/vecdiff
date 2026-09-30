@@ -701,7 +701,9 @@ def ball_comparison(
     return data
 
 
-def phase_space_sphere(ka, *, tile, dense=101, cache=True):
+def phase_space_sphere(
+    ka, *, tile, dense=101, cache=True, sharpness=4.0, tolerance=1e-8
+):
     """Phase-space pipeline (Q, T, Q^-1, R on atoms) on the air-to-glass sphere.
 
     Plane wave in air, apodized by an erf edge at 0.36 R, as plane atoms at the
@@ -716,7 +718,7 @@ def phase_space_sphere(ka, *, tile, dense=101, cache=True):
     path = (
         CACHE
         / "phase_space"
-        / f"sphere_{_key(ka=float(ka), tile=float(tile), dense=dense)}.npz"
+        / f"sphere_{_key(ka=float(ka), tile=float(tile), dense=dense, sharpness=float(sharpness), tolerance=float(tolerance))}.npz"
     )
     if cache and path.exists():
         return dict(np.load(path))
@@ -730,10 +732,11 @@ def phase_space_sphere(ka, *, tile, dense=101, cache=True):
         values[..., 0] = _edge(xy, R)
         return values
 
-    sharpness = 4.0
+    sharpness = float(sharpness)
     sigma = tile / sharpness
-    window_band = 2 * np.sqrt(np.log(1e9)) / sigma
-    support = tile + 2 * np.sqrt(np.log(1e9)) * sigma
+    reach = np.sqrt(np.log(10 / tolerance))
+    window_band = 2 * reach / sigma
+    support = tile + 2 * reach * sigma
 
     def plan(band):
         step = np.pi / (1.25 * band)
@@ -755,12 +758,12 @@ def phase_space_sphere(ka, *, tile, dense=101, cache=True):
         step=p_step,
         size=p_size,
         sharpness=sharpness,
-        tolerance=1e-9,
+        tolerance=tolerance / 10,
     )
     times["atoms"] = time.perf_counter() - clock
     clock = time.perf_counter()
     chart = ps.surface_transport(
-        atoms, cap, N_AIR, size=c_size, step=c_step, tolerance=1e-8
+        atoms, cap, N_AIR, size=c_size, step=c_step, tolerance=tolerance
     )
     times["Q"] = time.perf_counter() - clock
     clock = time.perf_counter()
@@ -770,7 +773,13 @@ def phase_space_sphere(ka, *, tile, dense=101, cache=True):
     times["T"] = time.perf_counter() - clock
     clock = time.perf_counter()
     out = ps.radiate(
-        transmitted, cap, n2, WAVELENGTH, size=o_size, step=o_step, tolerance=1e-8
+        transmitted,
+        cap,
+        n2,
+        WAVELENGTH,
+        size=o_size,
+        step=o_step,
+        tolerance=tolerance,
     )
     times["Q^-1"] = time.perf_counter() - clock
     window = truth["window_points"]

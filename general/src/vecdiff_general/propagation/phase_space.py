@@ -27,9 +27,12 @@ Every truncation is bounded by a tolerance; envelope grids must hold each atom
 (edge energy is reported). Research prototype for docs/phase_space_operators.
 """
 
+import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import fft as sfft
 from scipy.special import erf, gammaln, jv
 
 from ..fourier.nufft import NUFFT
@@ -85,6 +88,68 @@ def _nufft3(points, strengths, targets, sign, tolerance):
     return np.atleast_2d(out).T
 
 
+def _to_grid(sources, strengths, size, step, sign, tolerance):
+    """sum_j strengths[:, j] exp(sign i sources_j . y) on the atom grid y (FINUFFT type 1).
+
+    The grid is y = (m - size // 2) step, so the frequencies enter as the
+    points sources * step. Returns (size, size, S) indexed [y, x].
+    """
+    import finufft
+
+    scaled = sources * step
+    if np.abs(scaled).max() >= 3 * np.pi:
+        local, _ = _grid(size, step)
+        LX, LY = np.meshgrid(local, local)
+        targets = np.column_stack((LX.ravel(), LY.ravel()))
+        return _nufft3(sources, strengths, targets, sign, tolerance).reshape(
+            size, size, -1
+        )
+    out = finufft.nufft2d1(
+        np.ascontiguousarray(scaled[:, 1]),
+        np.ascontiguousarray(scaled[:, 0]),
+        np.ascontiguousarray(strengths.T),
+        (size, size),
+        isign=sign,
+        eps=max(tolerance, 1e-14),
+        nthreads=1,
+        upsampfac=1.25,
+    )
+    return np.moveaxis(np.atleast_3d(out.reshape(-1, size, size)), 0, -1)
+
+
+def _from_grid(values, step, targets, sign, tolerance):
+    """sum_y values[y] exp(sign i targets . y) from the atom grid (FINUFFT type 2).
+
+    values (size, size, S) indexed [y, x]; returns (T, S).
+    """
+    import finufft
+
+    size = values.shape[0]
+    scaled = targets * step
+    if np.abs(scaled).max() >= 3 * np.pi:
+        local, _ = _grid(size, step)
+        LX, LY = np.meshgrid(local, local)
+        points = np.column_stack((LX.ravel(), LY.ravel()))
+        return _nufft3(points, values.reshape(size * size, -1), targets, sign, tolerance)
+    out = finufft.nufft2d2(
+        np.ascontiguousarray(scaled[:, 1]),
+        np.ascontiguousarray(scaled[:, 0]),
+        np.ascontiguousarray(np.moveaxis(values, -1, 0)),
+        isign=sign,
+        eps=max(tolerance, 1e-14),
+        nthreads=1,
+        upsampfac=1.25,
+    )
+    return np.atleast_2d(out).reshape(values.shape[-1], -1).T
+
+
+def _map_atoms(work, items):
+    """work(item) for every atom on a thread pool (FFTs and NUFFTs release the GIL)."""
+    items = list(items)
+    with ThreadPoolExecutor(min(len(items), os.cpu_count() or 1) or 1) as pool:
+        return list(pool.map(work, items))
+
+
 def _grid(size, step):
     local = (np.arange(size) - size // 2) * step
     xi = 2 * np.pi * np.fft.fftfreq(size, step)
@@ -94,12 +159,12 @@ def _grid(size, step):
 def _spectrum(envelope):
     """Coefficients U(xi) with u(y) = sum U exp(i xi . y), y from the centre."""
     size = envelope.shape[0]
-    return np.fft.fft2(np.fft.ifftshift(envelope, axes=(0, 1)), axes=(0, 1)) / size**2
+    return sfft.fft2(sfft.ifftshift(envelope, axes=(0, 1)), axes=(0, 1)) / size**2
 
 
 def _envelope(spectrum):
     size = spectrum.shape[0]
-    return np.fft.fftshift(np.fft.ifft2(spectrum * size**2, axes=(0, 1)), axes=(0, 1))
+    return sfft.fftshift(sfft.ifft2(spectrum * size**2, axes=(0, 1)), axes=(0, 1))
 
 
 @dataclass(frozen=True, eq=False)
@@ -187,11 +252,13 @@ class AtomField:
             - velocity[:, 0][:, None, None] * XU
             - velocity[:, 1][:, None, None] * XV
         )
-        spectrum = np.fft.fft2(
-            np.fft.ifftshift(self.envelopes, axes=(1, 2)), axes=(1, 2)
+        spectrum = sfft.fft2(
+            sfft.ifftshift(self.envelopes, axes=(1, 2)), axes=(1, 2), workers=-1
         )
         spectrum *= np.exp(1j * residual * distance[:, None, None])[..., None]
-        envelopes = np.fft.fftshift(np.fft.ifft2(spectrum, axes=(1, 2)), axes=(1, 2))
+        envelopes = sfft.fftshift(
+            sfft.ifft2(spectrum, axes=(1, 2), workers=-1), axes=(1, 2)
+        )
         envelopes *= np.exp(1j * kz0 * distance)[:, None, None, None]
         centres = self.centres - velocity * distance[:, None]
         return AtomField(
@@ -319,10 +386,9 @@ def surface_transport(atoms, surface, index, *, size, step, tolerance=1e-8):
     LX, LY = np.meshgrid(local, local)
     local_c, xi = _grid(atoms.size, atoms.step)
     XU, XV = np.meshgrid(xi, xi)
-    centres, carriers, electric, magnetic, curvatures = [], [], [], [], []
-    for x_a, z_a, kappa, u in zip(
-        atoms.centres, atoms.heights, atoms.carriers, atoms.envelopes
-    ):
+
+    def work(atom):
+        x_a, z_a, kappa, u = atom
         kz0 = np.sqrt(k**2 - kappa @ kappa)
         x_f = _footprint(surface, x_a, kappa / kz0, z_a)
         h0 = surface.height(x_f[None])[0]
@@ -365,13 +431,9 @@ def surface_transport(atoms, surface, index, *, size, step, tolerance=1e-8):
             ],
             -1,
         )
-        values = _nufft3(
-            sources,
-            strengths,
-            np.column_stack((LX.ravel(), LY.ravel())),
-            1,
-            tolerance / 10,
-        ).reshape(size, size, rank, 6)
+        values = _to_grid(sources, strengths, size, step, 1, tolerance / 10).reshape(
+            size, size, rank, 6
+        )
         spatial = np.exp(1j * carrier_z * r_half * t) * np.exp(
             -1j * kz0 * (g[0] * x_f[0] + g[1] * x_f[1])
         )
@@ -391,18 +453,19 @@ def surface_transport(atoms, surface, index, *, size, step, tolerance=1e-8):
             + curvature[1, 1] * LY**2
         )
         chart = chart * (valid * np.exp(-1j * chirp))[..., None]
-        centres.append(x_f)
-        carriers.append(kappa + kz0 * g)
-        curvatures.append(curvature)
-        electric.append(chart[..., :3])
-        magnetic.append(chart[..., 3:])
+        return x_f, kappa + kz0 * g, curvature, chart
+
+    results = _map_atoms(
+        work, zip(atoms.centres, atoms.heights, atoms.carriers, atoms.envelopes)
+    )
+    charts = np.array([r[3] for r in results])
     return ChartAtoms(
-        np.array(centres),
-        np.array(carriers),
-        np.array(electric),
-        np.array(magnetic),
+        np.array([r[0] for r in results]),
+        np.array([r[1] for r in results]),
+        charts[..., :3],
+        charts[..., 3:],
         step,
-        np.array(curvatures),
+        np.array([r[2] for r in results]),
     )
 
 
@@ -431,9 +494,9 @@ def _local_wavevector(chart, k, gradient):
     dominant = chart.electric[atoms, :, :, component]
     _, xi = _grid(chart.size, chart.step)
     XU, XV = np.meshgrid(xi, xi)
-    spectrum = np.fft.fft2(np.fft.ifftshift(dominant, axes=(1, 2)), axes=(1, 2))
-    gx = np.fft.fftshift(np.fft.ifft2(1j * XU * spectrum, axes=(1, 2)), axes=(1, 2))
-    gy = np.fft.fftshift(np.fft.ifft2(1j * XV * spectrum, axes=(1, 2)), axes=(1, 2))
+    spectrum = sfft.fft2(sfft.ifftshift(dominant, axes=(1, 2)), axes=(1, 2), workers=-1)
+    gx = sfft.fftshift(sfft.ifft2(1j * XU * spectrum, axes=(1, 2), workers=-1), axes=(1, 2))
+    gy = sfft.fftshift(sfft.ifft2(1j * XV * spectrum, axes=(1, 2), workers=-1), axes=(1, 2))
     peak = abs(dominant).max(axis=(1, 2))[:, None, None]
     lit = abs(dominant) > 1e-6 * peak
     local, _ = _grid(chart.size, chart.step)
@@ -468,19 +531,25 @@ def transmit_chart(chart, surface, interface, wavelength0):
     k = 2 * np.pi * interface.minus.material.n / wavelength0
     xy, valid, gradient = _chart_geometry(chart, surface)
     wavevectors = _local_wavevector(chart, k, gradient)[valid]
-    grid = SurfaceGrid(
-        surface.points(xy[valid]), surface.normals(xy[valid]), np.ones(valid.sum())
-    )
-    trace = ElectromagneticField(
-        ElectricField(grid, wavelength0, chart.electric[valid]), chart.magnetic[valid]
-    )
-    encounter = fresnel_transmission(
-        trace, interface, wavevectors / np.linalg.norm(wavevectors, axis=-1)[:, None]
-    )
+    directions = wavevectors / np.linalg.norm(wavevectors, axis=-1)[:, None]
+    xy, E, H = xy[valid], chart.electric[valid], chart.magnetic[valid]
+
+    def work(chunk):
+        grid = SurfaceGrid(
+            surface.points(xy[chunk]), surface.normals(xy[chunk]), np.ones(len(chunk))
+        )
+        trace = ElectromagneticField(
+            ElectricField(grid, wavelength0, E[chunk]), H[chunk]
+        )
+        transmitted = fresnel_transmission(trace, interface, directions[chunk])
+        return transmitted.transmitted.electric.values, transmitted.transmitted.magnetic
+
+    chunks = np.array_split(np.arange(len(xy)), 4 * (os.cpu_count() or 1))
+    results = _map_atoms(work, [c for c in chunks if len(c)])
     electric = np.zeros_like(chart.electric)
     magnetic = np.zeros_like(chart.magnetic)
-    electric[valid] = encounter.transmitted.electric.values
-    magnetic[valid] = encounter.transmitted.magnetic
+    electric[valid] = np.concatenate([r[0] for r in results])
+    magnetic[valid] = np.concatenate([r[1] for r in results])
     return ChartAtoms(
         chart.centres, chart.carriers, electric, magnetic, chart.step, chart.curvatures
     )
@@ -493,12 +562,11 @@ def _refracted_carrier(q, g, k):
     return q - kz * g
 
 
-def _upsample(envelope, factor):
-    """Exact band-limited interpolation of an envelope onto a grid ``factor`` times finer."""
-    if factor == 1:
-        return envelope
+def _upsample(envelope, fine):
+    """Exact band-limited interpolation of an envelope onto ``fine`` samples (same extent)."""
     size = envelope.shape[0]
-    fine = size * factor
+    if fine == size:
+        return envelope
     spectrum = np.fft.fftshift(_spectrum(envelope), axes=(0, 1))
     pad = (fine - size) // 2
     padded = np.zeros((fine, fine) + envelope.shape[2:], complex)
@@ -528,10 +596,9 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
     coarse, coarse_xi = _grid(chart.size, chart.step)
     CX, CY = np.meshgrid(coarse, coarse)
     fit_basis = np.stack((0.5 * CX**2, CX * CY, 0.5 * CY**2, np.ones_like(CX)), -1)
-    centres, heights, carriers, envelopes = [], [], [], []
-    for x_f, q, curvature, E, H in zip(
-        chart.centres, chart.carriers, chart.curvatures, chart.electric, chart.magnetic
-    ):
+
+    def work(atom):
+        x_f, q, curvature, E, H = atom
         h0 = surface.height(x_f[None])[0]
         g = surface.gradient(x_f[None])[0]
         kappa = _refracted_carrier(q, g, k)
@@ -547,16 +614,20 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
         occupied = magnitude > tolerance * magnitude.max()
         envelope_band = max(np.abs(XC[occupied]).max(), np.abs(YC[occupied]).max())
         band = envelope_band + np.abs(D).sum(axis=1).max() * abs(coarse[0])
-        factor = max(1, int(np.ceil(1.2 * band * chart.step / np.pi)))
-        E, H = _upsample(E, factor), _upsample(H, factor)
-        local, _ = _grid(chart.size * factor, chart.step / factor)
+        # Smallest even grid (same extent) whose Nyquist band holds 1.2 x band.
+        fine_size = chart.size + 2 * max(
+            0, int(np.ceil((1.2 * band * chart.step / np.pi - 1) * chart.size / 2))
+        )
+        fine_step = chart.step * chart.size / fine_size
+        E, H = _upsample(E, fine_size), _upsample(H, fine_size)
+        local, _ = _grid(fine_size, fine_step)
         LX, LY = np.meshgrid(local, local)
         xy = np.stack((x_f[0] + LX, x_f[1] + LY), -1)
         valid = _on_surface(surface, xy)
         normals = np.zeros(xy.shape[:-1] + (3,))
         normals[valid] = surface.normals(xy[valid])
         area = np.zeros(xy.shape[:-1])
-        area[valid] = surface.area_jacobian(xy[valid]) * (chart.step / factor) ** 2
+        area[valid] = surface.area_jacobian(xy[valid]) * fine_step**2
         currents = (
             np.concatenate((np.cross(normals, H), -np.cross(normals, E)), -1)
             * area[..., None]
@@ -571,7 +642,6 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
         )
         ku, kv = kappa[0] + XU, kappa[1] + XV
         kz = np.sqrt(np.maximum(k**2 - ku**2 - kv**2, 0))
-        fine_size, fine_step = chart.size * factor, chart.step / factor
         spectrum = np.linalg.norm(_spectrum(compensated), axis=-1)
         chart_band = spectrum > tolerance * spectrum.max()
         for _ in range(2):
@@ -595,19 +665,11 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
         t = (r - r_mid) / r_half if r_half > 0 else np.zeros_like(r)
         spatial = np.exp(-1j * carrier_z * r_half * t)
         sources = np.concatenate(
-            [
-                (compensated * (spatial * p)[..., None]).reshape(-1, 6)
-                for p in _chebyshev(t, rank)
-            ],
-            -1,
+            [compensated * (spatial * p)[..., None] for p in _chebyshev(t, rank)], -1
         )
         targets = np.column_stack((pu[propagating], pv[propagating]))
-        integrals = _nufft3(
-            np.column_stack((LX.ravel(), LY.ravel())),
-            sources,
-            targets,
-            -1,
-            tolerance / 10,
+        integrals = _from_grid(
+            sources, fine_step, targets, -1, tolerance / 10
         ).reshape(-1, rank, 6)
         coefficients = np.stack(
             [
@@ -631,15 +693,23 @@ def radiate(chart, surface, index, wavelength0, *, size, step, tolerance=1e-8):
         spectrum_out = np.zeros((size, size, 3), complex)
         # Chart carrier and footprint phase: exp(i kz0' g . x_f) (the xi . x_f parts cancel).
         spectrum_out[propagating] = amplitude * dxi**2 * np.exp(1j * kz0 * (g @ x_f))
-        centres.append(x_f)
-        heights.append(h0)
-        carriers.append(kappa)
-        envelopes.append(_envelope(spectrum_out))
+        return x_f, h0, kappa, _envelope(spectrum_out)
+
+    results = _map_atoms(
+        work,
+        zip(
+            chart.centres,
+            chart.carriers,
+            chart.curvatures,
+            chart.electric,
+            chart.magnetic,
+        ),
+    )
     return AtomField(
-        np.array(centres),
-        np.array(heights),
-        np.array(carriers),
-        np.array(envelopes),
+        np.array([r[0] for r in results]),
+        np.array([r[1] for r in results]),
+        np.array([r[2] for r in results]),
+        np.array([r[3] for r in results]),
         step,
         k,
     )
