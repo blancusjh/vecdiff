@@ -257,7 +257,34 @@ def wave_spectrum(ka, *, spacing=0.5):
     return active, dict(build=build, fresnel=fresnel, inverse=inverse)
 
 
-def ray_versus_wave(
+def ray_inverse(ka, *, spacing=0.5):
+    """Q^-1 by ray transport: Sigma -> its tangent plane (virtually in air).
+
+    Every lattice node of the plane z = 0 receives the transmitted field of the
+    ray through it (phase: optical path over the sag; amplitude: ray tube). The
+    result is a plane field for exact ASM; rays are never used beyond it.
+    """
+    radius, grid, surface, glass, air = _exit_face(ka, spacing)
+    clock = time.perf_counter()
+    X, Y = np.meshgrid(grid.u, grid.v)
+    field, _ = ray_field(ka, 0.0, np.stack((X, Y), -1), spacing=spacing)
+    field = np.nan_to_num(field)  # no ray: outside the apodized aperture
+    transverse = o.TransverseElectricField(grid, WAVELENGTH, field[..., :2])
+    spectrum = o.angular_spectrum(transverse, air, evanescent="discard")
+    seconds = time.perf_counter() - clock
+    expansion = spectrum.expansion
+    live = np.linalg.norm(expansion.amplitudes, axis=-1) > 0
+    active = o.PlaneWaveExpansion(
+        expansion.wavevectors[live],
+        expansion.amplitudes[live],
+        expansion.origin,
+        WAVELENGTH,
+        air,
+    )
+    return active, seconds
+
+
+def inverse_comparison(
     ka=1000,
     *,
     planes=(2.0, 0.5, 1.0, 1.5, 1.8, 2.0),
@@ -265,57 +292,44 @@ def ray_versus_wave(
     spacing=0.5,
     cache=True,
 ):
-    """Transverse cuts behind a converging sphere face: ray transport vs waves.
+    """Ray Q^-1 vs explicit wave Q^-1, both followed by exact ASM.
 
-    planes: first entry in wavelengths behind the vertex, the rest in units of R
-    (the paraxial focus of the face is at 2R).
+    Transverse cuts behind a converging glass-to-air sphere face. planes: the
+    first entry in wavelengths behind the vertex, the rest in units of R (the
+    paraxial focus is at 2R).
     """
     parameters = dict(ka=ka, planes=list(planes), samples=samples, spacing=spacing)
-    path = CACHE / f"ray_wave_{_key(**parameters)}.json"
+    path = CACHE / f"inverse_{_key(**parameters)}.json"
     if cache and path.exists():
         return json.loads(path.read_text())
     radius = ka * WAVELENGTH / (2 * np.pi * N_GLASS)
-    wave, seconds = wave_spectrum(ka, spacing=spacing)
+    wave, wave_seconds = wave_spectrum(ka, spacing=spacing)
+    ray, ray_seconds = ray_inverse(ka, spacing=spacing)
     rows = []
     for index, plane in enumerate(planes):
         z = plane if index == 0 else plane * radius
         half = max(0.36 * radius * abs(1 - z / (2 * radius)) * 1.3, 25 * WAVELENGTH)
         x = np.linspace(-half, half, samples)
-        targets = np.stack((x, np.zeros_like(x)), -1)
-        clock = time.perf_counter()
-        ours = wave.evaluate(
-            o.PointGrid(np.column_stack((targets, np.full(len(x), z)))),
-            backend="nufft",
-            tolerance=1e-12,
-        ).electric.values
-        t_wave = time.perf_counter() - clock
-        clock = time.perf_counter()
-        ray, det = ray_field(ka, z, targets, spacing=spacing)
-        t_ray = time.perf_counter() - clock
-        ok = np.isfinite(ray).all(-1)
-        error = (
-            np.linalg.norm(ray[ok] - ours[ok]) / np.linalg.norm(ours[ok])
-            if ok.any()
-            else np.nan
+        targets = o.PointGrid(
+            np.column_stack((x, np.zeros_like(x), np.full_like(x, z)))
         )
-        peak_ratio = np.nanmax(np.linalg.norm(ray, axis=-1) ** 2) / np.max(
-            np.linalg.norm(ours, axis=-1) ** 2
-        )
+        a = wave.evaluate(targets, backend="nufft", tolerance=1e-12).electric.values
+        b = ray.evaluate(targets, backend="nufft", tolerance=1e-12).electric.values
         rows.append(
             dict(
                 z=z,
                 x=x.tolist(),
-                wave_intensity=(np.linalg.norm(ours, axis=-1) ** 2).tolist(),
-                ray_intensity=(np.linalg.norm(ray, axis=-1) ** 2).tolist(),
-                relative_error=float(error),
-                peak_ratio=float(peak_ratio),
-                min_abs_jacobian=float(np.nanmin(np.abs(det))),
-                seconds_wave=t_wave,
-                seconds_ray=t_ray,
+                wave_intensity=(np.linalg.norm(a, axis=-1) ** 2).tolist(),
+                ray_intensity=(np.linalg.norm(b, axis=-1) ** 2).tolist(),
+                relative_error=float(np.linalg.norm(b - a) / np.linalg.norm(a)),
             )
         )
     result = dict(
-        parameters, radius=radius, wave_setup_seconds=seconds, planes_result=rows
+        parameters,
+        radius=radius,
+        wave_seconds=wave_seconds,
+        ray_seconds=ray_seconds,
+        planes_result=rows,
     )
     if cache:
         CACHE.mkdir(parents=True, exist_ok=True)
