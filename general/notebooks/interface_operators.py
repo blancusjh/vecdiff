@@ -792,7 +792,8 @@ def phase_space_sphere(
     """Phase-space pipeline (Q, T, Q^-1, R on atoms) on the air-to-glass sphere.
 
     Plane wave in air, apodized by an erf edge at 0.36 R, as plane atoms at the
-    vertex plane -> Q -> T -> Q^-1 -> R to the ground-truth window. Grid steps
+    vertex plane -> Q -> T -> Q^-1 to the tangent plane at the vertex, where
+    the field (virtually in glass) is compared with the exact one-way series. Grid steps
     follow each stage's band: the window's, plus the non-quadratic surface
     residual on the chart and the refracted wavefront curvature on the output.
     Returns errors against the stored exact fields, stage times, and the
@@ -803,7 +804,7 @@ def phase_space_sphere(
     path = (
         CACHE
         / "phase_space"
-        / f"sphere_{_key(ka=float(ka), tile=float(tile), dense=dense, sharpness=float(sharpness), tolerance=float(tolerance))}.npz"
+        / f"sphere_{_key(ka=float(ka), tile=float(tile), dense=dense, sharpness=float(sharpness), tolerance=float(tolerance), plane='tangent')}.npz"
     )
     if cache and path.exists():
         return dict(np.load(path))
@@ -867,9 +868,13 @@ def phase_space_sphere(
         tolerance=tolerance,
     )
     times["Q^-1"] = time.perf_counter() - clock
-    window = truth["window_points"]
+    # Q^-1 delivers the field on the tangent plane at the vertex (z = 0), taken
+    # virtually in glass; the exact one-way transmitted series continues there.
+    probe = np.linspace(-0.15, 0.15, 21) * R
+    PX, PY = np.meshgrid(probe, probe)
+    window = np.stack((PX, PY, np.zeros_like(PX)), -1)
     clock = time.perf_counter()
-    moved = out.propagate_to(window[0, 0, 2])
+    moved = out.propagate_to(0.0)
     ours = moved.evaluate(window[..., :2].reshape(-1, 2)).reshape(window.shape)
     times["R + evaluation"] = time.perf_counter() - clock
     surface = truth["surface_points"]
@@ -886,7 +891,7 @@ def phase_space_sphere(
         X.shape + (3,)
     )
     exact_dense = sphere_single_interface(
-        np.stack((X, Y, np.full_like(X, window[0, 0, 2])), -1), WAVELENGTH, R, N_AIR, n2
+        np.stack((X, Y, np.zeros_like(X)), -1), WAVELENGTH, R, N_AIR, n2
     )["transmitted"][0]
     data = dict(
         ka=ka,
@@ -897,7 +902,10 @@ def phase_space_sphere(
         steps=np.array([p_step, c_step, o_step]),
         error_Q=gap(E_inc, truth["surface_incident_E"][near]),
         error_T=gap(E_tr, truth["surface_transmitted_E"][near]),
-        error_window=gap(ours, truth["window_transmitted_E"]),
+        error_window=gap(
+            ours,
+            sphere_single_interface(window, WAVELENGTH, R, N_AIR, n2)["transmitted"][0],
+        ),
         dense_x=X,
         dense_y=Y,
         dense_ours=dense_field,
