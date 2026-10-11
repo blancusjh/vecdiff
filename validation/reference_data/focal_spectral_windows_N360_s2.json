@@ -1,0 +1,49 @@
+{
+  "count": 360,
+  "stride": 2,
+  "nodes": 18,
+  "cutoff": 1e-07,
+  "scope": "Computational exit-chart taper sensitivity, with illumination unchanged.\n\nThis deliberately truncates transmitted traces for numerical quadrature. It is\nnot a pure-transfer error certificate and does not insert an optical stop in\nthe reference. Comparing taper radii checks sensitivity to this approximation.\nRun after focal_spectral_orders.py has cached the corresponding surface traces.\n",
+  "rows": [
+    {
+      "taper_radius": null,
+      "taper_width": 3.0,
+      "seconds": 0.3158745829714462,
+      "relative_E_p1": 1.8680022298155822e-05,
+      "relative_E_total": 0.004101758764624888,
+      "intensity_error": 2.7237318312449185e-06,
+      "focus_shift_lambda": 0.0003293849635497281,
+      "peak_E2_relative": -1.5767537040467516e-06
+    },
+    {
+      "taper_radius": 55.0,
+      "taper_width": 3.0,
+      "seconds": 0.3049895830336027,
+      "relative_E_p1": 7.433681412636021e-06,
+      "relative_E_total": 0.004101494090674649,
+      "intensity_error": 1.4525151263979887e-06,
+      "focus_shift_lambda": 6.0014560943955075e-05,
+      "peak_E2_relative": -1.8734558034916304e-06
+    },
+    {
+      "taper_radius": 45.0,
+      "taper_width": 3.0,
+      "seconds": 0.30459345801500604,
+      "relative_E_p1": 6.738981197296306e-06,
+      "relative_E_total": 0.0041014917724693754,
+      "intensity_error": 1.570171723956776e-06,
+      "focus_shift_lambda": -1.3041753987863558e-05,
+      "peak_E2_relative": -2.395575797509153e-06
+    },
+    {
+      "taper_radius": 35.0,
+      "taper_width": 3.0,
+      "seconds": 0.3053137910319492,
+      "relative_E_p1": 0.000408849532056187,
+      "relative_E_total": 0.004126717294960323,
+      "intensity_error": 8.21763819480692e-06,
+      "focus_shift_lambda": 6.940010621292458e-06,
+      "peak_E2_relative": -3.481226704460383e-06
+    }
+  ]
+}

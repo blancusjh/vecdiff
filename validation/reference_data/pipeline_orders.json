@@ -1,0 +1,1297 @@
+{
+  "archive_commit": "5d395e16d93d535c1fb725dfba123bb8a004d893",
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "python": "3.12.12",
+  "numpy": "2.5.3",
+  "threads": {
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1"
+  },
+  "timing": "single wall-clock runs; table setup and reference computation reported separately",
+  "reference": "exact single-interface sphere, n=1 -> 1.5, lambda0=1",
+  "normalization": "relative complex vector L2, no gain or phase fitting",
+  "caveat": "finite smooth numerical window; not full Mie and not pure transport",
+  "global_cases": [
+    {
+      "implementation": "SurfaceTransport",
+      "ka": 100.0,
+      "radius": 15.915494309189533,
+      "spacing": 0.3978873577297384,
+      "count": 36,
+      "max_sine": 0.85,
+      "detector_z": 5.638879927855507,
+      "detector_half_width": 2.38732414637843,
+      "window_radius": 5.729577951308232,
+      "window_transition": 0.3978873577297384,
+      "seconds_incoming_R_Q": 0.017266041017137468,
+      "seconds_Q_setup": 0.005050459003541619,
+      "seconds_shared_Taylor_table": 0.4890297499950975,
+      "table_nodes": 32,
+      "table_relative_tail": 2.5513420212718867e-16,
+      "seconds_exact_detector": 0.013707624981179833,
+      "seconds_exact_source_trace": 0.06289675005245954,
+      "Q_error": {
+        "E": 4.4577623271851316e-14,
+        "H": 4.4602057150994127e-14
+      },
+      "rows": [
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 0.05442729423096583,
+            "H": 0.05439755565831929
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 0.005218417034484446,
+          "seconds_pipeline": 0.027534917055163532
+        },
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 0.05460830721977177,
+            "H": 0.054576680358883176
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 0.052788957953453064,
+          "seconds_pipeline": 0.07510545797413215,
+          "inverse_report": {
+            "relative_residual": 0.002938605113012573,
+            "iterations": 32,
+            "condition_estimate": 37.31557656929167,
+            "magnetic_relative_residual": 0.020777908289175667,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.00041560074134055456,
+            "H": 0.0005906964298825952
+          },
+          "detector_error": {
+            "E": 0.05442401445140543,
+            "H": 0.05439380506569893
+          },
+          "seconds_T": 0.001451415999326855,
+          "seconds_reconstruct_R_evaluate": 0.00340587500249967,
+          "seconds_pipeline": 0.02717379102250561
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.00041560074134055456,
+            "H": 0.0005906964298825952
+          },
+          "detector_error": {
+            "E": 0.05460470963945908,
+            "H": 0.054572244037531734
+          },
+          "seconds_T": 0.001451415999326855,
+          "seconds_reconstruct_R_evaluate": 0.05933329096296802,
+          "seconds_pipeline": 0.08310120698297396,
+          "inverse_report": {
+            "relative_residual": 0.002938367468905261,
+            "iterations": 32,
+            "condition_estimate": 37.31547704141588,
+            "magnetic_relative_residual": 0.020870015700420245,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_0",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.00041560074134051753,
+            "H": 0.000165829215731699
+          },
+          "detector_error": {
+            "E": 0.05442339152637873,
+            "H": 0.05439284905978403
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.005164167028851807,
+          "seconds_pipeline": 0.028870792069938034
+        },
+        {
+          "T": "Taylor_0",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.00041560074134051753,
+            "H": 0.000165829215731699
+          },
+          "detector_error": {
+            "E": 0.054604709639459015,
+            "H": 0.05457224403753177
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.05625974998110905,
+          "seconds_pipeline": 0.07996637502219528,
+          "inverse_report": {
+            "relative_residual": 0.0029383674689052574,
+            "iterations": 32,
+            "condition_estimate": 37.315477041415896,
+            "magnetic_relative_residual": 0.020809700939039357,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_1",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 3.778208605951329e-05,
+            "H": 3.747860352375234e-05
+          },
+          "detector_error": {
+            "E": 0.054426341488797964,
+            "H": 0.05439653083880637
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.0033794170012697577,
+          "seconds_pipeline": 0.027086042042355984
+        },
+        {
+          "T": "Taylor_1",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 3.778208605951329e-05,
+            "H": 3.747860352375234e-05
+          },
+          "detector_error": {
+            "E": 0.054607340197599934,
+            "H": 0.05457568483876034
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.053233625018037856,
+          "seconds_pipeline": 0.07694025005912408,
+          "inverse_report": {
+            "relative_residual": 0.0029385545932843543,
+            "iterations": 32,
+            "condition_estimate": 37.315575116483075,
+            "magnetic_relative_residual": 0.02077768386532289,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_2",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 2.1200724119556105e-06,
+            "H": 2.1143716151403704e-06
+          },
+          "detector_error": {
+            "E": 0.054427314217191436,
+            "H": 0.0543975774759075
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.003366541990544647,
+          "seconds_pipeline": 0.027073167031630874
+        },
+        {
+          "T": "Taylor_2",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 2.1200724119556105e-06,
+            "H": 2.1143716151403704e-06
+          },
+          "detector_error": {
+            "E": 0.054608328111270754,
+            "H": 0.05457670140329021
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.051390500040724874,
+          "seconds_pipeline": 0.0750971250818111,
+          "inverse_report": {
+            "relative_residual": 0.0029386079863695275,
+            "iterations": 32,
+            "condition_estimate": 37.31557636191613,
+            "magnetic_relative_residual": 0.02077790198082005,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 1.6376793946503965e-07,
+            "H": 1.6351071988530168e-07
+          },
+          "detector_error": {
+            "E": 0.054427313660539996,
+            "H": 0.054397575886820114
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.003291541012004018,
+          "seconds_pipeline": 0.026998166053090245
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 1.6376793946503965e-07,
+            "H": 1.6351071988530168e-07
+          },
+          "detector_error": {
+            "E": 0.054608326780076544,
+            "H": 0.05457670051670374
+          },
+          "seconds_T": 0.0013901250204071403,
+          "seconds_reconstruct_R_evaluate": 0.05200520798098296,
+          "seconds_pipeline": 0.07571183302206919,
+          "inverse_report": {
+            "relative_residual": 0.002938605696477638,
+            "iterations": 32,
+            "condition_estimate": 37.315576604902645,
+            "magnetic_relative_residual": 0.020777913438689184,
+            "solver": "lsmr"
+          }
+        }
+      ]
+    },
+    {
+      "implementation": "SurfaceTransport",
+      "ka": 300.0,
+      "radius": 47.7464829275686,
+      "spacing": 0.3978873577297384,
+      "count": 108,
+      "max_sine": 0.85,
+      "detector_z": 12.916639783566524,
+      "detector_half_width": 7.1619724391352895,
+      "window_radius": 17.188733853924695,
+      "window_transition": 1.1936620731892151,
+      "seconds_incoming_R_Q": 0.2456729169934988,
+      "seconds_Q_setup": 0.1769461669609882,
+      "seconds_shared_Taylor_table": 0.4441595830139704,
+      "table_nodes": 32,
+      "table_relative_tail": 3.3830316318298164e-16,
+      "seconds_exact_detector": 0.03280304098734632,
+      "seconds_exact_source_trace": 1.089856915990822,
+      "Q_error": {
+        "E": 3.818957731096903e-14,
+        "H": 3.8177010231605886e-14
+      },
+      "rows": [
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 2.4694262673035423e-05,
+            "H": 2.46843346160534e-05
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 0.02751195803284645,
+          "seconds_pipeline": 0.45013104198733345
+        },
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 2.4671973768922184e-05,
+            "H": 2.470872696792664e-05
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 0.20038658299017698,
+          "seconds_pipeline": 0.623005666944664,
+          "inverse_report": {
+            "relative_residual": 3.0801428077418965e-11,
+            "iterations": 12,
+            "condition_estimate": 107.96446867144853,
+            "magnetic_relative_residual": 0.00526004227207502,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.00014026602335675826,
+            "H": 0.0001995372943330817
+          },
+          "detector_error": {
+            "E": 3.169869943203405e-05,
+            "H": 3.1533760079604736e-05
+          },
+          "seconds_T": 0.007882874982897192,
+          "seconds_reconstruct_R_evaluate": 0.025748875050339848,
+          "seconds_pipeline": 0.45625083398772404
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.00014026602335675826,
+            "H": 0.0001995372943330817
+          },
+          "detector_error": {
+            "E": 3.990847615193701e-05,
+            "H": 3.967412676245384e-05
+          },
+          "seconds_T": 0.007882874982897192,
+          "seconds_reconstruct_R_evaluate": 0.20116254198364913,
+          "seconds_pipeline": 0.6316645009210333,
+          "inverse_report": {
+            "relative_residual": 3.0798425275350146e-11,
+            "iterations": 12,
+            "condition_estimate": 107.96450471557681,
+            "magnetic_relative_residual": 0.005300015393710042,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_0",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.000140266023356642,
+            "H": 5.592322596909719e-05
+          },
+          "detector_error": {
+            "E": 3.97609057694887e-05,
+            "H": 3.954825190245027e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.02528887498192489,
+          "seconds_pipeline": 0.45846233394695446
+        },
+        {
+          "T": "Taylor_0",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.000140266023356642,
+            "H": 5.592322596909719e-05
+          },
+          "detector_error": {
+            "E": 3.9908476151648835e-05,
+            "H": 3.967412676222933e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.20200087502598763,
+          "seconds_pipeline": 0.6351743339910172,
+          "inverse_report": {
+            "relative_residual": 3.0798423878590147e-11,
+            "iterations": 12,
+            "condition_estimate": 107.96450471557677,
+            "magnetic_relative_residual": 0.005274056386883378,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_1",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 4.232474177875076e-06,
+            "H": 4.196619008609409e-06
+          },
+          "detector_error": {
+            "E": 2.5654977724969633e-05,
+            "H": 2.562892407354996e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.025279249995946884,
+          "seconds_pipeline": 0.45845270896097645
+        },
+        {
+          "T": "Taylor_1",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 4.232474177875076e-06,
+            "H": 4.196619008609409e-06
+          },
+          "detector_error": {
+            "E": 2.5628103599254934e-05,
+            "H": 2.5644620159891157e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.20139737497083843,
+          "seconds_pipeline": 0.634570833935868,
+          "inverse_report": {
+            "relative_residual": 3.080088417915633e-11,
+            "iterations": 12,
+            "condition_estimate": 107.96447015225982,
+            "magnetic_relative_residual": 0.005260034913232729,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_2",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 7.958472041149281e-08,
+            "H": 7.931321584956264e-08
+          },
+          "detector_error": {
+            "E": 2.4709726865313957e-05,
+            "H": 2.4699978524437854e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.02559420798206702,
+          "seconds_pipeline": 0.4587676669470966
+        },
+        {
+          "T": "Taylor_2",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 7.958472041149281e-08,
+            "H": 7.931321584956264e-08
+          },
+          "detector_error": {
+            "E": 2.468740616886236e-05,
+            "H": 2.47243101527386e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.20132554101292044,
+          "seconds_pipeline": 0.63449899997795,
+          "inverse_report": {
+            "relative_residual": 3.080098684122926e-11,
+            "iterations": 12,
+            "condition_estimate": 107.96446865349054,
+            "magnetic_relative_residual": 0.005260041145832162,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 2.0661564228863057e-09,
+            "H": 2.0600717038247463e-09
+          },
+          "detector_error": {
+            "E": 2.469388580303153e-05,
+            "H": 2.468397469868536e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.025965542008634657,
+          "seconds_pipeline": 0.4591390009736642
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 2.0661564228863057e-09,
+            "H": 2.0600717038247463e-09
+          },
+          "detector_error": {
+            "E": 2.4671596747406425e-05,
+            "H": 2.4708368734510436e-05
+          },
+          "seconds_T": 0.010554375010542572,
+          "seconds_reconstruct_R_evaluate": 0.20834775001276284,
+          "seconds_pipeline": 0.6415212089777924,
+          "inverse_report": {
+            "relative_residual": 3.0800987183321274e-11,
+            "iterations": 12,
+            "condition_estimate": 107.96446866976639,
+            "magnetic_relative_residual": 0.005260042294394652,
+            "solver": "lsmr"
+          }
+        }
+      ]
+    },
+    {
+      "implementation": "SurfaceTransport",
+      "ka": 1000.0,
+      "radius": 159.15494309189535,
+      "spacing": 0.3978873577297384,
+      "count": 360,
+      "max_sine": 0.85,
+      "detector_z": 38.38879927855508,
+      "detector_half_width": 23.8732414637843,
+      "window_radius": 57.29577951308232,
+      "window_transition": 3.978873577297384,
+      "seconds_incoming_R_Q": 6.801794125000015,
+      "seconds_Q_setup": 10.302941792004276,
+      "seconds_shared_Taylor_table": 0.43708162498660386,
+      "table_nodes": 32,
+      "table_relative_tail": 4.4961534031483104e-15,
+      "seconds_exact_detector": 0.10400737501913682,
+      "seconds_exact_source_trace": 37.956883000035305,
+      "Q_error": {
+        "E": 5.391329753325465e-15,
+        "H": 5.409095139901799e-15
+      },
+      "rows": [
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 2.310901247388403e-10,
+            "H": 2.3061915838388777e-10
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 0.5100766670075245,
+          "seconds_pipeline": 17.614812584011815
+        },
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 4.622114618639926e-10,
+            "H": 4.3744482766670237e-10
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 4.213671749981586,
+          "seconds_pipeline": 21.318407666985877,
+          "inverse_report": {
+            "relative_residual": 3.087518484334284e-11,
+            "iterations": 10,
+            "condition_estimate": 431.24279669974135,
+            "magnetic_relative_residual": 0.001539068697224437,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 4.222902260065943e-05,
+            "H": 6.0069037832021916e-05
+          },
+          "detector_error": {
+            "E": 8.258442381428872e-06,
+            "H": 8.259141877011878e-06
+          },
+          "seconds_T": 0.09137466596439481,
+          "seconds_reconstruct_R_evaluate": 0.4701903749955818,
+          "seconds_pipeline": 17.666300957964268
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 4.222902260065943e-05,
+            "H": 6.0069037832021916e-05
+          },
+          "detector_error": {
+            "E": 1.1049475354973863e-05,
+            "H": 1.1050710944355266e-05
+          },
+          "seconds_T": 0.09137466596439481,
+          "seconds_reconstruct_R_evaluate": 3.618357208033558,
+          "seconds_pipeline": 20.814467791002244,
+          "inverse_report": {
+            "relative_residual": 3.4643371444789494e-11,
+            "iterations": 9,
+            "condition_estimate": 434.7803768450076,
+            "magnetic_relative_residual": 0.0015513491413430025,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_0",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 4.222902260129553e-05,
+            "H": 1.686112721312154e-05
+          },
+          "detector_error": {
+            "E": 1.1286368904787128e-05,
+            "H": 1.1287496368795559e-05
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 0.45888074999675155,
+          "seconds_pipeline": 17.69387724995613
+        },
+        {
+          "T": "Taylor_0",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 4.222902260129553e-05,
+            "H": 1.686112721312154e-05
+          },
+          "detector_error": {
+            "E": 1.1049475355011146e-05,
+            "H": 1.1050710944300361e-05
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 3.6032229580450803,
+          "seconds_pipeline": 20.83821945800446,
+          "inverse_report": {
+            "relative_residual": 3.466002067581552e-11,
+            "iterations": 9,
+            "condition_estimate": 434.7348279365652,
+            "magnetic_relative_residual": 0.001543379959630517,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_1",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 3.816172169120006e-07,
+            "H": 3.783565434699546e-07
+          },
+          "detector_error": {
+            "E": 3.500750080182243e-07,
+            "H": 3.500774707518228e-07
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 0.4573031670297496,
+          "seconds_pipeline": 17.69229966698913
+        },
+        {
+          "T": "Taylor_1",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 3.816172169120006e-07,
+            "H": 3.783565434699546e-07
+          },
+          "detector_error": {
+            "E": 3.486964596050433e-07,
+            "H": 3.4874431805372437e-07
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 3.6744184580165893,
+          "seconds_pipeline": 20.90941495797597,
+          "inverse_report": {
+            "relative_residual": 3.466020284950058e-11,
+            "iterations": 9,
+            "condition_estimate": 434.73112008904627,
+            "magnetic_relative_residual": 0.0015390685016951912,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_2",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 2.1551252336560864e-09,
+            "H": 2.147569402077297e-09
+          },
+          "detector_error": {
+            "E": 1.964442421115268e-09,
+            "H": 1.9622772998050368e-09
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 0.5043678330257535,
+          "seconds_pipeline": 17.739364332985133
+        },
+        {
+          "T": "Taylor_2",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 2.1551252336560864e-09,
+            "H": 2.147569402077297e-09
+          },
+          "detector_error": {
+            "E": 2.0494742587734457e-09,
+            "H": 2.006593604030349e-09
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 3.6062343340017833,
+          "seconds_pipeline": 20.841230833961163,
+          "inverse_report": {
+            "relative_residual": 3.463617328322288e-11,
+            "iterations": 9,
+            "condition_estimate": 434.8005098389714,
+            "magnetic_relative_residual": 0.001539068664275799,
+            "solver": "lsmr"
+          }
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 1.6822378539224184e-11,
+            "H": 1.6769845713862754e-11
+          },
+          "detector_error": {
+            "E": 2.2999158101710809e-10,
+            "H": 2.296060845581244e-10
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 0.45877125003607944,
+          "seconds_pipeline": 17.69376774999546
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "inverse",
+          "surface_error": {
+            "E": 1.6822378539224184e-11,
+            "H": 1.6769845713862754e-11
+          },
+          "detector_error": {
+            "E": 4.6200882465006975e-10,
+            "H": 4.3463804114225507e-10
+          },
+          "seconds_T": 0.13026058295508847,
+          "seconds_reconstruct_R_evaluate": 3.653363416029606,
+          "seconds_pipeline": 20.888359915988985,
+          "inverse_report": {
+            "relative_residual": 3.468409435156772e-11,
+            "iterations": 9,
+            "condition_estimate": 434.65725234833,
+            "magnetic_relative_residual": 0.0015390686973117196,
+            "solver": "lsmr"
+          }
+        }
+      ]
+    }
+  ],
+  "phase_cases": [
+    {
+      "implementation": "phase_space",
+      "ka": 300,
+      "radius": 47.7464829275686,
+      "tile": 9.549296585513721,
+      "atoms": 36,
+      "grids": [
+        60,
+        60,
+        68
+      ],
+      "refinement": 1,
+      "tolerance": 1e-08,
+      "detector_z": 12.916639783566524,
+      "rows": [
+        {
+          "T": "current_Fresnel",
+          "detector_error_E": 0.0007018069402171278,
+          "surface_error": {
+            "E": 0.002966323792703475,
+            "H": 0.002974942827116121
+          },
+          "seconds_T": 0.15614387503592297,
+          "seconds_reconstruct_R_evaluate": 1.7468264999915846,
+          "seconds_pipeline": 2.0754535410087556
+        },
+        {
+          "T": "Taylor_0_local_adapter",
+          "detector_error_E": 0.0007038369055580034,
+          "surface_error": {
+            "E": 0.002966323792703447,
+            "H": 0.0029616598254709236
+          },
+          "seconds_T": 0.2200050000101328,
+          "seconds_reconstruct_R_evaluate": 2.3933383749681525,
+          "seconds_pipeline": 2.7858265409595333
+        },
+        {
+          "T": "Taylor_1_local_adapter",
+          "detector_error_E": 0.0006954456067481231,
+          "surface_error": {
+            "E": 0.002957827311742358,
+            "H": 0.0029609334242058864
+          },
+          "seconds_T": 0.2200050000101328,
+          "seconds_reconstruct_R_evaluate": 2.0633252499974333,
+          "seconds_pipeline": 2.455813415988814
+        },
+        {
+          "T": "Taylor_2_local_adapter",
+          "detector_error_E": 0.0006964974851615235,
+          "surface_error": {
+            "E": 0.0029577004871543964,
+            "H": 0.002960900981804357
+          },
+          "seconds_T": 0.2200050000101328,
+          "seconds_reconstruct_R_evaluate": 2.0175089999684133,
+          "seconds_pipeline": 2.409997165959794
+        },
+        {
+          "T": "Taylor_3_local_adapter",
+          "detector_error_E": 0.0006965100206461051,
+          "surface_error": {
+            "E": 0.0029577017242291208,
+            "H": 0.0029609020276358832
+          },
+          "seconds_T": 0.2200050000101328,
+          "seconds_reconstruct_R_evaluate": 2.0113688340061344,
+          "seconds_pipeline": 2.4038569999975152
+        },
+        {
+          "T": "known_direction_Fresnel_control",
+          "detector_error_E": 3.197087146140415e-05,
+          "surface_error": {
+            "E": 0.00010388985826345325,
+            "H": 0.00015056422086618166
+          },
+          "seconds_T": 0.23137933399993926,
+          "seconds_reconstruct_R_evaluate": 2.012110791984014,
+          "seconds_pipeline": 2.4159732919652015
+        },
+        {
+          "T": "known_direction_Taylor_3_control",
+          "detector_error_E": 2.539686634899979e-05,
+          "surface_error": {
+            "E": 1.6283243641826314e-08,
+            "H": 1.6283193802602843e-08
+          },
+          "seconds_T": 0.23137933399993926,
+          "seconds_reconstruct_R_evaluate": 1.9754879579995759,
+          "seconds_pipeline": 2.379350457980763
+        }
+      ],
+      "Q_error_E": 1.603674682869753e-08,
+      "seconds": {
+        "atoms": 0.007101375027559698,
+        "R_in": 0.006304832990281284,
+        "Q": 0.15907695796340704
+      },
+      "seconds_shared_Taylor_table": 0.45284775004256517,
+      "higher_order_scope": "experimental local-plane-wave adapter, table corrections only below 0.8 rad incidence; no incident-envelope derivative corrections",
+      "seconds_exact_detector": 0.034154709021095186
+    },
+    {
+      "implementation": "phase_space",
+      "ka": 1000,
+      "radius": 159.15494309189535,
+      "tile": 31.830988618379067,
+      "atoms": 36,
+      "grids": [
+        60,
+        62,
+        84
+      ],
+      "refinement": 1,
+      "tolerance": 1e-08,
+      "detector_z": 38.388799278555084,
+      "rows": [
+        {
+          "T": "current_Fresnel",
+          "detector_error_E": 3.486569524157952e-05,
+          "surface_error": {
+            "E": 0.0001198542422891928,
+            "H": 0.0001243986452365074
+          },
+          "seconds_T": 0.2286608750000596,
+          "seconds_reconstruct_R_evaluate": 4.432892500015441,
+          "seconds_pipeline": 4.829561417049263
+        },
+        {
+          "T": "Taylor_0_local_adapter",
+          "detector_error_E": 3.5735374918035815e-05,
+          "surface_error": {
+            "E": 0.00011985424228928507,
+            "H": 0.00011586712123299454
+          },
+          "seconds_T": 0.30382362502859905,
+          "seconds_reconstruct_R_evaluate": 4.196132333017886,
+          "seconds_pipeline": 4.6679640000802465
+        },
+        {
+          "T": "Taylor_1_local_adapter",
+          "detector_error_E": 3.372431080567067e-05,
+          "surface_error": {
+            "E": 0.00011543094560485112,
+            "H": 0.00011540520158240825
+          },
+          "seconds_T": 0.30382362502859905,
+          "seconds_reconstruct_R_evaluate": 4.064550957991742,
+          "seconds_pipeline": 4.536382625054102
+        },
+        {
+          "T": "Taylor_2_local_adapter",
+          "detector_error_E": 3.389664952684557e-05,
+          "surface_error": {
+            "E": 0.0001154286307854281,
+            "H": 0.00011541591153619443
+          },
+          "seconds_T": 0.30382362502859905,
+          "seconds_reconstruct_R_evaluate": 4.104739334026817,
+          "seconds_pipeline": 4.576571001089178
+        },
+        {
+          "T": "Taylor_3_local_adapter",
+          "detector_error_E": 3.3896665252515315e-05,
+          "surface_error": {
+            "E": 0.00011542863055685718,
+            "H": 0.00011541591166295633
+          },
+          "seconds_T": 0.30382362502859905,
+          "seconds_reconstruct_R_evaluate": 4.141096499981359,
+          "seconds_pipeline": 4.612928167043719
+        },
+        {
+          "T": "known_direction_Fresnel_control",
+          "detector_error_E": 8.255252149011334e-06,
+          "surface_error": {
+            "E": 3.115386734482796e-05,
+            "H": 4.5167115188002396e-05
+          },
+          "seconds_T": 0.3166232499643229,
+          "seconds_reconstruct_R_evaluate": 3.9497166670043953,
+          "seconds_pipeline": 4.43434795900248
+        },
+        {
+          "T": "known_direction_Taylor_3_control",
+          "detector_error_E": 9.232612587627745e-09,
+          "surface_error": {
+            "E": 7.220480363031057e-09,
+            "H": 7.2204628793196705e-09
+          },
+          "seconds_T": 0.3166232499643229,
+          "seconds_reconstruct_R_evaluate": 6.05516579200048,
+          "seconds_pipeline": 6.539797083998565
+        }
+      ],
+      "Q_error_E": 7.2202576150375485e-09,
+      "seconds": {
+        "atoms": 0.012122625019401312,
+        "R_in": 0.00885475001996383,
+        "Q": 0.1470306669943966
+      },
+      "seconds_shared_Taylor_table": 0.6387721669743769,
+      "higher_order_scope": "experimental local-plane-wave adapter, table corrections only below 0.8 rad incidence; no incident-envelope derivative corrections",
+      "seconds_exact_detector": 0.12564741703681648
+    }
+  ],
+  "bem_cases": [
+    {
+      "shape": "plano-convex",
+      "diameter_lambda": 4,
+      "grid": 384,
+      "window_apertures": 24,
+      "reference": "cached fingerprinted BEM fields on two meshes; fresh candidate pipeline and fresh BEM setup timing",
+      "error_section": 0.11659893175397375,
+      "error_focal": 0.1024976661487024,
+      "peak_ratio": 1.0595702384691368,
+      "bem_change_section": 0.10031091006177867,
+      "bem_change_focal": 0.10269234871052298,
+      "seconds_ours": 2.3280600419966504,
+      "seconds_bem": 4.761418792011682,
+      "triangles": 924.0
+    },
+    {
+      "shape": "biconvex",
+      "diameter_lambda": 4,
+      "grid": 384,
+      "window_apertures": 24,
+      "reference": "cached fingerprinted BEM fields on two meshes; fresh candidate pipeline and fresh BEM setup timing",
+      "error_section": 0.11825209486040635,
+      "error_focal": 0.09812687118422983,
+      "peak_ratio": 1.2134318386258947,
+      "bem_change_section": 0.04623528194268503,
+      "bem_change_focal": 0.07514957619964638,
+      "seconds_ours": 3.9999141250154935,
+      "seconds_bem": 4.92310804099543,
+      "triangles": 900.0
+    }
+  ],
+  "refinements": [
+    {
+      "implementation": "phase_space",
+      "ka": 300,
+      "radius": 47.7464829275686,
+      "tile": 9.549296585513721,
+      "atoms": 36,
+      "grids": [
+        114,
+        116,
+        130
+      ],
+      "refinement": 2,
+      "tolerance": 1e-08,
+      "detector_z": 12.916639783566524,
+      "rows": [
+        {
+          "T": "current_Fresnel",
+          "detector_error_E": 0.000701535244614879,
+          "surface_error": {
+            "E": 0.002966323810698447,
+            "H": 0.002974942864930375
+          },
+          "seconds_T": 0.2742099169990979,
+          "seconds_reconstruct_R_evaluate": 4.822785041003954,
+          "seconds_pipeline": 5.431367833050899
+        },
+        {
+          "T": "Taylor_0_local_adapter",
+          "detector_error_E": 0.0007035699290039521,
+          "surface_error": {
+            "E": 0.0029663238106984336,
+            "H": 0.0029616596740848307
+          },
+          "seconds_T": 1.0027594999992289,
+          "seconds_reconstruct_R_evaluate": 4.1169057500083,
+          "seconds_pipeline": 5.454038125055376
+        },
+        {
+          "T": "Taylor_1_local_adapter",
+          "detector_error_E": 0.0006951565027442572,
+          "surface_error": {
+            "E": 0.002957827249633514,
+            "H": 0.0029609333144543196
+          },
+          "seconds_T": 1.0027594999992289,
+          "seconds_reconstruct_R_evaluate": 4.086232625006232,
+          "seconds_pipeline": 5.423365000053309
+        },
+        {
+          "T": "Taylor_2_local_adapter",
+          "detector_error_E": 0.0006962064090213757,
+          "surface_error": {
+            "E": 0.002957700428777128,
+            "H": 0.0029609008767083863
+          },
+          "seconds_T": 1.0027594999992289,
+          "seconds_reconstruct_R_evaluate": 5.0392015419784,
+          "seconds_pipeline": 6.376333917025477
+        },
+        {
+          "T": "Taylor_3_local_adapter",
+          "detector_error_E": 0.0006962189868608035,
+          "surface_error": {
+            "E": 0.002957701665754622,
+            "H": 0.0029609019224414133
+          },
+          "seconds_T": 1.0027594999992289,
+          "seconds_reconstruct_R_evaluate": 3.7894130420172587,
+          "seconds_pipeline": 5.126545417064335
+        }
+      ],
+      "Q_error_E": 1.7580197241654274e-08,
+      "seconds": {
+        "atoms": 0.02459887502482161,
+        "R_in": 0.027157667034771293,
+        "Q": 0.2826163329882547
+      },
+      "seconds_shared_Taylor_table": 0.47573783301049843,
+      "higher_order_scope": "experimental local-plane-wave adapter, table corrections only below 0.8 rad incidence; no incident-envelope derivative corrections",
+      "seconds_exact_detector": 0.0372947080177255
+    },
+    {
+      "implementation": "phase_space",
+      "ka": 1000,
+      "radius": 159.15494309189535,
+      "tile": 31.830988618379067,
+      "atoms": 36,
+      "grids": [
+        114,
+        118,
+        164
+      ],
+      "refinement": 2,
+      "tolerance": 1e-08,
+      "detector_z": 38.388799278555084,
+      "rows": [
+        {
+          "T": "current_Fresnel",
+          "detector_error_E": 3.4868126680417274e-05,
+          "surface_error": {
+            "E": 0.00011985400131696011,
+            "H": 0.00012439841866921704
+          },
+          "seconds_T": 0.45100658299634233,
+          "seconds_reconstruct_R_evaluate": 46.396818374982104,
+          "seconds_pipeline": 47.174023290979676
+        },
+        {
+          "T": "Taylor_0_local_adapter",
+          "detector_error_E": 3.573769169956702e-05,
+          "surface_error": {
+            "E": 0.0001198540013171587,
+            "H": 0.00011586685700253779
+          },
+          "seconds_T": 1.1773602500325069,
+          "seconds_reconstruct_R_evaluate": 36.77608050004346,
+          "seconds_pipeline": 38.2796390830772
+        },
+        {
+          "T": "Taylor_1_local_adapter",
+          "detector_error_E": 3.372704550183251e-05,
+          "surface_error": {
+            "E": 0.00011543088381730401,
+            "H": 0.00011540513956390434
+          },
+          "seconds_T": 1.1773602500325069,
+          "seconds_reconstruct_R_evaluate": 32.75793429202167,
+          "seconds_pipeline": 34.26149287505541
+        },
+        {
+          "T": "Taylor_2_local_adapter",
+          "detector_error_E": 3.389935289419639e-05,
+          "surface_error": {
+            "E": 0.00011542856072495332,
+            "H": 0.00011541584137714929
+          },
+          "seconds_T": 1.1773602500325069,
+          "seconds_reconstruct_R_evaluate": 37.067123125016224,
+          "seconds_pipeline": 38.57068170804996
+        },
+        {
+          "T": "Taylor_3_local_adapter",
+          "detector_error_E": 3.38993686150147e-05,
+          "surface_error": {
+            "E": 0.00011542856046173348,
+            "H": 0.00011541584146918539
+          },
+          "seconds_T": 1.1773602500325069,
+          "seconds_reconstruct_R_evaluate": 32.24057033302961,
+          "seconds_pipeline": 33.744128916063346
+        }
+      ],
+      "Q_error_E": 1.6416539868200872e-08,
+      "seconds": {
+        "atoms": 0.03592054097680375,
+        "R_in": 0.03977133403532207,
+        "Q": 0.2505064579891041
+      },
+      "seconds_shared_Taylor_table": 0.6689410830149427,
+      "higher_order_scope": "experimental local-plane-wave adapter, table corrections only below 0.8 rad incidence; no incident-envelope derivative corrections",
+      "seconds_exact_detector": 0.13560087501537055
+    },
+    {
+      "implementation": "SurfaceTransport",
+      "ka": 1000,
+      "radius": 159.15494309189535,
+      "spacing": 0.29966411879227156,
+      "count": 478,
+      "max_sine": 0.85,
+      "detector_z": 38.38879927855508,
+      "detector_half_width": 23.8732414637843,
+      "window_radius": 57.29577951308232,
+      "window_transition": 3.978873577297384,
+      "seconds_incoming_R_Q": 16.41891874995781,
+      "seconds_Q_setup": 51.25910579197807,
+      "seconds_shared_Taylor_table": 0.5600321249803528,
+      "table_nodes": 32,
+      "table_relative_tail": 4.4961534031483104e-15,
+      "seconds_exact_detector": 0.149281416030135,
+      "seconds_exact_source_trace": 107.77660866704537,
+      "Q_error": {
+        "E": 5.598489743700619e-15,
+        "H": 5.604915129777303e-15
+      },
+      "rows": [
+        {
+          "T": "exact_trace_control",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 0.0,
+            "H": 0.0
+          },
+          "detector_error": {
+            "E": 1.7245537841211935e-10,
+            "H": 1.7244497241596248e-10
+          },
+          "seconds_T": 0.0,
+          "seconds_reconstruct_R_evaluate": 2.46957645798102,
+          "seconds_pipeline": 70.1476009999169
+        },
+        {
+          "T": "current_Fresnel",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 4.223483013234116e-05,
+            "H": 6.007665570057802e-05
+          },
+          "detector_error": {
+            "E": 8.258478855476994e-06,
+            "H": 8.259170950362385e-06
+          },
+          "seconds_T": 0.26119950000429526,
+          "seconds_reconstruct_R_evaluate": 2.5342293750145473,
+          "seconds_pipeline": 70.47345341695473
+        },
+        {
+          "T": "Taylor_3",
+          "reconstruction": "radiate",
+          "surface_error": {
+            "E": 1.6823900946602244e-11,
+            "H": 1.677138973457948e-11
+          },
+          "detector_error": {
+            "E": 1.7037626514014297e-10,
+            "H": 1.7055125095134733e-10
+          },
+          "seconds_T": 0.3284867920447141,
+          "seconds_reconstruct_R_evaluate": 2.361186499998439,
+          "seconds_pipeline": 70.36769783397904
+        }
+      ]
+    },
+    {
+      "implementation": "phase_space",
+      "ka": 1000,
+      "radius": 159.15494309189535,
+      "tile": 31.830988618379067,
+      "atoms": 36,
+      "grids": [
+        70,
+        72,
+        98
+      ],
+      "refinement": 1,
+      "tolerance": 1e-10,
+      "detector_z": 38.388799278555084,
+      "rows": [
+        {
+          "T": "current_Fresnel",
+          "detector_error_E": 3.4868335957209716e-05,
+          "surface_error": {
+            "E": 0.00011985451491216017,
+            "H": 0.00012439888224267362
+          },
+          "seconds_T": 0.16646916704485193,
+          "seconds_reconstruct_R_evaluate": 10.040210459032096,
+          "seconds_pipeline": 10.389281043084338
+        },
+        {
+          "T": "known_direction_Fresnel_control",
+          "detector_error_E": 8.258503055748336e-06,
+          "surface_error": {
+            "E": 3.1154114275660915e-05,
+            "H": 4.5167288967257223e-05
+          },
+          "seconds_T": 0.3403617920121178,
+          "seconds_reconstruct_R_evaluate": 8.230413165991195,
+          "seconds_pipeline": 8.753376375010703
+        },
+        {
+          "T": "known_direction_Taylor_3_control",
+          "detector_error_E": 2.4218367631081106e-10,
+          "surface_error": {
+            "E": 2.490831629363007e-10,
+            "H": 2.490821202572936e-10
+          },
+          "seconds_T": 0.3403617920121178,
+          "seconds_reconstruct_R_evaluate": 9.856567915994674,
+          "seconds_pipeline": 10.379531125014182
+        }
+      ],
+      "Q_error_E": 2.50499629298786e-10,
+      "seconds": {
+        "atoms": 0.009706416982226074,
+        "R_in": 0.008825791999697685,
+        "Q": 0.16406920802546665
+      },
+      "seconds_shared_Taylor_table": 0.46308474999386817,
+      "higher_order_scope": "experimental local-plane-wave adapter, table corrections only below 0.8 rad incidence; no incident-envelope derivative corrections",
+      "seconds_exact_detector": 0.10904420795850456
+    }
+  ],
+  "native_Taylor": true,
+  "scipy": "1.18.1",
+  "machine": "Apple M4",
+  "validation": "26 archived exact-interface and operational tests passed; 1 phase-space test passed",
+  "scope": "All higher-order adapters are benchmark-only; current production interfaces unchanged.",
+  "phase_control_note": "Uses declared +z plane-wave illumination rather than per-atom inferred directions; no reference field enters T."
+}

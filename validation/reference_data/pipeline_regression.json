@@ -1,0 +1,33 @@
+{
+  "count": 280,
+  "solve_seconds": 70.38512995798374,
+  "evaluation_seconds": 0.5070374580100179,
+  "relative_E_saved": 1.965188993954019e-13,
+  "relative_H_saved": 1.9640920199548287e-13,
+  "relative_E_p1": 6.194921471156546e-05,
+  "relative_H_p1": 6.19510262145227e-05,
+  "interfaces": [
+    {
+      "retained_modes": 20665,
+      "omitted_modal_l2": 1.6272503652297311e-06,
+      "transport_ranks": [
+        52
+      ]
+    },
+    {
+      "retained_modes": 47142,
+      "omitted_modal_l2": 3.019254134060082e-07,
+      "transport_ranks": [
+        71,
+        71,
+        71,
+        71,
+        38,
+        72,
+        72,
+        72,
+        72
+      ]
+    }
+  ]
+}

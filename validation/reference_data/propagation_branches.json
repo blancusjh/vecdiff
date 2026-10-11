@@ -1,0 +1,76 @@
+{
+  "radius_over_wavelength": 100,
+  "sphere_index": 1.5,
+  "beam_radius_over_wavelength": 35,
+  "detector": "121x121 points, x/y in [-12,12] lambda, z=146.9541667 lambda",
+  "notes": [
+    "Local estimates phase gradients internally; it is not the historical Poynting adapter.",
+    "Timings include source completion, operator preparation, solving, and electric detector evaluation.",
+    "Full-Mie comparison includes physical branches omitted by both candidates."
+  ],
+  "results": [
+    {
+      "method": "local",
+      "operator_E_s": 4.676153167034499,
+      "complex_E_Debye_relative": 0.0025915156883031414,
+      "complex_H_Debye_relative": 0.0025907244244244955,
+      "complex_E_Mie_relative": 0.004726384703401379,
+      "interfaces": [
+        {
+          "retained_modes": 20665,
+          "omitted_modal_l2": 1.627250365230324e-06,
+          "transport_ranks": [
+            85
+          ],
+          "eikonal_relative_residual": 0.0006465454025461825,
+          "longitudinal_relative_amplitude": 0.012081056915194397,
+          "dark_samples": 23950,
+          "discarded_surface_relative_amplitude": 9.665840846862355e-07
+        },
+        {
+          "retained_modes": 41701,
+          "omitted_modal_l2": 3.501648458367087e-07,
+          "transport_ranks": [
+            119
+          ],
+          "eikonal_relative_residual": 0.0019106750993803162,
+          "longitudinal_relative_amplitude": 0.01674418965353859,
+          "dark_samples": 6285,
+          "discarded_surface_relative_amplitude": 2.406877262933716e-06
+        }
+      ]
+    },
+    {
+      "method": "spectral",
+      "operator_E_s": 28.720433000009507,
+      "complex_E_Debye_relative": 6.194921471156985e-05,
+      "complex_H_Debye_relative": 6.195102621451632e-05,
+      "complex_E_Mie_relative": 0.004102029391137994,
+      "interfaces": [
+        {
+          "retained_modes": 20665,
+          "omitted_modal_l2": 1.627250365230324e-06,
+          "transport_ranks": [
+            52
+          ]
+        },
+        {
+          "retained_modes": 47142,
+          "omitted_modal_l2": 3.0192541340555047e-07,
+          "transport_ranks": [
+            71,
+            71,
+            71,
+            71,
+            38,
+            72,
+            72,
+            72,
+            72
+          ]
+        }
+      ],
+      "complex_E_saved_spectral_relative": 1.9650404081342566e-13
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "rows": [
+    {
+      "order": 0,
+      "count": 280,
+      "nodes": 12,
+      "cutoff": 1e-06,
+      "setup_seconds": 29.76312241604319,
+      "run_seconds": 83.22014358296292,
+      "front": {
+        "archived_operator_check": 4.923315834282744e-15,
+        "tiles": 3,
+        "modes": 15525,
+        "omitted_modal_L2": 1.6378906833661932e-05,
+        "angular_bounds": [
+          0.5615384615390304,
+          0.553846153846715
+        ],
+        "nodes": 12,
+        "direct_sample_error": 5.905674359148888e-07,
+        "direct_sample_max_absolute": 2.1918650444978817e-06,
+        "seconds": 29.910055416985415
+      },
+      "back": {
+        "archived_operator_check": 1.0224441427755716e-14,
+        "tiles": 3,
+        "modes": 39889,
+        "omitted_modal_L2": 2.4035935496470726e-06,
+        "angular_bounds": [
+          0.6358974358980801,
+          0.6358974358980801
+        ],
+        "nodes": 12,
+        "direct_sample_error": 0.003093571296252844,
+        "direct_sample_max_absolute": 0.0505973019188861,
+        "seconds": 51.66913316596765
+      },
+      "relative_E_p1": 6.193163713256978e-05,
+      "relative_E_total": 0.004102021184057856,
+      "intensity_error": 7.304218006196122e-06,
+      "focus_shift_lambda": 0.0003100696554554361,
+      "peak_E2_relative": 6.584598889025628e-06
+    },
+    {
+      "order": 3,
+      "count": 280,
+      "nodes": 12,
+      "cutoff": 1e-06,
+      "setup_seconds": 29.76312241604319,
+      "run_seconds": 183.32253345899517,
+      "front": {
+        "archived_operator_check": 4.8861669952022695e-15,
+        "tiles": 3,
+        "modes": 15525,
+        "omitted_modal_L2": 1.6378906833661932e-05,
+        "angular_bounds": [
+          0.5615384615390304,
+          0.553846153846715
+        ],
+        "nodes": 12,
+        "direct_sample_error": 5.921990818303159e-07,
+        "direct_sample_max_absolute": 2.1918650444637776e-06,
+        "seconds": 57.61406199994963
+      },
+      "back": {
+        "archived_operator_check": 1.409555740230169e-14,
+        "tiles": 3,
+        "modes": 39887,
+        "omitted_modal_L2": 2.4041347004163375e-06,
+        "angular_bounds": [
+          0.6358974358980801,
+          0.6358974358980801
+        ],
+        "nodes": 12,
+        "direct_sample_error": 0.0030935375108800595,
+        "direct_sample_max_absolute": 0.050596348250945215,
+        "seconds": 124.1708970000036
+      },
+      "relative_E_p1": 1.0149849511375525e-05,
+      "relative_E_total": 0.004101413470857141,
+      "intensity_error": 2.3768568885225032e-06,
+      "focus_shift_lambda": 0.0009047332726481727,
+      "peak_E2_relative": -2.818795665993079e-06
+    }
+  ],
+  "scope": "Direction-resolved historical T, evaluated by angular interpolation + FFT-based Q.\n\nOnly the smooth direction-dependent interface symbol is interpolated. Each\nincident Fourier mode retains its own exact phase and amplitude. Direct sums\nat sampled surface points audit the interpolation. References never enter T.\n"
+}

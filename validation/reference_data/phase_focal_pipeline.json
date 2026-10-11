@@ -1,0 +1,25 @@
+[
+  {
+    "size": 160,
+    "status": "failed",
+    "error": "TIR requires an evanescent interface model; the forward eikonal path does not support it",
+    "diagnostics": {
+      "valid_atom_samples": 1254400,
+      "TIR_atom_samples": 137430,
+      "max_TIR_atom_E_over_peak": 0.012590571005995898,
+      "TIR_share_of_sum_atom_E2": 1.4449956688020331e-06,
+      "note": "Atom E2 share is a representation diagnostic, not physical power.",
+      "largest_32_bad_samples_combined_field_TIR_count": 0,
+      "completed_stage_seconds": {
+        "atoms": 44.86846774996957,
+        "R_in": 0.05907612503506243,
+        "Q_front": 2.664847916981671,
+        "T_front": 0.6620967499911785,
+        "Q_inverse_front": 25.07983837503707,
+        "R_inside": 0.06433249998372048,
+        "Q_back": 6.18572954100091
+      }
+    },
+    "traceback": "Traceback (most recent call last):\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/validation/phase_focal_pipeline.py\", line 154, in <module>\n    row = run(size)\n          ^^^^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/validation/phase_focal_pipeline.py\", line 72, in run\n    chart, times[\"T_back\"] = timed(\n                             ^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/validation/pipeline_orders.py\", line 88, in timed\n    result = function()\n             ^^^^^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/validation/phase_focal_pipeline.py\", line 73, in <lambda>\n    lambda: ps.transmit_chart(\n            ^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/general/src/vecdiff_general/propagation/phase_space.py\", line 555, in transmit_chart\n    results = _map_atoms(work, [c for c in chunks if len(c)])\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/general/src/vecdiff_general/propagation/phase_space.py\", line 153, in _map_atoms\n    return list(pool.map(work, items))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 619, in result_iterator\n    yield _result_or_cancel(fs.pop())\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 317, in _result_or_cancel\n    return fut.result(timeout)\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 456, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 401, in __get_result\n    raise self._exception\n  File \"/Users/blancus/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py\", line 59, in run\n    result = self.fn(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/general/src/vecdiff_general/propagation/phase_space.py\", line 551, in work\n    transmitted = fresnel_transmission(trace, interface, directions[chunk])\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/blancus/Scientific/Computation/PUBLIC/logos-optics/general/src/vecdiff_general/propagation/operators.py\", line 411, in fresnel_transmission\n    raise ValueError(\nValueError: TIR requires an evanescent interface model; the forward eikonal path does not support it\n"
+  }
+]

@@ -1,0 +1,184 @@
+{
+  "backend": "optimized",
+  "count": 280,
+  "workers": 2,
+  "reference_fft_workers": -1,
+  "exact_zero_channels_skipped": true,
+  "implementation_version": "compact-band-Q-fused-Fresnel-v3",
+  "transport_setup": "distinct active Bessel arguments",
+  "incident_traces_evaluated": false,
+  "audit": false,
+  "setup_seconds": 2.2972419160068966,
+  "source_seconds": 0.042588750016875565,
+  "peak_rss_bytes": 1487962112,
+  "cached_band_plan_bytes": 491537632,
+  "rows": [
+    {
+      "repeat": 0,
+      "compute_seconds": 38.309718125034124,
+      "elapsed_seconds": 38.309718125034124,
+      "between_seconds": 0.3624873340013437,
+      "reconstruction_seconds": 0.26760529103921726,
+      "evaluation_seconds": 0.28402170800836757,
+      "front": {
+        "preparation_seconds": 0.40620470797875896,
+        "application_seconds": 9.750814332976006,
+        "timing": {
+          "synthesis": 5.592746996611822,
+          "symbol": 3.406977254198864,
+          "accumulation": 0.080250377766788,
+          "plans": 0.07448983303038403
+        },
+        "ranks": [
+          52
+        ],
+        "original_Q_rank": 85,
+        "tiles": 3,
+        "modes": 20665,
+        "omitted_modal_L2": 1.6272503652297311e-06,
+        "angular_bounds": [
+          0.6384615384621855,
+          0.6384615384621855
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 9.75106824998511
+      },
+      "back": {
+        "preparation_seconds": 0.0035039159702137113,
+        "application_seconds": 27.640744540956803,
+        "timing": {
+          "synthesis": 20.339777787332423,
+          "symbol": 6.231261499342509,
+          "accumulation": 0.13539494096767157,
+          "plans": 0.727430333965458
+        },
+        "ranks": [
+          71,
+          71,
+          71,
+          71,
+          38,
+          72,
+          72,
+          72,
+          72
+        ],
+        "original_Q_rank": 119,
+        "tiles": 3,
+        "modes": 47142,
+        "omitted_modal_L2": 3.019254134060103e-07,
+        "angular_bounds": [
+          0.6461538461545009,
+          0.6461538461545009
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 27.641388374962844
+      },
+      "errors": {
+        "relative_E_p1": 6.19492147127255e-05,
+        "relative_H_p1": 6.195102621564718e-05,
+        "intensity_error": 7.232146348886283e-06,
+        "relative_E_saved": 5.605454793095457e-15,
+        "relative_H_saved": 5.633443127807322e-15,
+        "relative_to_reference_implementation": {
+          "front_E": 4.771711839069864e-15,
+          "front_H": 4.78444367296758e-15,
+          "back_E": 1.1514837325898784e-14,
+          "back_H": 1.1498354799617885e-14,
+          "plane_E": 5.631564335310833e-15,
+          "plane_H": 5.639890941512295e-15,
+          "axis_E": 1.357454613885193e-15
+        }
+      }
+    },
+    {
+      "repeat": 1,
+      "compute_seconds": 38.65392383298604,
+      "elapsed_seconds": 38.65392383298604,
+      "between_seconds": 0.3668306249892339,
+      "reconstruction_seconds": 0.2877905840286985,
+      "evaluation_seconds": 0.2822598330094479,
+      "front": {
+        "preparation_seconds": 0.004127874970436096,
+        "application_seconds": 9.167237291985657,
+        "timing": {
+          "synthesis": 5.582622873713262,
+          "symbol": 3.3249549622414634,
+          "accumulation": 0.07259402854833752,
+          "plans": 7.775000995025039e-05
+        },
+        "ranks": [
+          52
+        ],
+        "original_Q_rank": 85,
+        "tiles": 3,
+        "modes": 20665,
+        "omitted_modal_L2": 1.6272503652297311e-06,
+        "angular_bounds": [
+          0.6384615384621855,
+          0.6384615384621855
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 9.167670916998759
+      },
+      "back": {
+        "preparation_seconds": 0.0048926250310614705,
+        "application_seconds": 28.544438541983254,
+        "timing": {
+          "synthesis": 21.515205550706014,
+          "symbol": 6.674311176000629,
+          "accumulation": 0.14297556603560224,
+          "plans": 0.00029195594834163785
+        },
+        "ranks": [
+          71,
+          71,
+          71,
+          71,
+          38,
+          72,
+          72,
+          72,
+          72
+        ],
+        "original_Q_rank": 119,
+        "tiles": 3,
+        "modes": 47142,
+        "omitted_modal_L2": 3.0192541340498455e-07,
+        "angular_bounds": [
+          0.6461538461545009,
+          0.6461538461545009
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 28.545937834016513
+      },
+      "errors": {
+        "relative_E_p1": 6.194921471272205e-05,
+        "relative_H_p1": 6.195102621564893e-05,
+        "intensity_error": 7.232146348793724e-06,
+        "relative_E_saved": 5.585877146766006e-15,
+        "relative_H_saved": 5.606756114453016e-15,
+        "relative_to_reference_implementation": {
+          "front_E": 4.777340854580531e-15,
+          "front_H": 4.792254831585963e-15,
+          "back_E": 1.1521258001904654e-14,
+          "back_H": 1.151021896427862e-14,
+          "plane_E": 5.605072091380315e-15,
+          "plane_H": 5.616855370461499e-15,
+          "axis_E": 1.3935500528083751e-15
+        }
+      }
+    }
+  ],
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "cpu_count": 10,
+  "thread_environment": {
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1"
+  }
+}

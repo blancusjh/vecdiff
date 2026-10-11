@@ -1,0 +1,135 @@
+{
+  "backend": "reference",
+  "count": 280,
+  "workers": 1,
+  "audit": false,
+  "setup_seconds": 30.003815667005256,
+  "source_seconds": 40.51116066699615,
+  "rows": [
+    {
+      "repeat": 0,
+      "compute_seconds": 146.96029570896644,
+      "elapsed_seconds": 146.96029570896644,
+      "between_seconds": 2.478224208985921,
+      "reconstruction_seconds": 0.605694665980991,
+      "evaluation_seconds": 0.26240429101744667,
+      "front": {
+        "preparation_seconds": 12.371907500026282,
+        "application_seconds": 48.25404370803153,
+        "timing": {
+          "synthesis": 24.37115154642379,
+          "symbol": 10.595497998700012,
+          "accumulation": 0.7028144841315225,
+          "plans": 1.3750395737588406e-06
+        },
+        "ranks": [],
+        "tiles": 3,
+        "modes": 20665,
+        "omitted_modal_L2": 1.6272503652297311e-06,
+        "angular_bounds": [
+          0.6384615384621855,
+          0.6384615384621855
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 48.25427562504774
+      },
+      "back": {
+        "preparation_seconds": 0.006155874987598509,
+        "application_seconds": 95.35638958297204,
+        "timing": {
+          "synthesis": 71.6561125292792,
+          "symbol": 21.970373770280275,
+          "accumulation": 1.4751962934387848,
+          "plans": 9.832903742790222e-06
+        },
+        "ranks": [],
+        "tiles": 3,
+        "modes": 47142,
+        "omitted_modal_L2": 3.0192541340150425e-07,
+        "angular_bounds": [
+          0.6461538461545009,
+          0.6461538461545009
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 95.35669795796275
+      },
+      "errors": {
+        "relative_E_p1": 6.194921471465473e-05,
+        "relative_H_p1": 6.195102621758219e-05,
+        "intensity_error": 7.2321463494304605e-06,
+        "relative_E_saved": 4.999554355769338e-16,
+        "relative_H_saved": 5.080471580265907e-16
+      }
+    },
+    {
+      "repeat": 1,
+      "compute_seconds": 159.6433138330467,
+      "elapsed_seconds": 159.6433138330467,
+      "between_seconds": 0.7030037500080653,
+      "reconstruction_seconds": 0.540532874991186,
+      "evaluation_seconds": 0.3914680409943685,
+      "front": {
+        "preparation_seconds": 0.007704125018790364,
+        "application_seconds": 35.70762862497941,
+        "timing": {
+          "synthesis": 24.21070759021677,
+          "symbol": 10.579768826428335,
+          "accumulation": 0.712137829978019,
+          "plans": 3.04199056699872e-06
+        },
+        "ranks": [],
+        "tiles": 3,
+        "modes": 20665,
+        "omitted_modal_L2": 1.6272503652297311e-06,
+        "angular_bounds": [
+          0.6384615384621855,
+          0.6384615384621855
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 35.707882457994856
+      },
+      "back": {
+        "preparation_seconds": 0.007121582981199026,
+        "application_seconds": 122.29359058296541,
+        "timing": {
+          "synthesis": 92.83243844774552,
+          "symbol": 27.29756098834332,
+          "accumulation": 1.8326140376157127,
+          "plans": 1.550104934722185e-05
+        },
+        "ranks": [],
+        "tiles": 3,
+        "modes": 47142,
+        "omitted_modal_L2": 3.0192541340245647e-07,
+        "angular_bounds": [
+          0.6461538461545009,
+          0.6461538461545009
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 122.29622179199941
+      },
+      "errors": {
+        "relative_E_p1": 6.194921471463884e-05,
+        "relative_H_p1": 6.195102621757202e-05,
+        "intensity_error": 7.232146349517528e-06,
+        "relative_E_saved": 4.585197962119586e-16,
+        "relative_H_saved": 4.793618865818616e-16
+      }
+    }
+  ],
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "cpu_count": 10,
+  "thread_environment": {
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1"
+  },
+  "reference_fft_workers": -1,
+  "transport_setup": "full-grid Bessel evaluation, before setup optimization",
+  "incident_traces_evaluated": true,
+  "implementation_version": "original-direction-resolved-prototype"
+}

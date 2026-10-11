@@ -1,0 +1,280 @@
+{
+  "definition": "exact Mie traces -> transfer only -> independent exact Mie observations",
+  "geometry": "sphere radius 0.3, n=1.5, wavelength=1; h1=2+0.4 cos(2pi x/24)cos(2pi y/24); target z=4.3",
+  "observations": "9x9 points: x in [-1,1]+0.071, y in [-1,1]-0.033",
+  "global": [
+    {
+      "implementation": "SurfaceTransport",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.85,
+      "input": "exact total Mie E/H samples; no taper",
+      "inverse": {
+        "total": {
+          "E": 0.01677833339605095,
+          "H": 0.016804505511297932
+        },
+        "scattered_scale": {
+          "E": 0.18592031518404165,
+          "H": 0.186097759946989
+        }
+      },
+      "radiate": {
+        "total": {
+          "E": 0.017027744113991407,
+          "H": 0.01716427059906683
+        },
+        "scattered_scale": {
+          "E": 0.1886840294454761,
+          "H": 0.19008189842079956
+        }
+      },
+      "trace_report": {
+        "relative_residual": 0.016649034752569514,
+        "iterations": 8,
+        "condition_estimate": 96.25196504860783,
+        "magnetic_relative_residual": 0.013832194793074747,
+        "solver": "lsmr"
+      }
+    },
+    {
+      "implementation": "SurfaceTransport",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "input": "exact total Mie E/H samples; no taper",
+      "inverse": {
+        "total": {
+          "E": 0.010213492356311013,
+          "H": 0.010125112696294573
+        },
+        "scattered_scale": {
+          "E": 0.11317546702594904,
+          "H": 0.1121283093230217
+        }
+      },
+      "radiate": {
+        "total": {
+          "E": 0.009979207227940864,
+          "H": 0.009766300791531736
+        },
+        "scattered_scale": {
+          "E": 0.1105793590644894,
+          "H": 0.1081547266624797
+        }
+      },
+      "trace_report": {
+        "relative_residual": 0.006011632856011696,
+        "iterations": 13,
+        "condition_estimate": 97.36086027495934,
+        "magnetic_relative_residual": 0.0061382201023818805,
+        "solver": "lsmr"
+      }
+    },
+    {
+      "implementation": "SurfaceTransport",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.999,
+      "input": "exact total Mie E/H samples; no taper",
+      "inverse": {
+        "total": {
+          "E": 0.010072768860483047,
+          "H": 0.010156403460964606
+        },
+        "scattered_scale": {
+          "E": 0.1116161132998934,
+          "H": 0.11247483193912645
+        }
+      },
+      "radiate": {
+        "total": {
+          "E": 0.00835722245870914,
+          "H": 0.00820241088742739
+        },
+        "scattered_scale": {
+          "E": 0.09260618423234225,
+          "H": 0.09083577563700251
+        }
+      },
+      "trace_report": {
+        "relative_residual": 0.00526691305895901,
+        "iterations": 15,
+        "condition_estimate": 98.5407696222039,
+        "magnetic_relative_residual": 0.0066604359646465355,
+        "solver": "lsmr"
+      }
+    }
+  ],
+  "phase_space": [
+    {
+      "implementation": "phase_space",
+      "extent": 4,
+      "atoms": 9,
+      "size": 64,
+      "step": 0.25,
+      "output_size": 128,
+      "input": "exact total Mie E/H partitioned into localized atoms; no optical aperture",
+      "input_reconstruction": {
+        "E": 1.748180801650938e-06,
+        "H": 2.1408694253935286e-06
+      },
+      "atom_edge_energy_fraction": 0.0,
+      "radiate_then_Q": {
+        "total": {
+          "E": 0.013994549033810104,
+          "H": 0.013886985836665668
+        },
+        "scattered_scale": {
+          "E": 0.15507326656394205,
+          "H": 0.15378833699578684
+        }
+      }
+    },
+    {
+      "implementation": "phase_space",
+      "extent": 8,
+      "atoms": 25,
+      "size": 64,
+      "step": 0.25,
+      "output_size": 128,
+      "input": "exact total Mie E/H partitioned into localized atoms; no optical aperture",
+      "input_reconstruction": {
+        "E": 1.7016874591783e-06,
+        "H": 1.8357199140563036e-06
+      },
+      "atom_edge_energy_fraction": 0.0,
+      "radiate_then_Q": {
+        "total": {
+          "E": 0.013484895097241826,
+          "H": 0.013520322754401575
+        },
+        "scattered_scale": {
+          "E": 0.149425803357384,
+          "H": 0.1497278082156492
+        }
+      }
+    },
+    {
+      "implementation": "phase_space",
+      "extent": 4,
+      "atoms": 9,
+      "size": 128,
+      "step": 0.125,
+      "output_size": 256,
+      "input": "exact total Mie E/H partitioned into localized atoms; no optical aperture",
+      "input_reconstruction": {
+        "E": 1.4698782327953927e-12,
+        "H": 1.4782440050263839e-12
+      },
+      "atom_edge_energy_fraction": 0.0,
+      "radiate_then_Q": {
+        "total": {
+          "E": 0.013994546047154176,
+          "H": 0.013886983209151856
+        },
+        "scattered_scale": {
+          "E": 0.1550732334688784,
+          "H": 0.15378830789796932
+        }
+      }
+    }
+  ],
+  "complete_reference": [
+    {
+      "surface_order": 24,
+      "spectral_order": 16,
+      "evanescent_cutoff": 6,
+      "source_radius": 0.6,
+      "full_surface_integral": {
+        "E": 3.0273004817838177e-15,
+        "H": 3.1985440993880236e-15
+      },
+      "propagating_only": {
+        "E": 0.08206951156365778,
+        "H": 0.08129452603044098
+      },
+      "propagating_plus_evanescent": {
+        "E": 0.0015508319181320367,
+        "H": 0.001587316946448664
+      }
+    },
+    {
+      "surface_order": 24,
+      "spectral_order": 32,
+      "evanescent_cutoff": 6,
+      "source_radius": 0.6,
+      "full_surface_integral": {
+        "E": 3.0273004817838177e-15,
+        "H": 3.1985440993880236e-15
+      },
+      "propagating_only": {
+        "E": 0.08158305705314886,
+        "H": 0.08085207915898542
+      },
+      "propagating_plus_evanescent": {
+        "E": 2.4076121194005295e-11,
+        "H": 3.347827447573274e-11
+      }
+    },
+    {
+      "surface_order": 24,
+      "spectral_order": 48,
+      "evanescent_cutoff": 6,
+      "source_radius": 0.6,
+      "full_surface_integral": {
+        "E": 3.0273004817838177e-15,
+        "H": 3.1985440993880236e-15
+      },
+      "propagating_only": {
+        "E": 0.08158305705314968,
+        "H": 0.08085207915898636
+      },
+      "propagating_plus_evanescent": {
+        "E": 2.2940236394205567e-14,
+        "H": 2.254625343385074e-14
+      }
+    },
+    {
+      "surface_order": 24,
+      "spectral_order": 64,
+      "evanescent_cutoff": 8,
+      "source_radius": 0.6,
+      "full_surface_integral": {
+        "E": 3.0273004817838177e-15,
+        "H": 3.1985440993880236e-15
+      },
+      "propagating_only": {
+        "E": 0.08158305705314926,
+        "H": 0.08085207915898533
+      },
+      "propagating_plus_evanescent": {
+        "E": 8.126156724775848e-15,
+        "H": 7.391971035803075e-15
+      }
+    }
+  ],
+  "total_field_box": [
+    {
+      "order": 32,
+      "error": {
+        "E": 0.0002730815622587849,
+        "H": 0.00027317283687874384
+      }
+    },
+    {
+      "order": 64,
+      "error": {
+        "E": 2.9168003514079636e-08,
+        "H": 2.9121317686466078e-08
+      }
+    },
+    {
+      "order": 96,
+      "error": {
+        "E": 2.684113663438768e-12,
+        "H": 2.6837559145619193e-12
+      }
+    }
+  ]
+}

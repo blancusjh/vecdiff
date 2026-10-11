@@ -1,0 +1,178 @@
+{
+  "parameters": {
+    "radius": 100.0,
+    "n": 1.5,
+    "waist": 20.0,
+    "lattice": 280,
+    "half": 65.0,
+    "aperture": 35.0,
+    "edge": 1.5
+  },
+  "reference_cache_check": {
+    "p1": 0.0,
+    "total": 0.0
+  },
+  "detector_z": 146.95416666666665,
+  "reference_focus": {
+    "p1": {
+      "z": 146.82504921218288,
+      "peak_E2": 646.9169733636126
+    },
+    "total": {
+      "z": 146.8132359539243,
+      "peak_E2": 647.1440090881546
+    }
+  },
+  "rows": [
+    {
+      "count": 280,
+      "order": 0,
+      "seconds": {
+        "setup": 29.210118333052378,
+        "propagation": 39.524388167017605,
+        "total": 68.73450650006998
+      },
+      "seconds_evaluation": 0.24674420902738348,
+      "z_peak": 146.8773588290316,
+      "peak_E2": 646.653475471015,
+      "FWHM_x_lambda": 2.1638205629372504,
+      "FWHM_y_lambda": 2.139692337759421,
+      "errors": {
+        "p1": {
+          "relative_E": 0.002589474862464216,
+          "relative_H": 0.00258868334259949,
+          "intensity_map_error": 0.00041840361548441606,
+          "axial_peak_E2_relative": -0.0004073133082712621,
+          "focus_shift_lambda": 0.052309616848731366,
+          "detector_power_relative": 4.914891310092706e-05
+        },
+        "total": {
+          "relative_E": 0.0047255820382573815,
+          "relative_H": 0.0047255743724812175,
+          "intensity_map_error": 0.0008020969994262223,
+          "axial_peak_E2_relative": -0.0007579976176103065,
+          "focus_shift_lambda": 0.06412287510730152,
+          "detector_power_relative": -0.00022671530481921387
+        }
+      }
+    },
+    {
+      "count": 280,
+      "order": 3,
+      "seconds": {
+        "setup": 29.996761832968332,
+        "propagation": 45.968994040973485,
+        "total": 75.96575587394182
+      },
+      "seconds_evaluation": 0.24062504200264812,
+      "z_peak": 146.87793587386082,
+      "peak_E2": 646.6473616083449,
+      "FWHM_x_lambda": 2.1638308542317706,
+      "FWHM_y_lambda": 2.139697775935642,
+      "errors": {
+        "p1": {
+          "relative_E": 0.0025920395966619273,
+          "relative_H": 0.0025912475752634164,
+          "intensity_map_error": 0.0004237668818185745,
+          "axial_peak_E2_relative": -0.00041676407695068196,
+          "focus_shift_lambda": 0.05288666167794531,
+          "detector_power_relative": 4.889872983548926e-05
+        },
+        "total": {
+          "relative_E": 0.00472699610757148,
+          "relative_H": 0.004726990388386497,
+          "intensity_map_error": 0.0008071311285893534,
+          "axial_peak_E2_relative": -0.0007674450707030323,
+          "focus_shift_lambda": 0.06469991993651547,
+          "detector_power_relative": -0.00022696541907152312
+        }
+      }
+    },
+    {
+      "count": 360,
+      "order": 0,
+      "seconds": {
+        "setup": 71.02123875002144,
+        "propagation": 41.02785566699458,
+        "total": 112.04909441701602
+      },
+      "seconds_evaluation": 0.25165220897179097,
+      "z_peak": 146.87721070619705,
+      "peak_E2": 646.6545452503317,
+      "FWHM_x_lambda": 2.163819708677267,
+      "FWHM_y_lambda": 2.139691044906593,
+      "errors": {
+        "p1": {
+          "relative_E": 0.0025895218555965723,
+          "relative_H": 0.002588728151236193,
+          "intensity_map_error": 0.0004183683513663393,
+          "axial_peak_E2_relative": -0.0004056596504438126,
+          "focus_shift_lambda": 0.052161494014171694,
+          "detector_power_relative": 4.9158759015677234e-05
+        },
+        "total": {
+          "relative_E": 0.00472558791079598,
+          "relative_H": 0.0047255804863568516,
+          "intensity_map_error": 0.0008020592974663737,
+          "axial_peak_E2_relative": -0.0007563445399310087,
+          "focus_shift_lambda": 0.06397475227274185,
+          "detector_power_relative": -0.0002267054616205133
+        }
+      }
+    },
+    {
+      "count": 360,
+      "order": 3,
+      "seconds": {
+        "setup": 71.52918750001118,
+        "propagation": 47.732358458975796,
+        "total": 119.26154595898697
+      },
+      "seconds_evaluation": 0.25677325000287965,
+      "z_peak": 146.87778918834417,
+      "peak_E2": 646.6484198162844,
+      "FWHM_x_lambda": 2.163829988457927,
+      "FWHM_y_lambda": 2.139696491875343,
+      "errors": {
+        "p1": {
+          "relative_E": 0.0025920851506679686,
+          "relative_H": 0.0025912909610908232,
+          "intensity_map_error": 0.0004237446695525985,
+          "axial_peak_E2_relative": -0.0004151283060819244,
+          "focus_shift_lambda": 0.052739976161291224,
+          "detector_power_relative": 4.889542203589947e-05
+        },
+        "total": {
+          "relative_E": 0.00472700177083762,
+          "relative_H": 0.004726996276446537,
+          "intensity_map_error": 0.0008071073778754923,
+          "axial_peak_E2_relative": -0.0007658098737071128,
+          "focus_shift_lambda": 0.06455323441986138,
+          "detector_power_relative": -0.0002269687259586206
+        }
+      }
+    }
+  ],
+  "higher_order_scope": "Two-interface ball-lens focal audit against exact Debye and full Mie fields.\n\nThe order-3 variant is the previous audit's LOCAL plane-wave curvature adapter,\nwith the historical graded convergence/presence weights. It is not the full\ndirection-resolved OrderInteraction and omits incident-envelope derivatives.\nNo fitted gain, phase, focal shift, or reference data enter the candidate.\n",
+  "reference_FWHM": {
+    "p1": {
+      "x": 2.1637237340285442,
+      "y": 2.139775083364191
+    },
+    "total": {
+      "x": 2.1638246171593334,
+      "y": 2.1397825623039886
+    }
+  },
+  "grid_changes": {
+    "0": 3.794150566374086e-06,
+    "3": 3.7886015796444823e-06
+  },
+  "omitted_branches_focal_E": 0.004101575549800561,
+  "focus_fit_sampling_change_lambda": {
+    "exact_axis_p1": -1.1406857566953477e-05,
+    "exact_axis_total": -5.169707236518661e-06,
+    "N0_grid360_axis_E": 0.00033107108993135625,
+    "N3_grid360_axis_E": 0.00033116625903062413
+  }
+}

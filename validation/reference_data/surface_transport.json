@@ -1,0 +1,825 @@
+{
+  "wavelength0": 1,
+  "sphere_radius": 0.3,
+  "index": 1.5,
+  "probe_patch": "9x9 nodes, [-1,1]^2; physical surface area weights",
+  "surface_heights": "h1=z+0.4 cos(2pi x/24)cos(2pi y/24); h2=z+2+0.3 cos(2pi x/24)cos(2pi y/24)",
+  "taper": "product cosine-squared edges, unity to 0.3L, zero at 0.5L",
+  "error": "relative complex vector L2, no phase or amplitude alignment",
+  "reference_checks": [
+    {
+      "reference": "analytic plane-wave superposition",
+      "scale": 1,
+      "sag": 0.7,
+      "rotated": true,
+      "forward": {
+        "E": 4.179953443835955e-12,
+        "H": 4.179951332352839e-12
+      },
+      "inverse_transfer": {
+        "E": 1.5795354298851127e-11,
+        "H": 1.6278190480865997e-11
+      },
+      "radiate_transfer": {
+        "E": 2.1076375732763724e-12,
+        "H": 2.1406297137802674e-12
+      },
+      "trace_report": {
+        "relative_residual": 1.225953880097765e-11,
+        "iterations": 14,
+        "condition_estimate": 32.26856338928936,
+        "magnetic_relative_residual": 1.662959142157531e-11,
+        "solver": "lsmr"
+      }
+    },
+    {
+      "reference": "analytic plane-wave superposition",
+      "scale": 5.32e-07,
+      "sag": 0.7,
+      "rotated": true,
+      "forward": {
+        "E": 4.180026966764349e-12,
+        "H": 4.1800111845926136e-12
+      },
+      "inverse_transfer": {
+        "E": 1.579517433746395e-11,
+        "H": 1.627802008464631e-11
+      },
+      "radiate_transfer": {
+        "E": 2.1070125294487294e-12,
+        "H": 2.139987019960912e-12
+      },
+      "trace_report": {
+        "relative_residual": 1.2259562201105524e-11,
+        "iterations": 14,
+        "condition_estimate": 32.26856338928937,
+        "magnetic_relative_residual": 1.6629558654939396e-11,
+        "solver": "lsmr"
+      }
+    },
+    {
+      "reference": "single-interface Debye sphere",
+      "ka_incident": 300,
+      "radius": 47.7464829275686,
+      "count": 96,
+      "max_sine": 0.85,
+      "probe_height": 3.086661522908969,
+      "probe_half_width": 7.1619724391352895,
+      "inverse_transfer": {
+        "E": 8.880257360116615e-10,
+        "H": 8.267597131647324e-10
+      },
+      "radiate_transfer": {
+        "E": 7.64950736762027e-10,
+        "H": 7.585984655024951e-10
+      },
+      "trace_report": {
+        "relative_residual": 3.324281803034993e-10,
+        "iterations": 9,
+        "condition_estimate": 95.96841659684405,
+        "magnetic_relative_residual": 0.0052600422408338714,
+        "solver": "lsmr"
+      }
+    },
+    {
+      "reference": "Hertz dipole Maxwell residuals",
+      "step": 0.0025,
+      "residuals": {
+        "div_E": 1.9706270949479383e-08,
+        "div_H": 2.4699854080205453e-08,
+        "faraday": 6.882872207790372e-08,
+        "ampere": 6.067291595998216e-08,
+        "vector_wave_E": 1.95819313172879e-08,
+        "vector_wave_H": 1.7081096172097428e-08
+      }
+    },
+    {
+      "reference": "Mie order refinement",
+      "order": 22,
+      "change": {
+        "E": 0.0,
+        "H": 0.0
+      }
+    },
+    {
+      "reference": "BEM sphere",
+      "level": 1,
+      "unknowns": 240,
+      "algebraic_residual": 4.370791689197279e-15,
+      "vs_mie": {
+        "E": 0.13038348331977975,
+        "H": 0.1303463936029801
+      }
+    },
+    {
+      "reference": "BEM sphere",
+      "level": 2,
+      "unknowns": 960,
+      "algebraic_residual": 8.533697395350333e-15,
+      "vs_mie": {
+        "E": 0.03160808454212307,
+        "H": 0.03160080651792255
+      },
+      "mesh_change": {
+        "E": 0.11215207655234696,
+        "H": 0.11211682703830654
+      }
+    },
+    {
+      "reference": "BEM sphere",
+      "level": 3,
+      "unknowns": 3840,
+      "algebraic_residual": 2.356286830523816e-14,
+      "vs_mie": {
+        "E": 0.00688628432522885,
+        "H": 0.0068858733485701925
+      },
+      "mesh_change": {
+        "E": 0.025472925706206455,
+        "H": 0.025465883215928034
+      }
+    },
+    {
+      "reference": "BEM spheroid",
+      "level": 1,
+      "unknowns": 240,
+      "algebraic_residual": 3.4000796372425575e-15
+    },
+    {
+      "reference": "BEM spheroid",
+      "level": 2,
+      "unknowns": 960,
+      "algebraic_residual": 1.1165417657355547e-14,
+      "mesh_change": {
+        "E": 0.11519363979511635,
+        "H": 0.11518384324202874
+      }
+    },
+    {
+      "reference": "BEM spheroid",
+      "level": 3,
+      "unknowns": 3840,
+      "algebraic_residual": 2.685774912499415e-14,
+      "mesh_change": {
+        "E": 0.02611852061735382,
+        "H": 0.026113805346194167
+      }
+    }
+  ],
+  "cases": [
+    {
+      "reference": "Mie scattered",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.2095032919753035,
+        "H": 0.21072440733943676
+      },
+      "inverse_transfer": {
+        "E": 0.1845035293574133,
+        "H": 0.18412334885288542
+      },
+      "radiate_transfer": {
+        "E": 0.1880628378443179,
+        "H": 0.1891474128492127
+      },
+      "trace_report": {
+        "relative_residual": 0.5441372110453652,
+        "iterations": 8,
+        "condition_estimate": 96.43532934019771,
+        "magnetic_relative_residual": 0.48760331142876795,
+        "solver": "lsmr"
+      },
+      "rank": 10
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 24,
+      "count": 192,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.20950328095314327,
+        "H": 0.21072440433522954
+      },
+      "inverse_transfer": {
+        "E": 0.1845031381701204,
+        "H": 0.18412296463489827
+      },
+      "radiate_transfer": {
+        "E": 0.1880624472104279,
+        "H": 0.18914702091891417
+      },
+      "trace_report": {
+        "relative_residual": 0.5441360581490016,
+        "iterations": 8,
+        "condition_estimate": 192.87065960082538,
+        "magnetic_relative_residual": 0.487602320329405,
+        "solver": "lsmr"
+      },
+      "rank": 10
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 16,
+      "count": 64,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.21575391459345403,
+        "H": 0.2171881839223076
+      },
+      "inverse_transfer": {
+        "E": 0.19558018123026033,
+        "H": 0.19552845145012882
+      },
+      "radiate_transfer": {
+        "E": 0.19871522720021567,
+        "H": 0.20008008169249775
+      },
+      "trace_report": {
+        "relative_residual": 0.4682203991658773,
+        "iterations": 8,
+        "condition_estimate": 64.28899679091596,
+        "magnetic_relative_residual": 0.426831686935651,
+        "solver": "lsmr"
+      },
+      "rank": 9
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 32,
+      "count": 128,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.20773429188800982,
+        "H": 0.2088662124338258
+      },
+      "inverse_transfer": {
+        "E": 0.18165043218835597,
+        "H": 0.181412124915566
+      },
+      "radiate_transfer": {
+        "E": 0.18442976487124435,
+        "H": 0.18541284394752974
+      },
+      "trace_report": {
+        "relative_residual": 0.574411133528769,
+        "iterations": 8,
+        "condition_estimate": 128.5776109848924,
+        "magnetic_relative_residual": 0.5122825226246153,
+        "solver": "lsmr"
+      },
+      "rank": 10
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.95,
+      "height": 2,
+      "forward": {
+        "E": 0.1408053080423895,
+        "H": 0.14065825601288998
+      },
+      "inverse_transfer": {
+        "E": 0.13361384843299526,
+        "H": 0.13287208089315639
+      },
+      "radiate_transfer": {
+        "E": 0.13839868000208194,
+        "H": 0.13782806479430143
+      },
+      "trace_report": {
+        "relative_residual": 0.3233447858773091,
+        "iterations": 10,
+        "condition_estimate": 96.8724464279098,
+        "magnetic_relative_residual": 0.2866248239821283,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.08355353623440138,
+        "H": 0.08355691588396351
+      },
+      "inverse_transfer": {
+        "E": 0.09516754192612337,
+        "H": 0.09551026341404908
+      },
+      "radiate_transfer": {
+        "E": 0.09291581195410331,
+        "H": 0.09153768655466585
+      },
+      "trace_report": {
+        "relative_residual": 0.1734837562636624,
+        "iterations": 13,
+        "condition_estimate": 97.1078251522583,
+        "magnetic_relative_residual": 0.19059237464169737,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.999,
+      "height": 2,
+      "forward": {
+        "E": 0.07811454785563543,
+        "H": 0.07807494765553948
+      },
+      "inverse_transfer": {
+        "E": 0.0942246229016922,
+        "H": 0.09553705246472456
+      },
+      "radiate_transfer": {
+        "E": 0.07863132479843665,
+        "H": 0.07763144017106238
+      },
+      "trace_report": {
+        "relative_residual": 0.15290832097123383,
+        "iterations": 15,
+        "condition_estimate": 96.87799567437207,
+        "magnetic_relative_residual": 0.21037096442315456,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 48,
+      "count": 192,
+      "max_sine": 0.999,
+      "height": 2,
+      "forward": {
+        "E": 0.075268115113247,
+        "H": 0.07528649535071223
+      },
+      "inverse_transfer": {
+        "E": 0.07841823175146348,
+        "H": 0.07798215127524492
+      },
+      "radiate_transfer": {
+        "E": 0.06003244204607463,
+        "H": 0.05958197847804884
+      },
+      "trace_report": {
+        "relative_residual": 0.16892185303636287,
+        "iterations": 20,
+        "condition_estimate": 187.78885751398337,
+        "magnetic_relative_residual": 0.30058463475557773,
+        "solver": "lsmr"
+      },
+      "rank": 12
+    },
+    {
+      "reference": "Mie scattered",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 0.8,
+      "forward": {
+        "E": 0.13333522918633176,
+        "H": 0.13310155994020575
+      },
+      "inverse_transfer": {
+        "E": 0.1139448726372455,
+        "H": 0.11364437333049451
+      },
+      "radiate_transfer": {
+        "E": 0.11214341333871997,
+        "H": 0.1106798576474712
+      },
+      "trace_report": {
+        "relative_residual": 0.2846534157823431,
+        "iterations": 13,
+        "condition_estimate": 97.32692058286499,
+        "magnetic_relative_residual": 0.29622905530679416,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.2799201268170163,
+        "H": 0.2849401468067542
+      },
+      "inverse_transfer": {
+        "E": 0.23793220059061038,
+        "H": 0.24036613318351058
+      },
+      "radiate_transfer": {
+        "E": 0.2572652191819533,
+        "H": 0.26151634813108565
+      },
+      "trace_report": {
+        "relative_residual": 0.7249016955363439,
+        "iterations": 8,
+        "condition_estimate": 96.80834729992354,
+        "magnetic_relative_residual": 0.5069338942257948,
+        "solver": "lsmr"
+      },
+      "rank": 10
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 24,
+      "count": 192,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.2799201919190662,
+        "H": 0.28494023076023267
+      },
+      "inverse_transfer": {
+        "E": 0.23793165719204926,
+        "H": 0.24036559343799
+      },
+      "radiate_transfer": {
+        "E": 0.25726465851153923,
+        "H": 0.26151576977379865
+      },
+      "trace_report": {
+        "relative_residual": 0.7249002478350023,
+        "iterations": 8,
+        "condition_estimate": 193.61669702131107,
+        "magnetic_relative_residual": 0.506933022985642,
+        "solver": "lsmr"
+      },
+      "rank": 10
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 16,
+      "count": 64,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.2917350827301955,
+        "H": 0.2973529483590354
+      },
+      "inverse_transfer": {
+        "E": 0.2614054030885327,
+        "H": 0.26539546216713017
+      },
+      "radiate_transfer": {
+        "E": 0.2744780398283778,
+        "H": 0.2802073097420951
+      },
+      "trace_report": {
+        "relative_residual": 0.6101347187711872,
+        "iterations": 8,
+        "condition_estimate": 64.54210339123868,
+        "magnetic_relative_residual": 0.4538280782234488,
+        "solver": "lsmr"
+      },
+      "rank": 9
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 32,
+      "count": 128,
+      "max_sine": 0.85,
+      "height": 2,
+      "forward": {
+        "E": 0.2759810206046791,
+        "H": 0.2806593125477065
+      },
+      "inverse_transfer": {
+        "E": 0.23834153478256795,
+        "H": 0.24076374437142353
+      },
+      "radiate_transfer": {
+        "E": 0.25200869010771476,
+        "H": 0.255901700196096
+      },
+      "trace_report": {
+        "relative_residual": 0.7657864332207848,
+        "iterations": 8,
+        "condition_estimate": 129.07875489758143,
+        "magnetic_relative_residual": 0.5188911270018011,
+        "solver": "lsmr"
+      },
+      "rank": 10
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.95,
+      "height": 2,
+      "forward": {
+        "E": 0.22383593052848944,
+        "H": 0.22352604673429557
+      },
+      "inverse_transfer": {
+        "E": 0.20116963286499526,
+        "H": 0.1983812286914347
+      },
+      "radiate_transfer": {
+        "E": 0.22945501379462427,
+        "H": 0.22672013629983426
+      },
+      "trace_report": {
+        "relative_residual": 0.4798967646459168,
+        "iterations": 10,
+        "condition_estimate": 97.793944430526,
+        "magnetic_relative_residual": 0.27990191470852244,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.12779907497727264,
+        "H": 0.12576610317868417
+      },
+      "inverse_transfer": {
+        "E": 0.14725194526551946,
+        "H": 0.1424925930431991
+      },
+      "radiate_transfer": {
+        "E": 0.17046119509660387,
+        "H": 0.1624916382858524
+      },
+      "trace_report": {
+        "relative_residual": 0.27673426238728216,
+        "iterations": 13,
+        "condition_estimate": 98.12157320932356,
+        "magnetic_relative_residual": 0.23392459163656373,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.999,
+      "height": 2,
+      "forward": {
+        "E": 0.11322593638909402,
+        "H": 0.1112995168483995
+      },
+      "inverse_transfer": {
+        "E": 0.1682192565563165,
+        "H": 0.16662808635211468
+      },
+      "radiate_transfer": {
+        "E": 0.1451581485515855,
+        "H": 0.13924057147071317
+      },
+      "trace_report": {
+        "relative_residual": 0.2471676931715132,
+        "iterations": 15,
+        "condition_estimate": 97.86520587248071,
+        "magnetic_relative_residual": 0.3021150020781646,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 48,
+      "count": 192,
+      "max_sine": 0.999,
+      "height": 2,
+      "forward": {
+        "E": 0.12615505285350792,
+        "H": 0.12381976732672967
+      },
+      "inverse_transfer": {
+        "E": 0.1742002189743129,
+        "H": 0.17348638149452533
+      },
+      "radiate_transfer": {
+        "E": 0.12560072938841502,
+        "H": 0.12256829294856804
+      },
+      "trace_report": {
+        "relative_residual": 0.2814208449319281,
+        "iterations": 20,
+        "condition_estimate": 184.47237647455876,
+        "magnetic_relative_residual": 0.6029827681248723,
+        "solver": "lsmr"
+      },
+      "rank": 12
+    },
+    {
+      "reference": "Hertz dipole",
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 0.8,
+      "forward": {
+        "E": 0.221324795761172,
+        "H": 0.2192362939062001
+      },
+      "inverse_transfer": {
+        "E": 0.19721031053442523,
+        "H": 0.19142921351475764
+      },
+      "radiate_transfer": {
+        "E": 0.21916684268732953,
+        "H": 0.20978544084788098
+      },
+      "trace_report": {
+        "relative_residual": 0.46096654281219224,
+        "iterations": 13,
+        "condition_estimate": 98.06914514690794,
+        "magnetic_relative_residual": 0.3817558219526752,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "BEM sphere",
+      "level": 1,
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.08521068049089447,
+        "H": 0.08508330349201458
+      },
+      "inverse_transfer": {
+        "E": 0.0972661537139804,
+        "H": 0.09717689879894122
+      },
+      "radiate_transfer": {
+        "E": 0.09688357021931521,
+        "H": 0.09504404126391548
+      },
+      "trace_report": {
+        "relative_residual": 0.1822055098277403,
+        "iterations": 13,
+        "condition_estimate": 97.12891535329938,
+        "magnetic_relative_residual": 0.19009314874129776,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "BEM sphere",
+      "level": 2,
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.08414229159438784,
+        "H": 0.0841191355685882
+      },
+      "inverse_transfer": {
+        "E": 0.09591842045533665,
+        "H": 0.0961682845719177
+      },
+      "radiate_transfer": {
+        "E": 0.09405538667640796,
+        "H": 0.09257531738563761
+      },
+      "trace_report": {
+        "relative_residual": 0.1757059726028308,
+        "iterations": 13,
+        "condition_estimate": 97.11349077133889,
+        "magnetic_relative_residual": 0.19078607252090954,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "BEM sphere",
+      "level": 3,
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.08376475296249022,
+        "H": 0.08376400135119595
+      },
+      "inverse_transfer": {
+        "E": 0.09543572045744618,
+        "H": 0.09576180916953582
+      },
+      "radiate_transfer": {
+        "E": 0.09324827010822069,
+        "H": 0.09185068484182758
+      },
+      "trace_report": {
+        "relative_residual": 0.17403656998040942,
+        "iterations": 13,
+        "condition_estimate": 97.10934419840581,
+        "magnetic_relative_residual": 0.19077830248055594,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "BEM spheroid",
+      "level": 1,
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.07041651786474448,
+        "H": 0.07062671050342763
+      },
+      "inverse_transfer": {
+        "E": 0.07935888216988136,
+        "H": 0.0803110391280511
+      },
+      "radiate_transfer": {
+        "E": 0.07438931941449764,
+        "H": 0.07397491996986014
+      },
+      "trace_report": {
+        "relative_residual": 0.13688198676552268,
+        "iterations": 13,
+        "condition_estimate": 97.01862896513316,
+        "magnetic_relative_residual": 0.16917146301098057,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "BEM spheroid",
+      "level": 2,
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.06607450020411768,
+        "H": 0.06631862891087188
+      },
+      "inverse_transfer": {
+        "E": 0.07376714456596946,
+        "H": 0.07480553874726903
+      },
+      "radiate_transfer": {
+        "E": 0.06833668780794343,
+        "H": 0.06814352404689089
+      },
+      "trace_report": {
+        "relative_residual": 0.12748410767236648,
+        "iterations": 13,
+        "condition_estimate": 96.99400883552417,
+        "magnetic_relative_residual": 0.16303795129496879,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    },
+    {
+      "reference": "BEM spheroid",
+      "level": 3,
+      "length": 24,
+      "count": 96,
+      "max_sine": 0.99,
+      "height": 2,
+      "forward": {
+        "E": 0.06500089094770398,
+        "H": 0.06525378092835761
+      },
+      "inverse_transfer": {
+        "E": 0.07238451576210858,
+        "H": 0.07344257722265496
+      },
+      "radiate_transfer": {
+        "E": 0.06684131783452078,
+        "H": 0.0667036343334256
+      },
+      "trace_report": {
+        "relative_residual": 0.12506845706136085,
+        "iterations": 13,
+        "condition_estimate": 96.98793806908436,
+        "magnetic_relative_residual": 0.16143259028828136,
+        "solver": "lsmr"
+      },
+      "rank": 11
+    }
+  ]
+}

@@ -1,0 +1,594 @@
+{
+  "hardware": {
+    "chip": "Apple M4",
+    "cpu_cores": 10,
+    "memory_GiB": 16
+  },
+  "settings": {
+    "vacuum_wavelength": 1,
+    "sphere_index": 1.2,
+    "lens_index": 1.5,
+    "nodes": 18,
+    "angular_limit": 0.65,
+    "modal_cutoff": 1e-07,
+    "max_sine": 0.95,
+    "threads": 4,
+    "workers": 1,
+    "bem_nominal_mesh_edge_over_wavelength": 0.2,
+    "bem_max_unknowns": 5000,
+    "dense_term_budget_MiB": 64,
+    "compact_factor_budget_MiB": 512
+  },
+  "notes": [
+    "Pipeline uses continued open graph faces; references use closed bodies with reflections and rims.",
+    "Large BEM counts are estimates; absent BEM has no measured solve time or independent field difference.",
+    "The transverse window is centered on the optical axis; meridional probes are sparse.",
+    "Wall times depend on machine load."
+  ],
+  "cases": [
+    {
+      "name": "Sphere",
+      "radius_over_wavelength": 3.0,
+      "count": 128,
+      "spacing_over_wavelength": 0.09375,
+      "unknowns": 21210,
+      "bem_computed": false,
+      "bem_unknowns_estimated": false,
+      "bem_matrix_gib": 6.703497469425201,
+      "accuracy": [
+        {
+          "geometry": "Sphere",
+          "candidate": "Pipeline",
+          "reference": "Mie",
+          "plane z / \u03bb": 4.9,
+          "focal E %": 26.066363820976925,
+          "focal H %": 26.076708198005782,
+          "meridian E %": 73.45777659012586,
+          "meridian H %": 73.84388893216416,
+          "downstream E %": 75.95824132067897,
+          "downstream H %": 76.80284361399026,
+          "meridian coverage %": 81.87007134810364
+        }
+      ],
+      "timing": [
+        {
+          "geometry": "Sphere",
+          "method": "Mie",
+          "setup + solve s": 0.0011277080047875643,
+          "focal field s": 0.7274251660564914,
+          "full focal calculation s": 0.728552874061279,
+          "axial field s": 0.019764166907407343,
+          "meridian field s": 0.6254515419714153,
+          "interface fields s": 0.014582374948076904,
+          "all requested fields s": 1.3883509578881785,
+          "meridian points": 10901,
+          "focal points": 6561
+        },
+        {
+          "geometry": "Sphere",
+          "method": "Pipeline",
+          "setup + solve s": 1.2720760009251535,
+          "focal field s": 0.028074124944396317,
+          "full focal calculation s": 1.3001501258695498,
+          "axial field s": 0.03023637505248189,
+          "meridian field s": 0.11948300001677126,
+          "interface fields s": 0.046670040930621326,
+          "all requested fields s": 1.4965395418694243,
+          "meridian points": 10901,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": [
+        {
+          "geometry": "Sphere",
+          "face": "entrance",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 22.647903202113913,
+          "T trace H %": 19.852774690029594,
+          "T trace tangent E %": 22.213965448529375,
+          "T trace tangent H %": 11.177765889232978,
+          "reconstructed trace E %": 24.866197807969993,
+          "reconstructed trace H %": 22.889919140823537,
+          "reconstructed trace tangent E %": 22.882617681629185,
+          "reconstructed trace tangent H %": 15.821913423294905
+        },
+        {
+          "geometry": "Sphere",
+          "face": "exit",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 63.71169973336428,
+          "T trace H %": 58.320458244682115,
+          "T trace tangent E %": 53.509738823326636,
+          "T trace tangent H %": 51.62701299652388,
+          "reconstructed trace E %": 54.79773860099333,
+          "reconstructed trace H %": 51.09177880730069,
+          "reconstructed trace tangent E %": 47.15825204280944,
+          "reconstructed trace tangent H %": 45.42152769299604
+        }
+      ]
+    },
+    {
+      "name": "Sphere",
+      "radius_over_wavelength": 10.0,
+      "count": 128,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 261188,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 1016.5448687076569,
+      "accuracy": [
+        {
+          "geometry": "Sphere",
+          "candidate": "Pipeline",
+          "reference": "Mie",
+          "plane z / \u03bb": 20.2335,
+          "focal E %": 12.348698079779046,
+          "focal H %": 12.344818015607679,
+          "meridian E %": 82.79006189141036,
+          "meridian H %": 83.15003878794886,
+          "downstream E %": 84.82573856115746,
+          "downstream H %": 85.51260742574036,
+          "meridian coverage %": 81.49529920907327
+        }
+      ],
+      "timing": [
+        {
+          "geometry": "Sphere",
+          "method": "Mie",
+          "setup + solve s": 0.0008029169403016567,
+          "focal field s": 1.1041004159487784,
+          "full focal calculation s": 1.10490333288908,
+          "axial field s": 0.06366254203021526,
+          "meridian field s": 1.9416507090209052,
+          "interface fields s": 0.033864500001072884,
+          "all requested fields s": 3.1440810839412734,
+          "meridian points": 10922,
+          "focal points": 6561
+        },
+        {
+          "geometry": "Sphere",
+          "method": "Pipeline",
+          "setup + solve s": 2.0004846251104027,
+          "focal field s": 0.03642024996224791,
+          "full focal calculation s": 2.0369048750726506,
+          "axial field s": 0.05125666700769216,
+          "meridian field s": 0.33899512502830476,
+          "interface fields s": 0.10249379114247859,
+          "all requested fields s": 2.529650458251126,
+          "meridian points": 10922,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": [
+        {
+          "geometry": "Sphere",
+          "face": "entrance",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 37.80612588304141,
+          "T trace H %": 35.41665317031506,
+          "T trace tangent E %": 36.331403931139924,
+          "T trace tangent H %": 23.203000838854926,
+          "reconstructed trace E %": 37.00854485679358,
+          "reconstructed trace H %": 34.72460644688619,
+          "reconstructed trace tangent E %": 35.037625542662646,
+          "reconstructed trace tangent H %": 23.39245518666005
+        },
+        {
+          "geometry": "Sphere",
+          "face": "exit",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 56.36731984611849,
+          "T trace H %": 56.8595372699475,
+          "T trace tangent E %": 48.53638335531491,
+          "T trace tangent H %": 52.03593028361121,
+          "reconstructed trace E %": 58.301893443081035,
+          "reconstructed trace H %": 56.2275727827519,
+          "reconstructed trace tangent E %": 52.056970837333495,
+          "reconstructed trace tangent H %": 49.60038723231644
+        }
+      ]
+    },
+    {
+      "name": "Sphere",
+      "radius_over_wavelength": 30.0,
+      "count": 320,
+      "spacing_over_wavelength": 0.375,
+      "unknowns": 2350684,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 82339.57391762733,
+      "accuracy": [
+        {
+          "geometry": "Sphere",
+          "candidate": "Pipeline",
+          "reference": "Mie",
+          "plane z / \u03bb": 71.37074468085106,
+          "focal E %": 9.869133444817558,
+          "focal H %": 9.864597693822775,
+          "meridian E %": 39.46750727810298,
+          "meridian H %": 38.774128187303816,
+          "downstream E %": 39.86973922256943,
+          "downstream H %": 39.068987273434665,
+          "meridian coverage %": 81.42654840873519
+        }
+      ],
+      "timing": [
+        {
+          "geometry": "Sphere",
+          "method": "Mie",
+          "setup + solve s": 0.0022996249608695507,
+          "focal field s": 6.408386041061021,
+          "full focal calculation s": 6.410685666021891,
+          "axial field s": 1.2652130000060424,
+          "meridian field s": 10.068549875053577,
+          "interface fields s": 0.0815281659597531,
+          "all requested fields s": 17.825976707041264,
+          "meridian points": 10925,
+          "focal points": 6561
+        },
+        {
+          "geometry": "Sphere",
+          "method": "Pipeline",
+          "setup + solve s": 32.577291000052355,
+          "focal field s": 0.13808637496549636,
+          "full focal calculation s": 32.71537737501785,
+          "axial field s": 0.3836912920232862,
+          "meridian field s": 3.6732680830173194,
+          "interface fields s": 1.7342881669756025,
+          "all requested fields s": 38.50662491703406,
+          "meridian points": 10925,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": [
+        {
+          "geometry": "Sphere",
+          "face": "entrance",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 43.158394411436234,
+          "T trace H %": 36.74120489137341,
+          "T trace tangent E %": 22.43477468279714,
+          "T trace tangent H %": 33.562089294270194,
+          "reconstructed trace E %": 43.56357774785666,
+          "reconstructed trace H %": 36.74001452791983,
+          "reconstructed trace tangent E %": 22.868876600139682,
+          "reconstructed trace tangent H %": 33.35042881696034
+        },
+        {
+          "geometry": "Sphere",
+          "face": "exit",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 69.49587858290415,
+          "T trace H %": 62.03277643762601,
+          "T trace tangent E %": 54.96794042792315,
+          "T trace tangent H %": 60.87961799627536,
+          "reconstructed trace E %": 64.19066640381489,
+          "reconstructed trace H %": 57.77594138721975,
+          "reconstructed trace tangent E %": 50.355340097299525,
+          "reconstructed trace tangent H %": 56.3691514563884
+        }
+      ]
+    },
+    {
+      "name": "Sphere",
+      "radius_over_wavelength": 100.0,
+      "count": 1024,
+      "spacing_over_wavelength": 0.390625,
+      "unknowns": 26118711,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 10165379.40951468,
+      "accuracy": [
+        {
+          "geometry": "Sphere",
+          "candidate": "Pipeline",
+          "reference": "Mie",
+          "plane z / \u03bb": 262.86537234042555,
+          "focal E %": 6.139006568967997,
+          "focal H %": 6.139487996004228,
+          "meridian E %": 37.589576727739335,
+          "meridian H %": 37.190718122801,
+          "downstream E %": 37.69539450914181,
+          "downstream H %": 37.38433269558842,
+          "meridian coverage %": 81.32956152758133
+        }
+      ],
+      "timing": [
+        {
+          "geometry": "Sphere",
+          "method": "Mie",
+          "setup + solve s": 0.01170599996112287,
+          "focal field s": 42.053830457967706,
+          "full focal calculation s": 42.06553645792883,
+          "axial field s": 18.348536291974597,
+          "meridian field s": 69.14166945801117,
+          "interface fields s": 0.5086792079964653,
+          "all requested fields s": 130.06442141591106,
+          "meridian points": 10925,
+          "focal points": 6561
+        },
+        {
+          "geometry": "Sphere",
+          "method": "Pipeline",
+          "setup + solve s": 883.9824947919697,
+          "focal field s": 1.2340010000625625,
+          "full focal calculation s": 885.2164957920322,
+          "axial field s": 1.8888557909522206,
+          "meridian field s": 53.62877012498211,
+          "interface fields s": 60.51201570802368,
+          "all requested fields s": 1001.2461374159902,
+          "meridian points": 10925,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": [
+        {
+          "geometry": "Sphere",
+          "face": "entrance",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 16.82169310422167,
+          "T trace H %": 18.854266031592235,
+          "T trace tangent E %": 13.08387071107874,
+          "T trace tangent H %": 15.723298010393957,
+          "reconstructed trace E %": 16.762144729584303,
+          "reconstructed trace H %": 19.307702045379695,
+          "reconstructed trace tangent E %": 13.222889105578767,
+          "reconstructed trace tangent H %": 16.14551028406006
+        },
+        {
+          "geometry": "Sphere",
+          "face": "exit",
+          "reference": "Mie",
+          "samples": 49,
+          "pipeline trace sampling": "exact Q grid points",
+          "max facet offset / \u03bb": 0.0,
+          "T trace E %": 57.22374076449373,
+          "T trace H %": 60.90212289640732,
+          "T trace tangent E %": 50.73580866935063,
+          "T trace tangent H %": 54.112183796728594,
+          "reconstructed trace E %": 54.92437696571646,
+          "reconstructed trace H %": 55.105577743247615,
+          "reconstructed trace tangent E %": 47.715717218732365,
+          "reconstructed trace tangent H %": 47.33185889934429
+        }
+      ]
+    },
+    {
+      "name": "Cartesian oval",
+      "radius_over_wavelength": 3.0,
+      "count": 128,
+      "spacing_over_wavelength": 0.09375,
+      "unknowns": 15792,
+      "bem_computed": false,
+      "bem_unknowns_estimated": false,
+      "bem_matrix_gib": 3.7161598205566406,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Cartesian oval",
+          "method": "Pipeline",
+          "setup + solve s": 0.07075233396608382,
+          "focal field s": 0.022342832991853356,
+          "full focal calculation s": 0.09309516695793718,
+          "axial field s": 0.029430416994728148,
+          "meridian field s": 0.07433824997860938,
+          "interface fields s": 0.009213459095917642,
+          "all requested fields s": 0.20607729302719235,
+          "meridian points": 12826,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Cartesian oval",
+      "radius_over_wavelength": 10.0,
+      "count": 128,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 200244,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 597.5016882419586,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Cartesian oval",
+          "method": "Pipeline",
+          "setup + solve s": 0.06735812511760741,
+          "focal field s": 0.030882125021889806,
+          "full focal calculation s": 0.09824025013949722,
+          "axial field s": 0.048092957935296,
+          "meridian field s": 0.2797290839953348,
+          "interface fields s": 0.009159500012174249,
+          "all requested fields s": 0.4352217920823023,
+          "meridian points": 12834,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Cartesian oval",
+      "radius_over_wavelength": 30.0,
+      "count": 384,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 1802192,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 48397.421909332275,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Cartesian oval",
+          "method": "Pipeline",
+          "setup + solve s": 0.6933197089238092,
+          "focal field s": 0.12304258393123746,
+          "full focal calculation s": 0.8163622928550467,
+          "axial field s": 0.29678787500597537,
+          "meridian field s": 2.049652707995847,
+          "interface fields s": 0.07670637499541044,
+          "all requested fields s": 3.2395092508522794,
+          "meridian points": 12883,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Cartesian oval",
+      "radius_over_wavelength": 100.0,
+      "count": 1280,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 20024345,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 5974984.059915319,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Cartesian oval",
+          "method": "Pipeline",
+          "setup + solve s": 12.994291582959704,
+          "focal field s": 1.2283657919615507,
+          "full focal calculation s": 14.222657374921255,
+          "axial field s": 3.2476332909427583,
+          "meridian field s": 53.49071116698906,
+          "interface fields s": 1.1844654170563444,
+          "all requested fields s": 72.14546724990942,
+          "meridian points": 12883,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Two freeform faces",
+      "radius_over_wavelength": 3.0,
+      "count": 128,
+      "spacing_over_wavelength": 0.09375,
+      "unknowns": 17802,
+      "bem_computed": false,
+      "bem_unknowns_estimated": false,
+      "bem_matrix_gib": 4.722344934940338,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Two freeform faces",
+          "method": "Pipeline",
+          "setup + solve s": 1.7819597490597516,
+          "focal field s": 0.04403508303221315,
+          "full focal calculation s": 1.8259948320919648,
+          "axial field s": 0.042673083022236824,
+          "meridian field s": 0.18620908295270056,
+          "interface fields s": 0.028188832919113338,
+          "all requested fields s": 2.0830658309860155,
+          "meridian points": 12606,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Two freeform faces",
+      "radius_over_wavelength": 10.0,
+      "count": 128,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 226363,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 763.538595572114,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Two freeform faces",
+          "method": "Pipeline",
+          "setup + solve s": 2.3037406669463962,
+          "focal field s": 0.05387704202439636,
+          "full focal calculation s": 2.3576177089707926,
+          "axial field s": 0.1094456659629941,
+          "meridian field s": 0.48899587499909103,
+          "interface fields s": 0.0358443750301376,
+          "all requested fields s": 2.9919036249630153,
+          "meridian points": 12616,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Two freeform faces",
+      "radius_over_wavelength": 30.0,
+      "count": 384,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 2037260,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 61846.20123505592,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Two freeform faces",
+          "method": "Pipeline",
+          "setup + solve s": 34.092921791016124,
+          "focal field s": 0.1691225840477273,
+          "full focal calculation s": 34.26204437506385,
+          "axial field s": 0.6666403750423342,
+          "meridian field s": 3.322650874964893,
+          "interface fields s": 0.29913049994502217,
+          "all requested fields s": 38.5504661250161,
+          "meridian points": 12616,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    },
+    {
+      "name": "Two freeform faces",
+      "radius_over_wavelength": 100.0,
+      "count": 1280,
+      "spacing_over_wavelength": 0.3125,
+      "unknowns": 22636217,
+      "bem_computed": false,
+      "bem_unknowns_estimated": true,
+      "bem_matrix_gib": 7635329.962836042,
+      "accuracy": [],
+      "timing": [
+        {
+          "geometry": "Two freeform faces",
+          "method": "Pipeline",
+          "setup + solve s": 894.0199621249922,
+          "focal field s": 2.0856489579891786,
+          "full focal calculation s": 896.1056110829813,
+          "axial field s": 5.201058416976593,
+          "meridian field s": 123.9786423749756,
+          "interface fields s": 7.083288582973182,
+          "all requested fields s": 1032.3686004579067,
+          "meridian points": 12616,
+          "focal points": 6561
+        }
+      ],
+      "interfaces": []
+    }
+  ]
+}

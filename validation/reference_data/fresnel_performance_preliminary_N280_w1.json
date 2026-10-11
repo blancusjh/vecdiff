@@ -1,0 +1,184 @@
+{
+  "backend": "optimized",
+  "count": 280,
+  "workers": 1,
+  "reference_fft_workers": -1,
+  "transport_setup": "distinct active Bessel arguments",
+  "incident_traces_evaluated": false,
+  "audit": false,
+  "setup_seconds": 3.3195074170362204,
+  "source_seconds": 0.05861812498187646,
+  "peak_rss_bytes": 1593507840,
+  "cached_band_plan_bytes": 1024217600,
+  "rows": [
+    {
+      "repeat": 0,
+      "compute_seconds": 106.88263933302369,
+      "elapsed_seconds": 106.88263933302369,
+      "between_seconds": 0.4955911250435747,
+      "reconstruction_seconds": 1.4573294579749927,
+      "evaluation_seconds": 0.6675445830333047,
+      "front": {
+        "preparation_seconds": 0.607945124967955,
+        "application_seconds": 32.367989249993116,
+        "timing": {
+          "synthesis": 22.836247174069285,
+          "symbol": 7.539315206639003,
+          "accumulation": 1.000965257466305,
+          "plans": 0.11637525004334748
+        },
+        "ranks": [
+          52
+        ],
+        "original_Q_rank": 85,
+        "tiles": 3,
+        "modes": 20665,
+        "omitted_modal_L2": 1.6272503652297311e-06,
+        "angular_bounds": [
+          0.6384615384621855,
+          0.6384615384621855
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 32.36933537496952
+      },
+      "back": {
+        "preparation_seconds": 0.004517041961662471,
+        "application_seconds": 71.87705512496177,
+        "timing": {
+          "synthesis": 51.59712530608522,
+          "symbol": 16.256482126540504,
+          "accumulation": 2.1294346860959195,
+          "plans": 1.508433582028374
+        },
+        "ranks": [
+          71,
+          71,
+          71,
+          71,
+          38,
+          72,
+          72,
+          72,
+          72
+        ],
+        "original_Q_rank": 119,
+        "tiles": 3,
+        "modes": 47142,
+        "omitted_modal_L2": 3.0192541340431184e-07,
+        "angular_bounds": [
+          0.6461538461545009,
+          0.6461538461545009
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 71.88217308296589
+      },
+      "errors": {
+        "relative_E_p1": 6.194921471272797e-05,
+        "relative_H_p1": 6.1951026215662e-05,
+        "intensity_error": 7.232146348715867e-06,
+        "relative_E_saved": 5.618832673865628e-15,
+        "relative_H_saved": 5.628548207489859e-15,
+        "relative_to_reference_implementation": {
+          "front_E": 4.776914939889431e-15,
+          "front_H": 4.784524594648491e-15,
+          "back_E": 1.1514181489426015e-14,
+          "back_H": 1.1502183883743299e-14,
+          "plane_E": 5.642248678093692e-15,
+          "plane_H": 5.6367286519973e-15,
+          "axis_E": 1.435766337466214e-15
+        }
+      }
+    },
+    {
+      "repeat": 1,
+      "compute_seconds": 105.38484274997609,
+      "elapsed_seconds": 105.38484274997609,
+      "between_seconds": 1.8771540829911828,
+      "reconstruction_seconds": 0.49842116702347994,
+      "evaluation_seconds": 0.37379891698947176,
+      "front": {
+        "preparation_seconds": 0.042652083036955446,
+        "application_seconds": 39.62631291698199,
+        "timing": {
+          "synthesis": 28.603156241762917,
+          "symbol": 9.25437825213885,
+          "accumulation": 1.1878749244497158,
+          "plans": 0.19045712501974776
+        },
+        "ranks": [
+          52
+        ],
+        "original_Q_rank": 85,
+        "tiles": 3,
+        "modes": 20665,
+        "omitted_modal_L2": 1.6272503652297311e-06,
+        "angular_bounds": [
+          0.6384615384621855,
+          0.6384615384621855
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 39.62775550002698
+      },
+      "back": {
+        "preparation_seconds": 0.015398250019643456,
+        "application_seconds": 63.00061750004534,
+        "timing": {
+          "synthesis": 45.32872268965002,
+          "symbol": 13.841126349580009,
+          "accumulation": 1.7897511759074405,
+          "plans": 1.7445726239238866
+        },
+        "ranks": [
+          71,
+          71,
+          71,
+          71,
+          38,
+          72,
+          72,
+          72,
+          72
+        ],
+        "original_Q_rank": 119,
+        "tiles": 3,
+        "modes": 47142,
+        "omitted_modal_L2": 3.019254134057475e-07,
+        "angular_bounds": [
+          0.6461538461545009,
+          0.6461538461545009
+        ],
+        "nodes": 18,
+        "audit_seconds": 0.0,
+        "seconds": 63.00191158399684
+      },
+      "errors": {
+        "relative_E_p1": 6.194921471272899e-05,
+        "relative_H_p1": 6.195102621567334e-05,
+        "intensity_error": 7.232146348721442e-06,
+        "relative_E_saved": 5.606129262509699e-15,
+        "relative_H_saved": 5.6027309399666415e-15,
+        "relative_to_reference_implementation": {
+          "front_E": 4.775606698556462e-15,
+          "front_H": 4.784803126842632e-15,
+          "back_E": 1.150734508854926e-14,
+          "back_H": 1.1497771308824563e-14,
+          "plane_E": 5.6275824160977325e-15,
+          "plane_H": 5.612078391619401e-15,
+          "axis_E": 1.3997736109344862e-15
+        }
+      }
+    }
+  ],
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "cpu_count": 10,
+  "thread_environment": {
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1"
+  },
+  "exact_zero_channels_skipped": false,
+  "implementation_version": "preliminary-band-Q-unfused-Fresnel-v1"
+}
