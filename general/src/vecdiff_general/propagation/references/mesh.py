@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import ConvexHull
 
-from ...sampling import SurfaceGrid
+from vecdiff_general.sampling import SurfaceGrid
 
 
 def gauss_rule(order):

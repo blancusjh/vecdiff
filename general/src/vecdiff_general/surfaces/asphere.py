@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..geometry.frames import Frame
-from .surface import GraphSurface
+from vecdiff_general.geometry.frames import Frame
+from vecdiff_general.surfaces.surface import GraphSurface
 
 
 @dataclass(frozen=True)

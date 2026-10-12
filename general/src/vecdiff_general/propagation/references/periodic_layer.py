@@ -10,8 +10,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ...fields import ElectricField, ElectromagneticField
-from ...media.medium import Z0
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.media.medium import Z0
 
 
 def modal_basis(kx, index, wavelength, sign, polarization):
@@ -159,7 +159,7 @@ class PeriodicLayerReference:
         )
 
     def internal(self, grid):
-        from ...observables import coherent_sum
+        from vecdiff_general.observables import coherent_sum
 
         return coherent_sum(
             [

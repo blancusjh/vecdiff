@@ -1,14 +1,13 @@
-"""Independent transmission and reflection operators on a dielectric surface.
+"""Vector Fresnel coefficients and their fused application.
 
-Matrices act on Cartesian electric phasors at the same physical point. The
-normal points into the transmitted material. Transmission never computes
-reflection coefficients, and reflection never computes transmission coefficients.
-"""
+The fused symbol retains complex transmitted directions under TIR. Its
+absolute-incidence-cosine continuation at back-facing chart points belongs
+to the forward approximation; it does not solve closed-body shadowing."""
 
 import numpy as np
 
-from .._arrays import positive
-from .directions import reflected_direction, unit_direction
+from vecdiff_general._arrays import positive
+from vecdiff_general.propagation._directions import reflected_direction, unit_direction
 
 
 def cosines_from_directions(incident_direction, transmitted_direction, normal):
@@ -219,7 +218,7 @@ def apply_fresnel(electric, matrix):
 
 
 def _apply_to_field(field, matrix, incident_direction):
-    from ..fields.electromagnetic_field import ElectricField
+    from vecdiff_general.fields.electromagnetic_field import ElectricField
 
     if not isinstance(field, ElectricField):
         raise TypeError("an interface operator requires a complete ElectricField")
@@ -280,3 +279,43 @@ def reflect(
     )
 
     return _apply_to_field(field, matrix, incident_direction)
+
+
+def _fresnel_basis(d, n, n1, n2):
+    ci = np.sum(d * n, axis=-1)
+    s = np.cross(d, n)
+    size = np.linalg.norm(s, axis=-1, keepdims=True)
+    fallback = np.cross(n, np.where(abs(n[..., :1]) < 0.9, [1.0, 0, 0], [0, 1.0, 0]))
+    s = np.where(size > 1e-12, s / np.maximum(size, 1e-300), fallback)
+    s /= np.linalg.norm(s, axis=-1, keepdims=True)
+    ci_abs = abs(ci)
+    ct = np.sqrt(1 - (n1 / n2) ** 2 * (1 - ci_abs**2) + 0j)
+    dt = (n1 / n2) * (d - ci[..., None] * n) + (np.where(ci < 0, -1.0, 1.0) * ct)[
+        ..., None
+    ] * n
+    pi, pt = np.cross(s, d), np.cross(s, dt)
+    ts = 2 * n1 * ci_abs / (n1 * ci_abs + n2 * ct)
+    tp = 2 * n1 * ci_abs / (n2 * ci_abs + n1 * ct)
+    return s, pi, pt, dt, ts, tp
+
+
+def apply_transmission(directions, normals, n1, n2, wave, *, coefficients="fresnel"):
+    """Apply transmission with Fresnel or unit s/p electric amplitudes.
+
+    Unit amplitudes keep Snell refraction and the incident/transmitted
+    polarization bases. They isolate Fresnel weighting in comparisons.
+    """
+    if coefficients not in ("fresnel", "unity"):
+        raise ValueError("coefficients must be 'fresnel' or 'unity'")
+    d, n = np.broadcast_arrays(directions, normals)
+    ez = -(d[..., 0] * wave[..., 0] + d[..., 1] * wave[..., 1]) / d[..., 2]
+    if n1 == n2:
+        electric = np.concatenate((wave, ez[..., None]), axis=-1)
+        return np.concatenate((electric, n1 * np.cross(d, electric)), axis=-1)
+    s, pi, pt, dt, ts, tp = _fresnel_basis(d, n, n1, n2)
+    if coefficients == "unity":
+        ts, tp = np.ones_like(ts), np.ones_like(tp)
+    a_s = s[..., 0] * wave[..., 0] + s[..., 1] * wave[..., 1] + s[..., 2] * ez
+    a_p = pi[..., 0] * wave[..., 0] + pi[..., 1] * wave[..., 1] + pi[..., 2] * ez
+    electric = (ts * a_s)[..., None] * s + (tp * a_p)[..., None] * pt
+    return np.concatenate((electric, n2 * np.cross(dt, electric)), axis=-1)

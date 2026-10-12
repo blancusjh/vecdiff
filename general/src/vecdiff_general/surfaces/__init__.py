@@ -1,9 +1,9 @@
 """Public surfaces objects."""
 
-from .asphere import EvenAsphere
-from .axisymmetric import AxisymmetricSurface, SphericalCap
-from .cartesian_oval import CartesianOval, gots_parameters
-from .surface import FreeformSurface, GraphSurface, Plane
+from vecdiff_general.surfaces.asphere import EvenAsphere
+from vecdiff_general.surfaces.axisymmetric import AxisymmetricSurface, SphericalCap
+from vecdiff_general.surfaces.cartesian_oval import CartesianOval, gots_parameters
+from vecdiff_general.surfaces.surface import FreeformSurface, GraphSurface, Plane
 
 __all__ = [
     "GraphSurface",

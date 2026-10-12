@@ -1,40 +1,36 @@
-"""Public operations with explicit physical model and grid contracts."""
+"""Homogeneous propagation, surface transfer, and boundary interactions."""
 
-from .angular_spectrum import angular_spectrum
-from .high_frequency import HighFrequencySolution, propagate_high_frequency
-from .interface_assembly import (
-    propagate_coherent_planes,
-    propagate_interfaces,
+from vecdiff_general.propagation.coverage import CoverageReport
+from vecdiff_general.propagation.homogeneous import (
+    PlaneTransport,
+    propagate,
+    propagate_spectrum,
 )
-from .interface_transform import InterfaceSolution, scatter_plane
-from .layered_propagation import LayeredSolution, propagate_layers
-from .multiple_scattering import FeedbackResult, coherent_feedback
-from .operators import (
-    FresnelEncounter,
-    InverseReport,
-    PlanarASM,
-    SurfaceTransport,
-    fresnel_transmission,
+from vecdiff_general.propagation.pipeline import (
+    PropagationPipeline,
+    PropagationSolution,
 )
-from .propagation import propagate, propagate_spectrum
+from vecdiff_general.propagation.surface_interaction import (
+    DirectionResolvedFresnel,
+    InterfaceSolution,
+    LocalFresnel,
+    SpectralFresnel,
+    scatter_plane,
+)
+from vecdiff_general.propagation.surface_transfer import InverseReport, SurfaceTransport
 
 __all__ = [
-    "angular_spectrum",
+    "CoverageReport",
+    "PlaneTransport",
     "propagate",
     "propagate_spectrum",
+    "SurfaceTransport",
+    "InverseReport",
+    "DirectionResolvedFresnel",
+    "LocalFresnel",
+    "SpectralFresnel",
     "InterfaceSolution",
     "scatter_plane",
-    "LayeredSolution",
-    "propagate_layers",
-    "HighFrequencySolution",
-    "propagate_high_frequency",
-    "propagate_interfaces",
-    "propagate_coherent_planes",
-    "FeedbackResult",
-    "coherent_feedback",
-    "PlanarASM",
-    "SurfaceTransport",
-    "FresnelEncounter",
-    "InverseReport",
-    "fresnel_transmission",
+    "PropagationPipeline",
+    "PropagationSolution",
 ]

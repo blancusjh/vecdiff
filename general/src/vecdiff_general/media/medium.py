@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from .._arrays import positive
+from vecdiff_general._arrays import positive
 
 # SI constants. mu0 uses the conventional value to the precision needed here.
 C0 = 299792458.0

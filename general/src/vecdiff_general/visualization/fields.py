@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .polarization import (
+from vecdiff_general.visualization.polarization import (
     _colorbar,
     _draw_values,
     _plane_data,
@@ -46,7 +46,7 @@ def plot_intensity(
     electric, u, v, *_ = _plane_data(members[0], 0)
 
     if intensity is None:
-        from ..observables.polarization import ensemble_weights
+        from vecdiff_general.observables.polarization import ensemble_weights
 
         coefficients = ensemble_weights(members, weights)
         intensity = sum(c * member.norm2() for c, member in zip(coefficients, members))

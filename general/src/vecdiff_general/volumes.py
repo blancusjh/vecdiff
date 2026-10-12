@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ._arrays import frozen_array, positive
+from vecdiff_general._arrays import frozen_array, positive
 
 
 @dataclass(frozen=True)

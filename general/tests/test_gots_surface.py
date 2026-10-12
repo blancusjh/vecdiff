@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from vecdiff_general import CartesianOval, Frame, gots_parameters
-from vecdiff_general.interfaces.directions import transmitted_direction
+from vecdiff_general.propagation._directions import transmitted_direction
 
 
 @pytest.mark.parametrize("no, ni", [(1.0, 1.5), (1.5, 1.0)])

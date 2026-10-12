@@ -9,9 +9,9 @@ from uuid import uuid4
 
 import numpy as np
 
-from ...surfaces import Plane, SphericalCap
-from ...volumes import SphereVolume, VolumeBetweenSurfaces
-from .mesh import SurfaceMesh
+from vecdiff_general.propagation.references.mesh import SurfaceMesh
+from vecdiff_general.surfaces import Plane, SphericalCap
+from vecdiff_general.volumes import SphereVolume, VolumeBetweenSurfaces
 
 
 @contextmanager
@@ -134,7 +134,7 @@ def surface_mesh(volume, edge_size):
 
 def tetrahedral_mesh(volume, *, edge_size, physical_padding, pml_width):
     """Conforming inclusion/air/PML tetrahedra for vector FEM; all lengths in m."""
-    from .fem import TetrahedralMesh
+    from vecdiff_general.propagation.references.fem import TetrahedralMesh
 
     if any(
         not np.isfinite(x) or x <= 0 for x in (edge_size, physical_padding, pml_width)

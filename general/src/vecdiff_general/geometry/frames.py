@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .._arrays import frozen_array
+from vecdiff_general._arrays import frozen_array
 
 
 @dataclass(frozen=True, eq=False)

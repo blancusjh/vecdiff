@@ -1,6 +1,6 @@
 """Sampled electric and electromagnetic fields."""
 
-from .electromagnetic_field import (
+from vecdiff_general.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
     TransverseElectricField,

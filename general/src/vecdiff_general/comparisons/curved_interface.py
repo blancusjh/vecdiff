@@ -4,20 +4,20 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..fields import ElectricField, ElectromagneticField
-from ..fields.spectrum import PlaneSpectrum
-from ..interfaces.directions import (
+from vecdiff_general.comparisons.surface_radiation import SurfaceRadiation
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.fields.spectrum import PlaneSpectrum
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.propagation._directions import (
     direction_from_wavevector,
     reflected_direction,
     transmitted_direction,
 )
-from ..interfaces.fresnel import (
+from vecdiff_general.propagation._fresnel import (
     apply_fresnel,
     fresnel_reflection_matrix,
     fresnel_transmission_matrix,
 )
-from ..media.medium import Z0
-from .surface_radiation import SurfaceRadiation
 
 
 @dataclass(frozen=True)

@@ -2,9 +2,9 @@
 
 import numpy as np
 
-from ...media.medium import Z0
-from ...observables.diagnostics import interface_residuals
-from ...sampling import PointGrid
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.observables.diagnostics import interface_residuals
+from vecdiff_general.sampling import PointGrid
 
 
 def maxwell_residuals(

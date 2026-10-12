@@ -2,11 +2,15 @@
 
 import numpy as np
 
-from ..fields import ElectricField, ElectromagneticField, TransverseElectricField
-from ..fields.spectrum import PlaneSpectrum
-from ..fourier.cartesian import IFFT2
-from ..fourier.nufft import phase_factor
-from .angular_spectrum import angular_spectrum
+from vecdiff_general.fields import (
+    ElectricField,
+    ElectromagneticField,
+    TransverseElectricField,
+)
+from vecdiff_general.fields.angular_spectrum import angular_spectrum
+from vecdiff_general.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
+from vecdiff_general.fourier.cartesian import IFFT2
+from vecdiff_general.fourier.nufft import phase_factor
 
 
 def propagate_spectrum(
@@ -81,3 +85,36 @@ def propagate(
     )
 
     return propagate_spectrum(spectrum, distance, model=model)
+
+
+class PlaneTransport:
+    """R_xi: exact homogeneous dispersion, on a parallel FFT lattice."""
+
+    def __call__(self, spectrum, distance):
+        return propagate_spectrum(spectrum, distance, model="asm")
+
+    def spectrum(self, spectrum, distance):
+        """Keep the modal representation between consecutive R/Q operators."""
+        if not np.isfinite(distance):
+            raise ValueError("distance must be finite")
+        displacement = distance * spectrum.grid.frame.normal
+        grid = spectrum.grid.translated(displacement)
+        old = spectrum.expansion
+        from vecdiff_general.fourier.nufft import phase_factor
+
+        amplitudes = np.zeros_like(old.amplitudes)
+        occupied = np.any(old.amplitudes != 0, axis=-1)
+        amplitudes[occupied] = (
+            old.amplitudes[occupied]
+            * phase_factor(old.wavevectors[occupied], displacement[None, :])[0, :, None]
+        )
+        return PlaneSpectrum(
+            grid,
+            PlaneWaveExpansion(
+                old.wavevectors,
+                amplitudes,
+                grid.points[grid.shape[0] // 2, grid.shape[1] // 2],
+                old.wavelength0,
+                old.region,
+            ),
+        )

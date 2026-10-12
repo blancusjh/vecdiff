@@ -9,10 +9,14 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from scipy.spatial import cKDTree
 
-from .._arrays import positive, positive_integer
-from ..fields import ElectricField, ElectromagneticField, TransverseElectricField
-from ..observables.polarization import ellipse_parameters, stokes
-from ..sampling import CartesianGrid, PolarGrid
+from vecdiff_general._arrays import positive, positive_integer
+from vecdiff_general.fields import (
+    ElectricField,
+    ElectromagneticField,
+    TransverseElectricField,
+)
+from vecdiff_general.observables.polarization import ellipse_parameters, stokes
+from vecdiff_general.sampling import CartesianGrid, PolarGrid
 
 
 def _plane_data(field, threshold):
@@ -497,7 +501,7 @@ def _glyph_spacing(axis, grid, parameters, limits, density, threshold):
 
 def _glyph_states(electric, centers, ensemble):
     """Local projected phasors and Stokes values at the exact glyph centers."""
-    from ..observables.polarization import stokes_components
+    from vecdiff_general.observables.polarization import stokes_components
 
     basis = electric.grid.frame.basis[:, :2]
 
@@ -762,7 +766,10 @@ def plot_polarization(
         if phase is not None:
             raise ValueError("an incoherent ensemble has no single optical phase")
 
-        from ..observables.polarization import ensemble_stokes, ensemble_weights
+        from vecdiff_general.observables.polarization import (
+            ensemble_stokes,
+            ensemble_weights,
+        )
 
         members = tuple(_plane_data(member, 0)[0] for member in field)
         weights = ensemble_weights(members, weights)

@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from .._arrays import positive_integer
-from .polarization import (
+from vecdiff_general._arrays import positive_integer
+from vecdiff_general.visualization.polarization import (
     _phase_geometry,
     _phase_vectors,
     _plane_data,

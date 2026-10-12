@@ -1,8 +1,14 @@
 """Public media objects."""
 
-from .distribution import MaterialDistribution, MaterialRegion
-from .layers import LayerStack
-from .medium import C0, EPSILON0, MU0, Z0, Dielectric, HomogeneousRegion
+from vecdiff_general.media.distribution import MaterialDistribution, MaterialRegion
+from vecdiff_general.media.medium import (
+    C0,
+    EPSILON0,
+    MU0,
+    Z0,
+    Dielectric,
+    HomogeneousRegion,
+)
 
 __all__ = [
     "Dielectric",
@@ -11,7 +17,6 @@ __all__ = [
     "MU0",
     "Z0",
     "C0",
-    "LayerStack",
     "MaterialRegion",
     "MaterialDistribution",
 ]

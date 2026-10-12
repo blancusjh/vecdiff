@@ -6,27 +6,44 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._arrays import frozen_array, positive
-from ..sampling.grids import CartesianGrid, Grid, PolarGrid
+from vecdiff_general._arrays import frozen_array, positive
+from vecdiff_general.sampling.grids import CartesianGrid, Grid, PolarGrid
 
 
 @dataclass(frozen=True, eq=False)
 class ElectricField:
-    """Complete global Cartesian electric phasor in V/m; exp(-i omega t)."""
+    """Global Cartesian electric phasor in V/m; exp(-i omega t).
+
+    ``valid`` marks computed samples. Uncomputed values are NaN, never zeros.
+    Nonfinite values at valid samples are rejected.
+    """
 
     grid: Grid
     wavelength0: float
     values: np.ndarray
+    valid: np.ndarray | None = None
 
     def __post_init__(self):
         if not isinstance(self.grid, Grid):
             raise TypeError("field requires a physical Grid")
 
-        values = frozen_array(self.values, dtype=complex)
+        valid = (
+            np.ones(self.grid.shape, dtype=bool)
+            if self.valid is None
+            else np.asarray(self.valid, dtype=bool)
+        )
+        if valid.shape != self.grid.shape:
+            raise ValueError("field validity mask must have the grid shape")
+        values = np.array(self.values, dtype=complex, copy=True)
 
         if values.shape != self.grid.shape + (3,):
             raise ValueError("electric values must have grid.shape + (3,)")
 
+        if not np.isfinite(values[valid]).all():
+            raise ValueError("computed electric samples must be finite")
+        values[~valid] = np.nan + 1j * np.nan
+        values.setflags(write=False)
+        object.__setattr__(self, "valid", frozen_array(valid, dtype=bool))
         object.__setattr__(self, "values", values)
         object.__setattr__(
             self, "wavelength0", positive(self.wavelength0, "vacuum wavelength")
@@ -101,12 +118,12 @@ class ElectromagneticField:
 
     def poynting(self):
         """Time-averaged energy-flow density in W/m²."""
-        from ..observables.electromagnetism import poynting
+        from vecdiff_general.observables.electromagnetism import poynting
 
         return poynting(self)
 
     def power(self):
         """Signed time-averaged power in watts through the oriented grid."""
-        from ..observables.electromagnetism import power
+        from vecdiff_general.observables.electromagnetism import power
 
         return power(self)

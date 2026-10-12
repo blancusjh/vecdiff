@@ -150,7 +150,6 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
         incident_region = general.HomogeneousRegion("object", general.Dielectric(1))
         image_region = general.HomogeneousRegion("image", general.Dielectric(1.5))
         surface = general.CartesianOval(-0.010, 0.006, 1, 1.5)
-        interface = general.DielectricInterface(surface, incident_region, image_region)
         object_point = np.array([0, 0, -0.010])
 
         def optical_path(points):
@@ -176,13 +175,24 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
         )
         # This fixture records a prescribed-current comparison, not the primary
         # operational ASM model. Construct its local Fresnel trace explicitly.
-        from vecdiff_general import fresnel_transmission
         from vecdiff_general.comparisons import SurfaceRadiation
+        from vecdiff_general.propagation._directions import transmitted_direction
+        from vecdiff_general.propagation._fresnel import transmit
 
-        encounter = fresnel_transmission(
-            source.evaluate(quadrature), interface, source.directions(quadrature.points)
+        incident_direction = source.directions(quadrature.points)
+        outgoing = transmitted_direction(incident_direction, quadrature.normals, 1, 1.5)
+        electric = transmit(
+            source.evaluate(quadrature).electric,
+            incident_direction,
+            outgoing,
+            quadrature.normals,
+            1,
+            1.5,
         )
-        comparison = SurfaceRadiation.from_field(encounter.transmitted, image_region)
+        trace = general.ElectromagneticField(
+            electric, 1.5 / general.Z0 * np.cross(outgoing, electric.values)
+        )
+        comparison = SurfaceRadiation.from_field(trace, image_region)
         actual = comparison.evaluate(
             general.PointGrid(data["points_m"])
         ).electric.values

@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from ..fields import ElectricField, ElectromagneticField
-from ..media.medium import MU0
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.media.medium import MU0
 
 
 def poynting(field: ElectromagneticField):

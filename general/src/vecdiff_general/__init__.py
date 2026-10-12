@@ -1,35 +1,45 @@
-"""General vector optics: SI phasors with explicit geometry and material context."""
+"""Vector optics: fields, physical systems, transport, interaction and pipelines."""
 
-from .fields import ElectricField, ElectromagneticField, TransverseElectricField
-from .fields.eikonal import EikonalField
-from .fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
-from .geometry import Frame
-from .interfaces import PlanarInterface
-from .interfaces.dielectric_interface import DielectricInterface
-from .interfaces.optical_system import OpticalSystem
-from .media import EPSILON0, MU0, Z0, Dielectric, HomogeneousRegion
-from .media.distribution import MaterialDistribution, MaterialRegion
-from .media.layers import LayerStack
-from .observables.diagnostics import boundary_residuals
-from .propagation import InterfaceSolution, scatter_plane
-from .propagation.angular_spectrum import angular_spectrum
-from .propagation.high_frequency import HighFrequencySolution, propagate_high_frequency
-from .propagation.interface_assembly import (
-    propagate_coherent_planes,
-    propagate_interfaces,
+from vecdiff_general.catalog import thorlabs_al1225
+from vecdiff_general.fields import (
+    ElectricField,
+    ElectromagneticField,
+    TransverseElectricField,
 )
-from .propagation.layered_propagation import LayeredSolution, propagate_layers
-from .propagation.operators import (
-    FresnelEncounter,
+from vecdiff_general.fields.angular_spectrum import angular_spectrum
+from vecdiff_general.fields.eikonal import EikonalField
+from vecdiff_general.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
+from vecdiff_general.geometry import Frame
+from vecdiff_general.media import EPSILON0, MU0, Z0, Dielectric, HomogeneousRegion
+from vecdiff_general.media.distribution import MaterialDistribution, MaterialRegion
+from vecdiff_general.observables.diagnostics import boundary_residuals
+from vecdiff_general.propagation import (
+    CoverageReport,
     InverseReport,
-    PlanarASM,
+    PlaneTransport,
     SurfaceTransport,
-    fresnel_transmission,
+    propagate,
 )
-from .propagation.propagation import propagate
-from .sampling import CartesianGrid, PlaneGrid, PointGrid, PolarGrid, SurfaceGrid
-from .sampling.surface_sampling import sample_surface
-from .surfaces import (
+from vecdiff_general.propagation.pipeline import (
+    PropagationPipeline,
+    PropagationSolution,
+)
+from vecdiff_general.propagation.surface_interaction import (
+    DirectionResolvedFresnel,
+    InterfaceSolution,
+    LocalFresnel,
+    SpectralFresnel,
+    scatter_plane,
+)
+from vecdiff_general.sampling import (
+    CartesianGrid,
+    PlaneGrid,
+    PointGrid,
+    PolarGrid,
+    SurfaceGrid,
+)
+from vecdiff_general.sampling.surface_sampling import sample_surface
+from vecdiff_general.surfaces import (
     AxisymmetricSurface,
     CartesianOval,
     EvenAsphere,
@@ -39,57 +49,56 @@ from .surfaces import (
     SphericalCap,
     gots_parameters,
 )
-from .volumes import SphereVolume, VolumeBetweenSurfaces
+from vecdiff_general.system import DielectricInterface, OpticalSystem, PlanarInterface
+from vecdiff_general.volumes import SphereVolume, VolumeBetweenSurfaces
 
 __all__ = [
-    "CartesianGrid",
-    "PolarGrid",
+    "CoverageReport",
+    "thorlabs_al1225",
+    "ElectricField",
+    "ElectromagneticField",
+    "TransverseElectricField",
     "EikonalField",
-    "VolumeBetweenSurfaces",
-    "SphereVolume",
-    "DielectricInterface",
-    "OpticalSystem",
-    "LayerStack",
-    "MaterialRegion",
-    "MaterialDistribution",
-    "propagate",
-    "propagate_high_frequency",
-    "HighFrequencySolution",
-    "propagate_layers",
-    "LayeredSolution",
-    "propagate_interfaces",
-    "propagate_coherent_planes",
-    "sample_surface",
-    "GraphSurface",
-    "Plane",
-    "FreeformSurface",
-    "AxisymmetricSurface",
-    "SphericalCap",
-    "EvenAsphere",
-    "CartesianOval",
-    "gots_parameters",
+    "PlaneSpectrum",
+    "PlaneWaveExpansion",
+    "angular_spectrum",
     "Frame",
-    "PlaneGrid",
-    "PointGrid",
-    "SurfaceGrid",
-    "Dielectric",
-    "HomogeneousRegion",
-    "Z0",
     "EPSILON0",
     "MU0",
-    "ElectricField",
-    "TransverseElectricField",
-    "ElectromagneticField",
-    "PlaneWaveExpansion",
-    "PlaneSpectrum",
-    "angular_spectrum",
-    "PlanarInterface",
-    "InterfaceSolution",
-    "scatter_plane",
+    "Z0",
+    "Dielectric",
+    "HomogeneousRegion",
+    "MaterialDistribution",
+    "MaterialRegion",
     "boundary_residuals",
-    "PlanarASM",
+    "CartesianGrid",
+    "PlaneGrid",
+    "PointGrid",
+    "PolarGrid",
+    "SurfaceGrid",
+    "sample_surface",
+    "AxisymmetricSurface",
+    "CartesianOval",
+    "EvenAsphere",
+    "FreeformSurface",
+    "GraphSurface",
+    "Plane",
+    "SphericalCap",
+    "gots_parameters",
+    "DielectricInterface",
+    "OpticalSystem",
+    "PlanarInterface",
+    "PlaneTransport",
     "SurfaceTransport",
-    "FresnelEncounter",
     "InverseReport",
-    "fresnel_transmission",
+    "propagate",
+    "DirectionResolvedFresnel",
+    "LocalFresnel",
+    "SpectralFresnel",
+    "scatter_plane",
+    "InterfaceSolution",
+    "PropagationPipeline",
+    "PropagationSolution",
+    "SphereVolume",
+    "VolumeBetweenSurfaces",
 ]

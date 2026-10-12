@@ -1,8 +1,8 @@
 """Optional Matplotlib views in physical coordinates."""
 
-from .animation import animate_polarization
-from .fields import plot_intensity
-from .polarization import (
+from vecdiff_general.visualization.animation import animate_polarization
+from vecdiff_general.visualization.fields import plot_intensity
+from vecdiff_general.visualization.polarization import (
     plot_ellipses,
     plot_focal_polarization,
     plot_polarization,

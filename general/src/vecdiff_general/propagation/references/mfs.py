@@ -17,11 +17,11 @@ from time import perf_counter
 import numpy as np
 from scipy.linalg import lstsq
 
-from ...fields import ElectricField, ElectromagneticField
-from ...fields.spectrum import PlaneWaveExpansion
-from ...media.medium import Z0
-from ...volumes import SphereVolume
-from .boundary import boundary_meridian
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.fields.spectrum import PlaneWaveExpansion
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.propagation.references.boundary import boundary_meridian
+from vecdiff_general.volumes import SphereVolume
 
 
 def _ring_fields(points, rings, index, azimuths, *, chunk_size=8):
@@ -366,7 +366,7 @@ class AxisymmetricMFS:
 
             E[ids], H[ids] = rotate(e), rotate(h) / Z0
         if np.any(~mask):
-            from ...sampling import PointGrid
+            from vecdiff_general.sampling import PointGrid
 
             incident = self.source.evaluate(PointGrid(points[~mask]))
             E[~mask] += incident.electric.values

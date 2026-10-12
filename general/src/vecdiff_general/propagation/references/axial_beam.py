@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from ...media.medium import Z0
-from .debye import SphereDebyeSeries, _riccati, sphere_debye_coefficients
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.propagation.references.debye import (
+    SphereDebyeSeries,
+    _riccati,
+    sphere_debye_coefficients,
+)
 
 
 def _pi_tau(orders, cosine):

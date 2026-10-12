@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .medium import Dielectric
+from vecdiff_general.media.medium import Dielectric
 
 
 @dataclass(frozen=True)

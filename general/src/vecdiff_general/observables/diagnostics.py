@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ..media.medium import Z0
+from vecdiff_general.media.medium import Z0
 
 
 def boundary_residuals(solution, grid):

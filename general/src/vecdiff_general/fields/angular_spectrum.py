@@ -6,11 +6,14 @@ Fourier functions only transform arrays and construct frequency coordinates.
 
 import numpy as np
 
-from ..fields.electromagnetic_field import ElectricField, TransverseElectricField
-from ..fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
-from ..fourier.cartesian import FFT2, frequency_grid
-from ..media.medium import HomogeneousRegion
-from ..sampling.grids import PlaneGrid
+from vecdiff_general.fields.electromagnetic_field import (
+    ElectricField,
+    TransverseElectricField,
+)
+from vecdiff_general.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
+from vecdiff_general.fourier.cartesian import FFT2, frequency_grid
+from vecdiff_general.media.medium import HomogeneousRegion
+from vecdiff_general.sampling.grids import PlaneGrid
 
 
 def angular_spectrum(
@@ -35,6 +38,9 @@ def angular_spectrum(
 
     if not isinstance(field, (ElectricField, TransverseElectricField)):
         raise TypeError("expected complete or transverse electric field")
+
+    if isinstance(field, ElectricField) and not np.all(field.valid):
+        raise ValueError("an incident field cannot contain uncomputed samples")
 
     if not isinstance(field.grid, PlaneGrid):
         raise TypeError("FFT angular spectrum requires a PlaneGrid")

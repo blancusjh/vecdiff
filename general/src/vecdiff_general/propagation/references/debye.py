@@ -36,7 +36,7 @@ from scipy.special import (
     spherical_yn,
 )
 
-from ...media.medium import Z0
+from vecdiff_general.media.medium import Z0
 
 
 def _outgoing(interior):

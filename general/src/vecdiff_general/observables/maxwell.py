@@ -9,9 +9,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._arrays import frozen_array, positive
-from ..fields import ElectricField, ElectromagneticField
-from ..media.medium import Z0
+from vecdiff_general._arrays import frozen_array, positive
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.media.medium import Z0
 
 
 def _norm(values, weights):

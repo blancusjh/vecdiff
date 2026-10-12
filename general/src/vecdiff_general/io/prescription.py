@@ -3,13 +3,12 @@
 import json
 from pathlib import Path
 
-from ..geometry.frames import Frame
-from ..interfaces.dielectric_interface import DielectricInterface
-from ..interfaces.optical_system import OpticalSystem
-from ..media.medium import Dielectric, HomogeneousRegion
-from ..surfaces.asphere import EvenAsphere
-from ..surfaces.axisymmetric import SphericalCap
-from ..surfaces.surface import Plane
+from vecdiff_general.geometry.frames import Frame
+from vecdiff_general.media.medium import Dielectric, HomogeneousRegion
+from vecdiff_general.surfaces.asphere import EvenAsphere
+from vecdiff_general.surfaces.axisymmetric import SphericalCap
+from vecdiff_general.surfaces.surface import Plane
+from vecdiff_general.system import DielectricInterface, OpticalSystem
 
 
 def save_system(system: OpticalSystem, path):

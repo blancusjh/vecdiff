@@ -5,8 +5,8 @@ from typing import ClassVar, Protocol, runtime_checkable
 
 import numpy as np
 
-from .._arrays import frozen_array
-from ..geometry.frames import Frame
+from vecdiff_general._arrays import frozen_array
+from vecdiff_general.geometry.frames import Frame
 
 
 @runtime_checkable

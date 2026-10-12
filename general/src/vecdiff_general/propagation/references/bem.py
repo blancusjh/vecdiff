@@ -8,11 +8,15 @@ from time import perf_counter
 import numpy as np
 from scipy.linalg import solve
 
-from ...fields import ElectricField, ElectromagneticField
-from ...fields.spectrum import PlaneWaveExpansion
-from ...media.medium import Z0
-from ...sampling import PointGrid
-from .mesh import SurfaceMesh, buffa_christiansen, gauss_rule
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.fields.spectrum import PlaneWaveExpansion
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.propagation.references.mesh import (
+    SurfaceMesh,
+    buffa_christiansen,
+    gauss_rule,
+)
+from vecdiff_general.sampling import PointGrid
 
 FORMULATIONS = ("pmchwt", "muller")
 
@@ -99,7 +103,7 @@ class DielectricBEM:
         formulation="pmchwt",
         keep_system=False,
     ):
-        from . import _reference_core
+        from vecdiff_general.propagation.references import _reference_core
 
         if not isinstance(source, PlaneWaveExpansion):
             raise TypeError("BEM illumination must be an analytic PlaneWaveExpansion")
@@ -180,7 +184,7 @@ class DielectricBEM:
         It cannot request a continuation through a different medium. Off-surface
         close evaluation also requires increasing ``field_quadrature``.
         """
-        from . import _reference_core
+        from vecdiff_general.propagation.references import _reference_core
 
         if side not in (None, "interior", "exterior"):
             raise ValueError("side must be interior, exterior, or None")

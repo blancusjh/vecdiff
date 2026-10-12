@@ -3,8 +3,8 @@
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
-from .._arrays import positive, positive_integer
-from .grids import SurfaceGrid
+from vecdiff_general._arrays import positive, positive_integer
+from vecdiff_general.sampling.grids import SurfaceGrid
 
 
 def sample_surface(surface, aperture: float, *, radial_order=48, azimuthal_order=96):

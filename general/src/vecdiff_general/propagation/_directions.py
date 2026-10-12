@@ -6,7 +6,7 @@ A transmitted direction may be complex under total internal reflection.
 
 import numpy as np
 
-from .._arrays import positive
+from vecdiff_general._arrays import positive
 
 
 def unit_direction(vector):

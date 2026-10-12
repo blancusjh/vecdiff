@@ -6,11 +6,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._arrays import frozen_array, positive
-from ..fourier.cartesian import frequency_grid
-from ..media.medium import Z0, HomogeneousRegion
-from ..sampling.grids import PlaneGrid
-from .electromagnetic_field import ElectricField, ElectromagneticField
+from vecdiff_general._arrays import frozen_array, positive
+from vecdiff_general.fields.electromagnetic_field import (
+    ElectricField,
+    ElectromagneticField,
+)
+from vecdiff_general.fourier.cartesian import frequency_grid
+from vecdiff_general.media.medium import Z0, HomogeneousRegion
+from vecdiff_general.sampling.grids import PlaneGrid
 
 
 @dataclass(frozen=True, eq=False)
@@ -75,7 +78,7 @@ class PlaneWaveExpansion:
 
     def evaluate(self, grid, *, chunk_size=256, backend="direct", tolerance=1e-12):
         """Evaluate SI E/H through the selected nonuniform Fourier backend."""
-        from ..fourier.nufft import NUFFT
+        from vecdiff_general.fourier.nufft import NUFFT
 
         coefficients = np.concatenate(
             (self.amplitudes, self.magnetic_amplitudes), axis=-1
@@ -94,7 +97,17 @@ class PlaneWaveExpansion:
         return ElectromagneticField(electric, values[..., 3:])
 
     def electric(self, grid, **kwargs):
-        return self.evaluate(grid, **kwargs).electric
+        """Evaluate E without constructing or evaluating magnetic amplitudes."""
+        from vecdiff_general.fourier.nufft import NUFFT
+
+        values = NUFFT(
+            self.amplitudes,
+            self.wavevectors,
+            grid.points - self.origin,
+            sign=1,
+            **kwargs,
+        )
+        return ElectricField(grid, self.wavelength0, values)
 
 
 @dataclass(frozen=True, eq=False)
@@ -152,7 +165,7 @@ class PlaneSpectrum:
 
     def propagate(self, distance, *, model="asm"):
         """Propagate through the homogeneous region using an explicit model."""
-        from ..propagation.propagation import propagate_spectrum
+        from vecdiff_general.propagation.homogeneous import propagate_spectrum
 
         return propagate_spectrum(self, distance, model=model)
 

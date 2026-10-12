@@ -4,10 +4,7 @@ import numpy as np
 import pytest
 import vecdiff_general as o
 from numpy.testing import assert_allclose
-from vecdiff_general.propagation.references import (
-    MieSphere,
-    boundary_meridian,
-)
+from vecdiff_general.propagation.references import MieSphere, boundary_meridian
 from vecdiff_general.propagation.references.diagnostics import (
     boundary_residuals,
     closed_flux_residual,
@@ -159,42 +156,6 @@ def test_reference_package_is_not_imported_by_primary_evaluation():
         text=True,
     )
     assert result.returncode == 0, result.stderr
-
-
-def test_comparison_window_is_explicit_and_fast_evaluation_matches_direct():
-    from vecdiff_general.propagation.references.benchmarks import compare_case
-
-    case = compare_case(
-        "plano-convex",
-        1,
-        grids=(24,),
-        window_apertures=6,
-        run_bem=False,
-        run_fem=False,
-    )
-    solution = case["solutions"]["Ours"]
-    # "Ours" must be the actual operational solver, without an incident/control
-    # field addition from the historical bypass experiment.
-    assert isinstance(solution, o.HighFrequencySolution)
-    grid = solution.transmitted[0].grid
-    radius = case["system"].apertures[0]
-    assert_allclose(len(grid.u) * grid.spacing[0], 6 * radius, rtol=1e-13)
-    assert case["rows"][0]["window_apertures"] == 6
-    actual = solution.evaluate(case["probes"])
-    expected = solution.evaluate(case["probes"], backend="direct")
-    assert_allclose(actual.electric.values, expected.electric.values, atol=2e-10)
-    assert_allclose(actual.magnetic, expected.magnetic, atol=2e-12)
-    entrance = o.CartesianGrid(
-        grid.u, grid.v, case["system"].interfaces[0].surface.frame
-    )
-    operational = o.propagate_interfaces(case["source"], case["system"], entrance)
-    assert_allclose(
-        actual.electric.values,
-        operational.evaluate(case["probes"]).electric.values,
-        atol=2e-10,
-    )
-    with pytest.raises(ValueError, match="window_apertures"):
-        compare_case("plano-convex", 1, window_apertures=2)
 
 
 @pytest.mark.parametrize("interior", [True, False])

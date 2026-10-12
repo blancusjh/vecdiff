@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .electromagnetism import coherent_sum, poynting
+from vecdiff_general.observables.electromagnetism import coherent_sum, poynting
 
 
 def detector_image(responses, amplitudes=None, *, coherent=False):

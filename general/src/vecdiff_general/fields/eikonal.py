@@ -5,9 +5,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._arrays import positive
-from ..media.medium import Z0, HomogeneousRegion
-from .electromagnetic_field import ElectricField, ElectromagneticField
+from vecdiff_general._arrays import positive
+from vecdiff_general.fields.electromagnetic_field import (
+    ElectricField,
+    ElectromagneticField,
+)
+from vecdiff_general.media.medium import Z0, HomogeneousRegion
 
 
 @dataclass(frozen=True)

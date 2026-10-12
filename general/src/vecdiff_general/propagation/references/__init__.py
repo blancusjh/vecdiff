@@ -1,11 +1,14 @@
 """Independent full-wave comparisons, never selected by operational propagation."""
 
-from .bem import DielectricBEM
-from .boundary import boundary_meridian
-from .fem import DielectricFEM, TetrahedralMesh
-from .mesh import SurfaceMesh
-from .meshing import surface_mesh, tetrahedral_mesh
-from .mie import MieSphere
+from vecdiff_general.propagation.references.bem import DielectricBEM
+from vecdiff_general.propagation.references.boundary import boundary_meridian
+from vecdiff_general.propagation.references.fem import DielectricFEM, TetrahedralMesh
+from vecdiff_general.propagation.references.mesh import SurfaceMesh
+from vecdiff_general.propagation.references.meshing import (
+    surface_mesh,
+    tetrahedral_mesh,
+)
+from vecdiff_general.propagation.references.mie import MieSphere
 
 __all__ = [
     "DielectricBEM",

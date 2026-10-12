@@ -11,10 +11,10 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
-from ...fields import ElectricField, ElectromagneticField
-from ...fields.spectrum import PlaneWaveExpansion
-from ...media.medium import Z0
-from ...sampling import PointGrid, SurfaceGrid
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.fields.spectrum import PlaneWaveExpansion
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.sampling import PointGrid, SurfaceGrid
 
 _EDGES = np.array(((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)))
 _FACES = np.array(((1, 2, 3), (0, 3, 2), (0, 1, 3), (0, 2, 1)))
@@ -245,7 +245,7 @@ class DielectricFEM:
         max_unknowns=40000,
         cache=None,
     ):
-        from . import _reference_core
+        from vecdiff_general.propagation.references import _reference_core
 
         if not isinstance(source, PlaneWaveExpansion) or not isinstance(
             mesh, TetrahedralMesh
@@ -341,7 +341,7 @@ class DielectricFEM:
             )
 
     def evaluate(self, grid, *, side=None):
-        from . import _reference_core
+        from vecdiff_general.propagation.references import _reference_core
 
         if side not in (None, "interior", "exterior"):
             raise ValueError("side must be interior, exterior, or None")

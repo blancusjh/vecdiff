@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..geometry.frames import Frame
+from vecdiff_general.geometry.frames import Frame
 
 
 class GraphSurface(ABC):
@@ -44,6 +44,19 @@ class GraphSurface(ABC):
     def area_jacobian(self, xy):
         return np.sqrt(1 + np.sum(self.gradient(xy) ** 2, axis=-1))
 
+    def sample(self, *, u, v):
+        """Sample a uniform chart using the existing physical grid types."""
+        from vecdiff_general.sampling.grids import CartesianGrid, SurfaceGrid
+
+        plane = CartesianGrid(u, v, self.frame)
+        if isinstance(self, Plane):
+            return plane
+        x, y = np.meshgrid(plane.u, plane.v)
+        xy = np.stack((x, y), axis=-1)
+        return SurfaceGrid(
+            self.points(xy), self.normals(xy), plane.weights * self.area_jacobian(xy)
+        )
+
 
 @dataclass(frozen=True)
 class Plane(GraphSurface):
@@ -54,6 +67,21 @@ class Plane(GraphSurface):
 
     def gradient(self, xy):
         return np.zeros_like(np.asarray(xy, dtype=float))
+
+    @classmethod
+    def z(cls, value):
+        """Global coordinate plane z=value, chart (u,v)=(x,y)."""
+        return cls(Frame([0, 0, value]))
+
+    @classmethod
+    def y(cls, value):
+        """Global coordinate plane y=value, chart (u,v)=(x,z)."""
+        return cls(Frame([0, value, 0], [[1, 0, 0], [0, 0, -1], [0, 1, 0]]))
+
+    @classmethod
+    def x(cls, value):
+        """Global coordinate plane x=value, chart (u,v)=(y,z)."""
+        return cls(Frame([value, 0, 0], [[0, 0, 1], [1, 0, 0], [0, 1, 0]]))
 
 
 @dataclass(frozen=True)

@@ -8,10 +8,10 @@ no local Fresnel approximation enters this reference.
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
 
-from ...fields import ElectricField, ElectromagneticField
-from ...fields.spectrum import PlaneWaveExpansion
-from ...media.medium import Z0
-from ...volumes import SphereVolume
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.fields.spectrum import PlaneWaveExpansion
+from vecdiff_general.media.medium import Z0
+from vecdiff_general.volumes import SphereVolume
 
 
 def _radial(order, argument, outgoing=False):
@@ -169,7 +169,7 @@ class MieSphere:
                     H[ids] += amplitude * magnetic @ basis.T / Z0
         outside = ~mask
         if np.any(outside):
-            from ...sampling import PointGrid
+            from vecdiff_general.sampling import PointGrid
 
             incident = self.source.evaluate(PointGrid(points[outside]))
             E[outside] += incident.electric.values

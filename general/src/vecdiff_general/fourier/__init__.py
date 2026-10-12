@@ -5,10 +5,10 @@ with inverse measure d^d q/(2*pi)^d. FFT2/IFFT2 provide the centered discrete
 transform pair with NumPy normalization, without coordinate measures.
 """
 
-from . import cartesian, nufft, polar
-from .cartesian import FFT2, IFFT2, frequency_grid
-from .nufft import NUFFT
-from .polar import (
+from vecdiff_general.fourier import cartesian, nufft, polar
+from vecdiff_general.fourier.cartesian import FFT2, IFFT2, frequency_grid
+from vecdiff_general.fourier.nufft import NUFFT
+from vecdiff_general.fourier.polar import (
     FT2,
     HT,
     IFT2,

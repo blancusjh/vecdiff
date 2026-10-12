@@ -9,12 +9,16 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
-from .._arrays import frozen_array, positive, positive_integer
-from ..fields import ElectricField, ElectromagneticField
-from ..fields.spectrum import HalfSpaceSpectrum, LocalSpectrum, PlaneWaveExpansion
-from ..fourier.nufft import NUFFT
-from ..media.medium import Z0, HomogeneousRegion
-from ..sampling.grids import SurfaceGrid
+from vecdiff_general._arrays import frozen_array, positive, positive_integer
+from vecdiff_general.fields import ElectricField, ElectromagneticField
+from vecdiff_general.fields.spectrum import (
+    HalfSpaceSpectrum,
+    LocalSpectrum,
+    PlaneWaveExpansion,
+)
+from vecdiff_general.fourier.nufft import NUFFT
+from vecdiff_general.media.medium import Z0, HomogeneousRegion
+from vecdiff_general.sampling.grids import SurfaceGrid
 
 
 @dataclass(frozen=True)

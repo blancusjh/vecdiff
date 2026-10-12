@@ -5,8 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
-from ...sampling import SurfaceGrid
-from ...volumes import SphereVolume, VolumeBetweenSurfaces
+from vecdiff_general.sampling import SurfaceGrid
+from vecdiff_general.volumes import SphereVolume, VolumeBetweenSurfaces
 
 
 @dataclass(frozen=True)

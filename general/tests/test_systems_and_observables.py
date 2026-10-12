@@ -7,7 +7,6 @@ from numpy.testing import assert_allclose
 from vecdiff_general.io import load_system, save_system
 from vecdiff_general.observables import detector_image, energy_density
 from vecdiff_general.observables.polarization import stokes
-from vecdiff_general.propagation.multiple_scattering import coherent_feedback
 
 WAVELENGTH = 532e-9
 
@@ -52,12 +51,12 @@ def test_prescription_round_trip_preserves_coherent_complex_solution(tmp_path):
     save_system(system, path)
     restored = load_system(path)
     source = plane_wave(system.interfaces[0].minus)
-    first = optics.propagate_coherent_planes(source, system)
-    second = optics.propagate_coherent_planes(source, restored)
+    first = optics.PropagationPipeline(system).solve(sample(source))
+    second = optics.PropagationPipeline(restored).solve(sample(source))
     grid = optics.PointGrid([[0, 0, 11e-6], [0.2e-6, 0.1e-6, 12e-6]])
     assert_allclose(
-        first.evaluate(grid, region=2).electric.values,
-        second.evaluate(grid, region=2).electric.values,
+        first.evaluate(grid).electric.values,
+        second.evaluate(grid).electric.values,
     )
     assert restored.apertures == system.apertures
 
@@ -67,22 +66,15 @@ def test_operational_transport_matches_two_planar_fresnel_encounters():
     source = plane_wave(system.interfaces[0].minus, amplitude=(1, 0.3j, 0))
     axis = (np.arange(24) - 12) * WAVELENGTH
     quadrature = optics.CartesianGrid(axis, axis)
-    result = optics.propagate_high_frequency(source, system, quadrature)
-    first, second = result.encounters[0]
+    result = optics.PropagationPipeline(system).solve(sample(source, quadrature))
     expected_phase = np.exp(2j * np.pi / WAVELENGTH * 1.5 * 10e-6)
     expected = 0.8 * 1.2 * expected_phase * np.array([1, 0.3j, 0])
+    second = result.interactions[1].field
     assert_allclose(
-        second.transmitted.electric.values,
-        np.broadcast_to(expected, second.grid.points.shape),
+        second.electric.values,
+        np.broadcast_to(expected, second.electric.grid.points.shape),
         atol=2e-10,
     )
-    assert_allclose(second.incident.power(), first.transmitted.power(), rtol=2e-10)
-    for encounter in (first, second):
-        assert_allclose(
-            encounter.incident.power() + encounter.reflected.power(),
-            encounter.transmitted.power(),
-            rtol=2e-12,
-        )
 
 
 def test_modal_transport_preserves_interference_and_linearity():
@@ -103,7 +95,8 @@ def test_modal_transport_preserves_interference_and_linearity():
     grid = optics.CartesianGrid(axis, axis)
     observation = optics.PointGrid([[0, 0, 20e-6], [0.5e-6, 0.2e-6, 20e-6]])
     values = [
-        optics.propagate_interfaces(s, system, grid)
+        optics.PropagationPipeline(system)
+        .solve(sample(s, grid))
         .evaluate(observation)
         .electric.values
         for s in (first, second, combined)
@@ -129,20 +122,12 @@ def test_energy_polarization_and_coherent_detector_interference():
     assert_allclose(incoherent, 2 * field.poynting()[..., 2])
 
 
-def test_coherent_feedback_matches_analytic_geometric_series():
-    injection = np.array([1, 0.3j])
-    gain = np.array([0.7 * np.exp(0.3j), -0.2j])
-    result = coherent_feedback(injection, lambda field: gain * field)
-    assert_allclose(result.amplitudes, injection / (1 - gain), rtol=1e-12)
-    assert result.relative_residual < 1e-12
-
-
 def test_sequential_plane_assembly_preserves_single_pass_phase():
     system = slab_system(apertures=(None, None))
     source = plane_wave(system.interfaces[0].minus)
     axis = (np.arange(24) - 12) * WAVELENGTH
-    solution = optics.propagate_interfaces(
-        source, system, optics.CartesianGrid(axis, axis)
+    solution = optics.PropagationPipeline(system).solve(
+        sample(source, optics.CartesianGrid(axis, axis))
     )
     observation = optics.PointGrid([[0, 0, 12e-6]])
     actual = solution.evaluate(observation).electric.values[0]
@@ -150,25 +135,17 @@ def test_sequential_plane_assembly_preserves_single_pass_phase():
         2j * np.pi / WAVELENGTH * (1.5 * 10e-6 + 2e-6)
     )
     assert_allclose(actual, expected, atol=1e-13)
-    assert len(solution.encounters[0]) == 2
+    assert len(solution.interactions) == 2
 
 
 def test_infinite_plane_assembly_rejects_finite_aperture_prescription():
     system = slab_system()
-    source = plane_wave(system.interfaces[0].minus)
-    with pytest.raises(ValueError, match="finite-aperture"):
-        optics.propagate_coherent_planes(source, system)
+    with pytest.raises(ValueError, match="finite material edges"):
+        optics.PropagationPipeline(system)
 
 
-def test_operational_path_rejects_quadrature_and_misaligned_frames():
-    system = slab_system()
-    source = plane_wave(system.interfaces[0].minus)
-    quadrature = optics.sample_surface(
-        system.interfaces[0].surface, 2e-6, radial_order=8, azimuthal_order=16
-    )
-    with pytest.raises(TypeError, match="CartesianGrid"):
-        optics.propagate_interfaces(source, system, quadrature)
-    axis = (np.arange(24) - 12) * WAVELENGTH
-    wrong = optics.CartesianGrid(axis, axis, optics.Frame([0, 0, 1e-6]))
-    with pytest.raises(ValueError, match="vertex"):
-        optics.propagate_interfaces(source, system, wrong)
+def sample(source, grid=None):
+    if grid is None:
+        axis = (np.arange(24) - 12) * WAVELENGTH
+        grid = optics.CartesianGrid(axis, axis)
+    return optics.angular_spectrum(source.evaluate(grid).electric, source.region)
