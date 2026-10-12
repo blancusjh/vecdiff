@@ -2,16 +2,16 @@
 
 Two independent vector optical propagation libraries, organized around **space, matter, and fields**:
 
-- **`vecdiff_general`** — homogeneous ASM/Fresnel propagation, dielectric interfaces, coherent layers, curved-surface radiation, local spectra, and multi-surface high-frequency transport.
+- **`vecdiff_general`** — homogeneous ASM/Fresnel propagation, surface transfer, local/spectral Fresnel interaction, and field/system/target propagation.
 - **`vecdiff_stigmatic`** — Cartesian-oval design, entrance/exit reference spheres, geometric vector transfer, Debye focusing, and a separate paraxial Fourier-pupil model.
 
 The packages have separate source trees, distributions, and tests. Neither imports the other. Their corresponding foundational types are intentionally implemented locally; external validation compares physical results. The original repository and its branches remain intact.
 
 Documentation:
 
-- [Notebooks](docs/NOTEBOOKS.md): six executed physical studies in `general/notebooks/`.
+- [Notebooks](docs/NOTEBOOKS.md): seven executed optical studies using the current methods.
 - [Architecture](docs/ARCHITECTURE.md): responsibilities, units and source map.
-- [Propagation](docs/PROPAGATION.md): the R Q⁻¹ T Q R path, edges and stops, GOTS surfaces, ideal imaging.
+- [Propagation](docs/PROPAGATION.md): homogeneous propagation and the R Q⁻¹ T Q R path.
 - [Fourier API and grids](docs/FOURIER_AND_GRIDS.md): Cartesian, polar and nonuniform transforms with physical coordinates.
 - [Validation](docs/VALIDATION.md): tests, full-wave references (BEM, FEM, Mie) and their limits.
 
@@ -35,34 +35,38 @@ and Gmsh (`reference-mesh`) are optional extras. Neither package requires the
 other; either installs alone with `python -m pip install ./general` or
 `python -m pip install ./stigmatic`. `requirements-dev.lock` records the
 qualified development environment; the root `pyproject.toml` configures code
-style. See [notebooks](docs/NOTEBOOKS.md#run) to execute the notebooks.
+style. See [notebooks](docs/NOTEBOOKS.md) to execute the notebooks.
 
 ## Organization
 
-Both packages follow corresponding ontology folders rather than a flat collection of numerical routines:
+The general package separates physical data from algorithms:
 
 ```text
-src/vecdiff_<general or stigmatic>/
-    geometry/       mathematical geometry (general); existing ray geometry (stigmatic)
-    surfaces/       geometrical shape equations
-    sampling/       physical grids and integration measures
-    media/          constitutive materials and their spatial assignment
-    fields/         electric samples and explicit solution representations
-    interfaces/     adjacent media, Fresnel laws, optical prescriptions
-    fourier/        Cartesian FFT, radial Hankel, harmonics, NUFFT synthesis
-    propagation/    physical evolution, scattering, radiation and focusing
-    observables/    energy, Poynting flux, power and detector formation
-    visualization/  component maps, polarization ellipses and animation
+vecdiff_general/
+    geometry/       coordinate frames
+    surfaces/       surface shapes and normals
+    sampling/       grids and integration measures
+    media/          material properties and spatial assignment
+    fields/         field samples, spectra and source representations
+    system.py       surface/media adjacency and optical prescriptions
+    fourier/        numerical transforms
+    propagation/
+        homogeneous.py          propagation in a homogeneous medium (ASM/Fresnel)
+        surface_transfer.py     surface trace Q and outgoing reconstruction
+        surface_interaction.py  transmission and reflection at a boundary
+        pipeline.py             composition along an optical path
+        references/             Mie, BEM and independent reference solutions
+    observables/    energy, power, polarization and detector formation
+    visualization/  plots and animations
 ```
 
-Fourier routines accept numerical arrays and lattice parameters only. Optical
-angular-spectrum construction and propagation live in `propagation/`. Interface
-transmission and reflection are separate operators, each returning the requested
-field on its existing surface. See [propagation](docs/PROPAGATION.md#electric-field-operators-at-one-interface).
+Angular-spectrum **construction** belongs to `fields/`; evolution in a
+homogeneous medium belongs to `propagation/homogeneous.py`. Surface geometry
+and adjacent materials are specified independently of the interaction model.
+A pipeline can contain zero, one or several optical boundaries.
 
-The general package keeps spatial volumes in `volumes.py`, separate from mathematical geometry and material assignment.
-
-The general package also has `io/prescription.py` for explicit SI JSON optical prescriptions. Each distribution has its own `tests/`; the physical notebooks are in `general/notebooks/`. External cross-library checks live in `validation/`.
+The stigmatic package retains its independent Cartesian-oval and Debye model.
+Each distribution has its own tests. External comparisons live in `validation/`.
 
 ## Physical contracts
 
@@ -95,7 +99,7 @@ propagated = spectrum.propagate(10 * wavelength, model="asm")
 power_in_watts = propagated.power()
 ```
 
-An interface normal points from its `minus` region into its `plus` region. Exact plane scattering retains reflected and transmitted expansions, including TIR transmission; one-sided evaluation includes all branches present on that side. Coherent layers include repeated reflections and evanescent gaps. Curved local-interface scattering and high-frequency transport have explicitly different accuracy contracts.
+An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system, transmission="local" | "spectral")` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`; see the [pipeline example](general/examples/propagation_pipeline.py).
 
 ## A dedicated stigmatic focus
 
@@ -125,10 +129,9 @@ Direct, Hankel, and optional NUFFT Debye evaluation preserve all complex Cartesi
 
 ## Qualification and limits
 
-Read [validation](docs/VALIDATION.md) for the checks and their limits. The
-notebooks state their physical models and distinguish numerical convergence
-from model accuracy. The operational method is a forward single-pass model:
-eligible finite lenses include approximate rim coupling, while sidewall
-reflection and internal returns are absent. Its accuracy against
-full-wave references depends on the element Fresnel number
-([propagation](docs/PROPAGATION.md#validity-element-fresnel-number)).
+Read [validation](docs/VALIDATION.md) for the reference checks and measured
+errors. The curved-surface pipeline is a forward approximation. Its current
+transport uses a finite, periodic FFT chart and a declared propagating angular
+band. Finite material edges, stops and returning branches are outside this
+pipeline's supported model. Exact planar scattering and complete reference
+transfer have different, explicitly documented spectral coverage.
