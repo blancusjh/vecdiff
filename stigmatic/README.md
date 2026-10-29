@@ -1,6 +1,6 @@
 # Dedicated stigmatic vector optics
 
-This is the independently installable `vecdiff_stigmatic` distribution. It has no runtime dependency on the other Logos Optics package.
+This is the independently installable `vecdiff_stigmatic` distribution. It has no runtime dependency on the other vecdiff package.
 
 ```sh
 python -m pip install '.[test,notebooks,nufft]'

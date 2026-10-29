@@ -1,11 +1,76 @@
-# Logos Optics
+# vecdiff
 
 Two independent vector optical propagation libraries, organized around **space, matter, and fields**:
 
 - **`vecdiff_general`** — homogeneous ASM/Fresnel propagation, surface transfer, local/spectral Fresnel interaction, and field/system/target propagation.
 - **`vecdiff_stigmatic`** — Cartesian-oval design, entrance/exit reference spheres, geometric vector transfer, Debye focusing, and a separate paraxial Fourier-pupil model.
 
-The packages have separate source trees, distributions, and tests. Neither imports the other. Their corresponding foundational types are intentionally implemented locally; external validation compares physical results. The original repository and its branches remain intact.
+<p align="center">
+  <img src="docs/assets/focal_polarization_linear.gif" alt="Focal-plane polarization over one optical cycle, linear-x input" width="420">
+  <img src="docs/assets/focal_polarization_circular.gif" alt="Focal-plane polarization over one optical cycle, circular input" width="420">
+</p>
+
+<p align="center">
+  <em>Focal-plane polarization of the stigmatic (Cartesian-oval) lens of notebook 03 over one
+  optical cycle: arrows show <code>Re[E e<sup>-i&omega;t</sup>]</code> on the polarization ellipses,
+  over the transverse intensity <code>|E<sub>u</sub>|&sup2; + |E<sub>v</sub>|&sup2;</code>.
+  Linear-x input (left) oscillates; circular input (right) rotates.</em>
+</p>
+
+The packages have separate source trees, distributions, and tests. Neither imports the other. Their corresponding foundational types are intentionally implemented locally; external validation compares physical results. The stigmatic-only predecessor is kept on the [`transfer-matrix-geometric-factor-664h9g`](https://github.com/blancusjh/vecdiff/tree/transfer-matrix-geometric-factor-664h9g) branch.
+
+## Results
+
+Figures from the executed [notebooks](docs/NOTEBOOKS.md), all computed with the current packages.
+
+<p align="center">
+  <img src="docs/assets/lens_focal_polarization.png" alt="Focal-plane polarization, spherical and stigmatic exit faces" width="860">
+</p>
+
+**Lens focusing (notebook 03).** A plane–convex glass lens (n = 1.5, exit radius 120λ, λ = 532 nm)
+through `PropagationPipeline` with spectral Fresnel transmission. Focal-plane transverse intensity and
+polarization: the spherical exit face (left) blurs the focus by spherical aberration; the Cartesian-oval
+exit face (right) gives a sharp Airy pattern with dark rings.
+
+<p align="center">
+  <img src="docs/assets/lens_meridional_fields.png" alt="Meridional total and longitudinal electric intensity through focus" width="860">
+</p>
+
+**Through focus (notebook 03).** Total and longitudinal (|E<sub>z</sub>|²) electric intensity in the
+meridional plane for both exit faces; the dashed line marks the nominal image plane.
+
+<p align="center">
+  <img src="docs/assets/sphere_focal_components.png" alt="Ex, Ey, Ez focal intensities: Debye, full Mie, local and spectral propagation" width="860">
+</p>
+
+**Macroscopic sphere, R/λ = 100 (notebook 07).** Focal |E<sub>x</sub>|², |E<sub>y</sub>|², |E<sub>z</sub>|²
+from local and spectral Fresnel propagation through the same glass sphere (n = 1.5, illumination
+radius 35λ), beside the first transmitted Debye term (p = 1) and the full Mie field, which includes
+additional scattering.
+
+<p align="center">
+  <img src="docs/assets/diopter_fresnel_compensation.png" alt="Uncompensated and compensated stigmatic diopter focal planes" width="860">
+</p>
+
+**Fresnel compensation in a stigmatic diopter (notebook 04).** Ray-tube/Debye focus at NA ≈ 0.84 with
+and without compensating the Fresnel transmission, against the Airy first-zero circle.
+
+<p align="center">
+  <img src="docs/assets/aperture_diffraction.png" alt="Diffraction by a slit, two slits and a circular hole at three distances" width="760">
+</p>
+
+**Diffraction by apertures (notebook 02).** Vector angular-spectrum propagation behind a single slit,
+a double slit and a circular hole at three distances, on a common logarithmic intensity scale.
+
+<p align="center">
+  <img src="docs/assets/al1225_scaled_models.png" alt="Thorlabs AL1225 scaled models: meridional and focal intensity" width="700">
+</p>
+
+**Thorlabs AL1225 (notebook 06).** Spectral pipeline fields of the catalog asphere, geometrically
+scaled to R/λ = 3, 10, 30 and 100: meridional and focal-plane |E|².
+
+The animations above are regenerated from notebook 03's lens with
+`vecdiff_general.visualization.animate_polarization` (36 frames over one cycle).
 
 Documentation:
 

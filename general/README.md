@@ -1,6 +1,6 @@
 # General vector propagation
 
-This is the independently installable `vecdiff_general` distribution. It has no runtime dependency on the other Logos Optics package.
+This is the independently installable `vecdiff_general` distribution. It has no runtime dependency on the other vecdiff package.
 
 ```sh
 python -m pip install '.[test,notebooks,nufft,reference-mesh]'
