@@ -1,9 +1,8 @@
 # vecdiff
 
-Two independent vector optical propagation libraries, organized around **space, matter, and fields**:
-
-- **`vecdiff_general`** — homogeneous ASM/Fresnel propagation, surface transfer, local/spectral Fresnel interaction, and field/system/target propagation.
-- **`vecdiff_stigmatic`** — Cartesian-oval design, entrance/exit reference spheres, geometric vector transfer, Debye focusing, and a separate paraxial Fourier-pupil model.
+Vector electromagnetic propagation through optical systems: angular-spectrum
+propagation, refraction and reflection at curved dielectric interfaces with
+per-wavevector Fresnel transmission, and focusing to the image plane.
 
 <p align="center">
   <img src="docs/assets/focal_polarization_linear.gif" alt="Focal-plane polarization over one optical cycle, linear-x input" width="420">
@@ -11,17 +10,14 @@ Two independent vector optical propagation libraries, organized around **space, 
 </p>
 
 <p align="center">
-  <em>Focal-plane polarization of the stigmatic (Cartesian-oval) lens of notebook 03 over one
-  optical cycle: arrows show <code>Re[E e<sup>-i&omega;t</sup>]</code> on the polarization ellipses,
-  over the transverse intensity <code>|E<sub>u</sub>|&sup2; + |E<sub>v</sub>|&sup2;</code>.
-  Linear-x input (left) oscillates; circular input (right) rotates.</em>
+  <em>Instantaneous focal field <code>Re[E e<sup>-i&omega;t</sup>]</code> of the Cartesian-oval
+  lens of notebook 03 over two optical cycles: arrows show the transverse field, the background
+  its instantaneous intensity. Linear-x input (left) oscillates; circular input (right) rotates.</em>
 </p>
-
-The packages have separate source trees, distributions, and tests. Neither imports the other. Their corresponding foundational types are intentionally implemented locally; external validation compares physical results. The stigmatic-only predecessor is kept on the [`transfer-matrix-geometric-factor-664h9g`](https://github.com/blancusjh/vecdiff/tree/transfer-matrix-geometric-factor-664h9g) branch.
 
 ## Results
 
-Figures from the executed [notebooks](docs/NOTEBOOKS.md), all computed with the current packages.
+Figures from the executed [notebooks](docs/NOTEBOOKS.md), all computed with the current code.
 
 <p align="center">
   <img src="docs/assets/lens_focal_polarization.png" alt="Focal-plane polarization, spherical and stigmatic exit faces" width="860">
@@ -53,7 +49,8 @@ additional scattering.
 </p>
 
 **Fresnel compensation in a stigmatic diopter (notebook 04).** Ray-tube/Debye focus at NA ≈ 0.84 with
-and without compensating the Fresnel transmission, against the Airy first-zero circle.
+and without compensating the Fresnel transmission. The compensated first minimum (gold dashes) lies on
+the Airy first-zero circle (black); the uncompensated one (cyan) is wider.
 
 <p align="center">
   <img src="docs/assets/aperture_diffraction.png" alt="Diffraction by a slit, two slits and a circular hole at three distances" width="760">
@@ -69,10 +66,7 @@ a double slit and a circular hole at three distances, on a common logarithmic in
 **Thorlabs AL1225 (notebook 06).** Spectral pipeline fields of the catalog asphere, geometrically
 scaled to R/λ = 3, 10, 30 and 100: meridional and focal-plane |E|².
 
-The animations above are regenerated from notebook 03's lens with
-`vecdiff_general.visualization.animate_polarization` (36 frames over one cycle).
-
-Documentation:
+## Documentation
 
 - [Notebooks](docs/NOTEBOOKS.md): seven executed optical studies using the current methods.
 - [Architecture](docs/ARCHITECTURE.md): responsibilities, units and source map.
@@ -82,7 +76,7 @@ Documentation:
 
 ## Install and verify
 
-Python 3.10 or newer is required. Building the general package also needs a C
+Python 3.10 or newer is required. The build also needs a C
 compiler and a Fortran compiler (tested with gfortran). Run from this directory:
 
 ```sh
@@ -95,16 +89,14 @@ python3 -m venv .venv
 .venv/bin/ruff format --check .
 ```
 
-Both libraries require NumPy and SciPy. Matplotlib, Jupyter execution, FINUFFT
-and Gmsh (`reference-mesh`) are optional extras. Neither package requires the
-other; either installs alone with `python -m pip install ./general` or
-`python -m pip install ./stigmatic`. `requirements-dev.lock` records the
+NumPy and SciPy are required. Matplotlib, Jupyter execution, FINUFFT and Gmsh
+(`reference-mesh`) are optional extras. `requirements-dev.lock` records the
 qualified development environment; the root `pyproject.toml` configures code
 style. See [notebooks](docs/NOTEBOOKS.md) to execute the notebooks.
 
 ## Organization
 
-The general package separates physical data from algorithms:
+The code separates physical data from algorithms:
 
 ```text
 vecdiff_general/
@@ -130,8 +122,7 @@ homogeneous medium belongs to `propagation/homogeneous.py`. Surface geometry
 and adjacent materials are specified independently of the interaction model.
 A pipeline can contain zero, one or several optical boundaries.
 
-The stigmatic package retains its independent Cartesian-oval and Debye model.
-Each distribution has its own tests. External comparisons live in `validation/`.
+External comparisons live in `validation/`.
 
 ## Physical contracts
 
@@ -143,7 +134,7 @@ Each distribution has its own tests. External comparisons live in `validation/`.
 - A solution computes consistent H from its spatial/modal representation. `ElectromagneticField` holds evaluated E/H; its `poynting()` and `power()` preserve coherent interference.
 - `norm2()` is electric amplitude squared. It is not labeled intensity in W/m². Energy density takes explicit nondispersive material context.
 
-## A general propagation
+## A propagation
 
 ```python
 import numpy as np
@@ -165,32 +156,6 @@ power_in_watts = propagated.power()
 ```
 
 An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system, transmission="local" | "spectral")` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`; see the [pipeline example](general/examples/propagation_pipeline.py).
-
-## A dedicated stigmatic focus
-
-```python
-import numpy as np
-import vecdiff_stigmatic as optics
-
-wavelength = 532e-9
-system = optics.StigmaticSystem(
-    object_z=-10e-3,
-    image_z=6e-3,
-    object_material=optics.Dielectric(1.0),
-    image_material=optics.Dielectric(1.5),
-)
-rays = system.rays(aperture=2e-3)
-source = optics.cartesian_source(rays, wavelength, polarization=(1.0, 0.0))
-transferred = optics.transfer(rays, source)
-
-axis = np.linspace(-2, 2, 41) * wavelength
-grid = optics.PlaneGrid(axis, axis, optics.Frame(origin=[0, 0, system.image_z]))
-focus = optics.DebyeFocus(transferred)
-focal_field = focus.evaluate(grid, backend="hankel")
-ray_power_budget = transferred.power_budget()
-```
-
-Direct, Hankel, and optional NUFFT Debye evaluation preserve all complex Cartesian components and SI H. Intermediate reference-sphere and physical-interface fields remain inspectable. The separately named `fresnel_focus` models an ideal paraxial thin lens; it is not substituted for the Cartesian-oval model.
 
 ## Qualification and limits
 
