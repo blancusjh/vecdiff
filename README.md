@@ -11,8 +11,9 @@ per-wavevector Fresnel transmission, and focusing to the image plane.
 
 <p align="center">
   <em>Instantaneous focal field <code>Re[E e<sup>-i&omega;t</sup>]</code> of the Cartesian-oval
-  lens of notebook 03 over two optical cycles: arrows show the transverse field, the background
-  its instantaneous intensity. Linear-x input (left) oscillates; circular input (right) rotates.</em>
+  lens of notebook 03 over two optical cycles: arrows show the transverse field over its
+  time-averaged intensity (scale I<sup>0.3</sup>, so the secondary maxima stay visible).
+  Linear-x input (left) oscillates; circular input (right) rotates.</em>
 </p>
 
 ## Results
