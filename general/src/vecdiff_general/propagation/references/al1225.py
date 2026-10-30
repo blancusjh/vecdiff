@@ -137,6 +137,7 @@ def show_al1225_study(series):
     """Calculated fields first; timings and independent-reference availability next."""
     import matplotlib.pyplot as plt
     from IPython.display import HTML, display
+    from matplotlib.colors import PowerNorm
 
     fig, axes = plt.subplots(
         len(series),
@@ -158,9 +159,10 @@ def show_al1225_study(series):
             extent=extent,
             aspect="auto",
             cmap="hot",
-            vmin=0,
+            # Compressed scale: weak lobes stay visible beside the focus.
+            norm=PowerNorm(0.3, vmin=0),
         )
-        fig.colorbar(im, ax=axes[row, 0], label="|E|² [V²/m²]", shrink=0.8)
+        fig.colorbar(im, ax=axes[row, 0], label="|E|² [V²/m², scale I^0.3]", shrink=0.8)
         axes[row, 0].set(
             xlabel="z / R", ylabel="x / R", title=f"Spectral · R/λ = {ratio:g}"
         )
@@ -183,9 +185,9 @@ def show_al1225_study(series):
             origin="lower",
             extent=focal_extent,
             cmap="hot",
-            vmin=0,
+            norm=PowerNorm(0.3, vmin=0),
         )
-        fig.colorbar(im, ax=axes[row, 1], label="|E|² [V²/m²]", shrink=0.8)
+        fig.colorbar(im, ax=axes[row, 1], label="|E|² [V²/m², scale I^0.3]", shrink=0.8)
         axes[row, 1].set(
             xlabel="x / λ",
             ylabel="y / λ",

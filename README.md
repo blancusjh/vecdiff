@@ -34,7 +34,7 @@ exit face (right) gives a sharp Airy pattern with dark rings.
 </p>
 
 **Through focus (notebook 03).** Total and longitudinal (|E<sub>z</sub>|²) electric intensity in the
-meridional plane for both exit faces; the dashed line marks the nominal image plane.
+meridional plane for both exit faces (scale I<sup>0.3</sup>); the dashed line marks the nominal image plane.
 
 <p align="center">
   <img src="docs/assets/sphere_focal_components.png" alt="Ex, Ey, Ez focal intensities: Debye, full Mie, local and spectral propagation" width="860">
@@ -43,7 +43,7 @@ meridional plane for both exit faces; the dashed line marks the nominal image pl
 **Macroscopic sphere, R/λ = 100 (notebook 07).** Focal |E<sub>x</sub>|², |E<sub>y</sub>|², |E<sub>z</sub>|²
 from local and spectral Fresnel propagation through the same glass sphere (n = 1.5, illumination
 radius 35λ), beside the first transmitted Debye term (p = 1) and the full Mie field, which includes
-additional scattering.
+additional scattering (scale I<sup>0.3</sup>, so the rings are visible).
 
 <p align="center">
   <img src="docs/assets/diopter_fresnel_compensation.png" alt="Uncompensated and compensated stigmatic diopter focal planes" width="860">
@@ -58,7 +58,8 @@ the Airy first-zero circle (black); the uncompensated one (cyan) is wider.
 </p>
 
 **Diffraction by apertures (notebook 02).** Vector angular-spectrum propagation behind a single slit,
-a double slit and a circular hole at three distances, on a common logarithmic intensity scale.
+a double slit and a circular hole at three distances, on a common I<sup>0.3</sup> intensity scale, with
+the transverse polarization.
 
 <p align="center">
   <img src="docs/assets/al1225_scaled_models.png" alt="Thorlabs AL1225 scaled models: meridional and focal intensity" width="700">
