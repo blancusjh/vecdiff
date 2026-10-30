@@ -1,0 +1,2 @@
+# Notebooks are executed studies with embedded figures, not source code.
+*.ipynb linguist-documentation
