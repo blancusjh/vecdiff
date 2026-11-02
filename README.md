@@ -167,3 +167,9 @@ transport uses a finite, periodic FFT chart and a declared propagating angular
 band. Finite material edges, stops and returning branches are outside this
 pipeline's supported model. Exact planar scattering and complete reference
 transfer have different, explicitly documented spectral coverage.
+
+## License
+
+Original project code and documentation are licensed under the [Apache License 2.0](LICENSE).
+Third-party code, publications, datasets, fonts, and other assets retain their
+respective licenses and copyright notices; this license does not replace them.

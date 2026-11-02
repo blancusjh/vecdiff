@@ -3,6 +3,7 @@ requires = ["meson-python>=0.18", "ninja>=1.11", "numpy>=2.0"]
 build-backend = "mesonpy"
 
 [project]
+license = { file = "LICENSE" }
 name = "vecdiff-general"
 version = "0.1.0"
 description = "Explicit vector optical propagation and dielectric scattering"
