@@ -1,8 +1,13 @@
 # vecdiff
 
-Vector electromagnetic propagation through optical systems: angular-spectrum
+vecdiff simulates vector electromagnetic propagation through optical systems: angular-spectrum
 propagation, refraction and reflection at curved dielectric interfaces with
 per-wavevector Fresnel transmission, and focusing to the image plane.
+
+It is for optics researchers and students studying diffraction, polarization,
+and lens focusing. Built with Python, NumPy and SciPy, it includes Matplotlib
+visualizations, Jupyter notebooks, and compiled C/Fortran reference solvers.
+To get started, [install the packages and run the propagation example](#install-and-run).
 
 <p align="center">
   <img src="docs/assets/focal_polarization_linear.gif" alt="Focal-plane polarization over one optical cycle, linear-x input" width="420">
@@ -70,13 +75,14 @@ scaled to R/λ = 3, 10, 30 and 100: meridional and focal-plane |E|².
 
 ## Documentation
 
+- [Roadmap](ROADMAP.md): planned validation, performance and modeling work.
 - [Notebooks](docs/NOTEBOOKS.md): seven executed optical studies using the current methods.
 - [Architecture](docs/ARCHITECTURE.md): responsibilities, units and source map.
 - [Propagation](docs/PROPAGATION.md): homogeneous propagation and the R Q⁻¹ T Q R path.
 - [Fourier API and grids](docs/FOURIER_AND_GRIDS.md): Cartesian, polar and nonuniform transforms with physical coordinates.
 - [Validation](docs/VALIDATION.md): tests, full-wave references (BEM, FEM, Mie) and their limits.
 
-## Install and verify
+## Install and run
 
 Python 3.10 or newer is required. The build also needs a C
 compiler and a Fortran compiler (tested with gfortran). Run from this directory:
@@ -86,6 +92,18 @@ python3 -m venv .venv
 .venv/bin/python -m pip install meson-python ninja 'numpy>=2'
 .venv/bin/python -m pip install --no-build-isolation -e './general[test,notebooks,nufft,reference-mesh]'
 .venv/bin/python -m pip install -e './stigmatic[test,notebooks,nufft]' ruff
+```
+
+Run an example that propagates a polarized beam through a curved dielectric
+interface and prints the peak electric amplitude squared and meridional grid size:
+
+```sh
+.venv/bin/python general/examples/propagation_pipeline.py
+```
+
+To verify the installation and check code style:
+
+```sh
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .
