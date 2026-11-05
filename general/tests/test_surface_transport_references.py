@@ -55,7 +55,7 @@ def test_mie_cutoff_error_is_not_removed_by_spatial_refinement():
 def test_bem_sphere_reference_and_transport_converge_toward_mie():
     source, sphere, glass = problem()
     mie = MieSphere(source, sphere, glass)
-    probes = o.PointGrid([[0, 0, 4.3], [0.5, -0.5, 4.2], [-1, 1, 4.1]])
+    probes = o.sampling.PointGrid([[0, 0, 4.3], [0.5, -0.5, 4.2], [-1, 1, 4.1]])
     expected = scattered(mie)(probes)
     mie_transfer = transfer_case(scattered(mie), length=16, count=64, max_sine=0.99)
     errors, differences = [], []
@@ -79,9 +79,9 @@ def test_bem_sphere_reference_and_transport_converge_toward_mie():
 def test_backward_wave_exposes_the_difference_between_fit_and_radiation():
     source, _, _ = problem()
     axis = (np.arange(16) - 8) * 0.25
-    plane = o.CartesianGrid(axis, axis)
-    q = o.SurfaceTransport(plane, o.Plane(), source.region, 1)
-    backward = o.PlaneWaveExpansion(
+    plane = o.sampling.CartesianGrid(axis, axis)
+    q = o.propagation.SurfaceTransport(plane, o.surfaces.Plane(), source.region, 1)
+    backward = o.fields.PlaneWaveExpansion(
         [[0, 0, -2 * np.pi]], [[1, 0, 0]], [0, 0, 0], 1, source.region
     )
     trace = backward.evaluate(q.grid)
@@ -96,13 +96,13 @@ def test_backward_wave_exposes_the_difference_between_fit_and_radiation():
 def test_radiate_rejects_trace_from_a_different_problem(mismatch):
     source, _, _ = problem()
     axis = (np.arange(16) - 8) * 0.25
-    plane = o.CartesianGrid(axis, axis)
-    q = o.SurfaceTransport(plane, o.Plane(), source.region, 1)
+    plane = o.sampling.CartesianGrid(axis, axis)
+    q = o.propagation.SurfaceTransport(plane, o.surfaces.Plane(), source.region, 1)
     trace = source.evaluate(q.grid)
-    field = o.ElectricField(
+    field = o.fields.ElectricField(
         q.grid if mismatch == "wavelength" else plane.translated([0, 0, 1]),
         2 if mismatch == "wavelength" else 1,
         trace.electric.values,
     )
     with pytest.raises(ValueError, match=mismatch):
-        q.radiate(o.ElectromagneticField(field, trace.magnetic))
+        q.radiate(o.fields.ElectromagneticField(field, trace.magnetic))

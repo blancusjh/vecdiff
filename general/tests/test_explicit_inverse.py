@@ -20,16 +20,18 @@ def test_explicit_inverse_recovers_a_curved_interface_field_from_both_traces():
     count = 2 * int(np.ceil(half / 0.5))
     count += (-count) % 16
     axis = (np.arange(count) - count // 2) * (2 * half / count)
-    grid = o.CartesianGrid(axis, axis)
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
-    transport = o.SurfaceTransport(grid, o.SphericalCap(radius), glass, WAVELENGTH)
+    grid = o.sampling.CartesianGrid(axis, axis)
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    transport = o.propagation.SurfaceTransport(
+        grid, o.surfaces.SphericalCap(radius), glass, WAVELENGTH
+    )
     points = transport.grid.points
     exact = sphere_single_interface(points, WAVELENGTH, radius, 1.0, 1.5)["transmitted"]
     edge = 0.5 * erfc(
         (np.hypot(points[..., 0], points[..., 1]) - 0.36 * radius) / (0.025 * radius)
     )
-    trace = o.ElectromagneticField(
-        o.ElectricField(transport.grid, WAVELENGTH, exact[0] * edge[..., None]),
+    trace = o.fields.ElectromagneticField(
+        o.fields.ElectricField(transport.grid, WAVELENGTH, exact[0] * edge[..., None]),
         exact[1] * edge[..., None],
     )
     spectrum = transport.radiate(trace)
@@ -37,7 +39,7 @@ def test_explicit_inverse_recovers_a_curved_interface_field_from_both_traces():
     X, Y = np.meshgrid(probe, probe)
     height = radius - np.sqrt(radius**2 - 2 * (0.15 * radius) ** 2) + 2.0
     targets = np.stack((X, Y, np.full_like(X, height)), -1)
-    ours = spectrum.expansion.evaluate(o.PointGrid(targets)).electric.values
+    ours = spectrum.expansion.evaluate(o.sampling.PointGrid(targets)).electric.values
     reference = sphere_single_interface(targets, WAVELENGTH, radius, 1.0, 1.5)[
         "transmitted"
     ][0]

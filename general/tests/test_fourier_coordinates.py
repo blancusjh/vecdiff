@@ -16,18 +16,18 @@ def gauss_axis(limit, count):
 
 def test_grid_types_fix_array_order_and_physical_coordinates():
     basis = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-    frame = optics.Frame([1e-3, 2e-3, 3e-3], basis)
-    cartesian = optics.CartesianGrid([0, 2e-6, 4e-6], [-1e-6, 1e-6], frame)
+    frame = optics.geometry.Frame([1e-3, 2e-3, 3e-3], basis)
+    cartesian = optics.sampling.CartesianGrid([0, 2e-6, 4e-6], [-1e-6, 1e-6], frame)
 
     assert cartesian.array_order == ("v", "u")
     assert cartesian.shape == (2, 3)
     assert cartesian.coordinate_system == "cartesian"
-    assert optics.PlaneGrid is optics.CartesianGrid
+    assert optics.sampling.PlaneGrid is optics.sampling.CartesianGrid
     assert_allclose(
         cartesian.points[1, 2], frame.origin + 4e-6 * frame.u + 1e-6 * frame.v
     )
 
-    polar = optics.PolarGrid([0, 1e-6, 2e-6], np.arange(4) * np.pi / 2, frame)
+    polar = optics.sampling.PolarGrid([0, 1e-6, 2e-6], np.arange(4) * np.pi / 2, frame)
 
     assert polar.array_order == ("radius", "azimuth")
     assert polar.shape == (3, 4)
@@ -37,23 +37,23 @@ def test_grid_types_fix_array_order_and_physical_coordinates():
     assert_allclose(polar.translated([0, 0, 5e-6]).points, polar.points + [0, 0, 5e-6])
 
     values = np.zeros(polar.shape + (2,), dtype=complex)
-    transverse = optics.TransverseElectricField(polar, 532e-9, values)
+    transverse = optics.fields.TransverseElectricField(polar, 532e-9, values)
 
     assert transverse.grid is polar
 
 
 def test_polar_grid_rejects_duplicate_period_and_invalid_radial_order():
     with pytest.raises(ValueError, match="duplicate endpoint"):
-        optics.PolarGrid([0, 1], np.linspace(0, 2 * np.pi, 8))
+        optics.sampling.PolarGrid([0, 1], np.linspace(0, 2 * np.pi, 8))
 
     with pytest.raises(ValueError, match="increasing"):
-        optics.PolarGrid([1, 0], np.arange(8) * np.pi / 4)
+        optics.sampling.PolarGrid([1, 0], np.arange(8) * np.pi / 4)
 
 
 def test_cartesian_transform_preserves_coordinate_phase_and_continuous_measure():
     u = 0.23 + np.arange(12) * 0.13
     v = -0.17 + np.arange(9) * 0.21
-    grid = optics.CartesianGrid(u, v)
+    grid = optics.sampling.CartesianGrid(u, v)
     fx, fy = fourier.frequency_grid(grid.coordinates)
     q_u, q_v = 2 * np.pi * fx[2, 3], 2 * np.pi * fy[2, 3]
     values = np.exp(1j * (q_u * grid.points[..., 0] + q_v * grid.points[..., 1]))
@@ -78,7 +78,7 @@ def test_polar_transform_and_inverse_against_nonaxisymmetric_gaussians():
     frequency, frequency_weights = gauss_axis(14, 112)
     azimuth = 0.17 + 2 * np.pi * np.arange(16) / 16
     frequency_azimuth = -0.23 + 2 * np.pi * np.arange(20) / 20
-    grid = optics.PolarGrid(radius, azimuth, dr_weights=radial_weights)
+    grid = optics.sampling.PolarGrid(radius, azimuth, dr_weights=radial_weights)
     orders = (0, 1, -2)
 
     values = np.stack(
@@ -125,7 +125,7 @@ def test_polar_transform_and_inverse_against_nonaxisymmetric_gaussians():
 
 def test_cartesian_and_polar_modes_share_the_same_fourier_convention():
     axis = (np.arange(128) - 64) * 0.1
-    cartesian = optics.CartesianGrid(axis, axis)
+    cartesian = optics.sampling.CartesianGrid(axis, axis)
     values = np.exp(-np.sum(cartesian.points[..., :2] ** 2, axis=-1))
     fft = fourier.transform(values, mode="cartesian", coordinates=cartesian.coordinates)
 
@@ -190,15 +190,15 @@ def test_centered_asm_matches_direct_synthesis_on_placed_plane(shape):
     u = (np.arange(nx) - 1.3) * wavelength
     v = (np.arange(ny) + 0.7) * wavelength
     basis = np.array([[0.8, 0, 0.6], [0, 1, 0], [-0.6, 0, 0.8]])
-    frame = optics.Frame([2e-6, -3e-6, 5e-6], basis)
-    grid = optics.CartesianGrid(u, v, frame)
+    frame = optics.geometry.Frame([2e-6, -3e-6, 5e-6], basis)
+    grid = optics.sampling.CartesianGrid(u, v, frame)
 
     first = np.exp(2j * np.pi * u[None, :] / (nx * wavelength))
     second = np.exp(-2j * np.pi * v[:, None] / (ny * wavelength))
     values = np.stack(np.broadcast_arrays(first, 0.3j * second), axis=-1)
-    field = optics.TransverseElectricField(grid, wavelength, values)
-    region = optics.HomogeneousRegion("air", optics.Dielectric(1))
-    spectrum = optics.angular_spectrum(field, region)
+    field = optics.fields.TransverseElectricField(grid, wavelength, values)
+    region = optics.media.HomogeneousRegion("air", optics.media.Dielectric(1))
+    spectrum = optics.fields.angular_spectrum(field, region)
 
     for distance in (0, 0.4 * wavelength):
         propagated = spectrum.propagate(distance)

@@ -1,21 +1,18 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from vecdiff_general import (
-    Z0,
-    Dielectric,
+from vecdiff_general.fields import (
     ElectricField,
-    Frame,
-    HomogeneousRegion,
-    PlanarInterface,
-    PlaneGrid,
     PlaneWaveExpansion,
-    PointGrid,
     TransverseElectricField,
     angular_spectrum,
-    boundary_residuals,
-    scatter_plane,
 )
+from vecdiff_general.geometry import Frame
+from vecdiff_general.media import Z0, Dielectric, HomogeneousRegion
+from vecdiff_general.observables import boundary_residuals
+from vecdiff_general.propagation import scatter_plane
+from vecdiff_general.sampling import PlaneGrid, PointGrid
+from vecdiff_general.system import PlanarInterface
 
 WAVELENGTH = 532e-9
 

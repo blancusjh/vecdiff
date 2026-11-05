@@ -19,7 +19,7 @@ def al1225_size_study(ratios=(3, 10, 30, 100), *, coverage="complete"):
     plane is the reference's axial maximum when BEM is available, otherwise
     the pipeline's. No calibration or convergence sweep is performed.
     """
-    lens = optics.thorlabs_al1225()
+    lens = optics.catalog.thorlabs_al1225()
     source, glass = illumination(
         wavelength0=780e-9, index=lens.interfaces[0].plus.material.n
     )
@@ -28,10 +28,10 @@ def al1225_size_study(ratios=(3, 10, 30, 100), *, coverage="complete"):
     for ratio in ratios:
         if not np.isfinite(ratio) or ratio <= 0:
             raise ValueError("R/lambda must be finite and positive")
-        system = optics.thorlabs_al1225(
+        system = optics.catalog.thorlabs_al1225(
             scale=ratio * source.wavelength0 / lens.apertures[0]
         )
-        body = optics.VolumeBetweenSurfaces(
+        body = optics.volumes.VolumeBetweenSurfaces(
             system.interfaces[0].surface,
             system.interfaces[1].surface,
             system.apertures[0],
@@ -96,11 +96,11 @@ def load_al1225_study(path):
             for name in ("x", "z", "focal_axis", "scan_z", "coverage"):
                 result[name] = data[f"{i}/{name}"]
             wavelength = result["wavelength"]
-            system = optics.thorlabs_al1225(
+            system = optics.catalog.thorlabs_al1225(
                 wavelength0=wavelength,
                 scale=result["radius_over_wavelength"] * wavelength / 0.00625,
             )
-            result["body"] = optics.VolumeBetweenSurfaces(
+            result["body"] = optics.volumes.VolumeBetweenSurfaces(
                 system.interfaces[0].surface,
                 system.interfaces[1].surface,
                 system.apertures[0],
@@ -119,9 +119,9 @@ def load_al1225_study(path):
             }
             for domain, locations in points.items():
                 result[domain] = {
-                    method: optics.ElectromagneticField(
-                        optics.ElectricField(
-                            optics.PointGrid(locations),
+                    method: optics.fields.ElectromagneticField(
+                        optics.fields.ElectricField(
+                            optics.sampling.PointGrid(locations),
                             wavelength,
                             data[f"{i}/{domain}/{method}/E"],
                         ),

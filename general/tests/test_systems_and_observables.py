@@ -12,20 +12,20 @@ WAVELENGTH = 532e-9
 
 
 def slab_system(apertures=(5e-6, 8e-6)):
-    incident = optics.HomogeneousRegion("entrance", optics.Dielectric(1.0))
-    glass = optics.HomogeneousRegion("glass", optics.Dielectric(1.5))
-    exit_region = optics.HomogeneousRegion("exit", optics.Dielectric(1.0))
-    front = optics.Plane()
-    back = optics.Plane(optics.Frame(origin=[0, 0, 10e-6]))
+    incident = optics.media.HomogeneousRegion("entrance", optics.media.Dielectric(1.0))
+    glass = optics.media.HomogeneousRegion("glass", optics.media.Dielectric(1.5))
+    exit_region = optics.media.HomogeneousRegion("exit", optics.media.Dielectric(1.0))
+    front = optics.surfaces.Plane()
+    back = optics.surfaces.Plane(optics.geometry.Frame(origin=[0, 0, 10e-6]))
     interfaces = (
-        optics.DielectricInterface(front, incident, glass),
-        optics.DielectricInterface(back, glass, exit_region),
+        optics.system.DielectricInterface(front, incident, glass),
+        optics.system.DielectricInterface(back, glass, exit_region),
     )
-    return optics.OpticalSystem(interfaces, apertures)
+    return optics.system.OpticalSystem(interfaces, apertures)
 
 
 def plane_wave(region, direction=(0, 0, 1), amplitude=(1, 0, 0)):
-    return optics.PlaneWaveExpansion(
+    return optics.fields.PlaneWaveExpansion(
         2 * np.pi * region.material.n / WAVELENGTH * np.array([direction]),
         np.array([amplitude]),
         np.zeros(3),
@@ -37,9 +37,9 @@ def plane_wave(region, direction=(0, 0, 1), amplitude=(1, 0, 0)):
 def test_spatial_material_assignment_including_explicit_lens_rim():
     system = slab_system()
     front, back = (interface.surface for interface in system.interfaces)
-    volume = optics.VolumeBetweenSurfaces(front, back, 5e-6)
-    body = optics.MaterialRegion("lens", volume, optics.Dielectric(1.5))
-    matter = optics.MaterialDistribution(optics.Dielectric(1.0), (body,))
+    volume = optics.volumes.VolumeBetweenSurfaces(front, back, 5e-6)
+    body = optics.media.MaterialRegion("lens", volume, optics.media.Dielectric(1.5))
+    matter = optics.media.MaterialDistribution(optics.media.Dielectric(1.0), (body,))
     points = np.array([[0, 0, 5e-6], [6e-6, 0, 5e-6], [0, 0, -1e-6]])
     assert_allclose(matter.refractive_index(points), [1.5, 1.0, 1.0])
     assert matter.refractive_index(points[0]) == 1.5
@@ -51,9 +51,9 @@ def test_prescription_round_trip_preserves_coherent_complex_solution(tmp_path):
     save_system(system, path)
     restored = load_system(path)
     source = plane_wave(system.interfaces[0].minus)
-    first = optics.PropagationPipeline(system).solve(sample(source))
-    second = optics.PropagationPipeline(restored).solve(sample(source))
-    grid = optics.PointGrid([[0, 0, 11e-6], [0.2e-6, 0.1e-6, 12e-6]])
+    first = optics.propagation.PropagationPipeline(system).solve(sample(source))
+    second = optics.propagation.PropagationPipeline(restored).solve(sample(source))
+    grid = optics.sampling.PointGrid([[0, 0, 11e-6], [0.2e-6, 0.1e-6, 12e-6]])
     assert_allclose(
         first.evaluate(grid).electric.values,
         second.evaluate(grid).electric.values,
@@ -65,8 +65,10 @@ def test_operational_transport_matches_two_planar_fresnel_encounters():
     system = slab_system(apertures=(None, None))
     source = plane_wave(system.interfaces[0].minus, amplitude=(1, 0.3j, 0))
     axis = (np.arange(24) - 12) * WAVELENGTH
-    quadrature = optics.CartesianGrid(axis, axis)
-    result = optics.PropagationPipeline(system).solve(sample(source, quadrature))
+    quadrature = optics.sampling.CartesianGrid(axis, axis)
+    result = optics.propagation.PropagationPipeline(system).solve(
+        sample(source, quadrature)
+    )
     expected_phase = np.exp(2j * np.pi / WAVELENGTH * 1.5 * 10e-6)
     expected = 0.8 * 1.2 * expected_phase * np.array([1, 0.3j, 0])
     second = result.interactions[1].field
@@ -84,7 +86,7 @@ def test_modal_transport_preserves_interference_and_linearity():
     second = plane_wave(
         region, direction=(0.25, 0, np.sqrt(1 - 0.25**2)), amplitude=(0, 0.7j, 0)
     )
-    combined = optics.PlaneWaveExpansion(
+    combined = optics.fields.PlaneWaveExpansion(
         np.concatenate((first.wavevectors, second.wavevectors)),
         np.concatenate((first.amplitudes, second.amplitudes)),
         first.origin,
@@ -92,10 +94,10 @@ def test_modal_transport_preserves_interference_and_linearity():
         region,
     )
     axis = (np.arange(24) - 12) * WAVELENGTH
-    grid = optics.CartesianGrid(axis, axis)
-    observation = optics.PointGrid([[0, 0, 20e-6], [0.5e-6, 0.2e-6, 20e-6]])
+    grid = optics.sampling.CartesianGrid(axis, axis)
+    observation = optics.sampling.PointGrid([[0, 0, 20e-6], [0.5e-6, 0.2e-6, 20e-6]])
     values = [
-        optics.PropagationPipeline(system)
+        optics.propagation.PropagationPipeline(system)
         .solve(sample(s, grid))
         .evaluate(observation)
         .electric.values
@@ -105,8 +107,10 @@ def test_modal_transport_preserves_interference_and_linearity():
 
 
 def test_energy_polarization_and_coherent_detector_interference():
-    region = optics.HomogeneousRegion("air", optics.Dielectric(1.0))
-    grid = optics.PlaneGrid(np.linspace(-1e-6, 1e-6, 8), np.linspace(-1e-6, 1e-6, 8))
+    region = optics.media.HomogeneousRegion("air", optics.media.Dielectric(1.0))
+    grid = optics.sampling.PlaneGrid(
+        np.linspace(-1e-6, 1e-6, 8), np.linspace(-1e-6, 1e-6, 8)
+    )
     field = plane_wave(region, amplitude=(1, 1j, 0)).evaluate(grid)
     assert_allclose(
         stokes(field.electric),
@@ -126,10 +130,10 @@ def test_sequential_plane_assembly_preserves_single_pass_phase():
     system = slab_system(apertures=(None, None))
     source = plane_wave(system.interfaces[0].minus)
     axis = (np.arange(24) - 12) * WAVELENGTH
-    solution = optics.PropagationPipeline(system).solve(
-        sample(source, optics.CartesianGrid(axis, axis))
+    solution = optics.propagation.PropagationPipeline(system).solve(
+        sample(source, optics.sampling.CartesianGrid(axis, axis))
     )
-    observation = optics.PointGrid([[0, 0, 12e-6]])
+    observation = optics.sampling.PointGrid([[0, 0, 12e-6]])
     actual = solution.evaluate(observation).electric.values[0]
     expected = np.array([0.96, 0, 0]) * np.exp(
         2j * np.pi / WAVELENGTH * (1.5 * 10e-6 + 2e-6)
@@ -141,11 +145,11 @@ def test_sequential_plane_assembly_preserves_single_pass_phase():
 def test_infinite_plane_assembly_rejects_finite_aperture_prescription():
     system = slab_system()
     with pytest.raises(ValueError, match="finite material edges"):
-        optics.PropagationPipeline(system)
+        optics.propagation.PropagationPipeline(system)
 
 
 def sample(source, grid=None):
     if grid is None:
         axis = (np.arange(24) - 12) * WAVELENGTH
-        grid = optics.CartesianGrid(axis, axis)
-    return optics.angular_spectrum(source.evaluate(grid).electric, source.region)
+        grid = optics.sampling.CartesianGrid(axis, axis)
+    return optics.fields.angular_spectrum(source.evaluate(grid).electric, source.region)

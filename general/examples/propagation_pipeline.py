@@ -7,23 +7,29 @@ import vecdiff_general as optics
 def main():
     wavelength = 532e-9
     axis = (np.arange(48) - 24) * wavelength / 2
-    plane = optics.CartesianGrid(axis, axis)
-    air = optics.HomogeneousRegion("air", optics.Dielectric(1))
-    glass = optics.HomogeneousRegion("glass", optics.Dielectric(1.5))
+    plane = optics.sampling.CartesianGrid(axis, axis)
+    air = optics.media.HomogeneousRegion("air", optics.media.Dielectric(1))
+    glass = optics.media.HomogeneousRegion("glass", optics.media.Dielectric(1.5))
     x, y = plane.points[..., 0], plane.points[..., 1]
     envelope = np.exp(-(x * x + y * y) / (3 * wavelength) ** 2)
-    incident = optics.TransverseElectricField(
+    incident = optics.fields.TransverseElectricField(
         plane, wavelength, np.stack((envelope, 0.3j * envelope), axis=-1)
     )
-    system = optics.OpticalSystem(
-        [optics.DielectricInterface(optics.SphericalCap(40 * wavelength), air, glass)]
+    system = optics.system.OpticalSystem(
+        [
+            optics.system.DielectricInterface(
+                optics.surfaces.SphericalCap(40 * wavelength), air, glass
+            )
+        ]
     )
     for treatment in ("local", "spectral"):
-        propagate = optics.PropagationPipeline(system, transmission=treatment)
+        propagate = optics.propagation.PropagationPipeline(
+            system, transmission=treatment
+        )
         field = propagate(incident, z=20 * wavelength)
         print(f"{treatment}: peak |E|² = {field.norm2().max():.6g} V²/m²")
         # An explicit placed surface uses the same operator and cached solve.
-        target = optics.Plane.y(0).sample(
+        target = optics.surfaces.Plane.y(0).sample(
             u=axis, v=np.linspace(10, 30, 41) * wavelength
         )
         meridian = propagate(incident, target)

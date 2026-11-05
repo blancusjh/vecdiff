@@ -67,11 +67,11 @@ optical fields, materials, grids, or propagation algorithms.
 
 ```python
 import numpy as np
-from vecdiff_general import CartesianGrid, fourier
+from vecdiff_general import fourier, sampling
 
 u = np.linspace(-6, 6, 128, endpoint=False)
 v = np.linspace(-5, 5, 96, endpoint=False)
-grid = CartesianGrid(u, v)
+grid = sampling.CartesianGrid(u, v)
 values = np.exp(-np.sum(grid.points[..., :2] ** 2, axis=-1))
 
 spectrum = fourier.transform(
@@ -97,11 +97,11 @@ The discrete Cartesian forward/inverse pair is exact to roundoff on its periodic
 cell. Finite support and discretization still limit its continuous approximation.
 
 ```python
-from vecdiff_general import PolarGrid
+from vecdiff_general import sampling
 
 radius = np.linspace(0, 6, 501)
 azimuth = 2 * np.pi * np.arange(32) / 32
-grid = PolarGrid(radius, azimuth)
+grid = sampling.PolarGrid(radius, azimuth)
 values = np.exp(-(radius[:, None] ** 2)) * np.ones((1, len(azimuth)))
 
 frequency_radius = np.linspace(0, 12, 601)

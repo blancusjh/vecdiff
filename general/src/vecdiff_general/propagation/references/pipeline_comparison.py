@@ -30,39 +30,45 @@ def relative(actual, reference):
 
 def timed_field(solution, points, **kwargs):
     start = perf_counter()
-    field = solution.evaluate(optics.PointGrid(points), **kwargs)
+    field = solution.evaluate(optics.sampling.PointGrid(points), **kwargs)
     return field, perf_counter() - start
 
 
 def lens_cases():
-    F = optics.Frame
+    F = optics.geometry.Frame
     return {
-        "Plano-convex": optics.VolumeBetweenSurfaces(
-            optics.Plane(), optics.SphericalCap(-3, frame=F([0, 0, 0.8])), 1.5
+        "Plano-convex": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.Plane(),
+            optics.surfaces.SphericalCap(-3, frame=F([0, 0, 0.8])),
+            1.5,
         ),
-        "Biconvex": optics.VolumeBetweenSurfaces(
-            optics.SphericalCap(3), optics.SphericalCap(-3, frame=F([0, 0, 1.2])), 1.5
+        "Biconvex": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.SphericalCap(3),
+            optics.surfaces.SphericalCap(-3, frame=F([0, 0, 1.2])),
+            1.5,
         ),
-        "Meniscus": optics.VolumeBetweenSurfaces(
-            optics.SphericalCap(2.2), optics.SphericalCap(6, frame=F([0, 0, 0.8])), 1.5
+        "Meniscus": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.SphericalCap(2.2),
+            optics.surfaces.SphericalCap(6, frame=F([0, 0, 0.8])),
+            1.5,
         ),
-        "Even asphere": optics.VolumeBetweenSurfaces(
-            optics.Plane(),
-            optics.EvenAsphere(
+        "Even asphere": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.Plane(),
+            optics.surfaces.EvenAsphere(
                 -1 / 3, conic=-1, coefficients=(-0.015,), frame=F([0, 0, 0.8])
             ),
             1.5,
         ),
-        "Cartesian oval": optics.VolumeBetweenSurfaces(
-            optics.Plane(),
-            optics.CartesianOval.from_conjugates(
+        "Cartesian oval": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.Plane(),
+            optics.surfaces.CartesianOval.from_conjugates(
                 1.5, -np.inf, 1, 6, frame=F([0, 0, 0.8])
             ),
             1.5,
         ),
-        "Astigmatic freeform": optics.VolumeBetweenSurfaces(
-            optics.Plane(),
-            optics.FreeformSurface(
+        "Astigmatic freeform": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.Plane(),
+            optics.surfaces.FreeformSurface(
                 lambda p: (
                     -(p[..., 0] ** 2) / (2 * 2.6)
                     - p[..., 1] ** 2 / (2 * 4.2)
@@ -79,8 +85,8 @@ def lens_cases():
             ),
             1.5,
         ),
-        "Two freeform faces": optics.VolumeBetweenSurfaces(
-            optics.FreeformSurface(
+        "Two freeform faces": optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.FreeformSurface(
                 lambda p: (
                     0.04 * p[..., 0] ** 2
                     + 0.025 * p[..., 1] ** 2
@@ -94,7 +100,7 @@ def lens_cases():
                     axis=-1,
                 ),
             ),
-            optics.FreeformSurface(
+            optics.surfaces.FreeformSurface(
                 lambda p: (
                     -0.12 * (p[..., 0] - 0.25) ** 2
                     - 0.065 * (p[..., 1] + 0.15) ** 2
@@ -121,9 +127,9 @@ def _lens_mesh(body, h):
     # Warp a closed flat-cylinder mesh to the two exact graph faces.
     spacing = body.back.frame.origin[2] - body.front.frame.origin[2]
     base = surface_mesh(
-        optics.VolumeBetweenSurfaces(
-            optics.Plane(),
-            optics.Plane(frame=optics.Frame([0, 0, spacing])),
+        optics.volumes.VolumeBetweenSurfaces(
+            optics.surfaces.Plane(),
+            optics.surfaces.Plane(frame=optics.geometry.Frame([0, 0, spacing])),
             body.rim_radius,
         ),
         h,
@@ -140,19 +146,27 @@ def _lens_mesh(body, h):
 
 def scaled_body(body, radius):
     """Scale every length, preserving shape; radius means sphere or rim radius."""
-    original = body.radius if isinstance(body, optics.SphereVolume) else body.rim_radius
+    original = (
+        body.radius
+        if isinstance(body, optics.volumes.SphereVolume)
+        else body.rim_radius
+    )
     scale = radius / original
-    if isinstance(body, optics.SphereVolume):
-        return optics.SphereVolume(body.center * scale, radius)
+    if isinstance(body, optics.volumes.SphereVolume):
+        return optics.volumes.SphereVolume(body.center * scale, radius)
 
     def face(surface):
-        return optics.FreeformSurface(
+        return optics.surfaces.FreeformSurface(
             lambda xy: scale * surface.height(xy / scale),
             lambda xy: surface.gradient(xy / scale),
-            frame=optics.Frame(surface.frame.origin * scale, surface.frame.basis),
+            frame=optics.geometry.Frame(
+                surface.frame.origin * scale, surface.frame.basis
+            ),
         )
 
-    return optics.VolumeBetweenSurfaces(face(body.front), face(body.back), radius)
+    return optics.volumes.VolumeBetweenSurfaces(
+        face(body.front), face(body.back), radius
+    )
 
 
 def compare_closed_body(
@@ -189,7 +203,11 @@ def compare_closed_body(
     pipeline_nodes, pipeline_threads, pipeline_workers = nodes, threads, workers
     mesh_edge *= wavelength
     boundary_band *= wavelength
-    radius = body.radius if isinstance(body, optics.SphereVolume) else body.rim_radius
+    radius = (
+        body.radius
+        if isinstance(body, optics.volumes.SphereVolume)
+        else body.rim_radius
+    )
     domain_scale = radius / wavelength if scale_domain else 1.0
 
     def continued_face(face, core, tail):
@@ -232,16 +250,16 @@ def compare_closed_body(
                 + ((derivative - scale) * radial)[..., None] * direction
             )
 
-        return optics.FreeformSurface(height, gradient, frame=face.frame)
+        return optics.surfaces.FreeformSurface(height, gradient, frame=face.frame)
 
     def pipeline_geometry(body):
-        if isinstance(body, optics.SphereVolume):
+        if isinstance(body, optics.volumes.SphereVolume):
             radius = body.radius
-            front = optics.SphericalCap(
-                radius, optics.Frame(body.center - [0, 0, radius])
+            front = optics.surfaces.SphericalCap(
+                radius, optics.geometry.Frame(body.center - [0, 0, radius])
             )
-            back = optics.SphericalCap(
-                -radius, optics.Frame(body.center + [0, 0, radius])
+            back = optics.surfaces.SphericalCap(
+                -radius, optics.geometry.Frame(body.center + [0, 0, radius])
             )
             core, tail = 0.95 * radius, 0.035 * radius
         else:
@@ -259,18 +277,20 @@ def compare_closed_body(
             / pipeline_count
         )
         entrance_z = faces[0].frame.origin[2] - 2 * wavelength
-        grid = optics.CartesianGrid(axis, axis, optics.Frame([0, 0, entrance_z]))
+        grid = optics.sampling.CartesianGrid(
+            axis, axis, optics.geometry.Frame([0, 0, entrance_z])
+        )
         electric = source.evaluate(grid).electric.values[..., :2]
-        incident = optics.TransverseElectricField(grid, wavelength, electric)
+        incident = optics.fields.TransverseElectricField(grid, wavelength, electric)
         interfaces = [
-            optics.DielectricInterface(faces[0], source.region, interior),
-            optics.DielectricInterface(faces[1], interior, source.region),
+            optics.system.DielectricInterface(faces[0], source.region, interior),
+            optics.system.DielectricInterface(faces[1], interior, source.region),
         ]
-        path = optics.PropagationPipeline(
-            optics.OpticalSystem(interfaces),
+        path = optics.propagation.PropagationPipeline(
+            optics.system.OpticalSystem(interfaces),
             coverage=coverage,
             max_sine=0.95,
-            transmission=optics.SpectralFresnel(
+            transmission=optics.propagation.SpectralFresnel(
                 nodes=pipeline_nodes,
                 angular_limit=0.65,
                 cutoff=1e-7,
@@ -287,8 +307,8 @@ def compare_closed_body(
         # interface response, without repeating transmission or inferring a ray.
         start = perf_counter()
         transports = [
-            optics.SurfaceTransport(
-                optics.CartesianGrid(axis, axis, face.frame),
+            optics.propagation.SurfaceTransport(
+                optics.sampling.CartesianGrid(axis, axis, face.frame),
                 face,
                 region,
                 wavelength,
@@ -342,7 +362,7 @@ def compare_closed_body(
             path = candidate["path"]
             electric = path(
                 candidate["incident"],
-                optics.PointGrid(meridian),
+                optics.sampling.PointGrid(meridian),
                 side="plus",
                 backend="nufft",
             )
@@ -360,9 +380,9 @@ def compare_closed_body(
                     backend="nufft",
                 )
             candidate["extended_points"] = int(report.extended.sum())
-            field = optics.ElectromagneticField(
-                optics.ElectricField(
-                    optics.PointGrid(meridian[report.computed]),
+            field = optics.fields.ElectromagneticField(
+                optics.fields.ElectricField(
+                    optics.sampling.PointGrid(meridian[report.computed]),
                     wavelength,
                     electric.values[report.computed],
                 ),
@@ -389,9 +409,11 @@ def compare_closed_body(
                 )
                 electric[mask], magnetic[mask] = field.electric.values, field.magnetic
         coverage = np.logical_or.reduce(masks)
-        field = optics.ElectromagneticField(
-            optics.ElectricField(
-                optics.PointGrid(meridian[coverage]), wavelength, electric[coverage]
+        field = optics.fields.ElectromagneticField(
+            optics.fields.ElectricField(
+                optics.sampling.PointGrid(meridian[coverage]),
+                wavelength,
+                electric[coverage],
             ),
             magnetic[coverage],
         )
@@ -401,7 +423,7 @@ def compare_closed_body(
         # Facet centroids give genuine one-sided BEM traces, avoiding mesh edges.
         mesh = bem.mesh
         corners = mesh.corners
-        if isinstance(body, optics.SphereVolume):
+        if isinstance(body, optics.volumes.SphereVolume):
             select = np.all(
                 (corners[..., 2] - body.center[2]) * (-1 if which == 0 else 1)
                 >= -1e-10,
@@ -413,7 +435,9 @@ def compare_closed_body(
             select = np.all(abs(corners[..., 2] - heights) < 1e-8 * wavelength, axis=1)
         points = corners[select].mean(axis=1)
         radius = (
-            body.radius if isinstance(body, optics.SphereVolume) else body.rim_radius
+            body.radius
+            if isinstance(body, optics.volumes.SphereVolume)
+            else body.rim_radius
         )
         points = points[np.linalg.norm(points[:, :2], axis=-1) <= 0.8 * radius]
         return points[np.linspace(0, len(points) - 1, min(49, len(points)), dtype=int)]
@@ -515,7 +539,7 @@ def compare_closed_body(
     results, accuracy_rows, timing_rows, interface_rows = {}, [], [], []
 
     def body_band(body, points):
-        if isinstance(body, optics.SphereVolume):
+        if isinstance(body, optics.volumes.SphereVolume):
             return (
                 abs(np.linalg.norm(points - body.center, axis=-1) - body.radius)
                 < boundary_band
@@ -723,7 +747,7 @@ def compare_closed_body(
             focus_at_scan_boundary=peak in (0, len(scan_z) - 1),
         )
 
-    run_case(name, body, interior, sphere=isinstance(body, optics.SphereVolume))
+    run_case(name, body, interior, sphere=isinstance(body, optics.volumes.SphereVolume))
     result = results[name]
     result.update(
         name=name,
@@ -771,7 +795,7 @@ def show_comparison(result):
 
     def outline(ax):
         body = result["body"]
-        if isinstance(body, optics.SphereVolume):
+        if isinstance(body, optics.volumes.SphereVolume):
             theta = np.linspace(0, 2 * np.pi, 401)
             ax.plot(
                 (body.center[2] + body.radius * np.cos(theta)) / wavelength,

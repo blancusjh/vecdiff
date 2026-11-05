@@ -7,19 +7,19 @@ from numpy.testing import assert_allclose
 
 
 def problem(transmission="spectral"):
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
     axis = np.arange(-8, 8) * 0.25
-    grid = o.CartesianGrid(axis, axis, o.Frame([0, 0, -1]))
+    grid = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -1]))
     values = np.zeros(grid.shape + (2,), complex)
     values[..., 0] = 1
-    source = o.TransverseElectricField(grid, 1, values)
+    source = o.fields.TransverseElectricField(grid, 1, values)
     interfaces = [
-        o.DielectricInterface(o.Plane.z(0), air, glass),
-        o.DielectricInterface(o.Plane.z(2), glass, air),
+        o.system.DielectricInterface(o.surfaces.Plane.z(0), air, glass),
+        o.system.DielectricInterface(o.surfaces.Plane.z(2), glass, air),
     ]
-    return source, o.PropagationPipeline(
-        o.OpticalSystem(interfaces), transmission=transmission
+    return source, o.propagation.PropagationPipeline(
+        o.system.OpticalSystem(interfaces), transmission=transmission
     )
 
 
@@ -27,7 +27,7 @@ def problem(transmission="spectral"):
 def test_piecewise_planar_fields_and_interface_sides(mode):
     source, propagate = problem(mode)
     z = np.array([-0.5, 0.5, 3.0])
-    grid = o.PointGrid(np.stack((np.zeros(3), np.zeros(3), z), axis=-1))
+    grid = o.sampling.PointGrid(np.stack((np.zeros(3), np.zeros(3), z), axis=-1))
     field = propagate(source, grid)
     expected = np.array(
         [
@@ -36,7 +36,7 @@ def test_piecewise_planar_fields_and_interface_sides(mode):
             0.96 * np.exp(2j * np.pi * (1 + 1.5 * 2 + 1)),
         ]
     )
-    assert isinstance(field, o.ElectricField)
+    assert isinstance(field, o.fields.ElectricField)
     assert_allclose(field.Ex, expected, atol=2e-12)
     assert_allclose(field.values[..., 1:], 0, atol=1e-13)
     with pytest.raises(ValueError, match="side"):
@@ -71,12 +71,12 @@ def test_target_stops_before_unneeded_interface_and_reuses_source(monkeypatch):
 
 def test_target_equivalence_and_source_owned_by_system():
     source, original = problem()
-    system = o.OpticalSystem(original.interfaces, incident_field=source)
-    propagate = o.PropagationPipeline(system)
+    system = o.system.OpticalSystem(original.interfaces, incident_field=source)
+    propagate = o.propagation.PropagationPipeline(system)
     kw = dict(window=(-1, 1, -1, 1), shape=(7, 9))
     a = propagate(z=3, **kw)
-    b = propagate(o.Plane.z(3), **kw)
-    c = propagate(target_surface=o.Plane.z(3).sample(u=a.grid.u, v=a.grid.v))
+    b = propagate(o.surfaces.Plane.z(3), **kw)
+    c = propagate(target_surface=o.surfaces.Plane.z(3).sample(u=a.grid.u, v=a.grid.v))
     assert_allclose(a.values, b.values, atol=1e-13)
     assert_allclose(a.values, c.values, atol=1e-13)
     assert a.grid.shape == (7, 9)
@@ -94,9 +94,13 @@ def test_coordinate_planes_and_auto_sampling(coordinate):
 def test_curved_and_rotated_targets_match_analytic_homogeneous_wave():
     source, old = problem()
     region = old.interfaces[0].minus
-    propagate = o.PropagationPipeline(o.OpticalSystem(incident_region=region))
-    tilted = o.Plane(o.Frame([0, 0, 4], [[1, 0, 0], [0, 0.8, -0.6], [0, 0.6, 0.8]]))
-    curved = o.SphericalCap(20, o.Frame([0, 0, 4]))
+    propagate = o.propagation.PropagationPipeline(
+        o.system.OpticalSystem(incident_region=region)
+    )
+    tilted = o.surfaces.Plane(
+        o.geometry.Frame([0, 0, 4], [[1, 0, 0], [0, 0.8, -0.6], [0, 0.6, 0.8]])
+    )
+    curved = o.surfaces.SphericalCap(20, o.geometry.Frame([0, 0, 4]))
     for surface in [tilted, curved]:
         result = propagate(source, surface, window=(-1, 1, -1, 1), shape=(9, 9))
         assert_allclose(
@@ -112,7 +116,7 @@ def test_electric_output_does_not_evaluate_magnetic_amplitudes(monkeypatch):
         raise AssertionError("electric-only observation requested H")
 
     monkeypatch.setattr(
-        o.PlaneWaveExpansion, "magnetic_amplitudes", property(forbidden)
+        o.fields.PlaneWaveExpansion, "magnetic_amplitudes", property(forbidden)
     )
     propagate(source, z=3, shape=(4, 4))
 
@@ -120,7 +124,7 @@ def test_electric_output_does_not_evaluate_magnetic_amplitudes(monkeypatch):
 @pytest.mark.parametrize("angle_mode", [0, 1])
 def test_local_oblique_plane_wave_matches_exact_fresnel(angle_mode):
     source, propagate = problem("local")
-    source = o.TransverseElectricField(
+    source = o.fields.TransverseElectricField(
         source.grid,
         1,
         np.stack(
@@ -131,19 +135,21 @@ def test_local_oblique_plane_wave_matches_exact_fresnel(angle_mode):
             axis=-1,
         ),
     )
-    spectrum = o.angular_spectrum(source, propagate.interfaces[0].minus)
+    spectrum = o.fields.angular_spectrum(source, propagate.interfaces[0].minus)
     interface = propagate.interfaces[0]
-    transport = o.SurfaceTransport(
-        o.CartesianGrid(source.grid.u, source.grid.v),
+    transport = o.propagation.SurfaceTransport(
+        o.sampling.CartesianGrid(source.grid.u, source.grid.v),
         interface.surface,
         interface.minus,
         1,
     )
-    shifted = o.PlaneTransport().spectrum(spectrum, 1)
+    shifted = o.propagation.PlaneTransport().spectrum(spectrum, 1)
     actual = propagate.transmission.transmit(shifted, interface, transport)
-    exact = o.scatter_plane(
+    exact = o.propagation.scatter_plane(
         spectrum,
-        o.PlanarInterface(interface.surface.frame, interface.minus, interface.plus),
+        o.system.PlanarInterface(
+            interface.surface.frame, interface.minus, interface.plus
+        ),
     )
     expected = exact.evaluate(transport.grid, side="plus")
     assert_allclose(actual.field.electric.values, expected.electric.values, atol=2e-12)
@@ -156,20 +162,22 @@ def test_local_detects_counterpropagating_phase_cancellation():
     # Two forward beams at +-38.7 degrees have a common summed phase whose
     # gradient magnitude does not satisfy the medium's eikonal equation.
     axis = np.arange(-16, 16) * 0.25
-    grid = o.CartesianGrid(axis, axis, source.grid.frame)
+    grid = o.sampling.CartesianGrid(axis, axis, source.grid.frame)
     x = grid.points[..., 0]
     values = np.stack((np.zeros_like(x), np.cos(2 * np.pi * 5 * x / 8)), axis=-1)
     with pytest.raises(ValueError, match="single-direction approximation"):
-        propagate(o.TransverseElectricField(grid, 1, values), z=3, shape=(4, 4))
+        propagate(o.fields.TransverseElectricField(grid, 1, values), z=3, shape=(4, 4))
 
 
 def test_zero_local_field_and_compatibility_alias():
     source, propagate = problem("local")
-    zero = o.TransverseElectricField(source.grid, 1, np.zeros_like(source.values))
+    zero = o.fields.TransverseElectricField(
+        source.grid, 1, np.zeros_like(source.values)
+    )
     assert_allclose(propagate(zero, z=3, shape=(3, 3)).values, 0)
-    assert o.DirectionResolvedFresnel is o.SpectralFresnel
+    assert o.propagation.DirectionResolvedFresnel is o.propagation.SpectralFresnel
     with pytest.raises(ValueError, match="transmission"):
-        o.PropagationPipeline(transmission="unknown")
+        o.propagation.PropagationPipeline(transmission="unknown")
 
 
 @pytest.mark.parametrize("ka", [100, 1000, 10000])
@@ -177,15 +185,19 @@ def test_surface_electric_jet_against_analytic_modal_derivatives(ka):
     """Large-size two-mode transfer check, not a full macroscopic benchmark."""
     radius = ka / (2 * np.pi)
     axis = (np.arange(64) - 32) * 0.2 * radius / 64
-    grid = o.CartesianGrid(axis, axis)
+    grid = o.sampling.CartesianGrid(axis, axis)
     x = grid.points[..., 0]
     values = np.stack(
         (1 + 0.2 * np.exp(2j * np.pi * x / (0.2 * radius)), 0.3j * np.ones_like(x)),
         axis=-1,
     )
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    spectrum = o.angular_spectrum(o.TransverseElectricField(grid, 1, values), air)
-    transport = o.SurfaceTransport(grid, o.SphericalCap(radius), air, 1)
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    spectrum = o.fields.angular_spectrum(
+        o.fields.TransverseElectricField(grid, 1, values), air
+    )
+    transport = o.propagation.SurfaceTransport(
+        grid, o.surfaces.SphericalCap(radius), air, 1
+    )
     electric, derivative = transport.electric_jet(spectrum)
     modes = spectrum.expansion
     keep = np.any(modes.amplitudes != 0, axis=-1)

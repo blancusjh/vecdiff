@@ -3,8 +3,9 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
-from vecdiff_general import CartesianOval, Frame, gots_parameters
+from vecdiff_general.geometry import Frame
 from vecdiff_general.propagation._directions import transmitted_direction
+from vecdiff_general.surfaces import CartesianOval, gots_parameters
 
 
 @pytest.mark.parametrize("no, ni", [(1.0, 1.5), (1.5, 1.0)])
@@ -108,7 +109,7 @@ def test_collimated_gots_path_snell_curvature_and_finite_limit(no, ni):
 
 
 def test_collimated_oval_matches_spherical_exit_vertex():
-    from vecdiff_general import SphericalCap
+    from vecdiff_general.surfaces import SphericalCap
 
     radius = -80 * 532e-9
     no, ni = 1.5, 1.0
