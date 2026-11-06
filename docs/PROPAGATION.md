@@ -207,3 +207,66 @@ and transverse origin. Finite edges and stops are rejected. The pipeline does
 not include returning branches or a finite-body rim solver. See the
 [runnable example](../general/examples/propagation_pipeline.py) and
 [validation records](VALIDATION.md).
+
+### Carrier-directed transmission
+
+`transmission="carrier"` keeps the exact surface transport but takes the
+local incident direction from the field's declared carrier (a
+`fields.Carrier`, for example `beam.carrier`), passed with the field:
+
+    pipeline = PropagationPipeline(system, transmission="carrier")
+    field = pipeline(incident, z=focus, carrier=beam.carrier)
+
+Each surface sample is transmitted by the continued dyadic of the
+eikonal–angular-spectrum formulation,
+
+    E_t = t_s E_s s + t_p E_p p_t + t_p E_par s_t,
+
+where E_par is the part of the field along the carrier. Keeping that part
+makes an index-matched interface exactly invisible. Nothing is inferred from
+the field, so the operation is linear for a fixed carrier. Samples whose
+carrier meets the surface from behind, grazes it or is totally reflected
+carry no field; their share is reported.
+
+## Eikonal transport
+
+`PropagationPipeline(system, transport="eikonal")` replaces the exact legs
+to and from each surface by the plane–surface–plane map along the carrier
+(`propagation.EikonalTransport`). A point P of the reference plane follows its
+carrier ray to the surface, refracts by the vector Snell law, and is
+extrapolated to P′ on the same geometric plane in the transmitted medium.
+The signed legs give the optical path ΔS = n_i ℓ_i + n_t ℓ_t, and the field
+is carried as
+
+    E′(Φ(ρ)) = g exp(i k0 ΔS) [t_s E_s s + t_p E_p p_t + t_p E_par s_t],
+    g = sqrt(s_iz c_t / (c_i s_tz J)),  J = det DΦ.
+
+`propagation.InterfaceMap` computes Φ, ΔS, g and DΦ. DΦ is analytic: it comes
+from the surface Hessian (`GraphSurface.hessian`, declared by every built-in
+surface; `FreeformSurface` takes a `hessian_function`) and the carrier's
+direction Jacobian. No spherical focus is assumed. The output lattice is
+filled through the inverse map, damped Newton steps from a forward table, so
+the incident field is evaluated exactly at each preimage and never
+interpolated. The carried plane components are then re-expanded in the
+transmitted medium.
+
+Options and reports:
+
+- `reference_planes=(offset, ...)` places each plane along the axis from its
+  surface vertex (default: the vertex planes).
+- The output lattice keeps the input spacing. It grows, up to four times per
+  axis, until it holds the image of every supported ray, because refraction
+  can spread the image beyond the input footprint.
+- `EikonalTransport(..., window=...)` rolls the carried field off. It takes
+  either `(start, end)` incidence angles in degrees or a callable of the
+  `RayMap`, such as a reference fan. Hard-edged inputs depend on this choice;
+  report it with results.
+- `EikonalReport` gives the incident amplitude on rays the chart does not
+  support (misses, rear or grazing incidence, total reflection, folds), the
+  dark output samples, and the inverse-map residual.
+
+The transfer is the formulation's leading-order model. It is exact for a
+plane wave on a plane interface and the identity for index-matched media; it
+does not solve the curved-boundary Maxwell problem. For now, carrier
+transmission and eikonal transport cross one refracting surface. Continuing
+the carrier through refraction for sequences is the next step.

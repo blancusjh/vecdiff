@@ -508,3 +508,92 @@ class LocalFresnel:
             ),
         )
         return Transmission(field, report)
+
+
+@dataclass(frozen=True)
+class CarrierTransmissionReport:
+    """Diagnostics of carrier-directed transmission, not physical error estimates."""
+
+    retained_modes: int
+    omitted_modal_l2: float
+    transport_ranks: tuple[int, ...]
+    unsupported_relative_amplitude: float
+
+
+class CarrierFresnel:
+    r"""Tangent-plane Fresnel along a declared carrier, with the continued dyadic.
+
+    The exact surface trace of the incident field is transmitted point by point
+    with the carrier direction s_i as the local incident direction:
+
+        E_t = t_s E_s s + t_p E_p p_t + t_p E_par s_t,
+
+    where E_par = E . s_i is the part of the field along the carrier. Keeping it
+    (manuscript Eq. 4.3) makes the transfer the identity for index-matched
+    media, where the ray-transverse dyadic alone would discard it. For a fixed
+    carrier the operation is linear in the field; nothing is inferred from the
+    field itself. Samples whose carrier meets the surface from behind, grazes
+    it or is totally reflected carry no field, and their share is reported.
+    """
+
+    def __init__(self, carrier):
+        if not callable(getattr(carrier, "directions", None)):
+            raise TypeError("carrier transmission needs a fields.Carrier")
+        self.carrier = carrier
+
+    def transmit(self, spectrum, interface, transport):
+        if (
+            transport.surface is not interface.surface
+            or spectrum.expansion.region != interface.minus
+        ):
+            raise ValueError(
+                "carrier transmission requires the incident interface transport"
+            )
+        incident = transport.forward(spectrum)
+        electric = incident.electric.values
+        d = self.carrier.directions(transport.grid.points)
+        normal = transport.grid.normals
+        n1, n2 = interface.minus.material.n, interface.plus.material.n
+        c_i = bd.sum(d * normal, axis=-1)
+        tangent = (n1 / n2) * (d - c_i[..., None] * normal)
+        radicand = 1 - bd.sum(tangent**2, axis=-1)
+        supported = (c_i > 1e-12) & (radicand > 1e-24)
+        c_t = bd.sqrt(bd.where(supported, radicand, 1.0))
+        d_t = tangent + c_t[..., None] * normal
+        s = bd.cross(normal, d)
+        size = bd.linalg.norm(s, axis=-1, keepdims=True)
+        fallback = bd.cross(
+            normal,
+            bd.where(
+                abs(normal[..., :1]) < 0.9,
+                bd.asarray([1.0, 0, 0]),
+                bd.asarray([0, 1.0, 0]),
+            ),
+        )
+        s = bd.where(size > 1e-12, s / bd.maximum(size, 1e-300), fallback)
+        s /= bd.linalg.norm(s, axis=-1, keepdims=True)
+        p_i, p_t = bd.cross(s, d), bd.cross(s, d_t)
+        t_s = 2 * n1 * c_i / (n1 * c_i + n2 * c_t)
+        t_p = 2 * n1 * c_i / (n2 * c_i + n1 * c_t)
+        transmitted = (
+            (t_s * bd.sum(s * electric, axis=-1))[..., None] * s
+            + (t_p * bd.sum(p_i * electric, axis=-1))[..., None] * p_t
+            + (t_p * bd.sum(d * electric, axis=-1))[..., None] * d_t
+        )
+        transmitted = bd.where(supported[..., None], transmitted, 0)
+        intensity = bd.sum(abs(electric) ** 2, axis=-1) * transport.grid.weights
+        unsupported = float(
+            bd.sqrt(bd.sum(intensity[~supported]) / max(float(intensity.sum()), 1e-300))
+        )
+        field = ElectromagneticField(
+            ElectricField(transport.grid, spectrum.expansion.wavelength0, transmitted),
+            n2 / Z0 * bd.cross(d_t, transmitted),
+        )
+        modes = spectrum.expansion
+        report = CarrierTransmissionReport(
+            int(bd.count_nonzero(bd.any(modes.amplitudes != 0, axis=-1))),
+            0.0,
+            (transport.rank,),
+            unsupported,
+        )
+        return Transmission(field, report)

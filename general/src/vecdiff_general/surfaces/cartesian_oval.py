@@ -308,3 +308,42 @@ class CartesianOval(GraphSurface):
             raise ValueError("Cartesian-oval graph reaches a singular branch")
 
         return -numerator / denominator[..., None]
+
+    def hessian(self, xy):
+        """Implicit second derivatives of G = n_o |r - O| + n_i |r - I| = const."""
+        xy = bd.asarray(xy, dtype=float)
+        height = self.height(xy)
+        slope = self.gradient(xy)
+        local = bd.concatenate((xy, height[..., None]), axis=-1)
+        second = bd.zeros(xy.shape[:-1] + (3, 3))
+        axial = bd.zeros(xy.shape[:-1])
+        conjugates = [(self.image_z, self.n_image)]
+
+        if bd.isneginf(self.object_z):
+            axial = axial + self.n_object
+        else:
+            conjugates.append((self.object_z, self.n_object))
+
+        for z, index in conjugates:
+            offset = local - bd.asarray([0.0, 0.0, z])
+            distance = bd.linalg.norm(offset, axis=-1)
+            unit = offset / distance[..., None]
+            axial = axial + index * unit[..., 2]
+            second = (
+                second
+                + index
+                * (bd.eye(3) - unit[..., :, None] * unit[..., None, :])
+                / distance[..., None, None]
+            )
+
+        mixed = second[..., :2, 2]
+        hessian = (
+            second[..., :2, :2]
+            + mixed[..., :, None] * slope[..., None, :]
+            + slope[..., :, None] * mixed[..., None, :]
+            + second[..., 2, 2][..., None, None]
+            * slope[..., :, None]
+            * slope[..., None, :]
+        )
+
+        return -hessian / axial[..., None, None]

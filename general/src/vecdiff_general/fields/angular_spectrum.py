@@ -33,8 +33,8 @@ def angular_spectrum(
     inputs are validated without projection. The selected material and branch
     determine k_normal and, when needed, the longitudinal electric component.
 
-    'discard' removes modes outside the propagating disk; 'retain' keeps the
-    decaying branch. Coefficients below coefficient_rtol times the largest mode
+    'discard' removes modes outside the propagating disk and on its rim;
+    'retain' keeps the decaying branch. Coefficients below coefficient_rtol times the largest mode
     are zeroed before completion. Set this threshold to zero for strict
     retention. Both removed RMS amplitudes are reported in V/m.
     """
@@ -85,7 +85,10 @@ def angular_spectrum(
     evanescent_removed = 0.0
 
     if evanescent == "discard":
-        discarded = transverse_squared > wavenumber**2
+        # A mode exactly on the light circle carries no power and has no
+        # transverse completion; it leaves with the decaying modes.
+        grazing = bd.abs(normal_wavenumber) < 1e-12 * wavenumber
+        discarded = (transverse_squared > wavenumber**2) | grazing
         evanescent_removed = float(bd.linalg.norm(coefficients[discarded]))
         coefficients[discarded] = 0
 

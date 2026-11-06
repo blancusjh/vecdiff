@@ -24,6 +24,11 @@ class EvenAsphere(GraphSurface):
 
         object.__setattr__(self, "coefficients", coefficients)
 
+    def domain(self, xy):
+        radius = bd.linalg.norm(bd.asarray(xy, dtype=float), axis=-1)
+
+        return 1 - (1 + self.conic) * self.curvature**2 * radius**2 > 0
+
     def _root(self, radius):
         radicand = 1 - (1 + self.conic) * self.curvature**2 * radius**2
 
@@ -50,3 +55,19 @@ class EvenAsphere(GraphSurface):
             slope += 2 * order * coefficient * radius ** (2 * order - 1)
 
         return divide(slope[..., None] * xy, radius[..., None], radius[..., None] != 0)
+
+    def hessian(self, xy):
+        from vecdiff_general.surfaces.axisymmetric import _radial_hessian
+
+        radius = bd.linalg.norm(bd.asarray(xy, dtype=float), axis=-1)
+        root = self._root(radius)
+        slope = self.curvature * radius / root
+        curvature = self.curvature / root**3
+
+        for order, coefficient in enumerate(self.coefficients, start=2):
+            slope += 2 * order * coefficient * radius ** (2 * order - 1)
+            curvature += (
+                2 * order * (2 * order - 1) * coefficient * radius ** (2 * order - 2)
+            )
+
+        return _radial_hessian(xy, slope, curvature)

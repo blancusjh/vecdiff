@@ -1,7 +1,11 @@
 """Electric-field propagation through an optical system onto placed targets.
 
-Spectral and local Fresnel share forward surface-equivalence reconstruction.
-Returning branches and finite material edges require a separate model.
+Two realizations of the surface legs. transport="wave" carries the field to
+each surface exactly (SurfaceTransport) and back to a plane spectrum after a
+spectral, local or carrier-directed Fresnel transmission. transport="eikonal"
+replaces those legs by the plane-surface-plane map along a declared carrier
+(EikonalTransport). Returning branches and finite material edges require a
+separate model.
 """
 
 import importlib.util
@@ -14,9 +18,12 @@ from vecdiff_general.fields import (
 )
 from vecdiff_general.fields.angular_spectrum import angular_spectrum
 from vecdiff_general.fields.spectrum import PlaneSpectrum
+from vecdiff_general.geometry.frames import Frame
 from vecdiff_general.propagation.coverage import CoverageEvaluator, validate_coverage
+from vecdiff_general.propagation.eikonal import EikonalTransport
 from vecdiff_general.propagation.homogeneous import PlaneTransport
 from vecdiff_general.propagation.surface_interaction import (
+    CarrierFresnel,
     LocalFresnel,
     SpectralFresnel,
 )
@@ -107,7 +114,7 @@ class PropagationSolution:
 
 
 class PropagationPipeline:
-    """Compose homogeneous transport and spectral or local Fresnel transmission.
+    """Compose homogeneous transport with transmission at each surface.
 
     An empty path is valid. Surfaces must be nonintersecting graphs sharing the
     input FFT frame orientation and transverse origin. Finite material edges
@@ -116,17 +123,27 @@ class PropagationPipeline:
     medium. PlaneSpectrum inputs and solve/evaluate remain supported. Call the
     operator with a target to return an ElectricField; geometry stays in the
     OpticalSystem and observations belong to each operator invocation.
+
+    transport="wave" (default) takes transmission "spectral" (default), "local",
+    "carrier" or a Fresnel treatment. transport="eikonal" carries the field
+    with the carrier dyadic along each surface's plane-surface-plane map; its
+    reference planes sit at ``reference_planes`` offsets from each surface
+    vertex along the axis (None: the vertex planes). "carrier" transmission
+    and eikonal transport need the incident field's carrier, passed as
+    ``carrier=`` with the field; for now they cross one refracting surface.
     """
 
     def __init__(
         self,
         system=(),
         *,
-        transmission="spectral",
+        transmission=None,
         coverage="reduced",
         incident_region=None,
         max_sine=0.85,
         transport_tolerance=1e-10,
+        transport="wave",
+        reference_planes=None,
     ):
         self.system = (
             system
@@ -155,21 +172,50 @@ class PropagationPipeline:
                 )
         if not 0 < max_sine < 1 or not 0 < transport_tolerance < 1:
             raise ValueError("transport bandwidth and tolerance must lie in (0, 1)")
-        if transmission is None or (
+        if transport not in ("wave", "eikonal"):
+            raise ValueError('transport must be "wave" or "eikonal"')
+        self.transport = transport
+        if transport == "eikonal":
+            if transmission not in (None, "carrier"):
+                raise ValueError(
+                    "eikonal transport transmits with the carrier dyadic; "
+                    "transmission must be None or 'carrier'"
+                )
+            transmission = "carrier"
+            offsets = (
+                (0.0,) * len(self.interfaces)
+                if reference_planes is None
+                else tuple(float(x) for x in reference_planes)
+            )
+            if len(offsets) != len(self.interfaces):
+                raise ValueError("give one reference-plane offset per interface")
+            self.reference_planes = offsets
+        elif reference_planes is not None:
+            raise ValueError("reference_planes place the planes of eikonal transport")
+        else:
+            self.reference_planes = None
+        if transmission == "carrier":
+            pass
+        elif transmission is None or (
             isinstance(transmission, str) and transmission == "spectral"
         ):
             transmission = SpectralFresnel()
         elif isinstance(transmission, str) and transmission == "local":
             transmission = LocalFresnel()
-        if not hasattr(transmission, "transmit"):
+        if transmission != "carrier" and not hasattr(transmission, "transmit"):
             raise ValueError(
-                "transmission must be 'spectral', 'local', or a Fresnel treatment"
+                "transmission must be 'spectral', 'local', 'carrier', "
+                "or a Fresnel treatment"
             )
         self.coverage = validate_coverage(coverage)
         self._coverage_evaluator = CoverageEvaluator()
         self.transmission = transmission
         self.treatment = (
-            "local"
+            "eikonal"
+            if transport == "eikonal"
+            else "carrier"
+            if transmission == "carrier"
+            else "local"
             if isinstance(transmission, LocalFresnel)
             else "spectral"
             if isinstance(transmission, SpectralFresnel)
@@ -183,6 +229,7 @@ class PropagationPipeline:
     def clear_cache(self):
         """Discard prepared operators and the last incident field's solution."""
         self._key, self._operators = None, ()
+        self._carrier = None
         self._input, self._source = None, None
         self._solved_source = None
         self._stages, self._responses = [], []
@@ -231,6 +278,7 @@ class PropagationPipeline:
         sampling="auto",
         side=None,
         method="auto",
+        carrier=None,
         **kwargs,
     ):
         """Return an ElectricField; target coordinates are global, in metres.
@@ -263,14 +311,14 @@ class PropagationPipeline:
             if bd.any(coverage.computed)
             else 0
         )
-        solution = self.solve(source, through=through)
+        solution = self.solve(source, through=through, carrier=carrier)
         self.last_solution, self.last_sampling = solution, report
         self.last_coverage = coverage
         return self._coverage_evaluator.electric(
             solution.stages, grid, coverage, method=method, **kwargs
         )
 
-    def _prepare(self, source, through):
+    def _prepare(self, source, through, carrier):
         grid, wavelength = source.grid, source.expansion.wavelength0
         if not isinstance(grid, CartesianGrid):
             raise TypeError("pipeline requires a CartesianGrid PlaneSpectrum")
@@ -279,6 +327,7 @@ class PropagationPipeline:
             grid.u.tobytes(),
             grid.v.tobytes(),
             grid.frame.basis.tobytes(),
+            id(carrier) if self.transport == "eikonal" else None,
         )
         # Check placements on every call, including reuse with another source.
         for interface in self.interfaces:
@@ -295,6 +344,17 @@ class PropagationPipeline:
                 )
         operators = list(self._operators) if key == self._key else []
         if len(operators) >= through:
+            return
+        if self.transport == "eikonal":
+            for index in range(len(operators), through):
+                interface = self.interfaces[index]
+                frame = interface.surface.frame
+                origin = frame.origin + self.reference_planes[index] * frame.normal
+                plane = CartesianGrid(grid.u, grid.v, Frame(origin, frame.basis))
+                operators.append(
+                    EikonalTransport(plane, interface, carrier, wavelength)
+                )
+            self._key, self._operators = key, tuple(operators)
             return
         for interface in self.interfaces[len(operators) : through]:
             plane = CartesianGrid(grid.u, grid.v, interface.surface.frame)
@@ -318,7 +378,7 @@ class PropagationPipeline:
                 )
         self._key, self._operators = key, tuple(operators)
 
-    def solve(self, source=None, *, through=None):
+    def solve(self, source=None, *, through=None, carrier=None):
         """Prepare reusable forward fields; normal callers can use operator(...)."""
         source = self._source_spectrum(source)
         through = len(self.interfaces) if through is None else through
@@ -328,15 +388,35 @@ class PropagationPipeline:
             raise ValueError(
                 "source medium differs from the first interface incident medium"
             )
-        self._prepare(source, through)
+        if self.treatment in ("eikonal", "carrier"):
+            if carrier is None:
+                raise ValueError(
+                    f"{self.treatment} transmission needs the incident carrier: "
+                    "pass carrier= (a fields.Carrier) with the field"
+                )
+            refracting = [
+                x
+                for x in self.interfaces[:through]
+                if x.minus.material.n != x.plus.material.n
+            ]
+            if len(refracting) > 1:
+                raise ValueError(
+                    "the carrier is not yet continued through refraction; "
+                    f"{self.treatment} transmission crosses one refracting surface"
+                )
+        if carrier is not self._carrier:
+            self._solved_source = None
+            self._carrier = carrier
+        self._prepare(source, through, carrier)
         if self._solved_source is not source:
             self._stages, self._responses = [source], []
             self._solved_source = source
         start = len(self._stages) - 1
         current = self._stages[-1]
-        for interface, (qin, qout) in zip(
+        for interface, operator in zip(
             self.interfaces[start:through], self._operators[start:through]
         ):
+            qin, qout = (operator, None) if self.transport == "eikonal" else operator
             distance = float(
                 (qin.plane.frame.origin - current.grid.frame.origin)
                 @ current.grid.frame.normal
@@ -351,15 +431,24 @@ class PropagationPipeline:
                 self._stages.append(current)
                 self._responses.append(None)
                 continue
-            response = self.transmission.transmit(current, interface, qin)
-            current = qout.radiate(response.field)
+            if self.transport == "eikonal":
+                current, response = qin.transmit(current)
+            else:
+                transmission = (
+                    CarrierFresnel(carrier)
+                    if self.transmission == "carrier"
+                    else self.transmission
+                )
+                response = transmission.transmit(current, interface, qin)
+                current = qout.radiate(response.field)
             self._responses.append(response)
             self._stages.append(current)
-        boundary = (
-            None
-            if through == 0
-            else float(max(0, self._operators[through - 1][1].height.max()))
-        )
+        if through == 0:
+            boundary = None
+        elif self.transport == "eikonal":
+            boundary = self._operators[through - 1].boundary
+        else:
+            boundary = float(max(0, self._operators[through - 1][1].height.max()))
         result = PropagationSolution(
             self._stages[through],
             tuple(r for r in self._responses[:through] if r is not None),

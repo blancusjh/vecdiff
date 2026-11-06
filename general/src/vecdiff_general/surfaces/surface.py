@@ -21,6 +21,20 @@ class GraphSurface(ABC):
     def gradient(self, xy):
         """Dimensionless local derivatives (dh/dx, dh/dy)."""
 
+    def domain(self, xy):
+        """True where the graph z = h(x, y) is defined; all points by default."""
+        return bd.ones(bd.asarray(xy).shape[:-1], dtype=bool)
+
+    def hessian(self, xy):
+        """Second derivatives [[h_xx, h_xy], [h_xy, h_yy]] in 1/m, shape (..., 2, 2).
+
+        Eikonal transport differentiates the surface normal (manuscript
+        Appendix A); a surface that does not declare its Hessian cannot be used.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} declares no Hessian; eikonal transport needs one"
+        )
+
     def points(self, xy):
         xy = bd.asarray(xy, dtype=float)
 
@@ -67,6 +81,9 @@ class Plane(GraphSurface):
     def gradient(self, xy):
         return bd.zeros_like(bd.asarray(xy, dtype=float))
 
+    def hessian(self, xy):
+        return bd.zeros(bd.asarray(xy).shape + (2,))
+
     @classmethod
     def z(cls, value):
         """Global coordinate plane z=value, chart (u,v)=(x,y)."""
@@ -85,9 +102,12 @@ class Plane(GraphSurface):
 
 @dataclass(frozen=True)
 class FreeformSurface(GraphSurface):
+    """z = height_function(xy); gradient and optional Hessian functions alongside."""
+
     height_function: Callable
     gradient_function: Callable
     frame: Frame = field(default_factory=Frame)
+    hessian_function: Callable | None = None
 
     def height(self, xy):
         return bd.broadcast_to(
@@ -97,4 +117,13 @@ class FreeformSurface(GraphSurface):
     def gradient(self, xy):
         return bd.broadcast_to(
             bd.asarray(self.gradient_function(xy), dtype=float), bd.asarray(xy).shape
+        )
+
+    def hessian(self, xy):
+        if self.hessian_function is None:
+            return super().hessian(xy)
+
+        return bd.broadcast_to(
+            bd.asarray(self.hessian_function(xy), dtype=float),
+            bd.asarray(xy).shape + (2,),
         )
