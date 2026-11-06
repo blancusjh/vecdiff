@@ -9,7 +9,7 @@ share no runtime optical kernel; external validation compares explicit arrays.
 | Shape | `surfaces/`, `volumes.py` | Geometry, normals, membership and area Jacobians |
 | Discretization | `sampling/` | Physical points, FFT lattices and quadrature measures |
 | Matter | `media/` | Constitutive data and spatial assignment |
-| Fields | `fields/` | Electric samples, E/H traces, modal and eikonal representations |
+| Fields | `fields/` | Electric samples, E/H traces, beams and their carriers, modal and eikonal representations |
 | Optical prescription | `system.py` | Oriented surface/media adjacency and sequences |
 | Numerical transforms | `fourier/` | FFT, Hankel, angular harmonics and NUFFT |
 | Homogeneous propagation | `propagation/homogeneous.py` | ASM and paraxial Fresnel evolution |

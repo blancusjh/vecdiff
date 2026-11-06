@@ -47,7 +47,7 @@ def scattered(solution):
 
     def evaluate(grid):
         total = solution.evaluate(grid, side="exterior")
-        incident = solution.source.evaluate(grid)
+        incident = solution.incident.evaluate(grid)
         return ElectromagneticField(
             ElectricField(grid, 1, total.electric.values - incident.electric.values),
             total.magnetic - incident.magnetic,

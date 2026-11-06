@@ -216,3 +216,96 @@ def test_stable_single_interface_sphere_is_exact_beyond_the_direct_series(interi
         inside = np.cross(normal, field["incident"][index] + field["reflected"][index])
         outside = np.cross(normal, field["transmitted"][index])
         assert np.linalg.norm(inside - outside) <= 1e-10 * np.linalg.norm(outside)
+
+
+def beams():
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    P, F = o.fields.polarization, o.fields.profiles
+    focused = dict(focal_length=40.0, wavelength0=1.0, region=air)
+    return air, {
+        "circular": o.fields.FocusedBeam(
+            F.Uniform(), P.cartesian(1, 1j), max_sine=0.8, **focused
+        ),
+        "radial": o.fields.FocusedBeam(
+            F.Gaussian(25.0), P.radial, max_sine=0.9, **focused
+        ),
+        "x": o.fields.FocusedBeam(F.Uniform(), P.x, max_sine=0.7, **focused),
+        "offaxis": o.fields.FocusedBeam(
+            F.Uniform(),
+            P.azimuthal,
+            max_sine=0.7,
+            frame=o.geometry.Frame([0.6, -0.3, 0.4]),
+            **focused,
+        ),
+        "plane": o.fields.PlaneBeam(
+            F.Uniform(1.5),
+            P.radial,
+            wavelength0=1.0,
+            region=air,
+            frame=o.geometry.Frame([0.2, 0, -2.0]),
+        ),
+    }
+
+
+def test_mie_under_beams_selects_their_azimuthal_orders_and_reduces_to_identity():
+    air, cases = beams()
+    sphere = o.volumes.SphereVolume([0, 0, 0], 1.2)
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    orders = {
+        name: set(MieSphere(b, sphere, glass).coefficients) for name, b in cases.items()
+    }
+    assert (
+        orders["circular"] == {1} and orders["radial"] == {0} and orders["x"] == {-1, 1}
+    )
+    grid = o.sampling.PointGrid(
+        np.random.default_rng(5).uniform(-1.6, 1.6, size=(60, 3))
+    )
+    for name in ("offaxis", "plane"):
+        identity = MieSphere(cases[name], sphere, air).evaluate(grid)
+        incident = cases[name].evaluate(grid)
+        assert_allclose(identity.electric.values, incident.electric.values, atol=1e-11)
+        assert_allclose(identity.magnetic, incident.magnetic, atol=1e-13)
+
+
+def test_mie_beam_projection_agrees_with_its_plane_waves_and_with_one_wave():
+    air, cases = beams()
+    sphere = o.volumes.SphereVolume([0.1, 0, 0.2], 1.0)
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    grid = o.sampling.PointGrid([[0.2, 0.1, 0.3], [0.3, -0.4, 1.4], [0, 0, -1.5]])
+    beam = cases["offaxis"]
+    waves = beam.plane_waves(np.linalg.norm(sphere.center - beam.focus) + 30)
+    assert_allclose(
+        MieSphere(beam, sphere, glass).evaluate(grid).electric.values,
+        MieSphere(waves, sphere, glass).evaluate(grid).electric.values,
+        atol=1e-11,
+    )
+    P, F = o.fields.polarization, o.fields.profiles
+    plane = o.fields.PlaneBeam(
+        F.Uniform(), P.cartesian(0.3, 1j), wavelength0=1.0, region=air
+    )
+    assert_allclose(
+        MieSphere(plane, sphere, glass).evaluate(grid).electric.values,
+        MieSphere(plane.plane_waves(0), sphere, glass).evaluate(grid).electric.values,
+        atol=1e-13,
+    )
+
+
+def test_debye_terms_of_a_beam_sum_to_lorenz_mie():
+    air, cases = beams()
+    sphere = o.volumes.SphereVolume([0, 0, 0], 1.0)
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    mie = MieSphere(cases["radial"], sphere, glass)
+    inside = o.sampling.PointGrid([[0.1, 0.2, 0.3], [0, 0, -0.8], [0.5, 0, 0]])
+    outside = o.sampling.PointGrid([[0.1, 0.2, 1.3], [0, 0, -1.8], [1.5, 0, 0]])
+    interior = sum(
+        mie.evaluate(inside, side="interior", term=t).electric.values
+        for t in (1, 2, ("after", 2))
+    )
+    assert_allclose(interior, mie.evaluate(inside).electric.values, atol=1e-12)
+    scattered = sum(
+        mie.evaluate(outside, side="exterior", term=t).electric.values
+        for t in (0, 1, 2, ("after", 2))
+    )
+    total = mie.evaluate(outside).electric.values
+    incident = cases["radial"].evaluate(outside).electric.values
+    assert_allclose(scattered, total - incident, atol=1e-12)

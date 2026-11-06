@@ -109,7 +109,7 @@ class BoundarySolveReport:
 class AxisymmetricMFS:
     """Full-wave reference for one closed axisymmetric dielectric body.
 
-    Source: one normally incident +z plane wave, arbitrary complex polarization.
+    Illumination: one normally incident +z plane wave, arbitrary complex polarization.
     ``source_count`` nodes per lens face/rim (total three times that for lenses).
     Accuracy MUST be measured on independent nodes while varying source_count,
     source_offset and azimuths; a small fitted residual alone is insufficient.
@@ -118,7 +118,7 @@ class AxisymmetricMFS:
 
     def __init__(
         self,
-        source,
+        incident,
         volume,
         interior,
         *,
@@ -129,9 +129,12 @@ class AxisymmetricMFS:
         rcond=1e-12,
         max_unknowns=2400,
     ):
-        if not isinstance(source, PlaneWaveExpansion) or len(source.amplitudes) != 1:
+        if (
+            not isinstance(incident, PlaneWaveExpansion)
+            or len(incident.amplitudes) != 1
+        ):
             raise TypeError("boundary reference requires one analytic plane wave")
-        k = source.wavevectors[0]
+        k = incident.wavevectors[0]
         if (
             np.any(k.imag)
             or np.linalg.norm(k[:2]) > 1e-12 * abs(k[2])
@@ -140,8 +143,8 @@ class AxisymmetricMFS:
             raise ValueError("axisymmetric solver requires incidence along global +z")
         if not 0 < rcond < 1:
             raise ValueError("rcond must lie in (0,1)")
-        self.source, self.volume, self.interior = source, volume, interior
-        self.exterior, self.wavelength0 = source.region, source.wavelength0
+        self.incident, self.volume, self.interior = incident, volume, interior
+        self.exterior, self.wavelength0 = incident.region, incident.wavelength0
         boundary = boundary_meridian(volume, source_count)
         unknowns = 6 * len(boundary.points)
         if unknowns > max_unknowns:
@@ -336,8 +339,8 @@ class AxisymmetricMFS:
         )
         E, H = np.zeros_like(points, complex), np.zeros_like(points, complex)
         split = len(self.coefficients) // 2
-        origin_phase = np.exp(-1j * self.source.wavevectors[0] @ self.source.origin)
-        ax, ay = self.source.amplitudes[0, :2] * origin_phase
+        origin_phase = np.exp(-1j * self.incident.wavevectors[0] @ self.incident.origin)
+        ax, ay = self.incident.amplitudes[0, :2] * origin_phase
         plus, minus = (ax - 1j * ay) / 2, (ax + 1j * ay) / 2
         for inside in (False, True):
             ids = np.flatnonzero(mask == inside)
@@ -368,7 +371,7 @@ class AxisymmetricMFS:
         if np.any(~mask):
             from vecdiff_general.sampling import PointGrid
 
-            incident = self.source.evaluate(PointGrid(points[~mask]))
+            incident = self.incident.evaluate(PointGrid(points[~mask]))
             E[~mask] += incident.electric.values
             H[~mask] += incident.magnetic
         return ElectromagneticField(
