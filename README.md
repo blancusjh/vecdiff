@@ -92,9 +92,11 @@ python3 -m venv .venv
 ```
 
 NumPy and SciPy are required. Matplotlib, Jupyter execution, FINUFFT and Gmsh
-(`reference-mesh`) are optional extras. `requirements-dev.lock` records the
-qualified development environment; the root `pyproject.toml` configures code
-style. See [notebooks](docs/NOTEBOOKS.md) to execute the notebooks.
+(`reference-mesh`) are optional extras; the `cuda12` or `cuda13` extra installs
+CuPy for a CUDA GPU (see [GPU backend](#gpu-backend)). `requirements-dev.lock`
+records the qualified development environment; the root `pyproject.toml`
+configures code style. See [notebooks](docs/NOTEBOOKS.md) to execute the
+notebooks.
 
 ## Organization
 
@@ -106,7 +108,8 @@ vecdiff_general/
     surfaces/       surface shapes and normals
     sampling/       grids and integration measures
     media/          material properties and spatial assignment
-    fields/         field samples, spectra and source representations
+    fields/         field samples, beams, spectra and carriers
+    backend.py      CPU (NumPy) or CUDA GPU (CuPy) arrays
     system.py       surface/media adjacency and optical prescriptions
     fourier/        numerical transforms
     propagation/
@@ -115,7 +118,7 @@ vecdiff_general/
         surface_interaction.py  transmission and reflection at a boundary
         pipeline.py             composition along an optical path
         references/             Mie, BEM and independent reference solutions
-    observables/    energy, power, polarization and detector formation
+    observables/    energy, power, momentum, spin, forces, polarization, detectors
     visualization/  plots and animations
 ```
 
@@ -130,15 +133,46 @@ level re-exports nothing.
 
 External comparisons live in `validation/`.
 
+## GPU backend
+
+As in diffractsim, one global switch moves arrays and computation to a CUDA GPU.
+Make it at the top of a script, before building any vecdiff object:
+
+```python
+from vecdiff_general import backend
+
+backend.set_backend("CUDA")   # "CPU" is the default
+```
+
+Everything built and computed afterwards lives on the GPU, in double precision;
+results match the CPU to roundoff. NumPy arrays and lists passed in are moved to
+the device on entry, results stay there until `backend.to_numpy(array)`, and
+plotting converts on its own. Objects built before a switch keep their arrays on
+the old device and must be rebuilt. Geometry, meshing, the reference solvers in
+`propagation.references` and FINUFFT compute on the CPU; their inputs and results
+are moved for them. `backend.bd` is the current array module (NumPy or CuPy) for
+creating arrays on the same device. `VECDIFF_BACKEND=CUDA pytest general/tests`
+runs the test suite on the GPU.
+
+The gain depends on the operation. On a laptop RTX 4060 (8 GB) against 16 CPU
+threads, focal maps of a `FocusedBeam` run about 14× faster, angular-spectrum
+propagation of a 2048² field 10×, an order-1 Hankel transform 37× and the
+curved-surface transfer `SurfaceTransport` 6–9×, all matching the CPU to
+roundoff. Device memory bounds the lattice: angular-spectrum propagation holds
+about 3 GB at 2048². FINUFFT stays on the CPU: in double precision it outpaces
+cuFINUFFT on consumer cards.
+
 ## Physical contracts
 
 - Lengths and vacuum wavelength are metres. Public E and H are SI phasors in V/m and A/m; time dependence is `exp(-i omega t)`.
 - `ElectricField(grid, wavelength0, values)` owns electric samples, with convenient `Ex`, `Ey`, `Ez` views. It has no medium or duplicate sampling state.
 - `Grid` owns physical coordinates, placement, and any integration measure. `PlaneGrid` components use a declared right-handed frame; complete E values are global Cartesian vectors.
+- A beam (`fields.PlaneBeam`, `fields.FocusedBeam`) is a source-free sum of propagating plane waves in one region. It takes a scalar `profile` from `fields.profiles` and a separate `polarization` state from `fields.polarization` (x, y, radial, azimuthal or any Cartesian/polar pair), evaluates anywhere through a quadrature chosen for the evaluation region, and declares its reference rays as a `fields.Carrier`.
 - `TransverseElectricField` prescribes two local plane components. Longitudinal completion needs the material dispersion and a branch supplied separately. A complete electric vector is validated, never silently projected.
 - Material context belongs to regions and systems. `MaterialDistribution` represents piecewise spatial `n(r)`; a geometrical body does not imply that a solver includes its rim scattering.
 - A solution computes consistent H from its spatial/modal representation. `ElectromagneticField` holds evaluated E/H; its `poynting()` and `power()` preserve coherent interference.
 - `norm2()` is electric amplitude squared. It is not labeled intensity in W/m². Energy density takes explicit nondispersive material context.
+- Momentum observables use the dual-symmetric densities of Berry and Bliokh–Bekshaev–Nori: `observables.spin_density` and `helicity_density` read E/H samples; `canonical_momentum`, `spin_momentum` and `orbital_angular_momentum` read an `ElectricFieldJet` (`observables.plane_wave_jet(expansion, grid)`), with ε μ P = p_o + ∇×S/2. `observables.force` and `torque` integrate the Maxwell stress tensor over a closed surface quadrature.
 
 ## A propagation
 

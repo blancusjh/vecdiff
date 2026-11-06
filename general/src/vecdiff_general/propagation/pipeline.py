@@ -7,8 +7,7 @@ Returning branches and finite material edges require a separate model.
 import importlib.util
 from dataclasses import dataclass, replace
 
-import numpy as np
-
+from vecdiff_general._backend import bd
 from vecdiff_general.fields import (
     ElectricField,
     TransverseElectricField,
@@ -50,7 +49,7 @@ class PropagationSolution:
         shape=None,
         sampling="auto",
         side=None,
-        backend="auto",
+        method="auto",
         **kwargs,
     ):
         """Electric field on a placed/sampled target or a coordinate plane.
@@ -78,13 +77,13 @@ class PropagationSolution:
             grid, self.interfaces, source, mode=self.coverage, side=side
         )
         return evaluator.electric(
-            self.stages or (self.spectrum,), grid, report, backend=backend, **kwargs
+            self.stages or (self.spectrum,), grid, report, method=method, **kwargs
         )
 
-    def evaluate(self, grid, *, backend="auto", **kwargs):
+    def evaluate(self, grid, *, method="auto", **kwargs):
         plane = self.spectrum.grid
         displacement = grid.points - plane.frame.origin
-        if self.observation_boundary is not None and np.any(
+        if self.observation_boundary is not None and bd.any(
             displacement @ plane.frame.normal
             < self.observation_boundary - 1e-12 * self.spectrum.expansion.wavelength0
         ):
@@ -92,19 +91,19 @@ class PropagationSolution:
         if (
             isinstance(grid, CartesianGrid)
             and grid.shape == plane.shape
-            and np.array_equal(grid.u, plane.u)
-            and np.array_equal(grid.v, plane.v)
-            and np.allclose(grid.frame.basis, plane.frame.basis, rtol=0, atol=1e-12)
+            and bd.array_equal(grid.u, plane.u)
+            and bd.array_equal(grid.v, plane.v)
+            and bd.allclose(grid.frame.basis, plane.frame.basis, rtol=0, atol=1e-12)
         ):
             delta = grid.frame.origin - plane.frame.origin
             if (
-                np.linalg.norm(delta @ plane.frame.basis[:, :2])
+                bd.linalg.norm(delta @ plane.frame.basis[:, :2])
                 <= 1e-12 * self.spectrum.expansion.wavelength0
             ):
                 return self.spectrum.propagate(float(delta @ plane.frame.normal))
-        if backend == "auto":
-            backend = "nufft" if importlib.util.find_spec("finufft") else "direct"
-        return self.spectrum.evaluate(grid, backend=backend, **kwargs)
+        if method == "auto":
+            method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+        return self.spectrum.evaluate(grid, method=method, **kwargs)
 
 
 class PropagationPipeline:
@@ -231,7 +230,7 @@ class PropagationPipeline:
         shape=None,
         sampling="auto",
         side=None,
-        backend="auto",
+        method="auto",
         **kwargs,
     ):
         """Return an ElectricField; target coordinates are global, in metres.
@@ -261,14 +260,14 @@ class PropagationPipeline:
         )
         through = (
             int(coverage.regions[coverage.computed].max())
-            if np.any(coverage.computed)
+            if bd.any(coverage.computed)
             else 0
         )
         solution = self.solve(source, through=through)
         self.last_solution, self.last_sampling = solution, report
         self.last_coverage = coverage
         return self._coverage_evaluator.electric(
-            solution.stages, grid, coverage, backend=backend, **kwargs
+            solution.stages, grid, coverage, method=method, **kwargs
         )
 
     def _prepare(self, source, through):
@@ -285,8 +284,8 @@ class PropagationPipeline:
         for interface in self.interfaces:
             frame = interface.surface.frame
             if (
-                not np.allclose(frame.basis, grid.frame.basis, rtol=0, atol=1e-12)
-                or np.linalg.norm(
+                not bd.allclose(frame.basis, grid.frame.basis, rtol=0, atol=1e-12)
+                or bd.linalg.norm(
                     (frame.origin - grid.frame.origin) @ grid.frame.basis[:, :2]
                 )
                 > 1e-12 * wavelength
@@ -311,7 +310,7 @@ class PropagationPipeline:
                 )
             )
         for left, right in zip(operators, operators[1:]):
-            if np.any(
+            if bd.any(
                 (right[0].grid.points - left[0].grid.points) @ grid.frame.normal <= 0
             ):
                 raise ValueError(

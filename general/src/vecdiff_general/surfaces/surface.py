@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-import numpy as np
-
+from vecdiff_general._backend import bd
 from vecdiff_general.geometry.frames import Frame
 
 
@@ -23,26 +22,26 @@ class GraphSurface(ABC):
         """Dimensionless local derivatives (dh/dx, dh/dy)."""
 
     def points(self, xy):
-        xy = np.asarray(xy, dtype=float)
+        xy = bd.asarray(xy, dtype=float)
 
-        if xy.shape[-1:] != (2,) or not np.isfinite(xy).all():
+        if xy.shape[-1:] != (2,) or not bd.isfinite(xy).all():
             raise ValueError("surface coordinates must be finite (..., 2) arrays")
 
-        local = np.concatenate((xy, self.height(xy)[..., None]), axis=-1)
+        local = bd.concatenate((xy, self.height(xy)[..., None]), axis=-1)
 
         return self.frame.origin + local @ self.frame.basis.T
 
     def normals(self, xy):
-        gradient = self.gradient(np.asarray(xy, dtype=float))
-        normal = np.concatenate(
-            (-gradient, np.ones(gradient.shape[:-1] + (1,))), axis=-1
+        gradient = self.gradient(bd.asarray(xy, dtype=float))
+        normal = bd.concatenate(
+            (-gradient, bd.ones(gradient.shape[:-1] + (1,))), axis=-1
         )
-        normal /= np.linalg.norm(normal, axis=-1)[..., None]
+        normal /= bd.linalg.norm(normal, axis=-1)[..., None]
 
         return normal @ self.frame.basis.T
 
     def area_jacobian(self, xy):
-        return np.sqrt(1 + np.sum(self.gradient(xy) ** 2, axis=-1))
+        return bd.sqrt(1 + bd.sum(self.gradient(xy) ** 2, axis=-1))
 
     def sample(self, *, u, v):
         """Sample a uniform chart using the existing physical grid types."""
@@ -51,8 +50,8 @@ class GraphSurface(ABC):
         plane = CartesianGrid(u, v, self.frame)
         if isinstance(self, Plane):
             return plane
-        x, y = np.meshgrid(plane.u, plane.v)
-        xy = np.stack((x, y), axis=-1)
+        x, y = bd.meshgrid(plane.u, plane.v)
+        xy = bd.stack((x, y), axis=-1)
         return SurfaceGrid(
             self.points(xy), self.normals(xy), plane.weights * self.area_jacobian(xy)
         )
@@ -63,10 +62,10 @@ class Plane(GraphSurface):
     frame: Frame = field(default_factory=Frame)
 
     def height(self, xy):
-        return np.zeros(np.asarray(xy).shape[:-1])
+        return bd.zeros(bd.asarray(xy).shape[:-1])
 
     def gradient(self, xy):
-        return np.zeros_like(np.asarray(xy, dtype=float))
+        return bd.zeros_like(bd.asarray(xy, dtype=float))
 
     @classmethod
     def z(cls, value):
@@ -91,11 +90,11 @@ class FreeformSurface(GraphSurface):
     frame: Frame = field(default_factory=Frame)
 
     def height(self, xy):
-        return np.broadcast_to(
-            np.asarray(self.height_function(xy), dtype=float), np.asarray(xy).shape[:-1]
+        return bd.broadcast_to(
+            bd.asarray(self.height_function(xy), dtype=float), bd.asarray(xy).shape[:-1]
         )
 
     def gradient(self, xy):
-        return np.broadcast_to(
-            np.asarray(self.gradient_function(xy), dtype=float), np.asarray(xy).shape
+        return bd.broadcast_to(
+            bd.asarray(self.gradient_function(xy), dtype=float), bd.asarray(xy).shape
         )

@@ -3,8 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-import numpy as np
-
+from vecdiff_general._backend import bd, divide
 from vecdiff_general.geometry.frames import Frame
 from vecdiff_general.surfaces.surface import GraphSurface
 
@@ -16,23 +15,22 @@ class AxisymmetricSurface(GraphSurface):
     frame: Frame = field(default_factory=Frame)
 
     def sag(self, radius):
-        return np.asarray(self.sag_function(np.asarray(radius)), dtype=float)
+        return bd.asarray(self.sag_function(bd.asarray(radius)), dtype=float)
 
     def slope(self, radius):
-        return np.asarray(self.slope_function(np.asarray(radius)), dtype=float)
+        return bd.asarray(self.slope_function(bd.asarray(radius)), dtype=float)
 
     def height(self, xy):
-        return self.sag(np.linalg.norm(xy, axis=-1))
+        return self.sag(bd.linalg.norm(xy, axis=-1))
 
     def gradient(self, xy):
-        xy = np.asarray(xy, dtype=float)
-        radius = np.linalg.norm(xy, axis=-1)
+        xy = bd.asarray(xy, dtype=float)
+        radius = bd.linalg.norm(xy, axis=-1)
 
-        return np.divide(
+        return divide(
             self.slope(radius)[..., None] * xy,
             radius[..., None],
-            out=np.zeros_like(xy),
-            where=radius[..., None] != 0,
+            radius[..., None] != 0,
         )
 
 
@@ -42,24 +40,24 @@ class SphericalCap(GraphSurface):
     frame: Frame = field(default_factory=Frame)
 
     def __post_init__(self):
-        if not np.isfinite(self.radius) or self.radius == 0:
+        if not bd.isfinite(self.radius) or self.radius == 0:
             raise ValueError("signed curvature radius must be finite and nonzero")
 
     def _root(self, xy):
-        radial_squared = np.sum(np.asarray(xy) ** 2, axis=-1)
+        radial_squared = bd.sum(bd.asarray(xy) ** 2, axis=-1)
 
-        if np.any(radial_squared >= self.radius**2):
+        if bd.any(radial_squared >= self.radius**2):
             raise ValueError("spherical-cap coordinates reach or exceed the equator")
 
-        return np.sqrt(self.radius**2 - radial_squared)
+        return bd.sqrt(self.radius**2 - radial_squared)
 
     def height(self, xy):
         # Rationalized form avoids cancellation close to the optical axis.
         return (
-            np.sign(self.radius)
-            * np.sum(np.asarray(xy) ** 2, axis=-1)
+            bd.sign(self.radius)
+            * bd.sum(bd.asarray(xy) ** 2, axis=-1)
             / (abs(self.radius) + self._root(xy))
         )
 
     def gradient(self, xy):
-        return np.sign(self.radius) * np.asarray(xy) / self._root(xy)[..., None]
+        return bd.sign(self.radius) * bd.asarray(xy) / self._root(xy)[..., None]
