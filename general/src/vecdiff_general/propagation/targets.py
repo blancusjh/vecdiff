@@ -6,8 +6,7 @@ are appropriate for detector crops. Sampling covers the propagating complex
 field band, with a margin; it is not a physical accuracy estimate.
 """
 
-import numpy as np
-
+from vecdiff_general._backend import bd
 from vecdiff_general.sampling.grids import Grid
 from vecdiff_general.surfaces.surface import GraphSurface, Plane
 
@@ -48,7 +47,7 @@ def target_grid(
         # one input-chart width downstream for longitudinal observation planes.
         positions = [plane.points.reshape(-1, 3)]
         for interface in interfaces:
-            xy = np.stack(np.meshgrid(plane.u, plane.v), axis=-1)
+            xy = bd.stack(bd.meshgrid(plane.u, plane.v), axis=-1)
             positions.append(interface.surface.points(xy).reshape(-1, 3))
         end = interfaces[-1].surface.frame.origin if interfaces else plane.frame.origin
         positions.append(
@@ -56,14 +55,14 @@ def target_grid(
                 plane.points + end - plane.frame.origin + width * plane.frame.normal
             ).reshape(-1, 3)
         )
-        points = np.concatenate(positions)
+        points = bd.concatenate(positions)
         uv = (points - target.frame.origin) @ target.frame.basis[:, :2]
         lo, hi = uv.min(axis=0), uv.max(axis=0)
         window = (lo[0], hi[0], lo[1], hi[1])
-    bounds = np.asarray(window, dtype=float)
+    bounds = bd.asarray(window, dtype=float)
     if (
         bounds.shape != (4,)
-        or not np.isfinite(bounds).all()
+        or not bd.isfinite(bounds).all()
         or bounds[1] <= bounds[0]
         or bounds[3] <= bounds[2]
     ):
@@ -78,24 +77,24 @@ def target_grid(
         )
         step = 0.4 * source.expansion.wavelength0 / max_index
         # A curved chart stretches physical distance; bound using a pilot grid.
-        u, v = np.meshgrid(
-            np.linspace(bounds[0], bounds[1], 17), np.linspace(bounds[2], bounds[3], 17)
+        u, v = bd.meshgrid(
+            bd.linspace(bounds[0], bounds[1], 17), bd.linspace(bounds[2], bounds[3], 17)
         )
-        gradient = target.gradient(np.stack((u, v), axis=-1))
-        stretch = np.sqrt(1 + np.max(gradient**2, axis=(0, 1)))
-        lengths = np.array([bounds[1] - bounds[0], bounds[3] - bounds[2]])
-        counts = np.maximum(2, np.ceil(lengths * stretch / step).astype(int) + 1)
-        if np.prod(counts.astype(float)) > 2_000_000:
+        gradient = target.gradient(bd.stack((u, v), axis=-1))
+        stretch = bd.sqrt(1 + bd.max(gradient**2, axis=(0, 1)))
+        lengths = bd.array([bounds[1] - bounds[0], bounds[3] - bounds[2]])
+        counts = bd.maximum(2, bd.ceil(lengths * stretch / step).astype(int) + 1)
+        if bd.prod(counts.astype(float)) > 2_000_000:
             raise ValueError(
                 "automatic target exceeds two million samples; request a smaller window or an explicit shape"
             )
         shape = tuple(int(k) for k in counts[::-1])
     if len(shape) != 2 or any(
-        not isinstance(k, (int, np.integer)) or k < 2 for k in shape
+        not isinstance(k, (int, bd.integer)) or k < 2 for k in shape
     ):
         raise ValueError("shape must be (Nv, Nu), with at least two samples per axis")
-    u = np.linspace(bounds[0], bounds[1], shape[1])
-    v = np.linspace(bounds[2], bounds[3], shape[0])
+    u = bd.linspace(bounds[0], bounds[1], shape[1])
+    v = bd.linspace(bounds[2], bounds[3], shape[0])
     grid = target.sample(u=u, v=v)
     return grid, dict(
         mode="automatic" if automatic_shape else "surface",

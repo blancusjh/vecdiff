@@ -39,6 +39,10 @@ def uniform_disk(radius=18e-6, state=(1, 1j)):
     return optics.fields.TransverseElectricField(grid, WAVELENGTH, values)
 
 
+@pytest.mark.skipif(
+    optics.backend.get_backend() == "CUDA",
+    reason="plotting helpers read host copies; their geometry is tested on the CPU",
+)
 def test_polar_rings_have_even_arc_pitch_and_reach_the_rim():
     grid = uniform_disk().grid
     limits = np.array([-18, 18, -18, 18])
@@ -159,6 +163,10 @@ def test_weak_rings_keep_glyphs_with_intensity_ordered_sizes():
         assert np.any((distance > 0.5 * lobe + 0.05) & (distance < 0.5 * lobe + 0.45))
 
 
+@pytest.mark.skipif(
+    optics.backend.get_backend() == "CUDA",
+    reason="plotting helpers read host copies; their geometry is tested on the CPU",
+)
 def test_line_glyphs_are_equal_centered_direction_segments():
     grid = optics.sampling.CartesianGrid(
         np.linspace(-4e-6, 4e-6, 33), np.linspace(-4e-6, 4e-6, 33)

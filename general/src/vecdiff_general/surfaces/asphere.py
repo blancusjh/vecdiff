@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from vecdiff_general._backend import bd, divide
 from vecdiff_general.geometry.frames import Frame
 from vecdiff_general.surfaces.surface import GraphSurface
 
@@ -26,13 +27,13 @@ class EvenAsphere(GraphSurface):
     def _root(self, radius):
         radicand = 1 - (1 + self.conic) * self.curvature**2 * radius**2
 
-        if np.any(radicand <= 0):
+        if bd.any(radicand <= 0):
             raise ValueError("asphere coordinates exceed the real graph branch")
 
-        return np.sqrt(radicand)
+        return bd.sqrt(radicand)
 
     def height(self, xy):
-        radius = np.linalg.norm(xy, axis=-1)
+        radius = bd.linalg.norm(bd.asarray(xy, dtype=float), axis=-1)
         height = self.curvature * radius**2 / (1 + self._root(radius))
 
         for order, coefficient in enumerate(self.coefficients, start=2):
@@ -41,16 +42,11 @@ class EvenAsphere(GraphSurface):
         return height
 
     def gradient(self, xy):
-        xy = np.asarray(xy, dtype=float)
-        radius = np.linalg.norm(xy, axis=-1)
+        xy = bd.asarray(xy, dtype=float)
+        radius = bd.linalg.norm(xy, axis=-1)
         slope = self.curvature * radius / self._root(radius)
 
         for order, coefficient in enumerate(self.coefficients, start=2):
             slope += 2 * order * coefficient * radius ** (2 * order - 1)
 
-        return np.divide(
-            slope[..., None] * xy,
-            radius[..., None],
-            out=np.zeros_like(xy),
-            where=radius[..., None] != 0,
-        )
+        return divide(slope[..., None] * xy, radius[..., None], radius[..., None] != 0)

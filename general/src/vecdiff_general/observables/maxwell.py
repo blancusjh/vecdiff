@@ -10,22 +10,23 @@ from dataclasses import dataclass
 import numpy as np
 
 from vecdiff_general._arrays import frozen_array, positive
+from vecdiff_general._backend import bd
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.media.medium import Z0
 
 
 def _norm(values, weights):
-    squared = np.abs(values) ** 2
+    squared = bd.abs(values) ** 2
     if squared.ndim == weights.ndim + 1:
         squared = squared.sum(axis=-1)
     if squared.shape != weights.shape:
         raise ValueError("quadrature and field shapes must agree")
-    return float(np.sqrt(np.sum(weights * squared)))
+    return float(bd.sqrt(bd.sum(weights * squared)))
 
 
 def _weights(weights, shape):
-    weights = np.asarray(weights, float)
-    if weights.shape != shape or not np.isfinite(weights).all() or np.any(weights <= 0):
+    weights = bd.asarray(weights, float)
+    if weights.shape != shape or not bd.isfinite(weights).all() or bd.any(weights <= 0):
         raise ValueError("quadrature weights must be finite, positive and match points")
     return weights
 
@@ -54,7 +55,7 @@ class ElectricFieldJet:
     @property
     def curl(self):
         g = self.gradient
-        return np.stack(
+        return bd.stack(
             (
                 g[..., 1, 2] - g[..., 2, 1],
                 g[..., 2, 0] - g[..., 0, 2],
@@ -65,7 +66,7 @@ class ElectricFieldJet:
 
     @property
     def field(self):
-        k0 = 2 * np.pi / self.electric.wavelength0
+        k0 = 2 * bd.pi / self.electric.wavelength0
         return ElectromagneticField(self.electric, self.curl / (1j * k0 * Z0))
 
     def bulk_residuals(self, index, weights):
@@ -75,14 +76,14 @@ class ElectricFieldJet:
         continuation, not radiation conditions or global boundary-value stability.
         Faraday's law is an identity when H is derived by ``field``.
         """
-        k = 2 * np.pi * positive(index, "index") / self.electric.wavelength0
+        k = 2 * bd.pi * positive(index, "index") / self.electric.wavelength0
         weights = _weights(weights, self.electric.grid.shape)
         scale = _norm(self.electric.values, weights)
         if scale == 0:
             raise ValueError("relative residual needs a nonzero electric field")
-        divergence = np.trace(self.gradient, axis1=-2, axis2=-1)
-        laplacian = np.einsum("...iij->...j", self.hessian)
-        grad_div = np.einsum("...ijj->...i", self.hessian)
+        divergence = bd.trace(self.gradient, axis1=-2, axis2=-1)
+        laplacian = bd.einsum("...iij->...j", self.hessian)
+        grad_div = bd.einsum("...ijj->...i", self.hessian)
         helmholtz = laplacian + k**2 * self.electric.values
         return {
             "divergence_E": _norm(divergence, weights) / (k * scale),
@@ -99,18 +100,18 @@ def plane_wave_jet(expansion, grid, *, chunk_size=256):
     """
     if not isinstance(chunk_size, int) or chunk_size < 1:
         raise ValueError("chunk_size must be a positive integer")
-    occupied = np.any(expansion.amplitudes != 0, axis=-1)
+    occupied = bd.any(expansion.amplitudes != 0, axis=-1)
     k = expansion.wavevectors[occupied]
     a = expansion.amplitudes[occupied]
     points = (grid.points - expansion.origin).reshape(-1, 3)
-    electric = np.empty((len(points), 3), complex)
-    gradient = np.empty((len(points), 3, 3), complex)
-    hessian = np.empty((len(points), 3, 3, 3), complex)
+    electric = bd.empty((len(points), 3), complex)
+    gradient = bd.empty((len(points), 3, 3), complex)
+    hessian = bd.empty((len(points), 3, 3, 3), complex)
     da = 1j * k[:, :, None] * a[:, None, :]
-    dda = -np.einsum("mi,mj,ml->mijl", k, k, a)
+    dda = -bd.einsum("mi,mj,ml->mijl", k, k, a)
     for start in range(0, len(points), chunk_size):
         block = slice(start, start + chunk_size)
-        phase = np.exp(1j * points[block] @ k.T)
+        phase = bd.exp(1j * points[block] @ k.T)
         electric[block] = phase @ a
         gradient[block] = (phase @ da.reshape(len(k), 9)).reshape(-1, 3, 3)
         hessian[block] = (phase @ dda.reshape(len(k), 27)).reshape(-1, 3, 3, 3)
@@ -135,7 +136,7 @@ def interface_l2_residuals(minus, plus, incident, grid, *, n_minus, n_plus):
     for value in (minus, plus, incident):
         if value.electric.wavelength0 != incident.electric.wavelength0:
             raise ValueError("one-sided fields must have the same wavelength")
-        if not np.array_equal(value.electric.grid.points, grid.points):
+        if not bd.array_equal(value.electric.grid.points, grid.points):
             raise ValueError("one-sided fields must use identical physical points")
     norm = _norm(incident.electric.values, weights)
     if norm == 0:
@@ -144,13 +145,13 @@ def interface_l2_residuals(minus, plus, incident, grid, *, n_minus, n_plus):
     de = minus.electric.values - plus.electric.values
     dh = Z0 * (minus.magnetic - plus.magnetic)
     dd = n_minus**2 * minus.electric.values - n_plus**2 * plus.electric.values
-    incoming = np.sum(incident.poynting() * normals, axis=-1)
-    jump = np.sum((minus.poynting() - plus.poynting()) * normals, axis=-1)
+    incoming = bd.sum(incident.poynting() * normals, axis=-1)
+    jump = bd.sum((minus.poynting() - plus.poynting()) * normals, axis=-1)
     flux_scale = _norm(incoming, weights)
     return {
-        "tangential_E": _norm(np.cross(normals, de), weights) / norm,
-        "tangential_H": _norm(np.cross(normals, dh), weights) / norm,
-        "normal_D": _norm(np.sum(normals * dd, axis=-1), weights) / (n_minus**2 * norm),
-        "normal_B": _norm(np.sum(normals * dh, axis=-1), weights) / norm,
+        "tangential_E": _norm(bd.cross(normals, de), weights) / norm,
+        "tangential_H": _norm(bd.cross(normals, dh), weights) / norm,
+        "normal_D": _norm(bd.sum(normals * dd, axis=-1), weights) / (n_minus**2 * norm),
+        "normal_B": _norm(bd.sum(normals * dh, axis=-1), weights) / norm,
         "normal_flux_L2": _norm(jump, weights) / flux_scale if flux_scale else None,
     }

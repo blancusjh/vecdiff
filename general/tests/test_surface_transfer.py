@@ -5,6 +5,8 @@ import pytest
 import vecdiff_general as o
 from numpy.testing import assert_allclose
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 
 def setup(count=24, length=24.0, n=1.0):
     region = o.media.HomogeneousRegion("medium", o.media.Dielectric(n))
@@ -14,8 +16,8 @@ def setup(count=24, length=24.0, n=1.0):
 
 def mode(region, grid, ix=1, iy=0):
     kx, ky = (
-        2 * np.pi * ix / (len(grid.u) * grid.spacing[0]),
-        2 * np.pi * iy / (len(grid.v) * grid.spacing[1]),
+        2 * np.pi * ix / (len(grid.u) * float(grid.spacing[0])),
+        2 * np.pi * iy / (len(grid.v) * float(grid.spacing[1])),
     )
     k = 2 * np.pi * region.material.n
     wavevector = np.array([kx, ky, np.sqrt(k * k - kx * kx - ky * ky)])
@@ -60,8 +62,8 @@ def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
     assert_allclose(field.magnetic, exact.magnetic, atol=2e-12)
     assert len(factor_orders) == streamed.rank * (1 if cache_compact else 2)
     rng = np.random.default_rng(51)
-    values = rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(
-        size=grid.shape + (3,)
+    values = bd.asarray(
+        rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
     )
     assert_allclose(streamed._adjoint(values), dense._adjoint(values), atol=2e-13)
     ids = np.flatnonzero(dense.active)
@@ -85,7 +87,7 @@ def test_Q_matches_direct_modal_sum_and_inverse_on_curved_chart():
         lambda xy: np.stack(
             (
                 -np.pi / 24 * np.sin(2 * np.pi * xy[..., 0] / 24),
-                np.zeros(xy.shape[:-1]),
+                bd.zeros(xy.shape[:-1]),
             ),
             -1,
         ),
@@ -114,7 +116,7 @@ def test_negative_height_is_not_the_curved_inverse():
 
     def grad(xy):
         return np.stack(
-            (-np.pi / 6 * np.sin(2 * np.pi * xy[..., 0] / 24), np.zeros(xy.shape[:-1])),
+            (-np.pi / 6 * np.sin(2 * np.pi * xy[..., 0] / 24), bd.zeros(xy.shape[:-1])),
             -1,
         )
 
@@ -144,7 +146,7 @@ def test_negative_height_is_not_the_curved_inverse():
 def test_constant_height_Q_is_planar_ASM(height):
     region, grid = setup()
     surface = o.surfaces.FreeformSurface(
-        lambda xy: np.full(xy.shape[:-1], height), lambda xy: np.zeros_like(xy)
+        lambda xy: bd.full(xy.shape[:-1], height), lambda xy: bd.zeros_like(xy)
     )
     Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
     source = mode(region, grid, 3, 2)
@@ -200,7 +202,9 @@ def test_physical_trace_metric_and_complex_adjoint_on_steep_chart():
     )
     Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
     rng = np.random.default_rng(420)
-    E = rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
+    E = bd.asarray(
+        rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
+    )
     projected = E - Q.grid.normals * np.sum(E * Q.grid.normals, -1)[..., None]
     weighted = Q._trace_weight(Q._tangent(E))
     assert_allclose(
@@ -233,7 +237,7 @@ def test_joint_inverse_adjoint_and_compatible_multimode_field(curved):
             lambda xy: np.stack(
                 (
                     -0.7 * 2 * np.pi / 16 * np.sin(2 * np.pi * xy[..., 0] / 16),
-                    np.zeros(xy.shape[:-1]),
+                    bd.zeros(xy.shape[:-1]),
                 ),
                 -1,
             ),
