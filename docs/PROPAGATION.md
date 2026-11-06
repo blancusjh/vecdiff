@@ -1,7 +1,7 @@
 # Propagation
 
-The public algorithms live under `vecdiff_general.propagation` and are also
-available through the package's top-level exports.
+The public algorithms are reached through `vecdiff_general.propagation`;
+the package top level re-exports nothing.
 
 | Module | Main API | Operation |
 |---|---|---|
@@ -90,12 +90,14 @@ The system owns geometry and media, optionally the incident field. It does not
 own observations. Geometry and sampling use the existing surface/grid classes.
 
 ```python
-propagate = PropagationPipeline(
+from vecdiff_general import propagation, surfaces
+
+propagate = propagation.PropagationPipeline(
     system, transmission="local", coverage="complete"
 )  # transmission can also be "spectral"; coverage can be "reduced"
 focal = propagate(incident_field, z=f)
 meridian = propagate(incident_field, y=0, window=(-a, a, z0, z1), side="plus")
-detector = Plane.z(f).sample(u=x_coordinates, v=y_coordinates)
+detector = surfaces.Plane.z(f).sample(u=x_coordinates, v=y_coordinates)
 focal = propagate(incident_field, detector)
 ```
 

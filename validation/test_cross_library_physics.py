@@ -47,10 +47,10 @@ def maxwell_errors(evaluate, points, index, step):
     e_scale, h_scale = np.linalg.norm(electric), np.linalg.norm(magnetic)
     return np.array(
         [
-            np.linalg.norm(curl(e_derivatives) - 1j * k0 * general.Z0 * magnetic)
+            np.linalg.norm(curl(e_derivatives) - 1j * k0 * general.media.Z0 * magnetic)
             / (k0 * index * e_scale),
             np.linalg.norm(
-                curl(h_derivatives) + 1j * k0 * index**2 / general.Z0 * electric
+                curl(h_derivatives) + 1j * k0 * index**2 / general.media.Z0 * electric
             )
             / (k0 * index * h_scale),
             np.linalg.norm(divergence(e_derivatives)) / (k0 * index * e_scale),
@@ -72,10 +72,10 @@ def test_real_space_maxwell_equations_converge(engine):
 
         index = 1.5
     else:
-        region = general.HomogeneousRegion("glass", general.Dielectric(1.5))
+        region = general.media.HomogeneousRegion("glass", general.media.Dielectric(1.5))
         directions = np.array([[0.6, 0, 0.8], [0, 0.8, 0.6]])
         electric = np.array([[0.8, 0.2j, -0.6], [0.3j, 0.6, -0.8]])
-        solution = general.PlaneWaveExpansion(
+        solution = general.fields.PlaneWaveExpansion(
             2 * np.pi * 1.5 / WAVELENGTH * directions,
             electric,
             np.zeros(3),
@@ -85,7 +85,7 @@ def test_real_space_maxwell_equations_converge(engine):
         points = WAVELENGTH * np.array([[0.2, 0.1, 0.15], [-0.3, 0.2, -0.1]])
 
         def evaluate(p):
-            return solution.evaluate(general.PointGrid(p))
+            return solution.evaluate(general.sampling.PointGrid(p))
 
         index = 1.5
     coarse = maxwell_errors(evaluate, points, index, WAVELENGTH * 2e-4)
@@ -96,15 +96,15 @@ def test_real_space_maxwell_equations_converge(engine):
 
 def test_independent_angular_synthesis_matches_all_complex_fields():
     focus = focused_solution()
-    context = general.HomogeneousRegion("image", general.Dielectric(1.5))
-    general_solution = general.PlaneWaveExpansion(
+    context = general.media.HomogeneousRegion("image", general.media.Dielectric(1.5))
+    general_solution = general.fields.PlaneWaveExpansion(
         focus.wavevectors, focus.amplitudes, focus.origin, WAVELENGTH, context
     )
     points = focus.origin + WAVELENGTH * np.array(
         [[0.2, 0.3, -0.5], [-0.7, 0.1, 0], [0.1, -0.2, 0.5]]
     )
     a = focus.evaluate(stigmatic.PointGrid(points))
-    b = general_solution.evaluate(general.PointGrid(points))
+    b = general_solution.evaluate(general.sampling.PointGrid(points))
     assert_allclose(a.electric.values, b.electric.values, rtol=1e-12, atol=1e-10)
     assert_allclose(a.magnetic, b.magnetic, rtol=1e-12, atol=1e-12)
     # This checks independent evaluation of the same modes, not surface physics.
@@ -147,9 +147,13 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
     """Independent prescribed-current comparison, isolated from operational ASM."""
     fixture = Path(__file__).parent / "reference_data/legacy_stigmatic.npz"
     with np.load(fixture) as data:
-        incident_region = general.HomogeneousRegion("object", general.Dielectric(1))
-        image_region = general.HomogeneousRegion("image", general.Dielectric(1.5))
-        surface = general.CartesianOval(-0.010, 0.006, 1, 1.5)
+        incident_region = general.media.HomogeneousRegion(
+            "object", general.media.Dielectric(1)
+        )
+        image_region = general.media.HomogeneousRegion(
+            "image", general.media.Dielectric(1.5)
+        )
+        surface = general.surfaces.CartesianOval(-0.010, 0.006, 1, 1.5)
         object_point = np.array([0, 0, -0.010])
 
         def optical_path(points):
@@ -167,10 +171,10 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
             electric[..., 2] = -displacement[..., 0] / displacement[..., 2]
             return electric * (0.010 / distance)[..., None]
 
-        source = general.EikonalField(
+        source = general.fields.EikonalField(
             optical_path, path_gradient, envelope, WAVELENGTH, incident_region
         )
-        quadrature = general.sample_surface(
+        quadrature = general.sampling.sample_surface(
             surface, float(data["aperture_m"]), radial_order=32, azimuthal_order=96
         )
         # This fixture records a prescribed-current comparison, not the primary
@@ -189,12 +193,12 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
             1,
             1.5,
         )
-        trace = general.ElectromagneticField(
-            electric, 1.5 / general.Z0 * np.cross(outgoing, electric.values)
+        trace = general.fields.ElectromagneticField(
+            electric, 1.5 / general.media.Z0 * np.cross(outgoing, electric.values)
         )
         comparison = SurfaceRadiation.from_field(trace, image_region)
         actual = comparison.evaluate(
-            general.PointGrid(data["points_m"])
+            general.sampling.PointGrid(data["points_m"])
         ).electric.values
         reference = data["green_electric"]
         relative_error = np.linalg.norm(actual - reference) / np.linalg.norm(reference)

@@ -22,17 +22,17 @@ from vecdiff_general.propagation.references.diagnostics import (
 
 
 def problem(index=1.5, scale=1.0):
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(index))
-    source = o.PlaneWaveExpansion(
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(index))
+    source = o.fields.PlaneWaveExpansion(
         [[0, 0, 2 * np.pi / scale]], [[1, 0, 0]], [0, 0, 0], scale, air
     )
-    sphere = o.SphereVolume([0, 0, 0], 0.3 * scale)
+    sphere = o.volumes.SphereVolume([0, 0, 0], 0.3 * scale)
     return source, sphere, glass
 
 
 def probes(scale=1.0):
-    return o.PointGrid(
+    return o.sampling.PointGrid(
         scale
         * np.array([[0, 0, 0], [0.06, 0.09, 0.12], [0.2, -0.15, 0.6], [0.1, 0.6, 0.15]])
     )
@@ -74,14 +74,14 @@ def test_bem_quadrature_maxwell_flux_and_resource_guard():
     exterior = np.array([[0.2, -0.15, 0.6], [0.1, 0.6, 0.15]])
     checks = maxwell_residuals(fine.evaluate, exterior, wavelength0=1, index=1)
     assert max(checks.values()) < 2e-5
-    outer = boundary_meridian(o.SphereVolume([0, 0, 0], 0.8), 24).surface(12)
+    outer = boundary_meridian(o.volumes.SphereVolume([0, 0, 0], 0.8), 24).surface(12)
     assert abs(closed_flux_residual(fine, outer)) < 0.025
     with pytest.raises(ValueError, match="unknowns"):
         DielectricBEM(s, mesh, g, max_unknowns=10)
     with pytest.raises(ValueError, match="side"):
         fine.evaluate(mesh.boundary_grid())
     with pytest.raises(ValueError, match="edges/vertices"):
-        fine.evaluate(o.PointGrid(mesh.vertices[:1]), side="exterior")
+        fine.evaluate(o.sampling.PointGrid(mesh.vertices[:1]), side="exterior")
 
 
 def test_bem_equal_index_and_si_scaling():
@@ -121,7 +121,9 @@ def test_lens_meshes_and_finite_bem_fields(shape):
     mesh = surface_mesh(v, 0.25)
     assert mesh.locate([[0, 0, 0.15], [0, 0, 0.8]])[0].tolist() == [True, False]
     sol = DielectricBEM(s, mesh, g)
-    assert np.isfinite(sol.evaluate(o.PointGrid([[0, 0, 0.7]])).electric.values).all()
+    assert np.isfinite(
+        sol.evaluate(o.sampling.PointGrid([[0, 0, 0.7]])).electric.values
+    ).all()
 
 
 def test_fem_vector_solution_converges_to_mie():
@@ -148,7 +150,7 @@ def test_fem_vector_solution_converges_to_mie():
     assert np.all(np.array(errors[1]) < 0.7 * np.array(errors[0]))
     assert max(errors[-1]) < 0.4
     with pytest.raises(ValueError, match="physical box"):
-        sol.evaluate(o.PointGrid([[0, 0, 0.9]]))
+        sol.evaluate(o.sampling.PointGrid([[0, 0, 0.9]]))
     with pytest.raises(ValueError, match="unknowns"):
         DielectricFEM(s, mesh, g, max_unknowns=10)
 
@@ -183,21 +185,21 @@ def test_fem_equal_index_and_scale_invariance():
 
 
 def test_bem_oblique_coherent_illumination_in_nonunit_background():
-    air = o.HomogeneousRegion("background", o.Dielectric(1.2))
-    glass = o.HomogeneousRegion("inclusion", o.Dielectric(1.65))
+    air = o.media.HomogeneousRegion("background", o.media.Dielectric(1.2))
+    glass = o.media.HomogeneousRegion("inclusion", o.media.Dielectric(1.65))
     directions = np.array([[0.6, 0, 0.8], [0, -0.8, 0.6]])
     amplitudes = np.array([[0.8, 0.2j, -0.6], [0.3j, 0.6, 0.8]])
-    source = o.PlaneWaveExpansion(
+    source = o.fields.PlaneWaveExpansion(
         2 * np.pi * 1.2 * directions, amplitudes, [0.1, -0.2, 0.05], 1.0, air
     )
-    sphere = o.SphereVolume([0.05, -0.03, 0.1], 0.25)
-    grid = o.PointGrid(
+    sphere = o.volumes.SphereVolume([0.05, -0.03, 0.1], 0.25)
+    grid = o.sampling.PointGrid(
         sphere.center
         + np.array([[0, 0, 0], [0.02, 0.04, 0.06], [0.2, -0.1, 0.5], [0.4, 0.3, -0.2]])
     )
     exact = []
     for wave, amplitude in zip(source.wavevectors, amplitudes):
-        mode = o.PlaneWaveExpansion([wave], [amplitude], source.origin, 1.0, air)
+        mode = o.fields.PlaneWaveExpansion([wave], [amplitude], source.origin, 1.0, air)
         exact.append(MieSphere(mode, sphere, glass).evaluate(grid))
     numerical = DielectricBEM(source, SurfaceMesh.sphere(sphere, 2), glass).evaluate(
         grid
@@ -219,9 +221,11 @@ def test_bem_cache_reloads_identical_currents(tmp_path):
     from vecdiff_general.propagation.references import DielectricBEM, SurfaceMesh
     from vecdiff_general.volumes import SphereVolume
 
-    air = o.HomogeneousRegion("air", o.Dielectric(1.0))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
-    source = o.PlaneWaveExpansion([[0, 0, 2 * np.pi]], [[1, 0, 0]], [0, 0, 0], 1, air)
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    source = o.fields.PlaneWaveExpansion(
+        [[0, 0, 2 * np.pi]], [[1, 0, 0]], [0, 0, 0], 1, air
+    )
     mesh = SurfaceMesh.sphere(SphereVolume([0, 0, 0], 0.3), 1)
     first = DielectricBEM(source, mesh, glass, cache=tmp_path)
     second = DielectricBEM(source, mesh, glass, cache=tmp_path)
@@ -270,8 +274,10 @@ def test_buffa_christiansen_dual_basis_is_div_conforming_and_stably_paired():
 
 def test_muller_bem_converges_to_mie_inside_and_outside():
     s, v, g = problem()
-    inside = o.PointGrid([[0, 0, 0], [0.06, 0.09, 0.12], [-0.1, 0.05, -0.08]])
-    outside = o.PointGrid([[0.2, -0.15, 0.6], [0.1, 0.6, 0.15], [-0.5, 0.1, -0.3]])
+    inside = o.sampling.PointGrid([[0, 0, 0], [0.06, 0.09, 0.12], [-0.1, 0.05, -0.08]])
+    outside = o.sampling.PointGrid(
+        [[0.2, -0.15, 0.6], [0.1, 0.6, 0.15], [-0.5, 0.1, -0.3]]
+    )
     exact = [MieSphere(s, v, g).evaluate(grid) for grid in (inside, outside)]
     errors, jumps = [], []
     for level in (0, 1, 2):

@@ -34,11 +34,11 @@ def batched(plan, coefficients, workers, batch):
 def run():
     count = 280
     axis = (np.arange(count) - count // 2) * 130 / count
-    plane = o.CartesianGrid(axis, axis)
-    q = o.SurfaceTransport(
+    plane = o.sampling.CartesianGrid(axis, axis)
+    q = o.propagation.SurfaceTransport(
         plane,
-        o.SphericalCap(-100, plane.frame),
-        o.HomogeneousRegion("glass", o.Dielectric(1.5)),
+        o.surfaces.SphericalCap(-100, plane.frame),
+        o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5)),
         1,
     )
     support = q.active & (abs(q.ku / q.k) < 0.3) & (abs(q.kv / q.k) < 0.3)

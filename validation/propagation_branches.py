@@ -21,24 +21,24 @@ def run():
         reference = {k: data[k].copy() for k in data.files}
     with np.load(directory / "focal_spectral_N280_a18_c1e-07_t3.npz") as data:
         previous = data["order0_plane_E"].copy()
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
     axis = (np.arange(280) - 140) * 130 / 280
-    grid = o.CartesianGrid(axis, axis, o.Frame([0, 0, -105]))
+    grid = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -105]))
     rho = np.linalg.norm(grid.points[..., :2], axis=-1)
     values = np.stack((0.5 * erfc((rho - 35) / 1.5), np.zeros_like(rho)), axis=-1)
-    incident = o.TransverseElectricField(grid, 1, values)
-    system = o.OpticalSystem(
+    incident = o.fields.TransverseElectricField(grid, 1, values)
+    system = o.system.OpticalSystem(
         [
-            o.DielectricInterface(
-                o.SphericalCap(100, o.Frame([0, 0, -100])), air, glass
+            o.system.DielectricInterface(
+                o.surfaces.SphericalCap(100, o.geometry.Frame([0, 0, -100])), air, glass
             ),
-            o.DielectricInterface(
-                o.SphericalCap(-100, o.Frame([0, 0, 100])), glass, air
+            o.system.DielectricInterface(
+                o.surfaces.SphericalCap(-100, o.geometry.Frame([0, 0, 100])), glass, air
             ),
         ]
     )
-    target = o.PointGrid(reference["plane"])
+    target = o.sampling.PointGrid(reference["plane"])
     rows = []
     arrays = {"points": target.points}
 
@@ -46,7 +46,7 @@ def run():
         return float(np.linalg.norm(a - b) / np.linalg.norm(b))
 
     for method in ("local", "spectral"):
-        propagator = o.PropagationPipeline(system, transmission=method)
+        propagator = o.propagation.PropagationPipeline(system, transmission=method)
         tick = perf_counter()
         field = propagator(incident, target, tolerance=1e-12)
         seconds = perf_counter() - tick

@@ -41,16 +41,16 @@ def test_fused_fresnel_matches_boundary_matrix_including_TIR(n1, n2):
 @pytest.mark.parametrize("workers", [1, 2])
 def test_band_Q_matches_direct_on_nonspherical_graph(count, workers):
     axis = (np.arange(count) - count // 2) * 0.4
-    plane = o.CartesianGrid(axis, axis, o.Frame([0, 0, 2]))
-    surface = o.FreeformSurface(
+    plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, 2]))
+    surface = o.surfaces.FreeformSurface(
         lambda xy: 1.3 * np.cos(xy[..., 0] / 3) + 0.2 * xy[..., 1],
         lambda xy: np.stack(
             (-1.3 / 3 * np.sin(xy[..., 0] / 3), np.full(xy.shape[:-1], 0.2)), axis=-1
         ),
         frame=plane.frame,
     )
-    region = o.HomogeneousRegion("air", o.Dielectric(1))
-    q = o.SurfaceTransport(plane, surface, region, 1)
+    region = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    q = o.propagation.SurfaceTransport(plane, surface, region, 1)
     support = q.active & (q.ku > 0) & (q.ku < 1.8) & (q.kv > -1) & (q.kv < 0.8)
     ids = np.flatnonzero(support)
     plan = BandSynthesis(q, ids[::-1], workers=workers)
@@ -75,10 +75,10 @@ def test_band_Q_matches_direct_on_nonspherical_graph(count, workers):
 
 def test_single_mode_band_has_rank_one_without_losing_sag_phase():
     axis = np.arange(-12, 12) * 0.4
-    plane = o.CartesianGrid(axis, axis)
-    surface = o.SphericalCap(12, plane.frame)
-    q = o.SurfaceTransport(
-        plane, surface, o.HomogeneousRegion("air", o.Dielectric(1)), 1
+    plane = o.sampling.CartesianGrid(axis, axis)
+    surface = o.surfaces.SphericalCap(12, plane.frame)
+    q = o.propagation.SurfaceTransport(
+        plane, surface, o.media.HomogeneousRegion("air", o.media.Dielectric(1)), 1
     )
     ids = np.array([q.size // 2 + len(axis) // 2 + 1])
     plan = BandSynthesis(q, ids)
@@ -92,17 +92,17 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
     from vecdiff_general.comparisons import scatter_surface
 
     axis = np.arange(-12, 12) * 0.5
-    plane = o.CartesianGrid(axis, axis)
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
-    surface = o.FreeformSurface(
+    plane = o.sampling.CartesianGrid(axis, axis)
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    surface = o.surfaces.FreeformSurface(
         lambda xy: 0.2 * np.cos(xy[..., 0] / 3) + 0.03 * xy[..., 1],
         lambda xy: np.stack(
             (-0.2 / 3 * np.sin(xy[..., 0] / 3), np.full(xy.shape[:-1], 0.03)), axis=-1
         ),
     )
-    boundary = o.DielectricInterface(surface, air, glass)
-    q = o.SurfaceTransport(plane, surface, air, 1)
+    boundary = o.system.DielectricInterface(surface, air, glass)
+    q = o.propagation.SurfaceTransport(plane, surface, air, 1)
     x, y = plane.points[..., 0], plane.points[..., 1]
     values = np.stack(
         (
@@ -111,10 +111,12 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
         ),
         axis=-1,
     )
-    source = o.angular_spectrum(
-        o.TransverseElectricField(plane, 1, values), air, evanescent="discard"
+    source = o.fields.angular_spectrum(
+        o.fields.TransverseElectricField(plane, 1, values), air, evanescent="discard"
     )
-    actual = o.DirectionResolvedFresnel().transmit(source, boundary, q).field
+    actual = (
+        o.propagation.DirectionResolvedFresnel().transmit(source, boundary, q).field
+    )
     expected = scatter_surface(source, boundary, q.grid).transmitted_trace
     assert_allclose(
         actual.electric.values, expected.electric.values, atol=2e-12, rtol=2e-12
@@ -142,21 +144,21 @@ def test_unity_coefficients_refract_and_preserve_polarization_amplitudes(n1, n2)
 
 def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
     axis = np.arange(-8, 8) * 0.5
-    plane = o.CartesianGrid(axis, axis)
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
-    surface = o.EvenAsphere(0.02, conic=-1)
-    boundary = o.DielectricInterface(surface, air, glass)
-    q = o.SurfaceTransport(plane, surface, air, 1)
+    plane = o.sampling.CartesianGrid(axis, axis)
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    surface = o.surfaces.EvenAsphere(0.02, conic=-1)
+    boundary = o.system.DielectricInterface(surface, air, glass)
+    q = o.propagation.SurfaceTransport(plane, surface, air, 1)
     x, y = plane.points[..., 0], plane.points[..., 1]
     values = np.stack(
         (np.exp(2j * np.pi * x / 8), 0.4j * np.exp(-2j * np.pi * y / 8)), axis=-1
     )
-    source = o.angular_spectrum(
-        o.TransverseElectricField(plane, 1, values), air, evanescent="discard"
+    source = o.fields.angular_spectrum(
+        o.fields.TransverseElectricField(plane, 1, values), air, evanescent="discard"
     )
     actual = (
-        o.DirectionResolvedFresnel(coefficients="unity")
+        o.propagation.DirectionResolvedFresnel(coefficients="unity")
         .transmit(source, boundary, q)
         .field
     )
@@ -183,4 +185,4 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
 
 def test_direction_resolved_rejects_unknown_coefficient_model():
     with pytest.raises(ValueError, match="coefficients"):
-        o.DirectionResolvedFresnel(coefficients="scalar")
+        o.propagation.DirectionResolvedFresnel(coefficients="scalar")

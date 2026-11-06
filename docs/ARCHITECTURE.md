@@ -19,6 +19,13 @@ share no runtime optical kernel; external validation compares explicit arrays.
 | Reference solutions | `propagation/references/` | Mie, Debye, BEM, FEM and independent transfer checks |
 | Measurement | `observables/`, `visualization/` | Physical diagnostics, detectors and plots |
 
+Public objects are reached through the namespace of what they are:
+`surfaces.SphericalCap`, `fields.angular_spectrum`, `system.OpticalSystem`,
+`propagation.PropagationPipeline`. The package top level holds only these
+namespaces and re-exports nothing. `visualization` and `propagation.references`
+are imported explicitly, so importing the package loads neither plotting nor
+reference solvers.
+
 The private `_directions.py` and `_fresnel.py` modules contain shared algebra
 for the surface-interaction methods. `comparisons/surface_radiation.py` provides
 independent prescribed-current Green/Weyl evaluation. Reference solvers and

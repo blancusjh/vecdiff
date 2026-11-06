@@ -7,7 +7,7 @@ from numpy.testing import assert_allclose
 
 
 def test_al1225_dimensions_dispersion_and_paraxial_focus():
-    system = optics.thorlabs_al1225()
+    system = optics.catalog.thorlabs_al1225()
     front, back = system.interfaces
     assert_allclose(system.apertures, (0.00625, 0.00625))
     assert_allclose(back.surface.frame.origin, [0, 0, 0.004])
@@ -20,11 +20,11 @@ def test_al1225_dimensions_dispersion_and_paraxial_focus():
     assert front.surface.height(np.array([0.00625, 0])) < 0.004
     # Preserve the finite prescription; it must not silently become open faces.
     with pytest.raises(ValueError, match="finite material edges"):
-        optics.PropagationPipeline(system)
+        optics.propagation.PropagationPipeline(system)
 
 
 def test_al1225_sag_sign_units_gradient_and_scaling():
-    lens = optics.thorlabs_al1225()
+    lens = optics.catalog.thorlabs_al1225()
     surface = lens.interfaces[0].surface
     xy_mm = np.array([[0, 0], [2, 3], [5.625, 0], [6.25, 0]])
     r = np.linalg.norm(xy_mm, axis=-1)
@@ -45,7 +45,7 @@ def test_al1225_sag_sign_units_gradient_and_scaling():
         h = direction * 1e-8
         finite_difference = (surface.height(xy + h) - surface.height(xy - h)) / 2e-8
         assert_allclose(surface.gradient(xy) @ direction, finite_difference, atol=1e-10)
-    scaled = optics.thorlabs_al1225(scale=0.001)
+    scaled = optics.catalog.thorlabs_al1225(scale=0.001)
     assert_allclose(
         scaled.interfaces[0].surface.height(xy * 0.001), surface.height(xy) * 0.001
     )
@@ -60,4 +60,4 @@ def test_al1225_sag_sign_units_gradient_and_scaling():
 )
 def test_al1225_rejects_invalid_parameters(kwargs):
     with pytest.raises(ValueError):
-        optics.thorlabs_al1225(**kwargs)
+        optics.catalog.thorlabs_al1225(**kwargs)

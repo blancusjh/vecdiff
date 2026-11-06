@@ -14,12 +14,12 @@ from vecdiff_general.propagation.references.mfs import AxisymmetricMFS
 
 
 def problem(n=1.5, wavelength=1.0, radius=0.5, polarization=(1, 0, 0)):
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(n))
-    source = o.PlaneWaveExpansion(
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(n))
+    source = o.fields.PlaneWaveExpansion(
         [[0, 0, 2 * np.pi / wavelength]], [polarization], [0, 0, 0], wavelength, air
     )
-    return source, o.SphereVolume([0, 0, 0], radius), glass
+    return source, o.volumes.SphereVolume([0, 0, 0], radius), glass
 
 
 @pytest.mark.parametrize("polarization", [(1, 0, 0), (0, 1, 0), (1, 1j, 0)])
@@ -28,11 +28,11 @@ def test_mie_boundary_flux_and_multipole_convergence(polarization):
     solution = MieSphere(source, sphere, glass)
     boundary = boundary_meridian(sphere, 19).surface(7, phase=0.17)
     assert max(boundary_residuals(solution, boundary).values()) < 2e-9
-    outer = boundary_meridian(o.SphereVolume([0, 0, 0], 1.0), 48).surface(4)
+    outer = boundary_meridian(o.volumes.SphereVolume([0, 0, 0], 1.0), 48).surface(4)
     assert abs(closed_flux_residual(solution, outer)) < 1e-10
     q = solution.efficiencies()
     assert_allclose(q["scattering"], q["extinction"], rtol=1e-13)
-    grid = o.PointGrid([[0.1, 0.2, 0.15], [0.1, 0.2, 0.8]])
+    grid = o.sampling.PointGrid([[0.1, 0.2, 0.15], [0.1, 0.2, 0.8]])
     finer = MieSphere(source, sphere, glass, order=solution.order + 4)
     assert_allclose(
         solution.evaluate(grid).electric.values,
@@ -42,13 +42,15 @@ def test_mie_boundary_flux_and_multipole_convergence(polarization):
 
 
 def test_mie_equal_index_rotated_translated_and_si_scaling():
-    air = o.HomogeneousRegion("air", o.Dielectric(1.2))
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.2))
     wave = np.array([0.6, 0, 0.8]) * 2 * np.pi * 1.2 / 532e-9
-    source = o.PlaneWaveExpansion(
+    source = o.fields.PlaneWaveExpansion(
         [wave], [[0.8, 0.3j, -0.6]], [1e-6, 0, -1e-6], 532e-9, air
     )
-    sphere = o.SphereVolume([2e-6, 0, 1e-6], 600e-9)
-    grid = o.PointGrid(sphere.center + [[0, 0, 0], [1e-7, 2e-7, -1e-7], [0, 0, 8e-7]])
+    sphere = o.volumes.SphereVolume([2e-6, 0, 1e-6], 600e-9)
+    grid = o.sampling.PointGrid(
+        sphere.center + [[0, 0, 0], [1e-7, 2e-7, -1e-7], [0, 0, 8e-7]]
+    )
     actual = MieSphere(source, sphere, air).evaluate(grid)
     expected = source.evaluate(grid)
     assert_allclose(actual.electric.values, expected.electric.values, atol=1e-11)
@@ -57,8 +59,8 @@ def test_mie_equal_index_rotated_translated_and_si_scaling():
     physical = problem(radius=0.5 * 532e-9, wavelength=532e-9)
     p = np.array([[0, 0, 0.7], [0.1, 0, 0.2]])
     assert_allclose(
-        MieSphere(*normalized).evaluate(o.PointGrid(p)).electric.values,
-        MieSphere(*physical).evaluate(o.PointGrid(p * 532e-9)).electric.values,
+        MieSphere(*normalized).evaluate(o.sampling.PointGrid(p)).electric.values,
+        MieSphere(*physical).evaluate(o.sampling.PointGrid(p * 532e-9)).electric.values,
         atol=1e-11,
     )
 
@@ -67,7 +69,9 @@ def test_mfs_converges_to_independent_mie_on_both_sides():
     source, sphere, glass = problem(polarization=(0.7, 0.2j, 0))
     exact = MieSphere(source, sphere, glass)
     boundary = boundary_meridian(sphere, 45).surface(3, phase=0.27)
-    probes = o.PointGrid([[0, 0, 0], [0.1, 0.2, 0.1], [0, 0, 0.8], [0.2, -0.3, 0.7]])
+    probes = o.sampling.PointGrid(
+        [[0, 0, 0], [0.1, 0.2, 0.1], [0, 0, 0.8], [0.2, -0.3, 0.7]]
+    )
     errors, jumps = [], []
     for count in (16, 32):
         solution = AxisymmetricMFS(
@@ -82,7 +86,7 @@ def test_mfs_converges_to_independent_mie_on_both_sides():
         jumps.append(max(boundary_residuals(solution, boundary).values()))
     assert errors[1] < errors[0] / 50 and errors[1] < 2e-6
     assert jumps[1] < jumps[0] / 50 and jumps[1] < 2e-5
-    outer = boundary_meridian(o.SphereVolume([0, 0, 0], 1), 40).surface(4)
+    outer = boundary_meridian(o.volumes.SphereVolume([0, 0, 0], 1), 40).surface(4)
     assert abs(closed_flux_residual(solution, outer)) < 2e-6
 
 
@@ -109,8 +113,10 @@ def test_maxwell_equations_and_fourth_order_differencing(method):
 
 def test_lens_closed_geometry_and_no_contrast_control():
     source, _, _ = problem()
-    volume = o.VolumeBetweenSurfaces(
-        o.Plane(), o.SphericalCap(-4, o.Frame([0, 0, 0.6])), 1
+    volume = o.volumes.VolumeBetweenSurfaces(
+        o.surfaces.Plane(),
+        o.surfaces.SphericalCap(-4, o.geometry.Frame([0, 0, 0.6])),
+        1,
     )
     boundary = boundary_meridian(volume, 30).surface(8)
     # Front, back and rim must all participate; closed normals integrate to zero.
@@ -122,7 +128,7 @@ def test_lens_closed_geometry_and_no_contrast_control():
     solution = AxisymmetricMFS(
         source, volume, source.region, source_count=16, source_offset=0.06, azimuths=128
     )
-    probes = o.PointGrid([[0.1, 0.2, 0.3], [0, 0, 1.5]])
+    probes = o.sampling.PointGrid([[0.1, 0.2, 0.3], [0, 0, 1.5]])
     assert_allclose(
         solution.evaluate(probes).electric.values,
         source.evaluate(probes).electric.values,
@@ -138,7 +144,7 @@ def test_reference_guards():
         AxisymmetricMFS(source, sphere, glass, source_offset=0.5)
     with pytest.raises(ValueError, match="outside"):
         MieSphere(source, sphere, glass).evaluate(
-            o.PointGrid([[0, 0, 1]]), side="interior"
+            o.sampling.PointGrid([[0, 0, 1]]), side="interior"
         )
 
 

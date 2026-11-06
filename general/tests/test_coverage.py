@@ -8,30 +8,30 @@ from numpy.testing import assert_allclose, assert_array_equal
 
 def curved_problem(transmission="spectral", index=1.15, basis=None):
     basis = np.eye(3) if basis is None else basis
-    frame = o.Frame([0, 0, 0], basis)
+    frame = o.geometry.Frame([0, 0, 0], basis)
     axis = np.arange(-16, 16) / 8
-    grid = o.CartesianGrid(axis, axis, o.Frame(-basis[:, 2], basis))
-    air = o.HomogeneousRegion("before", o.Dielectric(1))
-    glass = o.HomogeneousRegion("inside", o.Dielectric(index))
-    after = o.HomogeneousRegion("after", o.Dielectric(1))
-    front = o.FreeformSurface(
+    grid = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame(-basis[:, 2], basis))
+    air = o.media.HomogeneousRegion("before", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("inside", o.media.Dielectric(index))
+    after = o.media.HomogeneousRegion("after", o.media.Dielectric(1))
+    front = o.surfaces.FreeformSurface(
         lambda p: 0.2 * np.cos(p[..., 0]),
         lambda p: np.stack(
             (-0.2 * np.sin(p[..., 0]), np.zeros_like(p[..., 0])), axis=-1
         ),
         frame=frame,
     )
-    back = o.Plane(o.Frame(0.8 * basis[:, 2], basis))
-    system = o.OpticalSystem(
+    back = o.surfaces.Plane(o.geometry.Frame(0.8 * basis[:, 2], basis))
+    system = o.system.OpticalSystem(
         (
-            o.DielectricInterface(front, air, glass),
-            o.DielectricInterface(back, glass, after),
+            o.system.DielectricInterface(front, air, glass),
+            o.system.DielectricInterface(back, glass, after),
         )
     )
     values = np.zeros(grid.shape + (2,), complex)
     values[..., 0] = 1
-    source = o.TransverseElectricField(grid, 1, values)
-    path = o.PropagationPipeline(system, transmission=transmission)
+    source = o.fields.TransverseElectricField(grid, 1, values)
+    path = o.propagation.PropagationPipeline(system, transmission=transmission)
     return source, path
 
 
@@ -94,7 +94,7 @@ def test_complete_curved_regions_match_independent_homogeneous_plane_wave(basis)
             [0, 0, 1.2],
         ]
     )
-    field = path(source, o.PointGrid(local @ basis.T))
+    field = path(source, o.sampling.PointGrid(local @ basis.T))
     expected = np.exp(2j * np.pi * (local[:, 2] + 1))[:, None] * basis[:, 0]
     assert_allclose(field.values, expected, atol=3e-12)
     assert_array_equal(path.last_coverage.regions, [0, 0, 1, 1, 2, 2])
@@ -105,8 +105,10 @@ def test_complete_curved_regions_match_independent_homogeneous_plane_wave(basis)
 def test_flat_interface_sided_limits_match_analytic_fresnel(coverage):
     source, path = curved_problem()
     air, glass = path.interfaces[0].minus, path.interfaces[0].plus
-    path = o.PropagationPipeline(
-        o.OpticalSystem((o.DielectricInterface(o.Plane(), air, glass),)),
+    path = o.propagation.PropagationPipeline(
+        o.system.OpticalSystem(
+            (o.system.DielectricInterface(o.surfaces.Plane(), air, glass),)
+        ),
         coverage=coverage,
     )
     with pytest.raises(ValueError, match="side"):
@@ -132,14 +134,14 @@ def test_all_masked_target_does_not_solve_interfaces(monkeypatch):
 
 def test_invalid_coverage_and_masked_incident_fields_are_explicit():
     with pytest.raises(ValueError, match="coverage"):
-        o.PropagationPipeline(coverage="regional")
+        o.propagation.PropagationPipeline(coverage="regional")
     source, path = curved_problem()
     grid = source.grid
     mask = np.ones(grid.shape, bool)
     mask[0, 0] = False
-    field = o.ElectricField(grid, 1, np.ones(grid.shape + (3,)), valid=mask)
+    field = o.fields.ElectricField(grid, 1, np.ones(grid.shape + (3,)), valid=mask)
     assert not field.valid.flags.writeable and not field.values.flags.writeable
     with pytest.raises(ValueError, match="uncomputed"):
         path(field, z=2)
     with pytest.raises(ValueError, match="finite"):
-        o.ElectricField(grid, 1, np.full(grid.shape + (3,), np.nan))
+        o.fields.ElectricField(grid, 1, np.full(grid.shape + (3,), np.nan))

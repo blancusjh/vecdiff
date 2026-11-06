@@ -29,14 +29,14 @@ def glyphs(axis):
 
 
 def uniform_disk(radius=18e-6, state=(1, 1j)):
-    grid = optics.PolarGrid(
+    grid = optics.sampling.PolarGrid(
         np.linspace(0, radius, 65), np.arange(240) * 2 * np.pi / 240
     )
     values = np.broadcast_to(
         np.asarray(state) / np.linalg.norm(state), grid.shape + (2,)
     )
 
-    return optics.TransverseElectricField(grid, WAVELENGTH, values)
+    return optics.fields.TransverseElectricField(grid, WAVELENGTH, values)
 
 
 def test_polar_rings_have_even_arc_pitch_and_reach_the_rim():
@@ -61,7 +61,7 @@ def test_polar_rings_have_even_arc_pitch_and_reach_the_rim():
 
 
 def test_cartesian_lattice_is_centered_with_half_cell_margins():
-    grid = optics.CartesianGrid(
+    grid = optics.sampling.CartesianGrid(
         np.linspace(-5e-6, 5e-6, 41), np.linspace(-3e-6, 3e-6, 25)
     )
     centers, pitch = _layout_nodes(grid, 0.7, np.array([-5, 5, -3, 3]), "cartesian")
@@ -95,12 +95,12 @@ def test_uniform_pupil_is_filled_to_its_rim(distribution):
 
 
 def test_linear_states_are_centered_double_headed_arrows():
-    grid = optics.CartesianGrid(
+    grid = optics.sampling.CartesianGrid(
         np.linspace(-4e-6, 4e-6, 33), np.linspace(-4e-6, 4e-6, 33)
     )
     angle = np.deg2rad(30)
     values = np.broadcast_to([np.cos(angle), np.sin(angle)], grid.shape + (2,))
-    field = optics.TransverseElectricField(grid, WAVELENGTH, values)
+    field = optics.fields.TransverseElectricField(grid, WAVELENGTH, values)
     figure, axis = plt.subplots(figsize=(5, 5))
     plot_polarization(field, axis=axis)
     centers, _ = glyphs(axis)
@@ -135,12 +135,12 @@ def test_size_scales_are_monotone_and_span_floor_to_one():
 
 def test_weak_rings_keep_glyphs_with_intensity_ordered_sizes():
     axis_values = np.linspace(-3e-6, 3e-6, 121)
-    grid = optics.CartesianGrid(axis_values, axis_values)
+    grid = optics.sampling.CartesianGrid(axis_values, axis_values)
     x, y = np.meshgrid(axis_values, axis_values)
     radius = np.hypot(x, y)
     # Airy-like rings: three side lobes of decreasing strength.
     amplitude = np.sinc(radius / 0.5e-6) * np.exp(-radius / 3e-6)
-    field = optics.TransverseElectricField(
+    field = optics.fields.TransverseElectricField(
         grid, WAVELENGTH, amplitude[..., None] * np.array([1, 0])
     )
     figure, axis = plt.subplots(figsize=(5, 5))
@@ -160,14 +160,14 @@ def test_weak_rings_keep_glyphs_with_intensity_ordered_sizes():
 
 
 def test_line_glyphs_are_equal_centered_direction_segments():
-    grid = optics.CartesianGrid(
+    grid = optics.sampling.CartesianGrid(
         np.linspace(-4e-6, 4e-6, 33), np.linspace(-4e-6, 4e-6, 33)
     )
     x, y = np.meshgrid(grid.u, grid.v)
     angle = np.deg2rad(20)
     amplitude = np.exp(-(x**2 + y**2) / 3e-6**2)
     values = amplitude[..., None] * np.array([np.cos(angle), np.sin(angle)])
-    field = optics.TransverseElectricField(grid, WAVELENGTH, values)
+    field = optics.fields.TransverseElectricField(grid, WAVELENGTH, values)
     figure, axis = plt.subplots(figsize=(5, 5))
     plot_polarization(
         field, axis=axis, glyph="line", glyph_color="black", size_scale=None
@@ -187,12 +187,12 @@ def test_line_glyphs_are_equal_centered_direction_segments():
 
 def test_focal_style_scales_line_length_with_intensity():
     axis_values = np.linspace(-6e-6, 6e-6, 121)
-    grid = optics.CartesianGrid(axis_values, axis_values)
+    grid = optics.sampling.CartesianGrid(axis_values, axis_values)
     x, y = np.meshgrid(axis_values, axis_values)
     envelope = np.exp(-(x**2 + y**2) / (2 * (2e-6) ** 2))
     values = np.zeros(grid.shape + (3,), complex)
     values[..., 0] = envelope
-    field = optics.ElectricField(grid, WAVELENGTH, values)
+    field = optics.fields.ElectricField(grid, WAVELENGTH, values)
     figure, axis = plt.subplots(figsize=(5, 5))
     plot_focal_polarization(field, axis=axis)
     lines = next(

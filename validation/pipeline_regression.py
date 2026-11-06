@@ -17,23 +17,23 @@ from scipy.special import erfc
 def run(count=280):
     root = Path(__file__).resolve().parents[1]
     axis = (np.arange(count) - count // 2) * 130 / count
-    air = o.HomogeneousRegion("air", o.Dielectric(1))
-    glass = o.HomogeneousRegion("glass", o.Dielectric(1.5))
-    grid = o.CartesianGrid(axis, axis, o.Frame([0, 0, -105]))
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
+    glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
+    grid = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -105]))
     x, y = np.meshgrid(axis, axis)
     values = np.zeros(grid.shape + (2,), complex)
     values[..., 0] = 0.5 * erfc((np.hypot(x, y) - 35) / 1.5)
     started = perf_counter()
-    source = o.angular_spectrum(
-        o.TransverseElectricField(grid, 1, values), air, evanescent="discard"
+    source = o.fields.angular_spectrum(
+        o.fields.TransverseElectricField(grid, 1, values), air, evanescent="discard"
     )
-    path = o.PropagationPipeline(
+    path = o.propagation.PropagationPipeline(
         [
-            o.DielectricInterface(
-                o.SphericalCap(100, o.Frame([0, 0, -100])), air, glass
+            o.system.DielectricInterface(
+                o.surfaces.SphericalCap(100, o.geometry.Frame([0, 0, -100])), air, glass
             ),
-            o.DielectricInterface(
-                o.SphericalCap(-100, o.Frame([0, 0, 100])), glass, air
+            o.system.DielectricInterface(
+                o.surfaces.SphericalCap(-100, o.geometry.Frame([0, 0, 100])), glass, air
             ),
         ]
     )
@@ -46,7 +46,7 @@ def run(count=280):
     ):
         started = perf_counter()
         field = solution.evaluate(
-            o.PointGrid(reference["plane"]), backend="nufft", tolerance=1e-12
+            o.sampling.PointGrid(reference["plane"]), backend="nufft", tolerance=1e-12
         )
         evaluation_seconds = perf_counter() - started
 

@@ -124,6 +124,10 @@ homogeneous medium belongs to `propagation/homogeneous.py`. Surface geometry
 and adjacent materials are specified independently of the interaction model.
 A pipeline can contain zero, one or several optical boundaries.
 
+Public objects are used through these namespaces, for example
+`surfaces.SphericalCap` or `propagation.PropagationPipeline`; the package top
+level re-exports nothing.
+
 External comparisons live in `validation/`.
 
 ## Physical contracts
@@ -140,19 +144,19 @@ External comparisons live in `validation/`.
 
 ```python
 import numpy as np
-import vecdiff_general as optics
+from vecdiff_general import fields, media, sampling
 
 wavelength = 532e-9
-region = optics.HomogeneousRegion("air", optics.Dielectric(1.0))
+region = media.HomogeneousRegion("air", media.Dielectric(1.0))
 axis = (np.arange(64) - 32) * wavelength / 2
-grid = optics.PlaneGrid(axis, axis)
+grid = sampling.PlaneGrid(axis, axis)
 
 radius_squared = np.sum(grid.points[..., :2] ** 2, axis=-1)
 envelope = np.exp(-radius_squared / (3 * wavelength) ** 2)
 values = np.stack((envelope, 0.3j * envelope), axis=-1)
-electric = optics.TransverseElectricField(grid, wavelength, values)
+electric = fields.TransverseElectricField(grid, wavelength, values)
 
-spectrum = optics.angular_spectrum(electric, region, evanescent="discard")
+spectrum = fields.angular_spectrum(electric, region, evanescent="discard")
 propagated = spectrum.propagate(10 * wavelength, model="asm")
 power_in_watts = propagated.power()
 ```
