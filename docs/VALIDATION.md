@@ -155,9 +155,10 @@ cylinder expands a `FocusedBeam` on its own axial-wavenumber and azimuth
 quadrature, exact within `reach` of the focus along the axis; points sharing
 a position across the axis share the cylindrical-wave sums. Its total field
 also holds the cylinder's sharp internal resonances, so its axial quadrature
-converges slowly (about 10⁻³ at the default node count for a hard pupil at
-20 λ0, 7 × 10⁻⁵ with 16 times the nodes); refine `axial_nodes` before using
-it. Inside a layer a Debye term of a multipole that turns there grows beyond
+converges only algebraically: for a hard pupil at 20 λ0 it changes by
+1.3 × 10⁻³ from 62 to 1984 axial nodes and by 7 × 10⁻⁵ from 992 (smooth
+pupil 5 × 10⁻⁶ and 1 × 10⁻⁷); refine `axial_nodes` before using it. The
+Debye terms are smooth in h and converge spectrally. Inside a layer a Debye term of a multipole that turns there grows beyond
 its turning point and cancels only in the sum.
 
 `test_layered_references.py` checks one layer and index-matched layers

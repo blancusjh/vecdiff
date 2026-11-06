@@ -250,8 +250,12 @@ class InfiniteCylinder:
         excursion = (high - low) * (abs(offset_a) + self.reach) + kappa_range * (
             np.hypot(offset_u, offset_v) + 2 * self.volume.radius
         )
+        # excursion is the one-way range of a phase quadratic in h (defocus),
+        # which runs out and back over the interval; in t its rate peaks at
+        # pi / 2 times the mean. The uniform rule excursion / 2 thus becomes
+        # pi / 2 excursion.
         count = self._axial_nodes or int(
-            np.ceil(excursion / 2 + 8 * excursion ** (1 / 3) + 24)
+            np.ceil(np.pi / 2 * excursion + 8 * excursion ** (1 / 3) + 24)
         )
         t, w = leggauss(count)
         t, w = np.pi / 2 * (t + 1), np.pi / 2 * w
