@@ -1,7 +1,7 @@
 # Propagation
 
-The public algorithms live under `vecdiff_general.propagation` and are also
-available through the package's top-level exports.
+The public algorithms are reached through `vecdiff_general.propagation`;
+the package top level re-exports nothing.
 
 | Module | Main API | Operation |
 |---|---|---|
