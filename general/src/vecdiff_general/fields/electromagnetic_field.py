@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from vecdiff_general._arrays import frozen_array, positive
+from vecdiff_general._backend import bd, is_device_array
 from vecdiff_general.sampling.grids import CartesianGrid, Grid, PolarGrid
 
 
@@ -28,21 +29,22 @@ class ElectricField:
             raise TypeError("field requires a physical Grid")
 
         valid = (
-            np.ones(self.grid.shape, dtype=bool)
+            bd.ones(self.grid.shape, dtype=bool)
             if self.valid is None
-            else np.asarray(self.valid, dtype=bool)
+            else bd.asarray(self.valid, dtype=bool)
         )
         if valid.shape != self.grid.shape:
             raise ValueError("field validity mask must have the grid shape")
-        values = np.array(self.values, dtype=complex, copy=True)
+        values = bd.array(self.values, dtype=complex, copy=True)
 
         if values.shape != self.grid.shape + (3,):
             raise ValueError("electric values must have grid.shape + (3,)")
 
-        if not np.isfinite(values[valid]).all():
+        if not bd.isfinite(values[valid]).all():
             raise ValueError("computed electric samples must be finite")
-        values[~valid] = np.nan + 1j * np.nan
-        values.setflags(write=False)
+        values[~valid] = bd.nan + 1j * bd.nan
+        if not is_device_array(values):
+            values.setflags(write=False)
         object.__setattr__(self, "valid", frozen_array(valid, dtype=bool))
         object.__setattr__(self, "values", values)
         object.__setattr__(
@@ -62,7 +64,7 @@ class ElectricField:
         return self.values[..., 2]
 
     def norm2(self):
-        return np.sum(np.abs(self.values) ** 2, axis=-1)
+        return bd.sum(bd.abs(self.values) ** 2, axis=-1)
 
 
 @dataclass(frozen=True, eq=False)

@@ -3,42 +3,41 @@
 from __future__ import annotations
 
 import numpy as np
-from scipy.special import jv
+
+from vecdiff_general._backend import bd, jv
 
 
 def radial_weights(radius):
     """Trapezoidal dr weights on an increasing nonnegative radial grid."""
-    radius = np.asarray(radius, dtype=float)
+    radius = bd.asarray(radius, dtype=float)
 
     if (
         radius.ndim != 1
         or len(radius) < 2
-        or np.any(radius < 0)
-        or np.any(np.diff(radius) <= 0)
+        or bd.any(radius < 0)
+        or bd.any(bd.diff(radius) <= 0)
     ):
         raise ValueError(
             "radius must contain at least two increasing nonnegative nodes"
         )
 
-    if not np.isfinite(radius).all():
+    if not bd.isfinite(radius).all():
         raise ValueError("radial coordinates must be finite")
 
-    steps = np.diff(radius)
+    steps = bd.diff(radius)
 
-    return np.concatenate(
-        ([steps[0] / 2], (steps[:-1] + steps[1:]) / 2, [steps[-1] / 2])
-    )
+    return bd.concatenate((steps[:1] / 2, (steps[:-1] + steps[1:]) / 2, steps[-1:] / 2))
 
 
 def _radial_measure(radius, weights):
     """Validate radial quadrature and return its r*dr measure."""
     default_weights = radial_weights(radius)
-    weights = default_weights if weights is None else np.asarray(weights, dtype=float)
+    weights = default_weights if weights is None else bd.asarray(weights, dtype=float)
 
     if weights.shape != radius.shape:
         raise ValueError("radial integration weights must match the radial axis")
 
-    if not np.isfinite(weights).all() or np.any(weights <= 0):
+    if not bd.isfinite(weights).all() or bd.any(weights <= 0):
         raise ValueError("radial integration weights must be finite and positive")
 
     return radius * weights
@@ -52,21 +51,21 @@ def HT(g: np.ndarray, r, q, *, order=0, weights=None) -> np.ndarray:
     There is no hidden 2*pi factor. The order is an integer, including negative
     angular harmonics. Radial nodes must increase and be nonnegative.
     """
-    if isinstance(order, bool) or not np.isfinite(order) or int(order) != order:
+    if isinstance(order, bool) or not bd.isfinite(order) or int(order) != order:
         raise ValueError("Hankel order must be an integer")
 
-    g = np.asarray(g, dtype=complex)
-    r = np.asarray(r, dtype=float)
-    q = np.atleast_1d(np.asarray(q, dtype=float))
+    g = bd.asarray(g, dtype=complex)
+    r = bd.asarray(r, dtype=float)
+    q = bd.atleast_1d(bd.asarray(q, dtype=float))
     measure = _radial_measure(r, weights)
 
     if g.ndim < 1 or g.shape[0] != len(r):
         raise ValueError("the first values axis must match the radial coordinates")
 
-    if q.ndim != 1 or not len(q) or np.any(q < 0):
+    if q.ndim != 1 or not len(q) or bd.any(q < 0):
         raise ValueError("radial frequencies must be a nonempty nonnegative axis")
 
-    if not np.isfinite(g).all() or not np.isfinite(q).all():
+    if not bd.isfinite(g).all() or not bd.isfinite(q).all():
         raise ValueError("Hankel inputs must be finite")
 
     components = g.reshape(len(r), -1)
@@ -96,12 +95,12 @@ def azimuthal_coefficients(g, *, axis=-1, max_order=None, tail_tolerance=1e-10):
     an error. Trailing components are transformed independently; symmetry of
     the coordinate domain does not remove harmonics of the sampled function.
     """
-    g = np.asarray(g, dtype=complex)
+    g = bd.asarray(g, dtype=complex)
     count = g.shape[axis]
 
-    G = np.fft.fft(g, axis=axis)
+    G = bd.fft.fft(g, axis=axis)
     coefficients = G / count
-    orders = np.rint(np.fft.fftfreq(count) * count).astype(int)
+    orders = bd.rint(bd.fft.fftfreq(count) * count).astype(int)
 
     if max_order is None:
         return orders, coefficients
@@ -109,15 +108,15 @@ def azimuthal_coefficients(g, *, axis=-1, max_order=None, tail_tolerance=1e-10):
     if int(max_order) != max_order or max_order < 0:
         raise ValueError("max_order must be a nonnegative integer")
 
-    keep = np.abs(orders) <= max_order
-    discarded = np.take(coefficients, np.flatnonzero(~keep), axis=axis)
+    keep = bd.abs(orders) <= max_order
+    discarded = bd.take(coefficients, bd.flatnonzero(~keep), axis=axis)
 
-    if np.linalg.norm(discarded) > tail_tolerance * max(
-        np.linalg.norm(coefficients), 1e-300
+    if bd.linalg.norm(discarded) > tail_tolerance * max(
+        bd.linalg.norm(coefficients), 1e-300
     ):
         raise ValueError("azimuthal harmonic tail exceeds the requested tolerance")
 
-    return orders[keep], np.take(coefficients, np.flatnonzero(keep), axis=axis)
+    return orders[keep], bd.take(coefficients, bd.flatnonzero(keep), axis=axis)
 
 
 def cylindrical_synthesize(
@@ -129,18 +128,18 @@ def cylindrical_synthesize(
     full azimuthal measure and radial quadrature weights. The phase is
     exp(i*(k_r*r*cos(phi-phi_obs) + k_z*z)).
     """
-    points = np.asarray(points, dtype=float)
-    radius = np.linalg.norm(points[..., :2], axis=-1).ravel()
-    azimuth = np.arctan2(points[..., 1], points[..., 0]).ravel()
+    points = bd.asarray(points, dtype=float)
+    radius = bd.linalg.norm(points[..., :2], axis=-1).ravel()
+    azimuth = bd.arctan2(points[..., 1], points[..., 0]).ravel()
     axial = points[..., 2].ravel()
-    coefficients = np.asarray(coefficients, dtype=complex)
+    coefficients = bd.asarray(coefficients, dtype=complex)
 
-    result = np.zeros((len(radius), coefficients.shape[-1]), dtype=complex)
-    phase_axial = np.exp(1j * axial[:, None] * np.asarray(axial_wavevectors)[None, :])
+    result = bd.zeros((len(radius), coefficients.shape[-1]), dtype=complex)
+    phase_axial = bd.exp(1j * axial[:, None] * bd.asarray(axial_wavevectors)[None, :])
 
     for index, order in enumerate(orders):
-        bessel = jv(order, radius[:, None] * np.asarray(radial_wavevectors)[None, :])
-        phase_azimuth = (1j ** int(order)) * np.exp(1j * order * azimuth)
+        bessel = jv(order, radius[:, None] * bd.asarray(radial_wavevectors)[None, :])
+        phase_azimuth = (1j ** int(order)) * bd.exp(1j * order * azimuth)
         radial_integral = (phase_axial * bessel) @ coefficients[:, index]
 
         result += phase_azimuth[:, None] * radial_integral
@@ -152,15 +151,15 @@ def _polar_coordinates(coordinates):
     if coordinates is None or len(coordinates) != 2:
         raise ValueError("polar coordinates must be (radius, azimuth) axes")
 
-    radius, azimuth = (np.asarray(axis, dtype=float) for axis in coordinates)
+    radius, azimuth = (bd.asarray(axis, dtype=float) for axis in coordinates)
     radial_weights(radius)
 
-    if azimuth.ndim != 1 or len(azimuth) < 2 or not np.isfinite(azimuth).all():
+    if azimuth.ndim != 1 or len(azimuth) < 2 or not bd.isfinite(azimuth).all():
         raise ValueError("azimuth must be a finite one-dimensional periodic axis")
 
-    expected_step = 2 * np.pi / len(azimuth)
+    expected_step = 2 * bd.pi / len(azimuth)
 
-    if not np.allclose(np.diff(azimuth), expected_step, rtol=1e-10, atol=1e-12):
+    if not bd.allclose(bd.diff(azimuth), expected_step, rtol=1e-10, atol=1e-12):
         raise ValueError(
             "azimuth must cover one uniform period without a duplicate endpoint"
         )
@@ -171,26 +170,26 @@ def _polar_coordinates(coordinates):
 def _integrate_harmonics(g, source, target, weights, *, sign):
     r, phi = _polar_coordinates(source)
     q, theta = _polar_coordinates(target)
-    g = np.asarray(g, dtype=complex)
+    g = bd.asarray(g, dtype=complex)
 
     if g.shape[:2] != (len(r), len(phi)):
         raise ValueError("polar values must have leading shape (radius, azimuth)")
 
-    if not np.isfinite(g).all():
+    if not bd.isfinite(g).all():
         raise ValueError("polar transform values must be finite")
 
     # Angular Fourier series: g(r,phi) = sum_m c_m(r) exp(i*m*phi).
     components = g.reshape(len(r), len(phi), -1)
     orders, coefficients = azimuthal_coefficients(components, axis=1)
-    origin_phase = np.exp(-1j * orders * phi[0])
+    origin_phase = bd.exp(-1j * orders * phi[0])
     coefficients = coefficients * origin_phase[None, :, None]
 
-    G = np.zeros((len(q), len(theta), components.shape[-1]), dtype=complex)
+    G = bd.zeros((len(q), len(theta), components.shape[-1]), dtype=complex)
 
     for index, order in enumerate(orders):
         # Each harmonic has its own radial Hankel integral and angular phase.
         radial_integral = HT(coefficients[:, index], r, q, order=order, weights=weights)
-        angular_phase = (sign * 1j) ** int(order) * np.exp(1j * order * theta)
+        angular_phase = (sign * 1j) ** int(order) * bd.exp(1j * order * theta)
 
         G += radial_integral[:, None, :] * angular_phase[None, :, None]
 
@@ -206,7 +205,7 @@ def FT2(g: np.ndarray, coordinates, frequencies, *, weights=None) -> np.ndarray:
     This is angular FFT plus radial quadrature, not a 2D FFT of the polar array.
     """
     G = _integrate_harmonics(g, coordinates, frequencies, weights, sign=-1)
-    G = 2 * np.pi * G
+    G = 2 * bd.pi * G
 
     return G
 
@@ -219,6 +218,6 @@ def IFT2(G: np.ndarray, coordinates, frequencies, *, weights=None) -> np.ndarray
     remaining normalization is 1/(2*pi). Finite radial quadrature is approximate.
     """
     g = _integrate_harmonics(G, frequencies, coordinates, weights, sign=1)
-    g = g / (2 * np.pi)
+    g = g / (2 * bd.pi)
 
     return g

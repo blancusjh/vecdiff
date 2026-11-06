@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 from scipy.interpolate import BarycentricInterpolator
 
+from vecdiff_general._backend import bd, divide, to_numpy
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
 from vecdiff_general.fourier.nufft import phase_factor
@@ -50,12 +51,12 @@ class InterfaceSolution:
         frame = self.interface.frame
         signed_distance = (grid.points - frame.origin) @ frame.normal
         coordinate_scale = max(
-            1.0, float(np.max(np.abs(grid.points))), float(np.max(np.abs(frame.origin)))
+            1.0, float(bd.max(bd.abs(grid.points))), float(bd.max(bd.abs(frame.origin)))
         )
         tolerance = 32 * np.finfo(float).eps * coordinate_scale
 
-        if (side == "minus" and np.any(signed_distance > tolerance)) or (
-            side == "plus" and np.any(signed_distance < -tolerance)
+        if (side == "minus" and bd.any(signed_distance > tolerance)) or (
+            side == "plus" and bd.any(signed_distance < -tolerance)
         ):
             raise ValueError("observation points lie outside the requested half-space")
 
@@ -98,13 +99,13 @@ def scatter_plane(incident, interface):
     else:
         raise ValueError("incident region is not adjacent to the interface")
 
-    occupied = np.any(incident.amplitudes != 0, axis=-1)
+    occupied = bd.any(incident.amplitudes != 0, axis=-1)
     k = incident.wavevectors[occupied]
     amplitudes = incident.amplitudes[occupied]
 
     phase = phase_factor(k, (interface.frame.origin - incident.origin)[None, :])[0]
     amplitudes = amplitudes * phase[:, None]
-    vacuum_wavenumber = 2 * np.pi / incident.wavelength0
+    vacuum_wavenumber = 2 * bd.pi / incident.wavelength0
     incident_index = incident.region.material.n
     transmitted_index = destination.material.n
 
@@ -203,7 +204,7 @@ class SpectralFresnel:
             or min(nodes, outer_nodes) < 2
         ):
             raise ValueError("angular node counts must be integers >= 2")
-        if not 0 < central_width < angular_limit < 1 / np.sqrt(2):
+        if not 0 < central_width < angular_limit < 1 / bd.sqrt(2):
             raise ValueError("require 0 < central_width < angular_limit < 1/sqrt(2)")
         if not 0 <= cutoff < 1:
             raise ValueError("modal cutoff must lie in [0, 1)")
@@ -230,7 +231,7 @@ class SpectralFresnel:
             raise ValueError("spectrum and transport wavelengths differ")
         if transport.surface is not interface.surface:
             raise ValueError("transport must evaluate this interface surface")
-        if spectrum.grid.shape != transport.plane.shape or not np.allclose(
+        if spectrum.grid.shape != transport.plane.shape or not bd.allclose(
             spectrum.grid.points,
             transport.plane.points,
             rtol=0,
@@ -240,8 +241,8 @@ class SpectralFresnel:
         n1, n2 = interface.minus.material.n, interface.plus.material.n
         basis = transport.plane.frame.basis
         k = modes.wavevectors @ basis
-        occupied = np.any(modes.amplitudes != 0, axis=-1)
-        if np.any(abs(k[occupied].imag) > 1e-12 * transport.k) or np.any(
+        occupied = bd.any(modes.amplitudes != 0, axis=-1)
+        if bd.any(abs(k[occupied].imag) > 1e-12 * transport.k) or bd.any(
             k[occupied, 2].real <= 0
         ):
             raise ValueError(
@@ -252,61 +253,63 @@ class SpectralFresnel:
                 transport.forward(spectrum),
                 TransmissionReport(int(occupied.sum()), 0.0, (transport.rank,)),
             )
-        magnitude = np.linalg.norm(modes.amplitudes, axis=-1)
+        magnitude = bd.linalg.norm(modes.amplitudes, axis=-1)
         direction_xy = k[:, :2].real / transport.k
         keep = (magnitude > self.cutoff * magnitude.max()) & (
-            np.max(abs(direction_xy), axis=-1) <= self.angular_limit
+            bd.max(abs(direction_xy), axis=-1) <= self.angular_limit
         )
         omitted = float(
-            np.linalg.norm(magnitude[~keep]) / max(np.linalg.norm(magnitude), 1e-300)
+            bd.linalg.norm(magnitude[~keep]) / max(bd.linalg.norm(magnitude), 1e-300)
         )
-        out = np.zeros((transport.size, 6), complex)
+        out = bd.zeros((transport.size, 6), complex)
         ranks = []
-        if np.any(keep):
-            if np.any(keep & ~transport.active.ravel()):
+        if bd.any(keep):
+            if bd.any(keep & ~transport.active.ravel()):
                 raise ValueError(
                     "retained modes exceed the incident transport bandwidth"
                 )
             wavevectors = k[keep].real
-            d = wavevectors / np.linalg.norm(wavevectors, axis=-1, keepdims=True)
+            d = wavevectors / bd.linalg.norm(wavevectors, axis=-1, keepdims=True)
             a = modes.amplitudes[keep] @ basis
-            bounds = np.max(abs(d[:, :2]), axis=0) * (1 + 1e-12)
+            bounds = bd.max(abs(d[:, :2]), axis=0) * (1 + 1e-12)
             normals = transport.grid.normals.reshape(-1, 3) @ basis
-            edges = [np.array([-v, v]) for v in bounds]
+            edges = [bd.array([-v, v]) for v in bounds]
             if n1 > n2:
                 c = self.central_width
                 edges = [
-                    np.array([-v, -c, c, v]) if v > c else np.array([-v, v])
+                    bd.array([-v, -c, c, v]) if v > c else bd.array([-v, v])
                     for v in bounds
                 ]
             for tx in range(len(edges[0]) - 1):
                 for ty in range(len(edges[1]) - 1):
-                    lo = np.array([edges[0][tx], edges[1][ty]])
-                    hi = np.array([edges[0][tx + 1], edges[1][ty + 1]])
-                    select = np.all(
+                    lo = bd.array([edges[0][tx], edges[1][ty]])
+                    hi = bd.array([edges[0][tx + 1], edges[1][ty + 1]])
+                    select = bd.all(
                         (d[:, :2] >= lo) & ((d[:, :2] < hi) | (lo == hi)), axis=-1
                     )
-                    if not np.any(select):
+                    if not bd.any(select):
                         continue
-                    central = np.all(lo >= -self.central_width - 1e-7) and np.all(
+                    central = bd.all(lo >= -self.central_width - 1e-7) and bd.all(
                         hi <= self.central_width + 1e-7
                     )
                     nt = self.nodes if central or n1 <= n2 else self.outer_nodes
-                    cheb = np.cos(np.pi * (np.arange(nt) + 0.5) / nt)
+                    cheb = bd.cos(bd.pi * (bd.arange(nt) + 0.5) / nt)
                     axes, weights = [], []
                     for j in range(2):
                         if hi[j] == lo[j]:
-                            axes.append(np.array([lo[j]]))
-                            weights.append(np.ones((int(select.sum()), 1)))
+                            axes.append(bd.array([lo[j]]))
+                            weights.append(bd.ones((int(select.sum()), 1)))
                         else:
                             axis = cheb * (hi[j] - lo[j]) / 2 + (hi[j] + lo[j]) / 2
                             axes.append(axis)
                             weights.append(
-                                BarycentricInterpolator(axis, np.eye(nt), axis=0)(
-                                    d[select, j]
+                                bd.asarray(
+                                    BarycentricInterpolator(
+                                        to_numpy(axis), np.eye(nt), axis=0
+                                    )(to_numpy(d[select, j]))
                                 )
                             )
-                    ids = np.flatnonzero(keep)[select]
+                    ids = bd.flatnonzero(keep)[select]
                     plan = self._plans.plan(transport, ids)
                     ranks.append(plan.rank)
                     amplitudes = a[select, :2] * transport.size
@@ -314,8 +317,8 @@ class SpectralFresnel:
                     def node(index, axes=axes, weights=weights, ids=ids, plan=plan):
                         ix, iy = index
                         x, y = axes[0][ix], axes[1][iy]
-                        direction = np.array([x, y, np.sqrt(1 - x * x - y * y)])
-                        lattice = np.zeros((transport.size, 2), complex)
+                        direction = bd.array([x, y, bd.sqrt(1 - x * x - y * y)])
+                        lattice = bd.zeros((transport.size, 2), complex)
                         lattice[ids] = (
                             amplitudes
                             * (weights[0][:, ix] * weights[1][:, iy])[:, None]
@@ -335,7 +338,7 @@ class SpectralFresnel:
                     # Nodes are independent; summing in node order keeps the
                     # result identical to a serial loop.
                     # Batches bound the number of pending node fields in memory.
-                    indices = list(np.ndindex(len(axes[0]), len(axes[1])))
+                    indices = list(bd.ndindex(len(axes[0]), len(axes[1])))
                     batch = 2 * self.threads
                     with ThreadPoolExecutor(self.threads) as pool:
                         for start in range(0, len(indices), batch):
@@ -418,10 +421,10 @@ class LocalFresnel:
                 "local transmission requires the incident interface transport"
             )
         modes = spectrum.expansion
-        magnitude = np.linalg.norm(modes.amplitudes, axis=-1)
+        magnitude = bd.linalg.norm(modes.amplitudes, axis=-1)
         k = modes.wavevectors @ transport.plane.frame.basis
         occupied = magnitude > 0
-        if np.any(abs(k[occupied].imag) > 1e-12 * transport.k) or np.any(
+        if bd.any(abs(k[occupied].imag) > 1e-12 * transport.k) or bd.any(
             k[occupied, 2].real <= 0
         ):
             raise ValueError(
@@ -429,46 +432,40 @@ class LocalFresnel:
             )
         keep = (
             (magnitude > self.modal_cutoff * magnitude.max())
-            & (np.max(abs(k[:, :2].real / transport.k), axis=-1) <= self.angular_limit)
+            & (bd.max(abs(k[:, :2].real / transport.k), axis=-1) <= self.angular_limit)
             & transport.active.ravel()
         )
         omitted = float(
-            np.linalg.norm(magnitude[~keep]) / max(np.linalg.norm(magnitude), 1e-300)
+            bd.linalg.norm(magnitude[~keep]) / max(bd.linalg.norm(magnitude), 1e-300)
         )
         retained = PlaneSpectrum(
             spectrum.grid,
-            replace(modes, amplitudes=np.where(keep[:, None], modes.amplitudes, 0)),
+            replace(modes, amplitudes=bd.where(keep[:, None], modes.amplitudes, 0)),
         )
         electric, derivative = transport.electric_jet(retained)
-        intensity = np.sum(abs(electric) ** 2, axis=-1)
+        intensity = bd.sum(abs(electric) ** 2, axis=-1)
         lit = intensity > self.cutoff**2 * intensity.max()
-        wavevector = np.divide(
-            np.imag(np.sum(electric.conj()[..., :, None] * derivative, axis=-2)),
+        wavevector = divide(
+            bd.imag(bd.sum(electric.conj()[..., :, None] * derivative, axis=-2)),
             intensity[..., None],
-            out=np.zeros_like(electric.real),
-            where=lit[..., None],
+            lit[..., None],
         )
-        length = np.linalg.norm(wavevector, axis=-1)
-        if np.any(lit & (length <= 1e-12 * transport.k)):
+        length = bd.linalg.norm(wavevector, axis=-1)
+        if bd.any(lit & (length <= 1e-12 * transport.k)):
             raise ValueError(
                 "local phase gradient is undefined in an illuminated region; use spectral transmission"
             )
-        direction = np.divide(
-            wavevector,
-            length[..., None],
-            out=np.zeros_like(wavevector),
-            where=lit[..., None],
-        )
+        direction = divide(wavevector, length[..., None], lit[..., None])
         direction[~lit] = transport.plane.frame.normal
         weights = intensity * transport.grid.weights * lit
         total = max(float(weights.sum()), 1e-300)
         eikonal = float(
-            np.sqrt(np.sum(weights * (length / transport.k - 1) ** 2) / total)
+            bd.sqrt(bd.sum(weights * (length / transport.k - 1) ** 2) / total)
         )
-        longitudinal = np.sum(direction * electric, axis=-1)
+        longitudinal = bd.sum(direction * electric, axis=-1)
         projection = float(
-            np.sqrt(
-                np.sum(abs(longitudinal) ** 2 * transport.grid.weights * lit) / total
+            bd.sqrt(
+                bd.sum(abs(longitudinal) ** 2 * transport.grid.weights * lit) / total
             )
         )
         if max(eikonal, projection) > self.validity_tolerance:
@@ -476,25 +473,25 @@ class LocalFresnel:
                 f"local single-direction approximation failed: eikonal residual={eikonal:.3g}, "
                 f"longitudinal amplitude={projection:.3g}; use spectral transmission"
             )
-        cosine = np.sum(direction * transport.grid.normals, axis=-1)
-        if np.any(lit & (cosine <= 1e-10)):
+        cosine = bd.sum(direction * transport.grid.normals, axis=-1)
+        if bd.any(lit & (cosine <= 1e-10)):
             raise ValueError(
                 "local transmission requires forward, non-grazing incidence on the surface; "
-                f"unsupported relative amplitude={np.sqrt(weights[cosine <= 1e-10].sum() / total):.3g}"
+                f"unsupported relative amplitude={bd.sqrt(weights[cosine <= 1e-10].sum() / total):.3g}"
             )
         n1, n2 = interface.minus.material.n, interface.plus.material.n
         s, pi, pt, dt, ts, tp = _fresnel_basis(
             direction, transport.grid.normals, n1, n2
         )
         if self.coefficients == "unity":
-            ts, tp = np.ones_like(ts), np.ones_like(tp)
-        transmitted = (ts * np.sum(s * electric, axis=-1))[..., None] * s + (
-            tp * np.sum(pi * electric, axis=-1)
+            ts, tp = bd.ones_like(ts), bd.ones_like(tp)
+        transmitted = (ts * bd.sum(s * electric, axis=-1))[..., None] * s + (
+            tp * bd.sum(pi * electric, axis=-1)
         )[..., None] * pt
         transmitted[~lit] = 0
         field = ElectromagneticField(
             ElectricField(transport.grid, spectrum.expansion.wavelength0, transmitted),
-            n2 / Z0 * np.cross(dt, transmitted),
+            n2 / Z0 * bd.cross(dt, transmitted),
         )
         report = LocalTransmissionReport(
             int(keep.sum()),
@@ -502,11 +499,11 @@ class LocalFresnel:
             (transport.rank,),
             eikonal,
             projection,
-            int(np.count_nonzero(~lit)),
+            int(bd.count_nonzero(~lit)),
             float(
-                np.sqrt(
-                    np.sum(intensity[~lit] * transport.grid.weights[~lit])
-                    / max(np.sum(intensity * transport.grid.weights), 1e-300)
+                bd.sqrt(
+                    bd.sum(intensity[~lit] * transport.grid.weights[~lit])
+                    / max(bd.sum(intensity * transport.grid.weights), 1e-300)
                 )
             ),
         )

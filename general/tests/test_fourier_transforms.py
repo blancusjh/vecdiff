@@ -52,6 +52,6 @@ def test_nufft_matches_direct_complex_vector_synthesis():
     wavevectors = generator.normal(size=(80, 3)) * 1e7
     amplitudes = generator.normal(size=(80, 6)) + 1j * generator.normal(size=(80, 6))
     points = generator.normal(size=(31, 3)) * 1e-6
-    direct = NUFFT(amplitudes, wavevectors, points, sign=1, backend="direct")
-    accelerated = NUFFT(amplitudes, wavevectors, points, sign=1, backend="nufft")
+    direct = NUFFT(amplitudes, wavevectors, points, sign=1, method="direct")
+    accelerated = NUFFT(amplitudes, wavevectors, points, sign=1, method="nufft")
     assert np.linalg.norm(direct - accelerated) / np.linalg.norm(direct) < 5e-12

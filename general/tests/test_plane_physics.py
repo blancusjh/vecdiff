@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import vecdiff_general as o
 from numpy.testing import assert_allclose
 from vecdiff_general.fields import (
     ElectricField,
@@ -13,6 +14,8 @@ from vecdiff_general.observables import boundary_residuals
 from vecdiff_general.propagation import scatter_plane
 from vecdiff_general.sampling import PlaneGrid, PointGrid
 from vecdiff_general.system import PlanarInterface
+
+host = o.backend.to_numpy
 
 WAVELENGTH = 532e-9
 
@@ -150,9 +153,9 @@ def test_rotation_and_translation_covariance():
     expected = reference.evaluate(PointGrid(points), side="plus")
     actual = transformed.evaluate(PointGrid(points @ basis.T + shift), side="plus")
     assert_allclose(
-        actual.electric.values, expected.electric.values @ basis.T, atol=2e-14
+        actual.electric.values, host(expected.electric.values) @ basis.T, atol=2e-14
     )
-    assert_allclose(actual.magnetic, expected.magnetic @ basis.T, atol=2e-16)
+    assert_allclose(actual.magnetic, host(expected.magnetic) @ basis.T, atol=2e-16)
 
 
 @pytest.mark.parametrize(
@@ -165,7 +168,7 @@ def test_fft_completion_and_asm_on_embedded_plane(basis):
         Frame(np.array([0.0, 0.0, 50.0]), basis),
     )
     ku = 2 * np.pi / (8 * WAVELENGTH / 2)
-    phase = np.exp(1j * ku * grid.u)[None, :] * np.ones((8, 1))
+    phase = np.exp(1j * ku * host(grid.u))[None, :] * np.ones((8, 1))
     values = np.stack((phase, 0.3j * phase), axis=-1)
     spectrum = angular_spectrum(
         TransverseElectricField(grid, WAVELENGTH, values), region(1.0)
@@ -183,7 +186,7 @@ def test_fft_completion_and_asm_on_embedded_plane(basis):
         atol=1e-15,
     )
     assert_allclose(
-        actual.grid.points, grid.points + distance * basis[:, 2], atol=1e-15
+        actual.grid.points, host(grid.points) + distance * basis[:, 2], atol=1e-15
     )
 
 
@@ -283,7 +286,8 @@ def test_coordinate_contract_and_no_material_on_field():
     positions[:] = 0
     assert_allclose(grid.points, [[1, 2, 3]])
     assert not hasattr(electric, "medium") and not hasattr(electric, "sampling")
-    with pytest.raises(ValueError):
-        electric.values[0, 0] = 2
+    if o.backend.get_backend() == "CPU":  # CuPy arrays cannot be made read-only
+        with pytest.raises(ValueError):
+            electric.values[0, 0] = 2
     with pytest.raises(TypeError, match="Grid"):
         ElectricField(object(), WAVELENGTH, [[1, 0, 0]])

@@ -5,10 +5,12 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
+from vecdiff_general._backend import cpu_reference, on_cpu
 from vecdiff_general.sampling import SurfaceGrid
 from vecdiff_general.volumes import SphereVolume, VolumeBetweenSurfaces
 
 
+@cpu_reference
 @dataclass(frozen=True)
 class Meridian:
     """Axisymmetric boundary nodes (rho,z), outward normals and area / 2pi."""
@@ -34,6 +36,7 @@ class Meridian:
         return SurfaceGrid(points, normals, weights)
 
 
+@on_cpu
 def boundary_meridian(volume, count):
     """Gauss quadrature including both lens faces and the cylindrical rim.
 
@@ -98,6 +101,7 @@ def boundary_meridian(volume, count):
     )
 
 
+@on_cpu
 def closed_box_grid(center, halfwidth, order=16):
     """Outward Gauss quadrature on a closed Cartesian box, lengths in metres."""
     center, halfwidth = np.asarray(center, float), np.asarray(halfwidth, float)
