@@ -27,6 +27,38 @@ class SphereVolume:
 
 
 @dataclass(frozen=True)
+class CylinderVolume:
+    """Infinite circular cylinder: points within radius of the line through
+    center along axis. Unlike the other volumes it is not closed."""
+
+    center: np.ndarray
+    axis: np.ndarray
+    radius: float
+
+    def __post_init__(self):
+        center, axis = frozen_array(self.center), frozen_array(self.axis)
+
+        if center.shape != (3,) or axis.shape != (3,):
+            raise ValueError("cylinder centre and axis must be Cartesian vectors")
+
+        length = float(bd.linalg.norm(axis))
+
+        if not np.isfinite(length) or length == 0:
+            raise ValueError("cylinder axis must be a nonzero direction")
+
+        object.__setattr__(self, "center", center)
+        object.__setattr__(self, "axis", frozen_array(axis / length))
+        object.__setattr__(self, "radius", positive(self.radius, "cylinder radius"))
+
+    def contains(self, points):
+        offset = bd.asarray(points) - self.center
+        along = offset @ self.axis
+        transverse = offset - along[..., None] * self.axis
+
+        return bd.linalg.norm(transverse, axis=-1) <= self.radius
+
+
+@dataclass(frozen=True)
 class VolumeBetweenSurfaces:
     """Two coaxial graph faces closed by an explicit cylindrical rim.
 

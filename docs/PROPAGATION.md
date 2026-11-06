@@ -9,7 +9,7 @@ the package top level re-exports nothing.
 | `surface_transfer.py` | `SurfaceTransport` | Evaluate and reconstruct fields on a graph surface |
 | `surface_interaction.py` | `scatter_plane`, `SpectralFresnel`, `LocalFresnel` | Reflection and transmission at fixed boundaries |
 | `pipeline.py` | `PropagationPipeline` | Compose transport and interactions |
-| `references/` | `MieSphere`, `DielectricBEM`, other reference solvers | Independently check physical and numerical accuracy |
+| `references/` | `MieSphere`, `LayeredSphere`, `InfiniteCylinder`, `DielectricBEM`, other reference solvers | Independently check physical and numerical accuracy |
 
 ## Homogeneous propagation
 
