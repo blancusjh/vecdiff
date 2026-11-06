@@ -7,7 +7,11 @@ A beam is a superposition of propagating plane waves in one homogeneous region,
 placed by a Frame whose normal is the propagation axis. The kinds differ only
 in where the field is prescribed. Profile and polarization stay separate: the
 prescribed transverse field is profile(x, y) times the polarization state at
-the point's azimuth. Quadratures are chosen from the region to be evaluated.
+the point's azimuth. Quadratures are chosen from the region to be evaluated
+and break at the profile's edges, the radii where its amplitude jumps (stops,
+annuli, phase belts): across an edge a single Gauss rule converges only
+slowly, and a ring narrower than its node spacing would be missed. A profile
+declares them as ``edges``; a plain callable passes ``edges=`` to the beam.
 """
 
 import numpy as np
@@ -25,7 +29,7 @@ _ROUNDOFF = 64 * np.finfo(float).eps
 
 
 class _Beam:
-    def __init__(self, profile, polarization, frame, wavelength0, region):
+    def __init__(self, profile, polarization, frame, wavelength0, region, edges):
         if not callable(profile):
             raise TypeError("profile must be a callable p(x, y) from fields.profiles")
 
@@ -39,6 +43,8 @@ class _Beam:
             raise TypeError("a beam lives in one HomogeneousRegion")
 
         self.profile, self.polarization, self.frame = profile, polarization, frame
+        edges = getattr(profile, "edges", ()) if edges is None else edges
+        self.edges = tuple(sorted(positive(edge, "profile edge") for edge in edges))
         self.wavelength0 = positive(wavelength0, "vacuum wavelength")
         self.region = region
         self.wavenumber = 2 * bd.pi * region.material.n / self.wavelength0
@@ -91,26 +97,36 @@ class _Beam:
         """
         radius = float(radius)
 
-        if not bd.isfinite(radius) or radius < 0:
+        if not np.isfinite(radius) or radius < 0:
             raise ValueError("quadrature radius must be finite and nonnegative")
 
         extent = self._extent()
         top = self._theta_max()
         k = self.wavenumber
-        excursion = k * (radius * top + extent * bd.sin(top))
-        count = int(bd.ceil(excursion / 2 + 8 * excursion ** (1 / 3) + 24))
-        t, w = leggauss(count)
-        theta = top / 2 * (t + 1)
-        reach = k * radius * bd.sin(top)
-        orders = self._azimuthal_order(theta[:: max(1, count // 16)], extent)
+        bounds = [0.0, *self._polar_edges(top), top]
+        theta, w, sample = [], [], []
+
+        for a, b in zip(bounds[:-1], bounds[1:]):
+            excursion = k * (radius * (b - a) + extent * (np.sin(b) - np.sin(a)))
+            count = int(np.ceil(excursion / 2 + 8 * excursion ** (1 / 3) + 24))
+            t, weights = leggauss(count)
+            theta.append(a + (b - a) / 2 * (t + 1))
+            w.append((b - a) / 2 * weights)
+            sample.append(theta[-1][:: max(1, count // 16)])
+
+        theta, w = bd.concatenate(theta), bd.concatenate(w)
+        reach = k * radius * np.sin(top)
+        orders = self._azimuthal_order(bd.concatenate(sample), extent)
         azimuths = int(orders + reach + 10 * reach ** (1 / 3) + 16)
         azimuths += azimuths % 2
         phi = 2 * bd.pi * bd.arange(azimuths) / azimuths
-        weight = (top / 2 * w * bd.sin(theta))[:, None] * bd.full(
-            azimuths, 2 * bd.pi / azimuths
-        )
+        weight = (w * bd.sin(theta))[:, None] * bd.full(azimuths, 2 * bd.pi / azimuths)
 
         return theta, phi, weight, self._density(theta, phi, extent)
+
+    def _polar_edges(self, top):
+        """Polar angles inside (0, top) where the density jumps."""
+        return ()
 
     def plane_waves(self, radius):
         """PlaneWaveExpansion equal to the beam wherever |r - origin| <= radius."""
@@ -140,7 +156,8 @@ class PlaneBeam(_Beam):
     E_z follows from transversality of each plane wave. Only the propagating
     part of the prescribed field is kept, so a structure finer than a
     wavelength is low-passed. ``support`` is the radius beyond which the
-    profile vanishes, needed for callables that do not declare one. An
+    profile vanishes, needed for callables that do not declare one, and
+    ``edges`` the radii where it jumps (by default the profile's own). An
     unbounded Uniform profile with Cartesian polarization is one plane wave.
     """
 
@@ -153,8 +170,11 @@ class PlaneBeam(_Beam):
         region,
         frame=None,
         support=None,
+        edges=None,
     ):
-        super().__init__(profile, polarization, frame or Frame(), wavelength0, region)
+        super().__init__(
+            profile, polarization, frame or Frame(), wavelength0, region, edges
+        )
         support = getattr(profile, "support", None) if support is None else support
 
         if support is not None:
@@ -219,10 +239,18 @@ class PlaneBeam(_Beam):
         FT[c_m(rho) e^{i m phi}] = 2 pi (-i)^m e^{i m phi_k} int c_m J_m(k_t rho) rho drho.
         """
         k = self.wavenumber
-        reach = k * extent * bd.sin(bd.max(theta))
-        count = int(bd.ceil(reach / 2 + 8 * reach ** (1 / 3) + 24))
-        t, w = leggauss(count)
-        rho, w = extent / 2 * (t + 1), extent / 2 * w * extent / 2 * (t + 1)
+        reach = k * float(bd.sin(bd.max(theta)))
+        bounds = [0.0, *(edge for edge in self.edges if edge < extent), extent]
+        rho, w = [], []
+
+        for a, b in zip(bounds[:-1], bounds[1:]):
+            span = reach * (b - a)
+            count = int(np.ceil(span / 2 + 8 * span ** (1 / 3) + 24))
+            t, weights = leggauss(count)
+            rho.append(a + (b - a) / 2 * (t + 1))
+            w.append((b - a) / 2 * weights * rho[-1])
+
+        rho, w = bd.concatenate(rho), bd.concatenate(w)
         harmonics = self._plane_harmonics(rho)
         m = bd.fft.fftfreq(harmonics.shape[1], 1 / harmonics.shape[1]).astype(int)
         present = bd.max(bd.abs(harmonics), axis=(0, 2)) > _ROUNDOFF * bd.max(
@@ -290,7 +318,9 @@ class FocusedBeam(_Beam):
     equals power through the focal region. "none" is A = cos theta, so the
     transverse-wavevector spectrum is the pupil field itself (the manuscript's
     Appendix C convention). On the reference sphere |r - focus| = f the field
-    is A(theta) times the pupil field.
+    is A(theta) times the pupil field. ``edges`` are the pupil radii where the
+    profile jumps (by default the profile's own): a pupil edge at radius e
+    becomes the polar angle arcsin(e / f), where the direction rule breaks.
     """
 
     def __init__(
@@ -304,8 +334,11 @@ class FocusedBeam(_Beam):
         region,
         frame=None,
         apodization="aplanatic",
+        edges=None,
     ):
-        super().__init__(profile, polarization, frame or Frame(), wavelength0, region)
+        super().__init__(
+            profile, polarization, frame or Frame(), wavelength0, region, edges
+        )
         self.focal_length = positive(focal_length, "focal length")
         max_sine = float(max_sine)
 
@@ -335,7 +368,13 @@ class FocusedBeam(_Beam):
         if support is not None:
             sine = min(sine, support / self.focal_length)
 
-        return float(bd.arcsin(sine))
+        return float(np.arcsin(sine))
+
+    def _polar_edges(self, top):
+        f = self.focal_length
+        angles = (np.arcsin(e / f) for e in self.edges if e < f)
+
+        return tuple(a for a in angles if a < top * (1 - 1e-12))
 
     def _density(self, theta, phi, extent):
         f, k = self.focal_length, self.wavenumber

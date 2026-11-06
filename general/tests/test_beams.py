@@ -153,3 +153,97 @@ def test_radial_and_azimuthal_foci_have_their_symmetries():
     ring = o.sampling.PointGrid(rng.normal(size=(30, 3)))
     E = azimuthal.evaluate(ring).electric.values
     assert np.max(abs(E[:, 2])) < 1e-12 * np.max(abs(E))
+
+
+def test_zoned_profiles_declare_their_support_edges_and_products():
+    ring = profiles.Annulus(1.0, 2.0)
+    assert_allclose(ring([0.5, 1.0, 1.5, 2.0, 2.5], 0), [0, 1, 1, 1, 0])
+    plate = profiles.Zones((1.0, 2.0), (1, -1, 0))
+    assert_allclose(plate([0.5, 1.0, 1.5, 2.0, 2.5], 0), [1, 1, -1, -1, 0])
+    assert plate.support == 2.0 and profiles.Zones((1.0,), (0, 1j)).support is None
+    product = profiles.Gaussian(3.0) * ring * (lambda x, y: x + 0 * y)
+    assert len(product.factors) == 3 and product.edges == (1.0, 2.0)
+    assert product.support == 2.0 and product.bandwidth is None
+    assert_allclose(product(1.5, 0.0), 1.5 * np.exp(-0.25))
+    assert profiles.Gaussian(1.0) * profiles.Gaussian(2.0) == profiles.Product(
+        (profiles.Gaussian(1.0), profiles.Gaussian(2.0))
+    )
+    with pytest.raises(ValueError, match="increase"):
+        profiles.Zones((2.0, 1.0), (1, 0, 1))
+    with pytest.raises(ValueError, match="one value more"):
+        profiles.Zones((1.0,), (1,))
+
+
+FOCAL_POINTS = o.sampling.PointGrid(rng.uniform(-1.5, 1.5, (60, 3)))
+
+
+def focused(profile, state=polarization.radial, **kwargs):
+    beam = o.fields.FocusedBeam(
+        profile,
+        state,
+        focal_length=40.0,
+        max_sine=0.95,
+        wavelength0=1.0,
+        region=AIR,
+        **kwargs,
+    )
+    return host(beam.evaluate(FOCAL_POINTS).electric.values)
+
+
+@pytest.mark.parametrize(
+    "zoned, disks",
+    [
+        # A central stop, a ring thinner than the polar node spacing, a binary
+        # phase plate of three belts.
+        (profiles.Annulus(12.0, 30.0), {30.0: 1, 12.0: -1}),
+        (profiles.Annulus(30.0, 30.05), {30.05: 1, 30.0: -1}),
+        (
+            profiles.Zones((10.0, 20.0, 30.0), (1, -1, 1, 0)),
+            {10.0: 2, 20.0: -2, 30.0: 1},
+        ),
+    ],
+)
+def test_focused_beam_resolves_stops_rings_and_phase_belts(zoned, disks):
+    """A zoned pupil is a signed sum of disks, whose only edge is their rim."""
+    expected = sum(c * focused(profiles.Uniform(r)) for r, c in disks.items())
+    scale = abs(expected).max()
+    assert scale > 1e-4 * abs(focused(profiles.Uniform(30.0))).max()
+    assert_allclose(focused(zoned), expected, atol=1e-11 * scale)
+
+
+def test_profile_products_and_declared_edges_reach_the_same_focus():
+    gaussian, state = profiles.Gaussian(25.0), polarization.cartesian(1, 1j)
+    expected = focused(gaussian * profiles.Uniform(30.0), state) - focused(
+        gaussian * profiles.Uniform(12.0), state
+    )
+    scale = abs(expected).max()
+    assert_allclose(
+        focused(gaussian * profiles.Annulus(12.0, 30.0), state),
+        expected,
+        atol=1e-11 * scale,
+    )
+
+    def ring(x, y):
+        rho = bd.hypot(bd.asarray(x), bd.asarray(y))
+        return gaussian(x, y) * (rho >= 12.0) * (rho <= 30.0)
+
+    assert_allclose(
+        focused(ring, state, edges=(12.0, 30.0)), expected, atol=1e-11 * scale
+    )
+
+
+def test_plane_beam_resolves_an_annular_aperture():
+    points = o.sampling.PointGrid(rng.uniform(-4.0, 4.0, (40, 3)))
+
+    def plane(profile):
+        beam = o.fields.PlaneBeam(
+            profile, polarization.azimuthal, wavelength0=1.0, region=AIR
+        )
+        return host(beam.evaluate(points).electric.values)
+
+    expected = plane(profiles.Uniform(3.0)) - plane(profiles.Uniform(1.5))
+    assert_allclose(
+        plane(profiles.Annulus(1.5, 3.0)),
+        expected,
+        atol=1e-11 * abs(expected).max(),
+    )
