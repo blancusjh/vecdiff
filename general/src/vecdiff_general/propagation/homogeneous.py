@@ -1,7 +1,8 @@
 """Homogeneous propagation on physically embedded parallel planes."""
 
-import numpy as np
+import math
 
+from vecdiff_general._backend import bd
 from vecdiff_general.fields import (
     ElectricField,
     ElectromagneticField,
@@ -25,15 +26,15 @@ def propagate_spectrum(
     """
     distance = float(distance)
 
-    if not np.isfinite(distance):
+    if not bd.isfinite(distance):
         raise ValueError("distance must be finite")
 
     if model not in {"asm", "fresnel"}:
         raise ValueError("model must be 'asm' or 'fresnel'")
 
     expansion = spectrum.expansion
-    occupied = np.any(expansion.amplitudes != 0, axis=-1)
-    phase = np.zeros(len(occupied), dtype=complex)
+    occupied = bd.any(expansion.amplitudes != 0, axis=-1)
+    phase = bd.zeros(len(occupied), dtype=complex)
     displacement = distance * spectrum.grid.frame.normal
 
     if model == "asm":
@@ -43,16 +44,16 @@ def propagate_spectrum(
     else:
         wavevectors = expansion.wavevectors[occupied]
 
-        if np.any(np.abs(wavevectors.imag) > 0):
+        if bd.any(bd.abs(wavevectors.imag) > 0):
             raise ValueError("paraxial Fresnel propagation excludes evanescent modes")
 
-        wavenumber = 2 * np.pi * expansion.region.material.n / expansion.wavelength0
+        wavenumber = 2 * bd.pi * expansion.region.material.n / expansion.wavelength0
         normal_component = wavevectors.real @ spectrum.grid.frame.normal
-        transverse_squared = np.sum(wavevectors.real**2, axis=-1) - normal_component**2
-        paraxial_component = np.sign(normal_component) * (
+        transverse_squared = bd.sum(wavevectors.real**2, axis=-1) - normal_component**2
+        paraxial_component = bd.sign(normal_component) * (
             wavenumber - transverse_squared / (2 * wavenumber)
         )
-        phase[occupied] = np.exp(1j * paraxial_component * distance)
+        phase[occupied] = bd.exp(1j * paraxial_component * distance)
 
     grid = spectrum.grid.translated(displacement)
     shape = grid.shape + (3,)
@@ -61,7 +62,7 @@ def propagate_spectrum(
     magnetic_modes = expansion.magnetic_amplitudes * phase[:, None]
 
     # IFFT2 divides by N; modal amplitudes already carry that normalization.
-    sample_count = np.prod(grid.shape)
+    sample_count = math.prod(grid.shape)
     electric = sample_count * IFFT2(electric_modes.reshape(shape))
     magnetic = sample_count * IFFT2(magnetic_modes.reshape(shape))
 
@@ -95,15 +96,15 @@ class PlaneTransport:
 
     def spectrum(self, spectrum, distance):
         """Keep the modal representation between consecutive R/Q operators."""
-        if not np.isfinite(distance):
+        if not bd.isfinite(distance):
             raise ValueError("distance must be finite")
         displacement = distance * spectrum.grid.frame.normal
         grid = spectrum.grid.translated(displacement)
         old = spectrum.expansion
         from vecdiff_general.fourier.nufft import phase_factor
 
-        amplitudes = np.zeros_like(old.amplitudes)
-        occupied = np.any(old.amplitudes != 0, axis=-1)
+        amplitudes = bd.zeros_like(old.amplitudes)
+        occupied = bd.any(old.amplitudes != 0, axis=-1)
         amplitudes[occupied] = (
             old.amplitudes[occupied]
             * phase_factor(old.wavevectors[occupied], displacement[None, :])[0, :, None]

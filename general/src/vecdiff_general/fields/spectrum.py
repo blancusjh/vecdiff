@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
 
 from vecdiff_general._arrays import frozen_array, positive
+from vecdiff_general._backend import bd
 from vecdiff_general.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
@@ -46,19 +48,19 @@ class PlaneWaveExpansion:
         if origin.shape != (3,):
             raise ValueError("phase origin must have shape (3,)")
 
-        wavenumber = 2 * np.pi * self.region.material.n / wavelength
-        dispersion = np.sum(k * k, axis=-1) - wavenumber**2
-        scale = np.maximum(np.sum(np.abs(k) ** 2, axis=-1), wavenumber**2)
+        wavenumber = 2 * bd.pi * self.region.material.n / wavelength
+        dispersion = bd.sum(k * k, axis=-1) - wavenumber**2
+        scale = bd.maximum(bd.sum(bd.abs(k) ** 2, axis=-1), wavenumber**2)
 
-        if np.any(np.abs(dispersion) > 1e-10 * scale):
+        if bd.any(bd.abs(dispersion) > 1e-10 * scale):
             raise ValueError("wavevectors violate the region's dispersion relation")
 
-        transverse_error = np.abs(np.sum(k * amplitudes, axis=-1))
-        transverse_scale = np.linalg.norm(k, axis=-1) * np.linalg.norm(
+        transverse_error = bd.abs(bd.sum(k * amplitudes, axis=-1))
+        transverse_scale = bd.linalg.norm(k, axis=-1) * bd.linalg.norm(
             amplitudes, axis=-1
         )
 
-        if np.any(transverse_error > 1e-10 * transverse_scale):
+        if bd.any(transverse_error > 1e-10 * transverse_scale):
             raise ValueError("electric modal amplitudes are not transverse")
 
         for name, value in (
@@ -72,23 +74,23 @@ class PlaneWaveExpansion:
 
     @property
     def magnetic_amplitudes(self):
-        k0 = 2 * np.pi / self.wavelength0
+        k0 = 2 * bd.pi / self.wavelength0
 
-        return np.cross(self.wavevectors, self.amplitudes) / (k0 * Z0)
+        return bd.cross(self.wavevectors, self.amplitudes) / (k0 * Z0)
 
-    def evaluate(self, grid, *, chunk_size=256, backend="direct", tolerance=1e-12):
-        """Evaluate SI E/H through the selected nonuniform Fourier backend."""
+    def evaluate(self, grid, *, chunk_size=256, method="direct", tolerance=1e-12):
+        """Evaluate SI E/H through the selected nonuniform Fourier summation method."""
         from vecdiff_general.fourier.nufft import NUFFT
 
-        coefficients = np.concatenate(
-            (self.amplitudes, self.magnetic_amplitudes), axis=-1
+        coefficients = bd.concatenate(
+            (bd.asarray(self.amplitudes), bd.asarray(self.magnetic_amplitudes)), axis=-1
         )
         values = NUFFT(
             coefficients,
             self.wavevectors,
-            grid.points - self.origin,
+            bd.asarray(grid.points) - bd.asarray(self.origin),
             sign=1,
-            backend=backend,
+            method=method,
             tolerance=tolerance,
             chunk_size=chunk_size,
         )
@@ -131,31 +133,31 @@ class PlaneSpectrum:
         ):
             raise TypeError("PlaneSpectrum requires PlaneGrid and PlaneWaveExpansion")
 
-        if len(self.expansion.amplitudes) != np.prod(self.grid.shape):
+        if len(self.expansion.amplitudes) != math.prod(self.grid.shape):
             raise ValueError("FFT spectrum must contain one mode per grid cell")
 
         # IFFT2 references the central physical point, not an arbitrary origin.
         ny, nx = self.grid.shape
         center = self.grid.points[ny // 2, nx // 2]
 
-        if not np.array_equal(self.expansion.origin, center):
+        if not bd.array_equal(self.expansion.origin, center):
             raise ValueError(
                 "FFT phase origin must equal the central physical grid point"
             )
 
         # Check every bin, including empty bins, before permitting FFT synthesis.
         fx, fy = frequency_grid(self.grid.coordinates)
-        expected = 2 * np.pi * np.stack((fx, fy), axis=-1).reshape(-1, 2)
+        expected = 2 * bd.pi * bd.stack((fx, fy), axis=-1).reshape(-1, 2)
         wavevectors = self.expansion.wavevectors
         transverse = wavevectors @ self.grid.frame.basis[:, :2]
 
         # Respect the frame's accepted orthogonality error as well as roundoff.
         basis = self.grid.frame.basis
-        frame_error = np.linalg.norm(basis.T @ basis - np.eye(3), ord=2)
-        scale = np.linalg.norm(wavevectors, axis=-1)
+        frame_error = bd.linalg.norm(basis.T @ basis - bd.eye(3), ord=2)
+        scale = bd.linalg.norm(wavevectors, axis=-1)
         tolerance = (64 * np.finfo(float).eps + frame_error) * scale[:, None]
 
-        if np.any(np.abs(transverse - expected) > tolerance):
+        if bd.any(bd.abs(transverse - expected) > tolerance):
             raise ValueError(
                 "transverse wavevectors must match the centered FFT lattice and ordering"
             )
@@ -189,7 +191,7 @@ class LocalSpectrum:
             self.electric_error_bound,
             self.magnetic_error_bound,
         ):
-            if not np.isfinite(value) or value < 0:
+            if not bd.isfinite(value) or value < 0:
                 raise ValueError(
                     "radius and absolute error bounds must be finite and nonnegative"
                 )
@@ -199,10 +201,10 @@ class LocalSpectrum:
         return self.expansion.origin
 
     def evaluate(self, grid, **kwargs):
-        distance = np.linalg.norm(grid.points - self.center, axis=-1)
-        tolerance = 32 * np.finfo(float).eps * max(1.0, np.max(np.abs(self.center)))
+        distance = bd.linalg.norm(grid.points - self.center, axis=-1)
+        tolerance = 32 * np.finfo(float).eps * max(1.0, bd.max(bd.abs(self.center)))
 
-        if np.any(distance > self.radius + tolerance):
+        if bd.any(distance > self.radius + tolerance):
             raise ValueError("observation leaves the local spectrum's validity ball")
 
         return self.expansion.evaluate(grid, **kwargs)
@@ -220,7 +222,7 @@ class HalfSpaceSpectrum:
     direction: int
 
     def evaluate(self, grid, **kwargs):
-        if np.any(self.direction * (grid.points[..., 2] - self.boundary_z) < 0):
+        if bd.any(self.direction * (grid.points[..., 2] - self.boundary_z) < 0):
             raise ValueError(
                 "Weyl representation is valid only beyond the source z envelope"
             )

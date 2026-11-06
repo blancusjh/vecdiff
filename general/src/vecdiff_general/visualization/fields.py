@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from vecdiff_general._backend import on_host
 from vecdiff_general.visualization.polarization import (
     _colorbar,
     _draw_values,
@@ -12,6 +13,7 @@ from vecdiff_general.visualization.polarization import (
 )
 
 
+@on_host
 def plot_intensity(
     field,
     intensity=None,

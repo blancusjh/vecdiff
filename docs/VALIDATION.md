@@ -77,7 +77,8 @@ records geometry, quadrature, errors, thread settings and repeated timings.
 
 ## Independent references
 
-`propagation/references/` retains Mie and Debye sphere solutions, PMCHWT and
+`propagation/references/` retains Mie and Debye sphere solutions under any
+propagating incident field (plane waves, FFT spectra or beams), PMCHWT and
 Müller BEM formulations, first-order FEM, MFS and a periodic Fourier–Maxwell
 reference. BEM/FEM kernels are compiled from `general/native/`; they remain
 outside the forward pipeline. Mesh refinement, boundary/flux diagnostics and

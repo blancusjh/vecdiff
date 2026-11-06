@@ -4,8 +4,11 @@ The material dispersion and longitudinal completion belong to propagation.
 Fourier functions only transform arrays and construct frequency coordinates.
 """
 
+import math
+
 import numpy as np
 
+from vecdiff_general._backend import bd, divide
 from vecdiff_general.fields.electromagnetic_field import (
     ElectricField,
     TransverseElectricField,
@@ -30,8 +33,8 @@ def angular_spectrum(
     inputs are validated without projection. The selected material and branch
     determine k_normal and, when needed, the longitudinal electric component.
 
-    'discard' removes modes outside the propagating disk; 'retain' keeps the
-    decaying branch. Coefficients below coefficient_rtol times the largest mode
+    'discard' removes modes outside the propagating disk and on its rim;
+    'retain' keeps the decaying branch. Coefficients below coefficient_rtol times the largest mode
     are zeroed before completion. Set this threshold to zero for strict
     retention. Both removed RMS amplitudes are reported in V/m.
     """
@@ -39,7 +42,7 @@ def angular_spectrum(
     if not isinstance(field, (ElectricField, TransverseElectricField)):
         raise TypeError("expected complete or transverse electric field")
 
-    if isinstance(field, ElectricField) and not np.all(field.valid):
+    if isinstance(field, ElectricField) and not bd.all(field.valid):
         raise ValueError("an incident field cannot contain uncomputed samples")
 
     if not isinstance(field.grid, PlaneGrid):
@@ -54,44 +57,47 @@ def angular_spectrum(
     if evanescent not in ("retain", "discard"):
         raise ValueError("evanescent must be 'retain' or 'discard'")
 
-    if not np.isfinite(coefficient_rtol) or not 0 <= coefficient_rtol < 1:
+    if not bd.isfinite(coefficient_rtol) or not 0 <= coefficient_rtol < 1:
         raise ValueError("coefficient_rtol must lie in [0, 1)")
 
     # The mathematical transform takes arrays and lattice parameters only.
     grid = field.grid
     fx, fy = frequency_grid(grid.coordinates)
-    frequency_u = 2 * np.pi * fx
-    frequency_v = 2 * np.pi * fy
+    frequency_u = 2 * bd.pi * fx
+    frequency_v = 2 * bd.pi * fy
 
     # The modal sum uses Fourier-series amplitudes, so divide the DFT by N.
-    sample_count = np.prod(grid.shape)
+    sample_count = math.prod(grid.shape)
     coefficients = FFT2(field.values) / sample_count
 
     # The optical dispersion and chosen branch determine the normal frequency.
-    wavenumber = 2 * np.pi * region.material.n / field.wavelength0
+    wavenumber = 2 * bd.pi * region.material.n / field.wavelength0
     transverse_squared = frequency_u**2 + frequency_v**2
-    normal_wavenumber = direction * np.sqrt(
+    normal_wavenumber = direction * bd.sqrt(
         (wavenumber**2 - transverse_squared).astype(complex)
     )
 
-    magnitude = np.linalg.norm(coefficients, axis=-1)
-    roundoff = magnitude < coefficient_rtol * np.max(magnitude)
-    roundoff_removed = float(np.linalg.norm(coefficients[roundoff]))
+    magnitude = bd.linalg.norm(coefficients, axis=-1)
+    roundoff = magnitude < coefficient_rtol * bd.max(magnitude)
+    roundoff_removed = float(bd.linalg.norm(coefficients[roundoff]))
     coefficients[roundoff] = 0
 
     evanescent_removed = 0.0
 
     if evanescent == "discard":
-        discarded = transverse_squared > wavenumber**2
-        evanescent_removed = float(np.linalg.norm(coefficients[discarded]))
+        # A mode exactly on the light circle carries no power and has no
+        # transverse completion; it leaves with the decaying modes.
+        grazing = bd.abs(normal_wavenumber) < 1e-12 * wavenumber
+        discarded = (transverse_squared > wavenumber**2) | grazing
+        evanescent_removed = float(bd.linalg.norm(coefficients[discarded]))
         coefficients[discarded] = 0
 
     # Complete only explicitly transverse inputs, in the plane's local basis.
     if isinstance(field, TransverseElectricField):
-        occupied = np.any(coefficients != 0, axis=-1)
-        grazing = np.abs(normal_wavenumber) < 1e-12 * wavenumber
+        occupied = bd.any(coefficients != 0, axis=-1)
+        grazing = bd.abs(normal_wavenumber) < 1e-12 * wavenumber
 
-        if np.any(grazing & occupied):
+        if bd.any(grazing & occupied):
             raise ValueError(
                 "populated grazing modes require a full vector polarization basis"
             )
@@ -99,14 +105,9 @@ def angular_spectrum(
         transverse_dot = (
             frequency_u * coefficients[..., 0] + frequency_v * coefficients[..., 1]
         )
-        longitudinal = np.divide(
-            -transverse_dot,
-            normal_wavenumber,
-            out=np.zeros_like(normal_wavenumber),
-            where=~grazing,
-        )
+        longitudinal = divide(-transverse_dot, normal_wavenumber, ~grazing)
 
-        local_coefficients = np.concatenate(
+        local_coefficients = bd.concatenate(
             (coefficients, longitudinal[..., None]), axis=-1
         )
         coefficients = local_coefficients @ grid.frame.basis.T

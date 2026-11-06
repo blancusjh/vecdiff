@@ -20,10 +20,6 @@ critical-angle wave launched where incidence is critical. It is not local to
 the vertex and is not represented by the local recurrence.
 """
 
-import multiprocessing
-import os
-from concurrent.futures import ProcessPoolExecutor
-
 import numpy as np
 from scipy.special import (
     h1vp,
@@ -36,6 +32,7 @@ from scipy.special import (
     spherical_yn,
 )
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.media.medium import Z0
 
 
@@ -52,6 +49,7 @@ def _cylinder_radial(kind, m, x, derivative=False):
     return h2vp(m, x) if derivative else hankel2(m, x)
 
 
+@on_cpu
 def cylinder_single_interface(
     points,
     wavelength0,
@@ -236,6 +234,7 @@ def _hankel_log_table(sign, x, nmax):
     return log_h, derivative
 
 
+@on_cpu
 def sphere_single_interface(
     points, wavelength0, radius, n_incident, n_transmitted, *, interior=False
 ):
@@ -344,6 +343,7 @@ def _riccati(kind, orders, x):
     return z, dz + z / x
 
 
+@on_cpu
 def sphere_debye_coefficients(size, n_sphere, n_exterior, orders):
     """Single-interface coefficients R22, T21, R11, T12 per multipole order.
 
@@ -382,182 +382,3 @@ def sphere_debye_coefficients(size, n_sphere, n_exterior, orders):
         _, mie = solve(regular, ne, out["h1"], ne, _riccati("j", orders, mx), ni)
         result[polarization] = dict(R22=R22, T21=T21, R11=R11, T12=T12, mie=mie)
     return result
-
-
-class SphereDebyeSeries:
-    """Exact Debye terms of a homogeneous sphere under any plane-wave sum.
-
-    source is a PlaneWaveExpansion of propagating modes in the exterior
-    region (for example an FFT beam spectrum); each mode is solved exactly and
-    the results are summed coherently. Term p >= 1 is the wave that has entered
-    once and met the surface p - 1 more times from inside. Its interior field is
-    the regular solution with coefficients T21 R11^(p-1); its exterior field is
-    what leaves on the p-th inside encounter. Exterior term 0 is (R22 - 1) / 2:
-    the external reflection together with the diffraction that forms the
-    shadow (it cancels the outgoing half of the incident wave). Kept apart, the
-    two parts grow like h1 at high multipole order and only cancel on paper.
-    Exterior sums stop at size + 4 size^(1/3) + 10 multipoles, where the
-    scattered coefficients have decayed. Summing every term recovers
-    Lorenz-Mie; it is a reference for internal-return iterations, not an
-    approximation.
-    """
-
-    def __init__(self, source, center, radius, sphere_region, *, order=None):
-        self.source, self.radius = source, float(radius)
-        self.center = np.asarray(center, float)
-        self.wavelength0 = source.wavelength0
-        self.k0 = 2 * np.pi / self.wavelength0
-        self.n_exterior = source.region.material.n
-        self.n_sphere = sphere_region.material.n
-        size = self.k0 * self.n_exterior * self.radius
-        inner = size * self.n_sphere / self.n_exterior
-        if order is None:
-            order = int(
-                np.ceil(max(size, inner) + 8 * max(size, inner) ** (1 / 3) + 20)
-            )
-        self.order = order
-        self.exterior_order = min(order, int(np.ceil(size + 4 * size ** (1 / 3) + 10)))
-        self.orders = np.arange(1, order + 1)
-        self.coefficients = sphere_debye_coefficients(
-            size, self.n_sphere, self.n_exterior, self.orders
-        )
-        keep = np.flatnonzero(np.any(source.amplitudes != 0, axis=-1))
-        k = source.wavevectors[keep]
-        if np.any(abs(k.imag) > 0):
-            raise ValueError("Debye references need propagating modes")
-        self.directions = k.real / np.linalg.norm(k.real, axis=-1, keepdims=True)
-        self.amplitudes = (
-            source.amplitudes[keep]
-            * np.exp(1j * (k @ (self.center - source.origin)))[:, None]
-        )
-
-    def _alphas(self, side, terms):
-        """Per-term (A, B) multipliers of (M_o1l, N_e1l) in E, shape (S, L)."""
-        te, tm = self.coefficients["TE"], self.coefficients["TM"]
-        rows = []
-        for term in terms:
-            pair = []
-            for c in (te, tm):
-                if isinstance(term, tuple):
-                    # ("after", P): every term beyond P, summed in closed form.
-                    passes = term[1]
-                    value = c["mie"] * c["R11"] ** passes
-                    if side == "exterior":
-                        value = 0.5 * value * c["T12"]
-                elif side == "interior":
-                    value = c["T21"] * c["R11"] ** (term - 1)
-                elif term == 0:
-                    value = 0.5 * (c["R22"] - 1)
-                else:
-                    value = 0.5 * c["T21"] * c["R11"] ** (term - 1) * c["T12"]
-                pair.append(value)
-            rows.append((pair[0], -1j * pair[1]))
-        A = np.array([r[0] for r in rows])
-        B = np.array([r[1] for r in rows])
-        return A, B
-
-    def fields(self, points, side, terms, *, chunk=2048, workers=None):
-        """E and H (SI) of each term at points, shape (len(terms), P, 3) each.
-
-        side 'interior' takes terms p >= 1 (regular j inside the sphere);
-        'exterior' takes 0 and p >= 1 (outgoing h1 outside).
-        ("after", P) is the sum of every term beyond P in closed form, so the
-        first P terms plus it are Lorenz-Mie. The plane waves are split among
-        ``workers`` processes (default: all cores); results are summed.
-        """
-        if side not in ("interior", "exterior"):
-            raise ValueError("side must be interior or exterior")
-        points = np.asarray(points, float).reshape(-1, 3) - self.center
-        r = np.linalg.norm(points, axis=-1)
-        if side == "interior" and np.any(r >= self.radius):
-            raise ValueError("interior terms need points inside the sphere")
-        if side == "exterior" and np.any(r <= self.radius):
-            raise ValueError("exterior terms need points outside the sphere")
-        workers = min(workers or os.cpu_count() or 1, len(self.directions))
-        groups = np.array_split(np.arange(len(self.directions)), max(workers, 1))
-        jobs = [(self, g, points, side, tuple(terms), chunk) for g in groups if len(g)]
-        if len(jobs) == 1:
-            parts = [_debye_partial(jobs[0])]
-        else:
-            context = multiprocessing.get_context("spawn")
-            with ProcessPoolExecutor(len(jobs), mp_context=context) as pool:
-                parts = list(pool.map(_debye_partial, jobs))
-        E = sum(part[0] for part in parts)
-        H = sum(part[1] for part in parts)
-        return E, H / Z0
-
-    def _modes(self, modes, points, side, terms, chunk):
-        """Unscaled E and Z0 H of the selected plane waves (see ``fields``)."""
-        A, B = self._alphas(side, terms)
-        index = self.n_sphere if side == "interior" else self.n_exterior
-        kind = "j" if side == "interior" else "h1"
-        count = self.order if side == "interior" else self.exterior_order
-        ell = self.orders[:count]
-        factor = 1j**ell * (2 * ell + 1) / (ell * (ell + 1))
-        A, B = A[:, :count] * factor, B[:, :count] * factor
-        E = np.zeros((len(terms), len(points), 3), complex)
-        H = np.zeros_like(E)
-        for start in range(0, len(points), chunk):
-            p = points[start : start + chunk]
-            rho = (
-                self.k0
-                * index
-                * np.maximum(np.linalg.norm(p, axis=-1), 1e-12 * self.radius)
-            )
-            z, D = _riccati(kind, ell[:, None], rho[None])
-            for d, a in zip(self.directions[modes], self.amplitudes[modes]):
-                seed = np.eye(3)[np.argmin(abs(d))]
-                u = np.cross(seed, d)
-                u /= np.linalg.norm(u)
-                v = np.cross(d, u)
-                for pu, pv in ((u, v), (v, -u)):
-                    amplitude = a @ pu
-                    if amplitude == 0:
-                        continue
-                    basis = np.stack((pu, pv, d), -1)
-                    e, h = self._local(p @ basis, z, D, A, B, index)
-                    E[:, start : start + chunk] += amplitude * e @ basis.T
-                    H[:, start : start + chunk] += amplitude * h @ basis.T
-        return E, H
-
-    def _local(self, local, z, D, A, B, index):
-        """x-polarized, +z-travelling unit wave in local coordinates."""
-        # At the centre only l = 1 survives and its angular limit is regular.
-        r = np.maximum(np.linalg.norm(local, axis=-1), 1e-12 * self.radius)
-        ct = np.clip(local[:, 2] / r, -1, 1)
-        st = np.sqrt(np.maximum(0, 1 - ct**2))
-        phi = np.arctan2(local[:, 1], local[:, 0])
-        cp, sp = np.cos(phi), np.sin(phi)
-        L = len(z)
-        pi = np.zeros((L + 1, len(r)))
-        pi[1] = 1
-        for n in range(2, L + 1):
-            pi[n] = (2 * n - 1) / (n - 1) * ct * pi[n - 1] - n / (n - 1) * pi[n - 2]
-        n = self.orders[:L, None]
-        tau = n * ct * pi[1:] - (n + 1) * pi[:-1]
-        pi = pi[1:]
-        er = np.stack((st * cp, st * sp, ct), -1)
-        et = np.stack((ct * cp, ct * sp, -st), -1)
-        ep = np.stack((-sp, cp, np.zeros_like(cp)), -1)
-        radial = n * (n + 1) * st * pi * z / (self.k0 * index * r)
-
-        def vector(a, b, c):
-            return a[..., None] * er + b[..., None] * et + c[..., None] * ep
-
-        zero = np.zeros_like(pi)
-        Mo = vector(zero, cp * pi * z, -sp * tau * z)
-        Me = vector(zero, -sp * pi * z, -cp * tau * z)
-        No = vector(sp * radial, sp * tau * D, cp * pi * D)
-        Ne = vector(cp * radial, cp * tau * D, -sp * pi * D)
-        E = np.einsum("sl,lpj->spj", A, Mo) + np.einsum("sl,lpj->spj", B, Ne)
-        H = (
-            -1j
-            * index
-            * (np.einsum("sl,lpj->spj", B, Me) + np.einsum("sl,lpj->spj", A, No))
-        )
-        return E, H
-
-
-def _debye_partial(job):
-    series, modes, points, side, terms, chunk = job
-    return series._modes(modes, points, side, terms, chunk)

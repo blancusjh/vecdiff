@@ -3,11 +3,13 @@
 Public objects are reached through the namespace of what they are, for
 example ``surfaces.SphericalCap``, ``fields.angular_spectrum`` or
 ``propagation.PropagationPipeline``. Nothing is re-exported at this level.
+``backend.set_backend("CUDA")`` moves arrays and computation to a GPU.
 Plotting (``visualization``) and independent references
 (``propagation.references``) are imported explicitly when needed.
 """
 
 from vecdiff_general import (
+    backend,
     catalog,
     fields,
     fourier,
@@ -23,6 +25,7 @@ from vecdiff_general import (
 )
 
 __all__ = [
+    "backend",
     "catalog",
     "fields",
     "fourier",
