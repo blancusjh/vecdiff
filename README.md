@@ -118,7 +118,7 @@ vecdiff_general/
         surface_interaction.py  transmission and reflection at a boundary
         pipeline.py             composition along an optical path
         references/             Mie, BEM and independent reference solutions
-    observables/    energy, power, polarization and detector formation
+    observables/    energy, power, momentum, spin, forces, polarization, detectors
     visualization/  plots and animations
 ```
 
@@ -172,6 +172,7 @@ cuFINUFFT on consumer cards.
 - Material context belongs to regions and systems. `MaterialDistribution` represents piecewise spatial `n(r)`; a geometrical body does not imply that a solver includes its rim scattering.
 - A solution computes consistent H from its spatial/modal representation. `ElectromagneticField` holds evaluated E/H; its `poynting()` and `power()` preserve coherent interference.
 - `norm2()` is electric amplitude squared. It is not labeled intensity in W/m². Energy density takes explicit nondispersive material context.
+- Momentum observables use the dual-symmetric densities of Berry and Bliokh–Bekshaev–Nori: `observables.spin_density` and `helicity_density` read E/H samples; `canonical_momentum`, `spin_momentum` and `orbital_angular_momentum` read an `ElectricFieldJet` (`observables.plane_wave_jet(expansion, grid)`), with ε μ P = p_o + ∇×S/2. `observables.force` and `torque` integrate the Maxwell stress tensor over a closed surface quadrature.
 
 ## A propagation
 
