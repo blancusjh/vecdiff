@@ -92,9 +92,11 @@ python3 -m venv .venv
 ```
 
 NumPy and SciPy are required. Matplotlib, Jupyter execution, FINUFFT and Gmsh
-(`reference-mesh`) are optional extras. `requirements-dev.lock` records the
-qualified development environment; the root `pyproject.toml` configures code
-style. See [notebooks](docs/NOTEBOOKS.md) to execute the notebooks.
+(`reference-mesh`) are optional extras; the `cuda12` or `cuda13` extra installs
+CuPy for a CUDA GPU (see [GPU backend](#gpu-backend)). `requirements-dev.lock`
+records the qualified development environment; the root `pyproject.toml`
+configures code style. See [notebooks](docs/NOTEBOOKS.md) to execute the
+notebooks.
 
 ## Organization
 
@@ -107,6 +109,7 @@ vecdiff_general/
     sampling/       grids and integration measures
     media/          material properties and spatial assignment
     fields/         field samples, beams, spectra and carriers
+    backend.py      CPU (NumPy) or CUDA GPU (CuPy) arrays
     system.py       surface/media adjacency and optical prescriptions
     fourier/        numerical transforms
     propagation/
@@ -129,6 +132,35 @@ Public objects are used through these namespaces, for example
 level re-exports nothing.
 
 External comparisons live in `validation/`.
+
+## GPU backend
+
+As in diffractsim, one global switch moves arrays and computation to a CUDA GPU.
+Make it at the top of a script, before building any vecdiff object:
+
+```python
+from vecdiff_general import backend
+
+backend.set_backend("CUDA")   # "CPU" is the default
+```
+
+Everything built and computed afterwards lives on the GPU, in double precision;
+results match the CPU to roundoff. NumPy arrays and lists passed in are moved to
+the device on entry, results stay there until `backend.to_numpy(array)`, and
+plotting converts on its own. Objects built before a switch keep their arrays on
+the old device and must be rebuilt. Geometry, meshing, the reference solvers in
+`propagation.references` and FINUFFT compute on the CPU; their inputs and results
+are moved for them. `backend.bd` is the current array module (NumPy or CuPy) for
+creating arrays on the same device. `VECDIFF_BACKEND=CUDA pytest general/tests`
+runs the test suite on the GPU.
+
+The gain depends on the operation. On a laptop RTX 4060 (8 GB) against 16 CPU
+threads, focal maps of a `FocusedBeam` run about 14× faster, angular-spectrum
+propagation of a 2048² field 10×, an order-1 Hankel transform 37× and the
+curved-surface transfer `SurfaceTransport` 6–9×, all matching the CPU to
+roundoff. Device memory bounds the lattice: angular-spectrum propagation holds
+about 3 GB at 2048². FINUFFT stays on the CPU: in double precision it outpaces
+cuFINUFFT on consumer cards.
 
 ## Physical contracts
 

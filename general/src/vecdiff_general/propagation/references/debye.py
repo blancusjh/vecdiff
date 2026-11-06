@@ -32,6 +32,7 @@ from scipy.special import (
     spherical_yn,
 )
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.media.medium import Z0
 
 
@@ -48,6 +49,7 @@ def _cylinder_radial(kind, m, x, derivative=False):
     return h2vp(m, x) if derivative else hankel2(m, x)
 
 
+@on_cpu
 def cylinder_single_interface(
     points,
     wavelength0,
@@ -232,6 +234,7 @@ def _hankel_log_table(sign, x, nmax):
     return log_h, derivative
 
 
+@on_cpu
 def sphere_single_interface(
     points, wavelength0, radius, n_incident, n_transmitted, *, interior=False
 ):
@@ -340,6 +343,7 @@ def _riccati(kind, orders, x):
     return z, dz + z / x
 
 
+@on_cpu
 def sphere_debye_coefficients(size, n_sphere, n_exterior, orders):
     """Single-interface coefficients R22, T21, R11, T12 per multipole order.
 

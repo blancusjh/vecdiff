@@ -2,11 +2,13 @@
 
 import numpy as np
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.media.medium import Z0
 from vecdiff_general.observables.diagnostics import interface_residuals
 from vecdiff_general.sampling import PointGrid
 
 
+@on_cpu
 def maxwell_residuals(
     evaluate, points, *, wavelength0, index, step=None, reference_electric=1.0
 ):
@@ -65,6 +67,7 @@ def maxwell_residuals(
     }
 
 
+@on_cpu
 def boundary_residuals(solution, grid, *, reference_electric=1.0):
     """Identical-point interior/exterior limits on independent surface nodes."""
     return interface_residuals(
@@ -78,6 +81,7 @@ def boundary_residuals(solution, grid, *, reference_electric=1.0):
     )
 
 
+@on_cpu
 def closed_flux_residual(solution, enclosing_grid):
     """Net outward power / incoming incident power through a CLOSED surface.
 

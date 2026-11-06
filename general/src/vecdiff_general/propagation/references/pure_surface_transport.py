@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.comparisons.surface_radiation import SurfaceRadiation
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
@@ -35,6 +36,7 @@ from vecdiff_general.sampling import CartesianGrid, PointGrid
 from vecdiff_general.volumes import SphereVolume
 
 
+@on_cpu
 def setup():
     source, sphere, glass = problem()
     mie = MieSphere(source, sphere, glass)
@@ -46,6 +48,7 @@ def setup():
     return mie, curved_surface(2, 0.4, 24), probes
 
 
+@on_cpu
 def errors(actual, exact, incident):
     """Same error numerator with both total-field and scattered-field scales."""
     residual = ElectromagneticField(
@@ -62,6 +65,7 @@ def errors(actual, exact, incident):
     }
 
 
+@on_cpu
 def global_case(*, length=24, count=96, max_sine=0.99):
     mie, surface, probes = setup()
     axis = (np.arange(count) - count // 2) * length / count
@@ -85,6 +89,7 @@ def global_case(*, length=24, count=96, max_sine=0.99):
     }
 
 
+@on_cpu
 def evanescent_spectrum(radiation, *, order=48, azimuths=96, cutoff=6):
     """Independent Weyl reference for kz=i*k*t, 0<t<cutoff.
 
@@ -128,6 +133,7 @@ def evanescent_spectrum(radiation, *, order=48, azimuths=96, cutoff=6):
     )
 
 
+@on_cpu
 def complete_reference_case(*, surface_order=24, spectral_order=48, cutoff=6):
     mie, _, probes = setup()
     boundary = boundary_meridian(SphereVolume([0, 0, 0], 0.6), surface_order).surface(
@@ -161,6 +167,7 @@ def complete_reference_case(*, surface_order=24, spectral_order=48, cutoff=6):
     }
 
 
+@on_cpu
 def total_field_box_case(order=80):
     """Exact TOTAL Mie field transferred inward into a source-free exterior box."""
     mie, _, probes = setup()
@@ -174,6 +181,7 @@ def total_field_box_case(order=80):
     }
 
 
+@on_cpu
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)

@@ -21,6 +21,7 @@ m-independent factors per n: Lorenz–Mie, or one Debye term.
 import numpy as np
 from scipy.special import spherical_jn, spherical_yn
 
+from vecdiff_general._backend import cpu_reference
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
 from vecdiff_general.media.medium import Z0
@@ -95,6 +96,7 @@ def _spherical(local):
     return radius, cosine, sine, np.arctan2(local[..., 1], local[..., 0])
 
 
+@cpu_reference
 class MieSphere:
     """Analytic sphere reference, truncated at ``order`` multipoles.
 

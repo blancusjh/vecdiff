@@ -17,6 +17,7 @@ from time import perf_counter
 import numpy as np
 from scipy.linalg import lstsq
 
+from vecdiff_general._backend import cpu_reference
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
 from vecdiff_general.media.medium import Z0
@@ -94,6 +95,7 @@ def _ring_fields(points, rings, index, azimuths, *, chunk_size=8):
     return np.concatenate(electric), np.concatenate(magnetic)
 
 
+@cpu_reference
 @dataclass(frozen=True)
 class BoundarySolveReport:
     unknowns: int
@@ -106,6 +108,7 @@ class BoundarySolveReport:
     azimuths: int
 
 
+@cpu_reference
 class AxisymmetricMFS:
     """Full-wave reference for one closed axisymmetric dielectric body.
 

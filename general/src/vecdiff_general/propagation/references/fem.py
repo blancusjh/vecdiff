@@ -11,6 +11,7 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import cKDTree
 
+from vecdiff_general._backend import cpu_reference
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
 from vecdiff_general.media.medium import Z0
@@ -22,6 +23,7 @@ _BARY = np.full((4, 4), 0.1381966011250105)
 np.fill_diagonal(_BARY, 0.5854101966249685)
 
 
+@cpu_reference
 @dataclass
 class TetrahedralMesh:
     """Conforming first-order tetrahedra, explicit material labels and PML box.
@@ -222,6 +224,7 @@ def _fingerprint(mesh, incident, interior, pml_strength):
     return digest.hexdigest()[:20]
 
 
+@cpu_reference
 class DielectricFEM:
     """First-family Nédélec FEM with quadratic Cartesian complex stretching.
 

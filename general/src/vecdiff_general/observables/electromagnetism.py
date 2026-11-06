@@ -1,7 +1,6 @@
 """Electromagnetic observables with explicit SI units and integration context."""
 
-import numpy as np
-
+from vecdiff_general._backend import bd
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.media.medium import MU0
 
@@ -9,7 +8,7 @@ from vecdiff_general.media.medium import MU0
 def poynting(field: ElectromagneticField):
     """Time-averaged energy-flow density in W/m²."""
 
-    return 0.5 * np.real(np.cross(field.electric.values, field.magnetic.conj()))
+    return 0.5 * bd.real(bd.cross(field.electric.values, field.magnetic.conj()))
 
 
 def power(field: ElectromagneticField):
@@ -18,9 +17,9 @@ def power(field: ElectromagneticField):
     if not hasattr(field.grid, "weights") or not hasattr(field.grid, "normals"):
         raise ValueError("power requires an oriented surface quadrature")
 
-    normal_flux = np.sum(poynting(field) * field.grid.normals, axis=-1)
+    normal_flux = bd.sum(poynting(field) * field.grid.normals, axis=-1)
 
-    return float(np.sum(normal_flux * field.grid.weights))
+    return float(bd.sum(normal_flux * field.grid.weights))
 
 
 def energy_density(field: ElectromagneticField, material):
@@ -28,7 +27,7 @@ def energy_density(field: ElectromagneticField, material):
 
     return (
         material.epsilon * field.electric.norm2()
-        + MU0 * np.sum(np.abs(field.magnetic) ** 2, axis=-1)
+        + MU0 * bd.sum(bd.abs(field.magnetic) ** 2, axis=-1)
     ) / 4
 
 
@@ -40,12 +39,12 @@ def coherent_sum(fields, amplitudes=None):
         raise ValueError("at least one field is required")
 
     coefficients = (
-        np.ones(len(fields), dtype=complex)
+        bd.ones(len(fields), dtype=complex)
         if amplitudes is None
-        else np.asarray(amplitudes, dtype=complex)
+        else bd.asarray(amplitudes, dtype=complex)
     )
 
-    if coefficients.shape != (len(fields),) or not np.isfinite(coefficients).all():
+    if coefficients.shape != (len(fields),) or not bd.isfinite(coefficients).all():
         raise ValueError("provide one finite complex amplitude per field")
 
     first = fields[0]
@@ -53,7 +52,7 @@ def coherent_sum(fields, amplitudes=None):
     for field in fields[1:]:
         if (
             field.electric.wavelength0 != first.electric.wavelength0
-            or not np.array_equal(field.grid.points, first.grid.points)
+            or not bd.array_equal(field.grid.points, first.grid.points)
         ):
             raise ValueError(
                 "coherent fields must share wavelength and observation positions"

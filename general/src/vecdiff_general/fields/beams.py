@@ -11,9 +11,9 @@ the point's azimuth. Quadratures are chosen from the region to be evaluated.
 """
 
 import numpy as np
-from scipy.special import jv
 
 from vecdiff_general._arrays import positive
+from vecdiff_general._backend import bd, jv, leggauss
 from vecdiff_general.fields.carrier import Carrier
 from vecdiff_general.fields.polarization import Jones
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
@@ -41,24 +41,24 @@ class _Beam:
         self.profile, self.polarization, self.frame = profile, polarization, frame
         self.wavelength0 = positive(wavelength0, "vacuum wavelength")
         self.region = region
-        self.wavenumber = 2 * np.pi * region.material.n / self.wavelength0
+        self.wavenumber = 2 * bd.pi * region.material.n / self.wavelength0
 
     def _transverse(self, x, y):
         """Prescribed (u, v) field components at frame coordinates x, y."""
-        amplitude = np.asarray(self.profile(x, y), dtype=complex)
+        amplitude = bd.asarray(self.profile(x, y), dtype=complex)
 
-        return amplitude[..., None] * self.polarization.vectors(np.arctan2(y, x))
+        return amplitude[..., None] * self.polarization.vectors(bd.arctan2(y, x))
 
     def _directions(self, theta, phi):
         """Unit direction and its polar and azimuthal unit vectors in global axes."""
-        st, ct = np.sin(theta)[:, None], np.cos(theta)[:, None]
-        sp, cp = np.sin(phi)[None], np.cos(phi)[None]
+        st, ct = bd.sin(theta)[:, None], bd.cos(theta)[:, None]
+        sp, cp = bd.sin(phi)[None], bd.cos(phi)[None]
         u, v, n = self.frame.u, self.frame.v, self.frame.normal
 
         def vector(a, b, c):
             return a[..., None] * u + b[..., None] * v + c[..., None] * n
 
-        zero = np.zeros(np.broadcast_shapes(st.shape, sp.shape))
+        zero = bd.zeros(bd.broadcast_shapes(st.shape, sp.shape))
 
         return (
             vector(st * cp, st * sp, ct + zero),
@@ -71,11 +71,11 @@ class _Beam:
         count = 32
 
         while True:
-            phi = 2 * np.pi * np.arange(count) / count
-            harmonics = np.abs(np.fft.fft(self._density(theta, phi, extent), axis=1))
-            present = np.max(harmonics, axis=(0, 2)) > _ROUNDOFF * harmonics.max()
-            m = np.fft.fftfreq(count, 1 / count)
-            order = int(np.max(np.abs(m[present]), initial=0))
+            phi = 2 * bd.pi * bd.arange(count) / count
+            harmonics = bd.abs(bd.fft.fft(self._density(theta, phi, extent), axis=1))
+            present = bd.max(harmonics, axis=(0, 2)) > _ROUNDOFF * harmonics.max()
+            m = bd.fft.fftfreq(count, 1 / count)
+            order = int(bd.abs(m[present]).max()) if present.any() else 0
 
             if order < count // 4 or count >= 4096:
                 return order
@@ -91,23 +91,23 @@ class _Beam:
         """
         radius = float(radius)
 
-        if not np.isfinite(radius) or radius < 0:
+        if not bd.isfinite(radius) or radius < 0:
             raise ValueError("quadrature radius must be finite and nonnegative")
 
         extent = self._extent()
         top = self._theta_max()
         k = self.wavenumber
-        excursion = k * (radius * top + extent * np.sin(top))
-        count = int(np.ceil(excursion / 2 + 8 * excursion ** (1 / 3) + 24))
-        t, w = np.polynomial.legendre.leggauss(count)
+        excursion = k * (radius * top + extent * bd.sin(top))
+        count = int(bd.ceil(excursion / 2 + 8 * excursion ** (1 / 3) + 24))
+        t, w = leggauss(count)
         theta = top / 2 * (t + 1)
-        reach = k * radius * np.sin(top)
+        reach = k * radius * bd.sin(top)
         orders = self._azimuthal_order(theta[:: max(1, count // 16)], extent)
         azimuths = int(orders + reach + 10 * reach ** (1 / 3) + 16)
         azimuths += azimuths % 2
-        phi = 2 * np.pi * np.arange(azimuths) / azimuths
-        weight = (top / 2 * w * np.sin(theta))[:, None] * np.full(
-            azimuths, 2 * np.pi / azimuths
+        phi = 2 * bd.pi * bd.arange(azimuths) / azimuths
+        weight = (top / 2 * w * bd.sin(theta))[:, None] * bd.full(
+            azimuths, 2 * bd.pi / azimuths
         )
 
         return theta, phi, weight, self._density(theta, phi, extent)
@@ -116,7 +116,7 @@ class _Beam:
         """PlaneWaveExpansion equal to the beam wherever |r - origin| <= radius."""
         theta, phi, weight, density = self.quadrature(radius)
         s, _, _ = self._directions(theta, phi)
-        keep = np.any(density != 0, axis=-1)
+        keep = bd.any(density != 0, axis=-1)
 
         return PlaneWaveExpansion(
             self.wavenumber * s[keep],
@@ -127,8 +127,8 @@ class _Beam:
         )
 
     def evaluate(self, grid, **kwargs):
-        """SI E and H on any grid; keyword arguments select the Fourier backend."""
-        reach = np.max(np.linalg.norm(grid.points - self.frame.origin, axis=-1))
+        """SI E and H on any grid; keyword arguments select the Fourier summation method."""
+        reach = bd.max(bd.linalg.norm(grid.points - self.frame.origin, axis=-1))
 
         return self.plane_waves(reach).evaluate(grid, **kwargs)
 
@@ -192,16 +192,16 @@ class PlaneBeam(_Beam):
         bandwidth = getattr(self.profile, "bandwidth", None)
 
         if bandwidth is None or bandwidth >= self.wavenumber:
-            return np.pi / 2
+            return bd.pi / 2
 
-        return float(np.arcsin(bandwidth / self.wavenumber))
+        return float(bd.arcsin(bandwidth / self.wavenumber))
 
     def plane_waves(self, radius):
         if self.support is not None:
             return super().plane_waves(radius)
 
         a, b = self.polarization.components
-        amplitude = complex(np.asarray(self.profile(0.0, 0.0)))
+        amplitude = complex(bd.asarray(self.profile(0.0, 0.0)))
 
         return PlaneWaveExpansion(
             [self.wavenumber * self.frame.normal],
@@ -219,36 +219,36 @@ class PlaneBeam(_Beam):
         FT[c_m(rho) e^{i m phi}] = 2 pi (-i)^m e^{i m phi_k} int c_m J_m(k_t rho) rho drho.
         """
         k = self.wavenumber
-        reach = k * extent * np.sin(np.max(theta))
-        count = int(np.ceil(reach / 2 + 8 * reach ** (1 / 3) + 24))
-        t, w = np.polynomial.legendre.leggauss(count)
+        reach = k * extent * bd.sin(bd.max(theta))
+        count = int(bd.ceil(reach / 2 + 8 * reach ** (1 / 3) + 24))
+        t, w = leggauss(count)
         rho, w = extent / 2 * (t + 1), extent / 2 * w * extent / 2 * (t + 1)
         harmonics = self._plane_harmonics(rho)
-        m = np.fft.fftfreq(harmonics.shape[1], 1 / harmonics.shape[1]).astype(int)
-        present = np.max(np.abs(harmonics), axis=(0, 2)) > _ROUNDOFF * np.max(
-            np.abs(harmonics)
+        m = bd.fft.fftfreq(harmonics.shape[1], 1 / harmonics.shape[1]).astype(int)
+        present = bd.max(bd.abs(harmonics), axis=(0, 2)) > _ROUNDOFF * bd.max(
+            bd.abs(harmonics)
         )
-        kt = k * np.sin(theta)
-        spectrum = np.zeros((len(theta), len(phi), 2), complex)
+        kt = k * bd.sin(theta)
+        spectrum = bd.zeros((len(theta), len(phi), 2), complex)
 
         for order in m[present]:
             hankel = (jv(order, kt[:, None] * rho[None]) * w) @ harmonics[:, order]
             spectrum += (
                 2
-                * np.pi
+                * bd.pi
                 * (-1j) ** order
-                * np.exp(1j * order * phi)[None, :, None]
+                * bd.exp(1j * order * phi)[None, :, None]
                 * hankel[:, None]
             )
 
         s, _, _ = self._directions(theta, phi)
-        st, ct = np.sin(theta)[:, None], np.cos(theta)[:, None]
-        cp, sp = np.cos(phi)[None], np.sin(phi)[None]
+        st, ct = bd.sin(theta)[:, None], bd.cos(theta)[:, None]
+        cp, sp = bd.cos(phi)[None], bd.sin(phi)[None]
         normal = -st * (cp * spectrum[..., 0] + sp * spectrum[..., 1])
 
         return (
             k**2
-            / (2 * np.pi) ** 2
+            / (2 * bd.pi) ** 2
             * (
                 (ct * spectrum[..., 0])[..., None] * self.frame.u
                 + (ct * spectrum[..., 1])[..., None] * self.frame.v
@@ -261,14 +261,14 @@ class PlaneBeam(_Beam):
         count = 32
 
         while True:
-            phi = 2 * np.pi * np.arange(count) / count
-            x = rho[:, None] * np.cos(phi)[None]
-            y = rho[:, None] * np.sin(phi)[None]
-            harmonics = np.fft.fft(self._transverse(x, y), axis=1) / count
-            magnitude = np.max(np.abs(harmonics), axis=(0, 2))
+            phi = 2 * bd.pi * bd.arange(count) / count
+            x = rho[:, None] * bd.cos(phi)[None]
+            y = rho[:, None] * bd.sin(phi)[None]
+            harmonics = bd.fft.fft(self._transverse(x, y), axis=1) / count
+            magnitude = bd.max(bd.abs(harmonics), axis=(0, 2))
             tail = magnitude[count // 4 : 3 * count // 4]
 
-            if np.all(tail <= _ROUNDOFF * magnitude.max()) or count >= 4096:
+            if bd.all(tail <= _ROUNDOFF * magnitude.max()) or count >= 4096:
                 return harmonics
 
             count *= 2
@@ -335,21 +335,21 @@ class FocusedBeam(_Beam):
         if support is not None:
             sine = min(sine, support / self.focal_length)
 
-        return float(np.arcsin(sine))
+        return float(bd.arcsin(sine))
 
     def _density(self, theta, phi, extent):
         f, k = self.focal_length, self.wavenumber
         s, theta_hat, phi_hat = self._directions(theta, phi)
-        radius = f * np.sin(theta)[:, None]
+        radius = f * bd.sin(theta)[:, None]
         pupil = self._transverse(
-            -radius * np.cos(phi)[None], -radius * np.sin(phi)[None]
+            -radius * bd.cos(phi)[None], -radius * bd.sin(phi)[None]
         )
-        cp, sp = np.cos(phi)[None], np.sin(phi)[None]
+        cp, sp = bd.cos(phi)[None], bd.sin(phi)[None]
         meridional = pupil[..., 0] * cp + pupil[..., 1] * sp
         azimuthal = -pupil[..., 0] * sp + pupil[..., 1] * cp
-        cosine = np.cos(theta)[:, None]
-        apodization = np.sqrt(cosine) if self.apodization == "aplanatic" else cosine
-        scale = -1j * k * f / (2 * np.pi) * apodization
+        cosine = bd.cos(theta)[:, None]
+        apodization = bd.sqrt(cosine) if self.apodization == "aplanatic" else cosine
+        scale = -1j * k * f / (2 * bd.pi) * apodization
 
         return (scale * meridional)[..., None] * theta_hat + (scale * azimuthal)[
             ..., None

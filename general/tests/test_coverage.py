@@ -5,6 +5,8 @@ import pytest
 import vecdiff_general as o
 from numpy.testing import assert_allclose, assert_array_equal
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 
 def curved_problem(transmission="spectral", index=1.15, basis=None):
     basis = np.eye(3) if basis is None else basis
@@ -140,7 +142,8 @@ def test_invalid_coverage_and_masked_incident_fields_are_explicit():
     mask = np.ones(grid.shape, bool)
     mask[0, 0] = False
     field = o.fields.ElectricField(grid, 1, np.ones(grid.shape + (3,)), valid=mask)
-    assert not field.valid.flags.writeable and not field.values.flags.writeable
+    if o.backend.get_backend() == "CPU":  # CuPy arrays cannot be made read-only
+        assert not field.valid.flags.writeable and not field.values.flags.writeable
     with pytest.raises(ValueError, match="uncomputed"):
         path(field, z=2)
     with pytest.raises(ValueError, match="finite"):

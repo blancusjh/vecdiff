@@ -6,6 +6,8 @@ import vecdiff_general as o
 from numpy.testing import assert_allclose
 from scipy.special import jv
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 AIR = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
 profiles, polarization = o.fields.profiles, o.fields.polarization
 rng = np.random.default_rng(3)
@@ -58,14 +60,14 @@ def test_plane_beam_reproduces_its_plane_and_the_lattice_spectrum_away_from_it()
     beam = o.fields.PlaneBeam(profile, state, wavelength0=1.0, region=AIR)
     xy = rng.uniform(-6, 6, size=(200, 2))
     on_plane = beam.evaluate(o.sampling.PointGrid(np.c_[xy, np.zeros(200)]))
-    expected = profile(xy[:, 0], xy[:, 1])[:, None] * np.array([1, 0.4j])
+    expected = host(profile(xy[:, 0], xy[:, 1]))[:, None] * np.array([1, 0.4j])
     assert_allclose(on_plane.electric.values[:, :2], expected, atol=1e-13)
     # An FFT lattice wide enough that its images vanish is the same beam.
     axis = np.arange(-128, 128) * 0.25
     lattice = o.sampling.CartesianGrid(axis, axis)
     x, y = np.meshgrid(axis, axis)
     transverse = o.fields.TransverseElectricField(
-        lattice, 1.0, profile(x, y)[..., None] * np.array([1, 0.4j])
+        lattice, 1.0, host(profile(x, y))[..., None] * np.array([1, 0.4j])
     )
     spectrum = o.fields.angular_spectrum(transverse, AIR, evanescent="discard")
     probes = o.sampling.PointGrid(np.c_[xy[:20], np.full(20, 3.0)])

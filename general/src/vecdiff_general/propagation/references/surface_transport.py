@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
 from vecdiff_general.fourier.cartesian import FFT2, frequency_grid
@@ -35,6 +36,7 @@ from vecdiff_general.surfaces import FreeformSurface, SphericalCap
 from vecdiff_general.volumes import SphereVolume
 
 
+@on_cpu
 def problem():
     air = HomogeneousRegion("air", Dielectric(1))
     glass = HomogeneousRegion("glass", Dielectric(1.5))
@@ -42,6 +44,7 @@ def problem():
     return source, SphereVolume([0, 0, 0], 0.3), glass
 
 
+@on_cpu
 def scattered(solution):
     """Subtract the analytic incident field, including its magnetic field."""
 
@@ -56,6 +59,7 @@ def scattered(solution):
     return evaluate
 
 
+@on_cpu
 def dipole(grid):
     """Exact electric Hertz dipole at the origin, exp(-i omega t).
 
@@ -76,6 +80,7 @@ def dipole(grid):
     return ElectromagneticField(ElectricField(grid, 1, electric), magnetic)
 
 
+@on_cpu
 def curved_surface(height, amplitude, period):
     f = 2 * np.pi / period
     return FreeformSurface(
@@ -94,6 +99,7 @@ def curved_surface(height, amplitude, period):
     )
 
 
+@on_cpu
 def relative_fields(actual, expected, weights=None):
     if weights is None:
         weights = np.ones(expected.electric.grid.shape)
@@ -107,6 +113,7 @@ def relative_fields(actual, expected, weights=None):
     }
 
 
+@on_cpu
 def tapered(field, window):
     return ElectromagneticField(
         ElectricField(
@@ -116,6 +123,7 @@ def tapered(field, window):
     )
 
 
+@on_cpu
 def sampled_spectrum(field, region, max_sine):
     """Explicit band selection before Maxwell completion; no grazing division.
 
@@ -150,6 +158,7 @@ def sampled_spectrum(field, region, max_sine):
     )
 
 
+@on_cpu
 def transfer_case(evaluate, *, length=24, count=96, max_sine=0.85, height=2):
     """Plane -> curved trace, and curved trace -> independent second surface.
 
@@ -204,6 +213,7 @@ def transfer_case(evaluate, *, length=24, count=96, max_sine=0.85, height=2):
     }
 
 
+@on_cpu
 def modal_case(*, scale=1, sag=0.7, rotated=True):
     """Exact, independently evaluated, three-plane-wave Maxwell solution.
 
@@ -271,6 +281,7 @@ def modal_case(*, scale=1, sag=0.7, rotated=True):
     }
 
 
+@on_cpu
 def single_interface_case():
     """Exact first-Debye-term sphere transmission, before any internal return.
 
@@ -321,6 +332,7 @@ def single_interface_case():
     }
 
 
+@on_cpu
 def run_benchmarks(include_bem=True):
     source, sphere, glass = problem()
     mie = MieSphere(source, sphere, glass)
@@ -434,6 +446,7 @@ def run_benchmarks(include_bem=True):
     }
 
 
+@on_cpu
 def plot_results(result, path):
     import matplotlib
 
@@ -473,6 +486,7 @@ def plot_results(result, path):
     plt.close(fig)
 
 
+@on_cpu
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)

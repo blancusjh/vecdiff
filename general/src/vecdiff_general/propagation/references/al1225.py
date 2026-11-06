@@ -4,12 +4,14 @@ import numpy as np
 from scipy.fft import next_fast_len
 
 import vecdiff_general as optics
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.propagation.references.benchmarks import illumination
 from vecdiff_general.propagation.references.pipeline_comparison import (
     compare_closed_body,
 )
 
 
+@on_cpu
 def al1225_size_study(ratios=(3, 10, 30, 100), *, coverage="complete"):
     """Cold spectral pipeline runs of scaled AL1225 prescriptions at 780 nm.
 
@@ -61,6 +63,7 @@ def al1225_size_study(ratios=(3, 10, 30, 100), *, coverage="complete"):
     return results
 
 
+@on_cpu
 def save_al1225_study(series, path):
     """Save measured fields and metadata without serializing Python objects."""
     import json
@@ -84,6 +87,7 @@ def save_al1225_study(series, path):
     np.savez_compressed(path, **arrays)
 
 
+@on_cpu
 def load_al1225_study(path):
     """Load saved AL1225 measurements; this does not execute or time a solver."""
     import json
@@ -133,6 +137,7 @@ def load_al1225_study(path):
     return results
 
 
+@on_cpu
 def show_al1225_study(series):
     """Calculated fields first; timings and independent-reference availability next."""
     import matplotlib.pyplot as plt

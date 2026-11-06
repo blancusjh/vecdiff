@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import numpy as np
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.propagation.references.mesh import SurfaceMesh
 from vecdiff_general.surfaces import Plane, SphericalCap
 from vecdiff_general.volumes import SphereVolume, VolumeBetweenSurfaces
@@ -105,6 +106,7 @@ def _elements(gmsh, dimension, entity, tags):
     return np.concatenate(chunks)
 
 
+@on_cpu
 def surface_mesh(volume, edge_size):
     """Closed triangular mesh; ``edge_size`` in metres, not an error tolerance."""
     if not np.isfinite(edge_size) or edge_size <= 0:
@@ -132,6 +134,7 @@ def surface_mesh(volume, edge_size):
     return SurfaceMesh(vertices, triangles)
 
 
+@on_cpu
 def tetrahedral_mesh(volume, *, edge_size, physical_padding, pml_width):
     """Conforming inclusion/air/PML tetrahedra for vector FEM; all lengths in m."""
     from vecdiff_general.propagation.references.fem import TetrahedralMesh

@@ -8,7 +8,7 @@ are not normalized: cartesian(1, 1j) carries twice the intensity of x.
 
 from dataclasses import dataclass
 
-import numpy as np
+from vecdiff_general._backend import bd
 
 
 @dataclass(frozen=True)
@@ -19,9 +19,9 @@ class Jones:
     basis: str = "cartesian"
 
     def __post_init__(self):
-        components = np.asarray(self.components, dtype=complex)
+        components = bd.asarray(self.components, dtype=complex)
 
-        if components.shape != (2,) or not np.isfinite(components).all():
+        if components.shape != (2,) or not bd.isfinite(components).all():
             raise ValueError("a polarization state has two finite components")
 
         if self.basis not in ("cartesian", "polar"):
@@ -32,14 +32,14 @@ class Jones:
     def vectors(self, azimuth):
         """(u, v) components at points of the given plane azimuths, shape (..., 2)."""
         a, b = self.components
-        azimuth = np.asarray(azimuth, float)
+        azimuth = bd.asarray(azimuth, float)
 
         if self.basis == "cartesian":
-            return np.broadcast_to(np.array([a, b]), azimuth.shape + (2,))
+            return bd.broadcast_to(bd.array([a, b]), azimuth.shape + (2,))
 
-        c, s = np.cos(azimuth), np.sin(azimuth)
+        c, s = bd.cos(azimuth), bd.sin(azimuth)
 
-        return np.stack((a * c - b * s, a * s + b * c), axis=-1)
+        return bd.stack((a * c - b * s, a * s + b * c), axis=-1)
 
 
 def cartesian(a, b):

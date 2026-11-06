@@ -12,6 +12,8 @@ from vecdiff_general.propagation.references.diagnostics import (
 )
 from vecdiff_general.propagation.references.mfs import AxisymmetricMFS
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 
 def problem(n=1.5, wavelength=1.0, radius=0.5, polarization=(1, 0, 0)):
     air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
@@ -49,7 +51,7 @@ def test_mie_equal_index_rotated_translated_and_si_scaling():
     )
     sphere = o.volumes.SphereVolume([2e-6, 0, 1e-6], 600e-9)
     grid = o.sampling.PointGrid(
-        sphere.center + [[0, 0, 0], [1e-7, 2e-7, -1e-7], [0, 0, 8e-7]]
+        host(sphere.center) + [[0, 0, 0], [1e-7, 2e-7, -1e-7], [0, 0, 8e-7]]
     )
     actual = MieSphere(source, sphere, air).evaluate(grid)
     expected = source.evaluate(grid)
@@ -191,7 +193,7 @@ def test_stable_single_interface_sphere_is_exact_beyond_the_direct_series(interi
         )
         for key in ("reflected", "transmitted"):
             for a, b in zip(stable[key], direct[key]):
-                assert np.max(abs(a - b)) <= 1e-11 * np.max(abs(b))
+                assert np.max(abs(host(a) - b)) <= 1e-11 * np.max(abs(b))
 
     # ka = 3000: the direct series overflows; the stable one keeps the exact
     # interface conditions (continuous tangential E and H on the sphere).

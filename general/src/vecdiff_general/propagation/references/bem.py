@@ -8,6 +8,7 @@ from time import perf_counter
 import numpy as np
 from scipy.linalg import solve
 
+from vecdiff_general._backend import cpu_reference
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
 from vecdiff_general.media.medium import Z0
@@ -21,6 +22,7 @@ from vecdiff_general.sampling import PointGrid
 FORMULATIONS = ("pmchwt", "muller")
 
 
+@cpu_reference
 class DielectricBEM:
     """Full-vector PMCHWT or Müller BEM with Rao–Wilton–Glisson surface currents.
 

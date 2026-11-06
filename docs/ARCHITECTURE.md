@@ -5,6 +5,7 @@ share no runtime optical kernel; external validation compares explicit arrays.
 
 | Responsibility | Location | Meaning |
 |---|---|---|
+| Array device | `backend.py` | NumPy on the CPU or CuPy on a CUDA GPU, one global switch |
 | Coordinate placement | `geometry/` | Right-handed frames and global coordinates |
 | Shape | `surfaces/`, `volumes.py` | Geometry, normals, membership and area Jacobians |
 | Discretization | `sampling/` | Physical points, FFT lattices and quadrature measures |

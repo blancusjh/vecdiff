@@ -5,6 +5,8 @@ import pytest
 import vecdiff_general as optics
 from numpy.testing import assert_allclose
 
+host = optics.backend.to_numpy
+
 
 def test_al1225_dimensions_dispersion_and_paraxial_focus():
     system = optics.catalog.thorlabs_al1225()
@@ -44,7 +46,9 @@ def test_al1225_sag_sign_units_gradient_and_scaling():
     for direction in np.eye(2):
         h = direction * 1e-8
         finite_difference = (surface.height(xy + h) - surface.height(xy - h)) / 2e-8
-        assert_allclose(surface.gradient(xy) @ direction, finite_difference, atol=1e-10)
+        assert_allclose(
+            host(surface.gradient(xy)) @ direction, finite_difference, atol=1e-10
+        )
     scaled = optics.catalog.thorlabs_al1225(scale=0.001)
     assert_allclose(
         scaled.interfaces[0].surface.height(xy * 0.001), surface.height(xy) * 0.001
