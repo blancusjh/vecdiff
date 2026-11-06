@@ -32,16 +32,19 @@ class MieSphere:
     The automatic order is a starting estimate, not an accuracy certificate.
     """
 
-    def __init__(self, source, volume, interior, *, order=None):
+    def __init__(self, incident, volume, interior, *, order=None):
         if not isinstance(volume, SphereVolume):
             raise TypeError("MieSphere requires a SphereVolume")
-        if not isinstance(source, PlaneWaveExpansion) or len(source.amplitudes) != 1:
+        if (
+            not isinstance(incident, PlaneWaveExpansion)
+            or len(incident.amplitudes) != 1
+        ):
             raise TypeError("MieSphere requires one analytic plane wave")
-        if np.any(source.wavevectors.imag):
+        if np.any(incident.wavevectors.imag):
             raise ValueError("Mie illumination must be propagating")
-        self.source, self.volume, self.interior = source, volume, interior
-        self.exterior = source.region
-        self.wavelength0 = source.wavelength0
+        self.incident, self.volume, self.interior = incident, volume, interior
+        self.exterior = incident.region
+        self.wavelength0 = incident.wavelength0
         self.k0 = 2 * np.pi / self.wavelength0
         ni, ne = interior.material.n, self.exterior.material.n
         x = self.k0 * ne * volume.radius
@@ -67,7 +70,7 @@ class MieSphere:
         )
         if not all(np.isfinite(c).all() for c in (self.a, self.b, self.c, self.d)):
             raise ValueError("nonfinite Mie coefficients; reduce excessive order")
-        self.direction = source.wavevectors[0].real / (self.k0 * ne)
+        self.direction = incident.wavevectors[0].real / (self.k0 * ne)
         seed = np.eye(3)[np.argmin(abs(self.direction))]
         self.u = np.cross(seed, self.direction)
         self.u /= np.linalg.norm(self.u)
@@ -151,14 +154,16 @@ class MieSphere:
         )
         E, H = np.zeros_like(points, complex), np.zeros_like(points, complex)
         phase = np.exp(
-            1j * self.source.wavevectors[0] @ (self.volume.center - self.source.origin)
+            1j
+            * self.incident.wavevectors[0]
+            @ (self.volume.center - self.incident.origin)
         )
         for inside in (False, True):
             indices = np.flatnonzero(mask == inside)
             for start in range(0, len(indices), chunk_size):
                 ids = indices[start : start + chunk_size]
                 for u, v in ((self.u, self.v), (self.v, -self.u)):
-                    amplitude = phase * (self.source.amplitudes[0] @ u)
+                    amplitude = phase * (self.incident.amplitudes[0] @ u)
                     if abs(amplitude) == 0:
                         continue
                     basis = np.stack((u, v, self.direction), -1)
@@ -171,7 +176,7 @@ class MieSphere:
         if np.any(outside):
             from vecdiff_general.sampling import PointGrid
 
-            incident = self.source.evaluate(PointGrid(points[outside]))
+            incident = self.incident.evaluate(PointGrid(points[outside]))
             E[outside] += incident.electric.values
             H[outside] += incident.magnetic
         if not np.isfinite(E).all() or not np.isfinite(H).all():

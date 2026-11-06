@@ -72,7 +72,7 @@ def global_case(*, length=24, count=96, max_sine=0.99):
     inverse, report = q.inverse(trace, tolerance=1e-10, max_iterations=400)
     radiated = q.radiate(trace)
     exact = mie.evaluate(probes)
-    incident = mie.source.evaluate(probes)
+    incident = mie.incident.evaluate(probes)
     return {
         "implementation": "SurfaceTransport",
         "length": length,

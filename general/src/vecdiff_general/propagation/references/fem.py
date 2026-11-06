@@ -186,7 +186,7 @@ class TetrahedralMesh:
         return cells, bary
 
 
-def _fingerprint(mesh, source, interior, pml_strength):
+def _fingerprint(mesh, incident, interior, pml_strength):
     """Hash of everything that determines the solved edge coefficients."""
     digest = hashlib.sha256()
     for array in (
@@ -194,9 +194,9 @@ def _fingerprint(mesh, source, interior, pml_strength):
         mesh.tetrahedra,
         mesh.interior,
         mesh.center,
-        source.wavevectors,
-        source.amplitudes,
-        source.origin,
+        incident.wavevectors,
+        incident.amplitudes,
+        incident.origin,
     ):
         array = np.ascontiguousarray(array)
         digest.update(str((array.shape, array.dtype)).encode())
@@ -204,8 +204,8 @@ def _fingerprint(mesh, source, interior, pml_strength):
     digest.update(
         repr(
             (
-                source.wavelength0,
-                source.region.material.n,
+                incident.wavelength0,
+                incident.region.material.n,
                 interior.material.n,
                 float(mesh.halfwidth)
                 if np.ndim(mesh.halfwidth) == 0
@@ -231,13 +231,13 @@ class DielectricFEM:
     are not a meaningful convergence test. Use field, flux, mesh and PML studies.
 
     cache: a directory (or the VECDIFF_FEM_CACHE environment variable) where
-    solved coefficients are stored under a hash of the mesh, source, indices,
+    solved coefficients are stored under a hash of the mesh, incident, indices,
     PML settings and solver sources, and reloaded instead of solving again.
     """
 
     def __init__(
         self,
-        source,
+        incident,
         mesh,
         interior,
         *,
@@ -247,14 +247,14 @@ class DielectricFEM:
     ):
         from vecdiff_general.propagation.references import _reference_core
 
-        if not isinstance(source, PlaneWaveExpansion) or not isinstance(
+        if not isinstance(incident, PlaneWaveExpansion) or not isinstance(
             mesh, TetrahedralMesh
         ):
             raise TypeError("FEM requires PlaneWaveExpansion and TetrahedralMesh")
         if not np.isfinite(pml_strength) or pml_strength <= 0:
             raise ValueError("pml_strength must be positive")
-        self.source, self.mesh, self.interior = source, mesh, interior
-        self.exterior, self.wavelength0 = source.region, source.wavelength0
+        self.incident, self.mesh, self.interior = incident, mesh, interior
+        self.exterior, self.wavelength0 = incident.region, incident.wavelength0
         self.unknowns = len(mesh.edges)
         if self.unknowns > max_unknowns:
             raise ValueError(
@@ -267,7 +267,7 @@ class DielectricFEM:
         stored = None
         if cache:
             stored = Path(cache) / (
-                "fem_" + _fingerprint(mesh, source, interior, pml_strength) + ".npz"
+                "fem_" + _fingerprint(mesh, incident, interior, pml_strength) + ".npz"
             )
             if stored.exists():
                 with np.load(stored) as data:
@@ -283,7 +283,7 @@ class DielectricFEM:
         start = perf_counter()
         corners = mesh.vertices[mesh.tetrahedra] / scale
         points = np.einsum("qa,tac->tqc", _BARY, corners) * scale
-        incident = source.evaluate(PointGrid(points)).electric.values
+        electric = incident.evaluate(PointGrid(points)).electric.values
         indices = np.where(mesh.interior, interior.material.n, self.exterior.material.n)
         matrices, rhs = _reference_core.fem_assemble(
             corners.transpose(2, 1, 0),
@@ -292,7 +292,7 @@ class DielectricFEM:
             self._signs,
             indices,
             self.exterior.material.n,
-            incident.transpose(2, 1, 0),
+            electric.transpose(2, 1, 0),
             mesh.center / scale,
             mesh.halfwidth / scale,
             mesh.pml_width / scale,
@@ -349,7 +349,7 @@ class DielectricFEM:
         e, h = _reference_core.fem_fields(
             self._gradients, self._signs, self._local, cells + 1, bary.T
         )
-        incident = self.source.evaluate(grid)
+        incident = self.incident.evaluate(grid)
         shape = grid.shape + (3,)
         return ElectromagneticField(
             ElectricField(
