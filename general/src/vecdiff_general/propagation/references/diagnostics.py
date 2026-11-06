@@ -85,7 +85,7 @@ def closed_flux_residual(solution, enclosing_grid):
     solution has zero net flux; refine this quadrature independently.
     """
     field = solution.evaluate(enclosing_grid, side="exterior")
-    incident = solution.source.evaluate(enclosing_grid)
+    incident = solution.incident.evaluate(enclosing_grid)
     incoming_density = np.sum(incident.poynting() * enclosing_grid.normals, -1)
     incoming = np.sum(np.maximum(-incoming_density, 0) * enclosing_grid.weights)
     if incoming <= 0:

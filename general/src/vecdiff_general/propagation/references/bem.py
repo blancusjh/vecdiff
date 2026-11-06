@@ -87,7 +87,7 @@ class DielectricBEM:
 
     def __init__(
         self,
-        source,
+        incident,
         mesh,
         interior,
         *,
@@ -105,15 +105,15 @@ class DielectricBEM:
     ):
         from vecdiff_general.propagation.references import _reference_core
 
-        if not isinstance(source, PlaneWaveExpansion):
+        if not isinstance(incident, PlaneWaveExpansion):
             raise TypeError("BEM illumination must be an analytic PlaneWaveExpansion")
         if not isinstance(mesh, SurfaceMesh):
             raise TypeError("BEM requires a closed SurfaceMesh")
         if formulation not in FORMULATIONS:
             raise ValueError(f"formulation must be one of {FORMULATIONS}")
         self.formulation = formulation
-        self.source, self.mesh, self.interior = source, mesh, interior
-        self.exterior, self.wavelength0 = source.region, source.wavelength0
+        self.incident, self.mesh, self.interior = incident, mesh, interior
+        self.exterior, self.wavelength0 = incident.region, incident.wavelength0
         self.unknowns = 2 * len(mesh.edges)
         if self.unknowns > max_unknowns:
             raise ValueError(
@@ -135,7 +135,7 @@ class DielectricBEM:
         if cache:
             key = _fingerprint(
                 m,
-                source,
+                incident,
                 self.exterior.material.n,
                 interior.material.n,
                 (quadrature, near_quadrature, far_quadrature, far_ratio),
@@ -223,7 +223,7 @@ class DielectricBEM:
             )
             e[mask], h[mask] = ev.T, hv.T / Z0
             if not interior:
-                incident = self.source.evaluate(
+                incident = self.incident.evaluate(
                     PointGrid(points[mask] * self.wavelength0)
                 )
                 e[mask] += incident.electric.values
@@ -237,7 +237,7 @@ class DielectricBEM:
 def _incident_tested(solution, points, weights, basis):
     """Tested incident traces <basis, E_inc> and <basis, Z0 H_inc> per element."""
     shape = points.shape
-    incident = solution.source.evaluate(
+    incident = solution.incident.evaluate(
         PointGrid(points.reshape(-1, 3) * solution.wavelength0)
     )
     electric = incident.electric.values.reshape(shape)
@@ -327,21 +327,23 @@ def _muller_system(solution, core, rules, order):
     return matrix, rhs
 
 
-def _fingerprint(mesh, source, n_exterior, n_interior, rules, formulation):
+def _fingerprint(mesh, incident, n_exterior, n_interior, rules, formulation):
     """Hash of everything that determines the solved surface currents."""
     digest = hashlib.sha256()
     for array in (
         mesh.vertices,
         mesh.triangles,
-        source.wavevectors,
-        source.amplitudes,
-        source.origin,
+        incident.wavevectors,
+        incident.amplitudes,
+        incident.origin,
     ):
         array = np.ascontiguousarray(array)
         digest.update(str((array.shape, array.dtype)).encode())
         digest.update(array.tobytes())
     digest.update(
-        repr((source.wavelength0, n_exterior, n_interior, rules, formulation)).encode()
+        repr(
+            (incident.wavelength0, n_exterior, n_interior, rules, formulation)
+        ).encode()
     )
     native = Path(__file__).resolve().parents[4] / "native"
     for path in (
