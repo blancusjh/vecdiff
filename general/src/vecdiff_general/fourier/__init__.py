@@ -29,7 +29,7 @@ def transform(g, *, mode, coordinates, frequencies=None, weights=None, **options
     are passed to NUFFT only in this mode. No optical field or Grid is accepted.
     """
     if options and mode != "nonuniform":
-        raise TypeError("backend options apply only to nonuniform transforms")
+        raise TypeError("method options apply only to nonuniform transforms")
 
     if mode == "cartesian":
         if frequencies is not None or weights is not None:
@@ -63,7 +63,7 @@ def inverse(G, *, mode, coordinates, frequencies=None, weights=None, **options):
     likewise approximates the integral, not an arbitrary matrix inversion.
     """
     if options and mode != "nonuniform":
-        raise TypeError("backend options apply only to nonuniform transforms")
+        raise TypeError("method options apply only to nonuniform transforms")
 
     if mode == "cartesian":
         if frequencies is not None or weights is not None:

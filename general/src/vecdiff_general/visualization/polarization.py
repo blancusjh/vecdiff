@@ -10,6 +10,7 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.spatial import cKDTree
 
 from vecdiff_general._arrays import positive, positive_integer
+from vecdiff_general._backend import on_host
 from vecdiff_general.fields import (
     ElectricField,
     ElectromagneticField,
@@ -659,6 +660,7 @@ def _ellipse_curves(orientation, ellipticity, centers, radii):
     return curves, heads, owners, rotating
 
 
+@on_host
 def plot_polarization(
     field,
     *,
@@ -994,6 +996,7 @@ def plot_polarization(
     return axis
 
 
+@on_host
 def plot_focal_polarization(
     field,
     *,
@@ -1061,6 +1064,7 @@ def plot_focal_polarization(
     return axis
 
 
+@on_host
 def plot_polarization_scalar(
     field,
     quantity="ellipticity",
@@ -1111,6 +1115,7 @@ def plot_polarization_scalar(
     return axis
 
 
+@on_host
 def plot_ellipses(field, *, axis=None, relative_threshold=0.03, **kwargs):
     """Compatibility entry point; relative_threshold retains amplitude semantics.
 

@@ -13,6 +13,8 @@ from vecdiff_general.propagation._fresnel import (
 )
 from vecdiff_general.propagation.surface_transfer import BandSynthesis
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 
 @pytest.mark.parametrize("n1,n2", [(1, 1.5), (1.5, 1), (1.3, 1.3)])
 def test_fused_fresnel_matches_boundary_matrix_including_TIR(n1, n2):
@@ -45,7 +47,7 @@ def test_band_Q_matches_direct_on_nonspherical_graph(count, workers):
     surface = o.surfaces.FreeformSurface(
         lambda xy: 1.3 * np.cos(xy[..., 0] / 3) + 0.2 * xy[..., 1],
         lambda xy: np.stack(
-            (-1.3 / 3 * np.sin(xy[..., 0] / 3), np.full(xy.shape[:-1], 0.2)), axis=-1
+            (-1.3 / 3 * np.sin(xy[..., 0] / 3), bd.full(xy.shape[:-1], 0.2)), axis=-1
         ),
         frame=plane.frame,
     )
@@ -55,9 +57,9 @@ def test_band_Q_matches_direct_on_nonspherical_graph(count, workers):
     ids = np.flatnonzero(support)
     plan = BandSynthesis(q, ids[::-1], workers=workers)
     rng = np.random.default_rng(849)
-    coefficients = np.zeros(plane.shape + (2,), complex)
-    coefficients[support] = rng.normal(size=(len(ids), 2)) + 1j * rng.normal(
-        size=(len(ids), 2)
+    coefficients = bd.zeros(plane.shape + (2,), complex)
+    coefficients[support] = bd.asarray(
+        rng.normal(size=(len(ids), 2)) + 1j * rng.normal(size=(len(ids), 2))
     )
     k = np.stack((q.ku[support], q.kv[support], q.kz[support]), axis=-1)
     direct = (
@@ -98,7 +100,7 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
     surface = o.surfaces.FreeformSurface(
         lambda xy: 0.2 * np.cos(xy[..., 0] / 3) + 0.03 * xy[..., 1],
         lambda xy: np.stack(
-            (-0.2 / 3 * np.sin(xy[..., 0] / 3), np.full(xy.shape[:-1], 0.03)), axis=-1
+            (-0.2 / 3 * np.sin(xy[..., 0] / 3), bd.full(xy.shape[:-1], 0.03)), axis=-1
         ),
     )
     boundary = o.system.DielectricInterface(surface, air, glass)
@@ -162,23 +164,23 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
         .transmit(source, boundary, q)
         .field
     )
-    expected_e = np.zeros(q.grid.shape + (3,), complex)
-    expected_h = np.zeros_like(expected_e)
+    expected_e = bd.zeros(q.grid.shape + (3,), complex)
+    expected_h = bd.zeros_like(expected_e)
     from vecdiff_general.media import Z0
 
     for k, amplitude in zip(source.expansion.wavevectors, source.expansion.amplitudes):
-        if not np.any(amplitude):
+        if not bd.any(amplitude):
             continue
         d = k.real / (2 * np.pi)
         dt = transmitted_direction(d, q.grid.normals, 1, 1.5)
         s, pi, pt = polarization_basis(d, dt, q.grid.normals)
         electric = (
-            np.sum(s * amplitude, axis=-1)[..., None] * s
-            + np.sum(pi * amplitude, axis=-1)[..., None] * pt
+            bd.sum(s * amplitude, axis=-1)[..., None] * s
+            + bd.sum(pi * amplitude, axis=-1)[..., None] * pt
         )
-        phase = np.exp(1j * (q.grid.points - source.expansion.origin) @ k)[..., None]
+        phase = bd.exp(1j * (q.grid.points - source.expansion.origin) @ k)[..., None]
         expected_e += phase * electric
-        expected_h += phase * 1.5 * np.cross(dt, electric) / Z0
+        expected_h += phase * 1.5 * bd.cross(dt, electric) / Z0
     assert_allclose(actual.electric.values, expected_e, atol=2e-12)
     assert_allclose(actual.magnetic, expected_h, atol=2e-14)
 

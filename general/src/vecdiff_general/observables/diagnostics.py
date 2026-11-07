@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from vecdiff_general._backend import bd
 from vecdiff_general.media.medium import Z0
 
 
@@ -13,9 +14,9 @@ def boundary_residuals(solution, grid):
     """
     frame = solution.interface.frame
     distance = (grid.points - frame.origin) @ frame.normal
-    scale = max(1.0, float(np.max(np.abs(grid.points))))
+    scale = max(1.0, float(bd.max(bd.abs(grid.points))))
 
-    if np.max(np.abs(distance)) > 32 * np.finfo(float).eps * scale:
+    if bd.max(bd.abs(distance)) > 32 * np.finfo(float).eps * scale:
         raise ValueError("boundary diagnostics require points on the interface")
 
     minus = solution.evaluate(grid, side="minus")
@@ -24,7 +25,7 @@ def boundary_residuals(solution, grid):
     h1, h2 = minus.magnetic, plus.magnetic
     n1, n2 = solution.interface.minus.material.n, solution.interface.plus.material.n
     incident = solution.incident.evaluate(grid).electric.values
-    e_scale = np.max(np.linalg.norm(incident, axis=-1))
+    e_scale = bd.max(bd.linalg.norm(incident, axis=-1))
 
     if e_scale == 0:
         raise ValueError(
@@ -37,15 +38,15 @@ def boundary_residuals(solution, grid):
 
     return {
         "tangential_E": float(
-            np.max(np.linalg.norm(np.cross(normal, e2 - e1), axis=-1)) / e_scale
+            bd.max(bd.linalg.norm(bd.cross(normal, e2 - e1), axis=-1)) / e_scale
         ),
         "tangential_H": float(
-            np.max(np.linalg.norm(np.cross(normal, h2 - h1), axis=-1)) / h_scale
+            bd.max(bd.linalg.norm(bd.cross(normal, h2 - h1), axis=-1)) / h_scale
         ),
         "normal_D": float(
-            np.max(np.abs((n2 * n2 * e2 - n1 * n1 * e1) @ normal)) / (ni * ni * e_scale)
+            bd.max(bd.abs((n2 * n2 * e2 - n1 * n1 * e1) @ normal)) / (ni * ni * e_scale)
         ),
-        "normal_B": float(np.max(np.abs((h2 - h1) @ normal)) / h_scale),
+        "normal_B": float(bd.max(bd.abs((h2 - h1) @ normal)) / h_scale),
     }
 
 
@@ -68,10 +69,10 @@ def interface_residuals(
     D by epsilon0 n_ref² E_ref; B by mu0 n_ref E_ref/Z0.
     """
 
-    if not np.isfinite(reference_electric) or reference_electric <= 0:
+    if not bd.isfinite(reference_electric) or reference_electric <= 0:
         raise ValueError("reference electric amplitude must be finite and positive")
 
-    if not np.isfinite(reference_index) or reference_index <= 0:
+    if not bd.isfinite(reference_index) or reference_index <= 0:
         raise ValueError("reference index must be finite and positive")
 
     if minus.electric.values.shape != plus.electric.values.shape:
@@ -80,11 +81,11 @@ def interface_residuals(
     if minus.electric.wavelength0 != plus.electric.wavelength0:
         raise ValueError("one-sided traces must have the same vacuum wavelength")
 
-    normals = np.broadcast_to(
-        np.asarray(normals, dtype=float), minus.electric.values.shape
+    normals = bd.broadcast_to(
+        bd.asarray(normals, dtype=float), minus.electric.values.shape
     )
 
-    if not np.allclose(np.linalg.norm(normals, axis=-1), 1, rtol=0, atol=1e-12):
+    if not bd.allclose(bd.linalg.norm(normals, axis=-1), 1, rtol=0, atol=1e-12):
         raise ValueError("boundary normals must be unit vectors")
 
     electric_jump = plus.electric.values - minus.electric.values
@@ -97,18 +98,18 @@ def interface_residuals(
 
     return {
         "tangential_E": float(
-            np.max(np.linalg.norm(np.cross(normals, electric_jump), axis=-1))
+            bd.max(bd.linalg.norm(bd.cross(normals, electric_jump), axis=-1))
             / reference_electric
         ),
         "tangential_H": float(
-            np.max(np.linalg.norm(np.cross(normals, magnetic_jump), axis=-1))
+            bd.max(bd.linalg.norm(bd.cross(normals, magnetic_jump), axis=-1))
             / magnetic_scale
         ),
         "normal_D": float(
-            np.max(np.abs(np.sum(normals * displacement_jump, axis=-1)))
+            bd.max(bd.abs(bd.sum(normals * displacement_jump, axis=-1)))
             / (reference_index**2 * reference_electric)
         ),
         "normal_B": float(
-            np.max(np.abs(np.sum(normals * magnetic_jump, axis=-1))) / magnetic_scale
+            bd.max(bd.abs(bd.sum(normals * magnetic_jump, axis=-1))) / magnetic_scale
         ),
     }
