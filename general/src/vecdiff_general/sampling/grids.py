@@ -6,6 +6,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 import numpy as np
 
 from vecdiff_general._arrays import frozen_array
+from vecdiff_general._backend import bd
 from vecdiff_general.geometry.frames import Frame
 
 
@@ -53,10 +54,10 @@ class SurfaceGrid:
         if normals.shape != points.shape or weights.shape != points.shape[:-1]:
             raise ValueError("surface points, normals and weights must agree")
 
-        if not np.allclose(np.linalg.norm(normals, axis=-1), 1, atol=1e-12, rtol=0):
+        if not bd.allclose(bd.linalg.norm(normals, axis=-1), 1, atol=1e-12, rtol=0):
             raise ValueError("surface normals must be unit vectors")
 
-        if np.any(weights <= 0):
+        if bd.any(weights <= 0):
             raise ValueError("surface area weights must be positive")
 
         for name, value in (
@@ -96,9 +97,9 @@ class CartesianGrid:
             if axis.ndim != 1 or len(axis) < 2:
                 raise ValueError("plane axes must be 1D with at least two points")
 
-            steps = np.diff(axis)
+            steps = bd.diff(axis)
 
-            if steps[0] <= 0 or not np.allclose(steps, steps[0], rtol=1e-10, atol=0):
+            if steps[0] <= 0 or not bd.allclose(steps, steps[0], rtol=1e-10, atol=0):
                 raise ValueError("plane axes must be increasing and uniformly spaced")
 
             object.__setattr__(self, name, axis)
@@ -113,7 +114,7 @@ class CartesianGrid:
 
     @property
     def points(self):
-        u, v = np.meshgrid(self.u, self.v, indexing="xy")
+        u, v = bd.meshgrid(self.u, self.v, indexing="xy")
 
         return (
             self.frame.origin
@@ -123,13 +124,13 @@ class CartesianGrid:
 
     @property
     def normals(self):
-        return np.broadcast_to(self.frame.normal, self.shape + (3,))
+        return bd.broadcast_to(self.frame.normal, self.shape + (3,))
 
     @property
     def weights(self):
         du, dv = self.spacing
 
-        return np.full(self.shape, du * dv)
+        return bd.full(self.shape, du * dv)
 
     @property
     def coordinates(self):
@@ -168,32 +169,32 @@ class PolarGrid:
         if (
             radius.ndim != 1
             or len(radius) < 2
-            or np.any(radius < 0)
-            or np.any(np.diff(radius) <= 0)
+            or bd.any(radius < 0)
+            or bd.any(bd.diff(radius) <= 0)
         ):
             raise ValueError("polar radii must be increasing and nonnegative")
 
         if azimuth.ndim != 1 or len(azimuth) < 2:
             raise ValueError("polar azimuths must form a one-dimensional periodic axis")
 
-        if not np.allclose(
-            np.diff(azimuth), 2 * np.pi / len(azimuth), rtol=1e-10, atol=1e-12
+        if not bd.allclose(
+            bd.diff(azimuth), 2 * bd.pi / len(azimuth), rtol=1e-10, atol=1e-12
         ):
             raise ValueError(
                 "azimuth must cover one uniform period without a duplicate endpoint"
             )
 
         if self.dr_weights is None:
-            steps = np.diff(radius)
-            weights = np.concatenate(
-                ([steps[0] / 2], (steps[:-1] + steps[1:]) / 2, [steps[-1] / 2])
+            steps = bd.diff(radius)
+            weights = bd.concatenate(
+                (steps[:1] / 2, (steps[:-1] + steps[1:]) / 2, steps[-1:] / 2)
             )
         else:
-            weights = np.asarray(self.dr_weights)
+            weights = bd.asarray(self.dr_weights)
 
         weights = frozen_array(weights)
 
-        if weights.shape != radius.shape or np.any(weights <= 0):
+        if weights.shape != radius.shape or bd.any(weights <= 0):
             raise ValueError("dr_weights must be positive and match the radial axis")
 
         object.__setattr__(self, "radius", radius)
@@ -210,9 +211,9 @@ class PolarGrid:
 
     @property
     def points(self):
-        radius, azimuth = np.meshgrid(self.radius, self.azimuth, indexing="ij")
-        local_u = radius * np.cos(azimuth)
-        local_v = radius * np.sin(azimuth)
+        radius, azimuth = bd.meshgrid(self.radius, self.azimuth, indexing="ij")
+        local_u = radius * bd.cos(azimuth)
+        local_v = radius * bd.sin(azimuth)
 
         return (
             self.frame.origin
@@ -222,13 +223,13 @@ class PolarGrid:
 
     @property
     def normals(self):
-        return np.broadcast_to(self.frame.normal, self.shape + (3,))
+        return bd.broadcast_to(self.frame.normal, self.shape + (3,))
 
     @property
     def weights(self):
-        radial_area = self.radius * self.dr_weights * (2 * np.pi / len(self.azimuth))
+        radial_area = self.radius * self.dr_weights * (2 * bd.pi / len(self.azimuth))
 
-        return np.broadcast_to(radial_area[:, None], self.shape)
+        return bd.broadcast_to(radial_area[:, None], self.shape)
 
     def translated(self, displacement):
         return PolarGrid(

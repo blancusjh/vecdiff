@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from vecdiff_general._arrays import frozen_array
+from vecdiff_general._backend import bd, to_numpy
 from vecdiff_general.fields import ElectricField
 from vecdiff_general.sampling import PointGrid
 
@@ -38,22 +39,22 @@ def region_indices(grid, interfaces, wavelength, side=None):
     """Assign points using actual graph heights, with explicit one-sided traces."""
     if side not in (None, "minus", "plus"):
         raise ValueError("side must be 'minus' or 'plus'")
-    region = np.zeros(grid.shape, dtype=int)
-    previous_plus = np.ones(grid.shape, bool)
+    region = bd.zeros(grid.shape, dtype=int)
+    previous_plus = bd.ones(grid.shape, bool)
     tolerance = 1e-10 * wavelength
     for interface in interfaces:
         surface = interface.surface
         local = (grid.points - surface.frame.origin) @ surface.frame.basis
         distance = local[..., 2] - surface.height(local[..., :2])
-        if not np.isfinite(distance).all():
+        if not bd.isfinite(distance).all():
             raise ValueError("target lies outside the defined surface chart")
         boundary = abs(distance) <= tolerance
-        if np.any(boundary) and side is None:
+        if bd.any(boundary) and side is None:
             raise ValueError(
                 "target touches an interface; specify side='minus' or side='plus'"
             )
         plus = (distance > tolerance) | (boundary & (side == "plus"))
-        if np.any(plus & ~previous_plus):
+        if bd.any(plus & ~previous_plus):
             raise ValueError(
                 "interface graphs intersect or are out of order at the target"
             )
@@ -75,7 +76,7 @@ class CoverageEvaluator:
         validate_coverage(mode)
         wavelength = source.expansion.wavelength0
         regions = region_indices(grid, interfaces, wavelength, side)
-        reduced = np.ones(grid.shape, dtype=bool)
+        reduced = bd.ones(grid.shape, dtype=bool)
         for i, interface in enumerate(interfaces):
             # An equal-index bookkeeping interface does not obstruct coverage.
             if interface.minus.material.n == interface.plus.material.n:
@@ -86,7 +87,10 @@ class CoverageEvaluator:
                 local = (
                     source.grid.points - surface.frame.origin
                 ) @ surface.frame.basis
-                height = surface.height(local[..., :2])
+                xy = local[..., :2].reshape(-1, 2)
+                # Chart points beyond the graph's domain do not meet the surface.
+                inside = surface.domain(xy)
+                height = surface.height(xy[inside] if bd.any(inside) else xy[:1] * 0)
                 self._bounds[key] = (
                     source.grid,
                     surface,
@@ -97,21 +101,21 @@ class CoverageEvaluator:
             z = (grid.points - surface.frame.origin) @ surface.frame.normal
             tolerance = 1e-10 * wavelength
             # Exclude the sampled graph's whole height band in reduced mode.
-            reduced &= np.where(regions <= i, z <= lo + tolerance, z >= hi - tolerance)
-        computed = reduced if mode == "reduced" else np.ones(grid.shape, dtype=bool)
+            reduced &= bd.where(regions <= i, z <= lo + tolerance, z >= hi - tolerance)
+        computed = reduced if mode == "reduced" else bd.ones(grid.shape, dtype=bool)
         return CoverageReport(mode, computed, regions, computed & ~reduced)
 
     @staticmethod
-    def electric(spectra, grid, report, *, backend="auto", **kwargs):
-        if backend == "auto":
-            backend = "nufft" if importlib.util.find_spec("finufft") else "direct"
-        values = np.full(grid.shape + (3,), np.nan + 1j * np.nan)
-        for index in np.unique(report.regions[report.computed]):
+    def electric(spectra, grid, report, *, method="auto", **kwargs):
+        if method == "auto":
+            method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+        values = bd.full(grid.shape + (3,), bd.nan + 1j * bd.nan)
+        for index in to_numpy(bd.unique(report.regions[report.computed])).tolist():
             mask = report.computed & (report.regions == index)
             values[mask] = (
                 spectra[index]
                 .expansion.electric(
-                    PointGrid(grid.points[mask]), backend=backend, **kwargs
+                    PointGrid(grid.points[mask]), method=method, **kwargs
                 )
                 .values
             )

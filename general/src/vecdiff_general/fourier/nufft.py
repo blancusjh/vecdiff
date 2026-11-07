@@ -1,6 +1,11 @@
 """Nonuniform Fourier sums and quadrature in one, two or three dimensions."""
 
+import math
+import os
+
 import numpy as np
+
+from vecdiff_general._backend import bd, to_numpy
 
 
 def phase_factor(q, x, *, sign=1):
@@ -8,22 +13,22 @@ def phase_factor(q, x, *, sign=1):
     if sign not in (-1, 1):
         raise ValueError("Fourier sign must be -1 or +1")
 
-    exponent = sign * 1j * (np.asarray(x) @ np.asarray(q).T)
+    exponent = sign * 1j * (bd.asarray(x) @ bd.asarray(q).T)
 
-    if np.any(exponent.real > 700):
+    if bd.any(exponent.real > 700):
         raise ValueError(
             "complex exponential overflows; reduce the exponent's real part"
         )
 
-    phase = np.exp(exponent)
+    phase = bd.exp(exponent)
 
     return phase
 
 
 def _sum_inputs(g, x, q):
-    g = np.asarray(g, dtype=complex)
-    x = np.asarray(x, dtype=complex)
-    q = np.asarray(q, dtype=complex)
+    g = bd.asarray(g, dtype=complex)
+    x = bd.asarray(x, dtype=complex)
+    q = bd.asarray(q, dtype=complex)
 
     if x.ndim != 2 or x.shape[1] not in (1, 2, 3):
         raise ValueError(
@@ -36,7 +41,7 @@ def _sum_inputs(g, x, q):
     if q.ndim < 1 or q.shape[-1] != x.shape[1]:
         raise ValueError("source and target coordinate dimensions must agree")
 
-    if not all(np.isfinite(array).all() for array in (g, x, q)):
+    if not all(bd.isfinite(array).all() for array in (g, x, q)):
         raise ValueError("Fourier inputs must be finite")
 
     return g, x, q
@@ -46,7 +51,7 @@ def _direct_sum(g, x, q, sign, chunk_size):
     if isinstance(chunk_size, bool) or int(chunk_size) != chunk_size or chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
 
-    G = np.zeros((len(q), g.shape[1]), dtype=complex)
+    G = bd.zeros((len(q), g.shape[1]), dtype=complex)
 
     for start in range(0, len(q), int(chunk_size)):
         stop = start + int(chunk_size)
@@ -57,9 +62,19 @@ def _direct_sum(g, x, q, sign, chunk_size):
     return G
 
 
-def _fast_sum(g, x, q, sign, tolerance):
-    if np.any(x.imag) or np.any(q.imag):
-        raise ValueError("FINUFFT requires real coordinates; use backend='direct'")
+def _threads(threads):
+    """FINUFFT thread count: the argument, else VECDIFF_NUFFT_THREADS, else 0 (all cores)."""
+    if threads is None:
+        threads = os.environ.get("VECDIFF_NUFFT_THREADS", 0)
+    threads = int(threads)
+    if threads < 0:
+        raise ValueError("threads must be a nonnegative integer (0: all cores)")
+    return threads
+
+
+def _fast_sum(g, x, q, sign, tolerance, threads=None):
+    if bd.any(x.imag) or bd.any(q.imag):
+        raise ValueError("FINUFFT requires real coordinates; use method='direct'")
 
     if not 0 < tolerance < 1:
         raise ValueError("NUFFT tolerance must lie in (0, 1)")
@@ -67,12 +82,15 @@ def _fast_sum(g, x, q, sign, tolerance):
     try:
         import finufft
     except ImportError as error:
-        raise ImportError("install the nufft extra to use this backend") from error
+        raise ImportError("install the nufft extra to use this method") from error
 
     if not len(x) or not len(q) or not g.shape[1]:
-        return np.zeros((len(q), g.shape[1]), dtype=complex)
+        return bd.zeros((len(q), g.shape[1]), dtype=complex)
 
+    # FINUFFT runs on the host for either backend; it outpaces the GPU's
+    # type-3 transform in double precision on consumer cards.
     dimension = x.shape[1]
+    x, q, g = to_numpy(x), to_numpy(q), to_numpy(g)
     source_axes = [np.ascontiguousarray(x.real[:, axis]) for axis in range(dimension)]
     target_axes = [np.ascontiguousarray(q.real[:, axis]) for axis in range(dimension)]
     transform = getattr(finufft, f"nufft{dimension}d3")
@@ -83,14 +101,22 @@ def _fast_sum(g, x, q, sign, tolerance):
         *target_axes,
         isign=sign,
         eps=tolerance,
-        nthreads=1,
+        nthreads=_threads(threads),
     ).T
 
-    return G
+    return bd.asarray(G)
 
 
 def NUFFT(
-    g: np.ndarray, x, q, *, sign=-1, backend="nufft", tolerance=1e-12, chunk_size=256
+    g: np.ndarray,
+    x,
+    q,
+    *,
+    sign=-1,
+    method="nufft",
+    tolerance=1e-12,
+    chunk_size=256,
+    threads=None,
 ):
     """Evaluate G[k] = sum_j g[j] exp(sign * i * q[k].x[j]).
 
@@ -100,41 +126,42 @@ def NUFFT(
     is inserted. There is no normalization or implied quadrature weight.
 
     The default negative sign gives the forward sum. Positive sign gives the
-    reverse-sign sum, not a matrix inverse. The direct backend supports complex
-    coordinates; FINUFFT accelerates real coordinates with a type-3 transform.
+    reverse-sign sum, not a matrix inverse. The direct method supports complex
+    coordinates; FINUFFT accelerates real coordinates with a type-3 transform,
+    on ``threads`` threads: None reads VECDIFF_NUFFT_THREADS, else all cores (0).
     """
     if sign not in (-1, 1):
         raise ValueError("Fourier sign must be -1 or +1")
 
     g, x, q = _sum_inputs(g, x, q)
     output_shape = q.shape[:-1] + g.shape[1:]
-    component_count = int(np.prod(g.shape[1:]))
+    component_count = int(math.prod(g.shape[1:]))
 
     g = g.reshape(len(x), component_count)
     q = q.reshape(-1, x.shape[1])
 
     # Zero terms contribute nothing, even when their exponential would overflow.
-    occupied = np.any(g != 0, axis=1)
+    occupied = bd.any(g != 0, axis=1)
     g, x = g[occupied], x[occupied]
 
-    if backend == "direct":
+    if method == "direct":
         G = _direct_sum(g, x, q, sign, chunk_size)
-    elif backend == "nufft":
-        G = _fast_sum(g, x, q, sign, tolerance)
+    elif method == "nufft":
+        G = _fast_sum(g, x, q, sign, tolerance, threads)
     else:
-        raise ValueError("backend must be 'direct' or 'nufft'")
+        raise ValueError("method must be 'direct' or 'nufft'")
 
     return G.reshape(output_shape)
 
 
 def _weighted_values(g, weights):
-    g = np.asarray(g, dtype=complex)
-    weights = np.asarray(weights, dtype=float)
+    g = bd.asarray(g, dtype=complex)
+    weights = bd.asarray(weights, dtype=float)
 
     if g.ndim < 1 or weights.shape != g.shape[:1]:
         raise ValueError("quadrature weights must match the first values axis")
 
-    if not np.isfinite(weights).all() or np.any(weights < 0):
+    if not bd.isfinite(weights).all() or bd.any(weights < 0):
         raise ValueError("quadrature weights must be finite and nonnegative")
 
     weights = weights.reshape(weights.shape + (1,) * (g.ndim - 1))
@@ -148,9 +175,10 @@ def transform(
     frequencies,
     *,
     weights,
-    backend="nufft",
+    method="nufft",
     tolerance=1e-12,
     chunk_size=256,
+    threads=None,
 ):
     """Approximate G(q) = integral g(x) exp(-i*q.x) d^d x.
 
@@ -164,9 +192,10 @@ def transform(
         coordinates,
         frequencies,
         sign=-1,
-        backend=backend,
+        method=method,
         tolerance=tolerance,
         chunk_size=chunk_size,
+        threads=threads,
     )
 
     return G
@@ -178,9 +207,10 @@ def inverse(
     frequencies,
     *,
     weights,
-    backend="nufft",
+    method="nufft",
     tolerance=1e-12,
     chunk_size=256,
+    threads=None,
 ):
     """Approximate g(x) = integral G(q) exp(+i*q.x) d^d q / (2*pi)^d.
 
@@ -195,11 +225,12 @@ def inverse(
         frequencies,
         coordinates,
         sign=1,
-        backend=backend,
+        method=method,
         tolerance=tolerance,
         chunk_size=chunk_size,
+        threads=threads,
     )
-    dimension = np.asarray(frequencies).shape[1]
-    g = g / (2 * np.pi) ** dimension
+    dimension = bd.asarray(frequencies).shape[1]
+    g = g / (2 * bd.pi) ** dimension
 
     return g

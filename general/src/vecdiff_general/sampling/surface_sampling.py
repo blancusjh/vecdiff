@@ -1,9 +1,7 @@
 """Physical quadrature rules for placed graph surfaces."""
 
-import numpy as np
-from numpy.polynomial.legendre import leggauss
-
 from vecdiff_general._arrays import positive, positive_integer
+from vecdiff_general._backend import bd, leggauss
 from vecdiff_general.sampling.grids import SurfaceGrid
 
 
@@ -19,15 +17,15 @@ def sample_surface(surface, aperture: float, *, radial_order=48, azimuthal_order
     nodes, weights = leggauss(radial_order)
     radius = aperture * (nodes + 1) / 2
     radial_weights = aperture * weights / 2
-    azimuth = 2 * np.pi * np.arange(azimuthal_order) / azimuthal_order
-    radial, angle = np.meshgrid(radius, azimuth, indexing="ij")
-    xy = np.stack((radial * np.cos(angle), radial * np.sin(angle)), axis=-1)
+    azimuth = 2 * bd.pi * bd.arange(azimuthal_order) / azimuthal_order
+    radial, angle = bd.meshgrid(radius, azimuth, indexing="ij")
+    xy = bd.stack((radial * bd.cos(angle), radial * bd.sin(angle)), axis=-1)
     points = surface.points(xy)
     normals = surface.normals(xy)
     weights = (
         radial
         * radial_weights[:, None]
-        * (2 * np.pi / azimuthal_order)
+        * (2 * bd.pi / azimuthal_order)
         * surface.area_jacobian(xy)
     )
 

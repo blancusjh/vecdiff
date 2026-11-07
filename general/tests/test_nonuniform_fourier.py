@@ -23,16 +23,16 @@ def test_nufft_matches_exponential_sum_with_independent_batches(dimension, sign)
         phase = np.exp(sign * 1j * np.sum(q * position, axis=-1))
         expected += phase[..., None, None] * value
 
-    direct = NUFFT(g, x, q, sign=sign, backend="direct", chunk_size=3)
+    direct = NUFFT(g, x, q, sign=sign, method="direct", chunk_size=3)
     accelerated = NUFFT(g, x, q, sign=sign)
 
     assert_allclose(direct, expected, atol=2e-14)
     assert_allclose(accelerated, expected, atol=2e-10)
 
 
-@pytest.mark.parametrize("backend", ["direct", "nufft"])
-def test_nonuniform_continuous_pair_has_correct_measure_sign_and_normalization(backend):
-    if backend == "nufft":
+@pytest.mark.parametrize("method", ["direct", "nufft"])
+def test_nonuniform_continuous_pair_has_correct_measure_sign_and_normalization(method):
+    if method == "nufft":
         pytest.importorskip("finufft")
 
     nodes, weights = leggauss(96)
@@ -44,7 +44,7 @@ def test_nonuniform_continuous_pair_has_correct_measure_sign_and_normalization(b
     g = np.stack((gaussian, x[:, 0] * gaussian), axis=-1)
 
     G = fourier.transform(
-        g, mode="nonuniform", coordinates=x, frequencies=q, weights=dx, backend=backend
+        g, mode="nonuniform", coordinates=x, frequencies=q, weights=dx, method=method
     )
     expected_gaussian = np.sqrt(np.pi) * np.exp(-(q[:, 0] ** 2) / 4)
     expected = np.stack(
@@ -54,7 +54,7 @@ def test_nonuniform_continuous_pair_has_correct_measure_sign_and_normalization(b
     assert_allclose(G, expected, atol=2e-11)
 
     recovered = fourier.inverse(
-        G, mode="nonuniform", coordinates=x, frequencies=q, weights=dq, backend=backend
+        G, mode="nonuniform", coordinates=x, frequencies=q, weights=dq, method=method
     )
 
     assert_allclose(recovered, g, atol=2e-9)
@@ -76,7 +76,7 @@ def test_nonuniform_integral_agrees_with_centered_cartesian_transform():
         coordinates=coordinates,
         frequencies=frequencies,
         weights=np.full(g.size, 0.2 * 0.3),
-        backend="direct",
+        method="direct",
     )
 
     assert_allclose(nonuniform, cartesian, atol=3e-14)
@@ -88,7 +88,7 @@ def test_nonuniform_integral_agrees_with_centered_cartesian_transform():
         coordinates=coordinates,
         frequencies=frequencies.reshape(-1, 2),
         weights=np.full(g.size, frequency_area),
-        backend="direct",
+        method="direct",
     )
 
     assert_allclose(recovered.reshape(g.shape), g, atol=3e-14)
@@ -99,12 +99,12 @@ def test_complex_fourier_sum_preserves_decay_and_ignores_zero_growing_terms():
     x = np.array([[2j], [-1000j]])
     g = np.array([1, 0])
 
-    actual = NUFFT(g, x, q, sign=1, backend="direct")
+    actual = NUFFT(g, x, q, sign=1, method="direct")
 
     assert_allclose(actual, np.exp(-2 * q[:, 0]))
 
     with pytest.raises(ValueError, match="overflows"):
-        NUFFT([1, 1], x, q, sign=1, backend="direct")
+        NUFFT([1, 1], x, q, sign=1, method="direct")
 
     with pytest.raises(ValueError, match="real coordinates"):
         NUFFT(g, x, q, sign=1)
@@ -121,3 +121,17 @@ def test_nonuniform_quadrature_requires_an_explicit_valid_measure():
         fourier.transform(
             [1, 1], mode="nonuniform", coordinates=x, frequencies=q, weights=[1, -1]
         )
+
+
+def test_nufft_honours_the_thread_setting(monkeypatch):
+    pytest.importorskip("finufft")
+    random = np.random.default_rng(3)
+    x, q = random.normal(size=(300, 3)), random.normal(size=(40, 3))
+    g = random.normal(size=(300, 2)) + 1j * random.normal(size=(300, 2))
+    expected = NUFFT(g, x, q, method="direct")
+    for threads in (1, 0, 3):
+        assert_allclose(NUFFT(g, x, q, threads=threads), expected, atol=1e-10)
+    monkeypatch.setenv("VECDIFF_NUFFT_THREADS", "2")
+    assert_allclose(NUFFT(g, x, q), expected, atol=1e-10)
+    with pytest.raises(ValueError, match="threads"):
+        NUFFT(g, x, q, threads=-1)
