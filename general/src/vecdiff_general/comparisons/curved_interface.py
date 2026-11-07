@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from vecdiff_general._backend import cpu_reference, on_cpu
 from vecdiff_general.comparisons.surface_radiation import SurfaceRadiation
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import PlaneSpectrum
@@ -20,6 +21,7 @@ from vecdiff_general.propagation._fresnel import (
 )
 
 
+@cpu_reference
 @dataclass(frozen=True)
 class SurfaceInteraction:
     interface: object
@@ -31,6 +33,7 @@ class SurfaceInteraction:
     incident_side: str
 
 
+@on_cpu
 def scatter_surface(incident, interface, grid, *, illuminated_only=False):
     """Apply Fresnel to every incident spectral mode before coherent summation.
 

@@ -14,6 +14,7 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
 import vecdiff_general as optics
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.propagation.references import (
     DielectricBEM,
     MieSphere,
@@ -22,18 +23,21 @@ from vecdiff_general.propagation.references import (
 )
 
 
+@on_cpu
 def relative(actual, reference):
     return float(
         np.linalg.norm(actual - reference) / max(np.linalg.norm(reference), 1e-300)
     )
 
 
+@on_cpu
 def timed_field(solution, points, **kwargs):
     start = perf_counter()
     field = solution.evaluate(optics.sampling.PointGrid(points), **kwargs)
     return field, perf_counter() - start
 
 
+@on_cpu
 def lens_cases():
     F = optics.geometry.Frame
     return {
@@ -144,6 +148,7 @@ def _lens_mesh(body, h):
     return SurfaceMesh(p, base.triangles)
 
 
+@on_cpu
 def scaled_body(body, radius):
     """Scale every length, preserving shape; radius means sphere or rim radius."""
     original = (
@@ -169,6 +174,7 @@ def scaled_body(body, radius):
     )
 
 
+@on_cpu
 def compare_closed_body(
     name,
     body,
@@ -298,6 +304,7 @@ def compare_closed_body(
                 threads=pipeline_threads,
                 cache_bytes=128 * 1024**2,
             ),
+            transport="wave",
         )
         preparation = perf_counter() - start
         start = perf_counter()
@@ -364,7 +371,7 @@ def compare_closed_body(
                 candidate["incident"],
                 optics.sampling.PointGrid(meridian),
                 side="plus",
-                backend="nufft",
+                method="nufft",
             )
             report = path.last_coverage
             # E was evaluated through the public operator. H is requested only
@@ -377,7 +384,7 @@ def compare_closed_body(
                     modes.magnetic_amplitudes,
                     modes.wavevectors,
                     meridian[mask] - modes.origin,
-                    backend="nufft",
+                    method="nufft",
                 )
             candidate["extended_points"] = int(report.extended.sum())
             field = optics.fields.ElectromagneticField(
@@ -628,10 +635,10 @@ def compare_closed_body(
             focal[method], focal_times[method] = timed_field(model, focal_points)
         if "Pipeline" not in axial:
             axial["Pipeline"], axial_times["Pipeline"] = timed_field(
-                candidate["solution"], scan_points, backend="nufft"
+                candidate["solution"], scan_points, method="nufft"
             )
         focal["Pipeline"], focal_times["Pipeline"] = timed_field(
-            candidate["solution"], focal_points, backend="nufft"
+            candidate["solution"], focal_points, method="nufft"
         )
         valid = ~body_band(body, meridian)
         bulk["Pipeline"], coverage, pipeline_map, bulk_times["Pipeline"] = (
@@ -762,6 +769,7 @@ def compare_closed_body(
     return result
 
 
+@on_cpu
 def show_comparison(result):
     """Show each case's fields first, followed by compact differences and times."""
     from html import escape
@@ -954,6 +962,7 @@ def show_comparison(result):
     )
 
 
+@on_cpu
 def size_study(name, body, source, interior, ratios=(3, 10, 30, 100)):
     """Scale the body at fixed wavelength, increasing the grid with its size.
 
@@ -986,6 +995,7 @@ def size_study(name, body, source, interior, ratios=(3, 10, 30, 100)):
     return results
 
 
+@on_cpu
 def show_size_study(series):
     """Display size-dependent fields before the accuracy and timing tables."""
     from html import escape

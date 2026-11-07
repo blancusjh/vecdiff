@@ -1,6 +1,12 @@
 """Homogeneous propagation, surface transfer, and boundary interactions."""
 
 from vecdiff_general.propagation.coverage import CoverageReport
+from vecdiff_general.propagation.eikonal import (
+    EikonalReport,
+    EikonalTransport,
+    InterfaceMap,
+    RayMap,
+)
 from vecdiff_general.propagation.homogeneous import (
     PlaneTransport,
     propagate,
@@ -11,6 +17,7 @@ from vecdiff_general.propagation.pipeline import (
     PropagationSolution,
 )
 from vecdiff_general.propagation.surface_interaction import (
+    CarrierFresnel,
     DirectionResolvedFresnel,
     InterfaceSolution,
     LocalFresnel,
@@ -26,6 +33,11 @@ __all__ = [
     "propagate_spectrum",
     "SurfaceTransport",
     "InverseReport",
+    "EikonalTransport",
+    "EikonalReport",
+    "InterfaceMap",
+    "RayMap",
+    "CarrierFresnel",
     "DirectionResolvedFresnel",
     "LocalFresnel",
     "SpectralFresnel",

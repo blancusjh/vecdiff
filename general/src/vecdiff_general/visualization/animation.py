@@ -3,6 +3,7 @@
 import numpy as np
 
 from vecdiff_general._arrays import positive_integer
+from vecdiff_general._backend import on_host
 from vecdiff_general.visualization.polarization import (
     _phase_geometry,
     _phase_vectors,
@@ -11,6 +12,7 @@ from vecdiff_general.visualization.polarization import (
 )
 
 
+@on_host
 def animate_polarization(field, *, frames=48, phase=0.0, **kwargs):
     """Animate Re(E exp(-i phase)) inside the same ellipse map.
 

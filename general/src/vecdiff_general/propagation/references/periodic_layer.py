@@ -10,10 +10,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from vecdiff_general._backend import cpu_reference, on_cpu
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.media.medium import Z0
 
 
+@on_cpu
 def modal_basis(kx, index, wavelength, sign, polarization):
     k0 = 2 * np.pi / wavelength
     q = np.sqrt(((index * k0) ** 2 - kx**2).astype(complex))
@@ -28,6 +30,7 @@ def modal_basis(kx, index, wavelength, sign, polarization):
     return vectors, e, np.cross(vectors, e) / k0
 
 
+@on_cpu
 def trace_matrices(kx, index, wavelength, sign, polarization, x, z, slope, origin):
     k, e, h = modal_basis(kx, index, wavelength, sign, polarization)
     phase = np.exp(1j * (x[:, None] * k[:, 0] + (z[:, None] - origin) * k[:, 2]))
@@ -40,6 +43,7 @@ def trace_matrices(kx, index, wavelength, sign, polarization, x, z, slope, origi
     return electric, magnetic
 
 
+@on_cpu
 def evaluate_modes(
     kx, coefficients, index, wavelength, sign, polarization, grid, origin
 ):
@@ -59,6 +63,7 @@ def evaluate_modes(
     )
 
 
+@cpu_reference
 @dataclass
 class PeriodicLayerReference:
     period: float
