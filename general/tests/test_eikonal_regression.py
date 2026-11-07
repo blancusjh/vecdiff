@@ -421,3 +421,116 @@ def test_closed_spheres_meet_the_archived_hard_pupil_shells(geometry, planes, ex
 
     error = 100 * np.sqrt(norm(field - reference) / norm(reference))
     assert abs(error - expected) < 2e-3 * expected
+
+
+def archive_fan(umax, start, end):
+    """The archive's lattice fan: sin(gamma) rolled off from start to end u_max,
+    incidence from 78 to 85 degrees, and transmitted rays with s_t,z > 0.05."""
+    from vecdiff_general.propagation.eikonal import ray_weights
+
+    def window(rays):
+        s = host(rays.incident)
+        t = np.clip(
+            (np.hypot(s[:, 0], s[:, 1]) - start * umax) / ((end - start) * umax), 0, 1
+        )
+        weight = 0.5 * (1 + np.cos(np.pi * t)) * host(ray_weights((78.0, 85.0), rays))
+        return weight * (host(rays.transmitted)[:, 2] > 0.05)
+
+    return window
+
+
+def archive_lattice(beam, radius, count):
+    axis = (np.arange(count) - count // 2) / 3
+    plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -radius]))
+    sampled = beam.evaluate(plane, method="nufft").electric.values[..., :2]
+    return o.fields.angular_spectrum(
+        o.fields.TransverseElectricField(plane, 1.0, sampled), AIR, evanescent="discard"
+    )
+
+
+@pytest.mark.parametrize("pupil, expected", [("hard", 0.1930), ("smooth", 0.05519)])
+def test_cylinder_meets_the_archive_at_a_hundred_wavelengths(pupil, expected):
+    """The archive's cylinder row at R = 100: 0.193 (hard) and 0.0552 (smooth).
+
+    Its 1186² lattice (lambda0 / 3) takes 5 minutes and 10 GB; 300 and 1000
+    need 3556² and 11852², beyond a leg that holds the whole lattice.
+    """
+    from vecdiff_general.propagation.references import InfiniteCylinder
+
+    radius, umax = 100.0, 0.25
+    beam = o.fields.FocusedBeam(
+        o.fields.profiles.Uniform(umax)
+        if pupil == "hard"
+        else lambda x, y: np.clip(1 - (x**2 + y**2) / umax**2, 0, None) ** 3,
+        o.fields.polarization.cartesian(1 / np.sqrt(2), 1j / np.sqrt(2)),
+        focal_length=1.0,
+        max_sine=umax,
+        wavelength0=1.0,
+        region=AIR,
+        frame=o.geometry.Frame([0, 0, 1.5 * radius]),
+        apodization="none",
+    )
+    surface = o.surfaces.CylindricalCap(radius, o.geometry.Frame([0, 0, -radius]))
+    pipeline = o.propagation.PropagationPipeline(
+        (o.system.DielectricInterface(surface, AIR, GLASS),),
+        transport="eikonal",
+        reference_fans=(archive_fan(umax, 1.7, 1.9),),
+    )
+    solution = pipeline.solve(archive_lattice(beam, radius, 1186), carrier=beam.carrier)
+    xs = np.linspace(-3.5, 3.5, 140)
+    x, y = np.meshgrid(xs, xs, indexing="ij")
+    disk = np.hypot(x, y) <= 3.5
+    points = o.sampling.PointGrid(
+        np.c_[x[disk], y[disk], np.full(disk.sum(), radius / 1.5)]
+    )
+    field = host(solution.evaluate(points).electric.values)
+    cylinder = InfiniteCylinder(
+        beam, o.volumes.CylinderVolume([0, 0, 0], [0, 1, 0], radius), GLASS
+    )
+    exact = host(cylinder.evaluate(points, term=1, side="interior").electric.values)
+    error = 100 * np.linalg.norm(field - exact) / np.linalg.norm(exact)
+    assert abs(error - expected) < 2e-3 * expected
+
+
+def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do():
+    """The archive's oval (virtual object A = 2.5 R behind the vertex, focus 1.8 R).
+
+    At R = 30 the archive's general and axisymmetric codes differ by 0.2424 %;
+    vecdiff's lattice and meridian legs by 0.2499 %. (At 300 the archive gives
+    0.115 % on a 6778² lattice, beyond a leg that holds the whole lattice; there
+    vecdiff's meridian equals the archive's axisymmetric code to 0.0038 %.)
+    """
+    radius, umax = 30.0, 0.4
+    beam = manuscript_beam(radius, "aplanatic", "hard")
+    ovoid = o.surfaces.CartesianOvoid.from_conjugates(
+        1.0, 2.5 * radius, 1.5, 1.8 * radius, frame=o.geometry.Frame([0, 0, -radius])
+    )
+    system = (o.system.DielectricInterface(ovoid, AIR, GLASS),)
+    # The archive's radial taper for the axisymmetric code: from the 72 to the
+    # 80 degree ray, or its 3 R scan limit.
+    table = np.linspace(0, 3 * radius, 30001)
+    cosine = host(
+        o.propagation.InterfaceMap(ovoid, beam.carrier, 1.0, 1.5)
+        .forward(np.c_[table, 0 * table])
+        .cos_incident
+    )
+    incidence = np.degrees(np.arccos(np.clip(cosine, -1, 1)))
+    start = table[np.nanargmax(np.where(incidence <= 72, table, np.nan))]
+    end = table[np.nanargmax(np.where(incidence <= 80, table, np.nan))]
+    radial = radial_fan(start, end)
+    xs = np.linspace(-3.5, 3.5, 140)
+    x, y = np.meshgrid(xs, xs, indexing="ij")
+    disk = np.hypot(x, y) <= 3.5
+    points = o.sampling.PointGrid(
+        np.c_[x[disk], y[disk], np.full(disk.sum(), 0.8 * radius)]
+    )
+    meridian = o.propagation.PropagationPipeline(
+        system, transport="eikonal", reference_fans=(radial,)
+    ).solve(beam)
+    reference = host(meridian.evaluate(points).electric.values)
+    lattice = o.propagation.PropagationPipeline(
+        system, transport="eikonal", reference_fans=(archive_fan(umax, 1.45, 1.6),)
+    ).solve(archive_lattice(beam, radius, 678), carrier=beam.carrier)
+    field = host(lattice.evaluate(points).electric.values)
+    difference = 100 * np.linalg.norm(field - reference) / np.linalg.norm(reference)
+    assert abs(difference - 0.2499) < 5e-3 * 0.2499

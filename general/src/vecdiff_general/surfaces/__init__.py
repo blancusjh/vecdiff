@@ -6,7 +6,12 @@ from vecdiff_general.surfaces.axisymmetric import (
     Sphere,
     SphericalCap,
 )
-from vecdiff_general.surfaces.cartesian_oval import CartesianOval, gots_parameters
+from vecdiff_general.surfaces.cartesian_oval import (
+    CartesianOval,
+    CartesianOvoid,
+    gots_parameters,
+)
+from vecdiff_general.surfaces.cylinder import Cylinder, CylindricalCap
 from vecdiff_general.surfaces.surface import (
     FreeformSurface,
     GraphSurface,
@@ -22,7 +27,10 @@ __all__ = [
     "SphericalCap",
     "Sphere",
     "ImplicitSurface",
+    "CylindricalCap",
+    "Cylinder",
     "EvenAsphere",
     "CartesianOval",
+    "CartesianOvoid",
     "gots_parameters",
 ]

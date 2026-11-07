@@ -38,6 +38,8 @@ from vecdiff_general.sampling import PointGrid, PolarGrid
 # where the map compresses, the carried phase can outrun the medium's
 # wavenumber (the meniscus's rim planes need it in air).
 _PLANE_PANEL, _PLANE_NODES = 15.0, 71
+# More plane nodes than this means an edge ray almost parallel to the plane.
+_MAX_PLANE_NODES = 50_000_000
 # Spectral panels: 64 nodes integrate exp(i w s) on [-1, 1] to 1e-13 for w <= 85.
 _SPECTRAL_NODES, _SPECTRAL_PHASE = 64, 80.0
 # A sampled incident field is read on rings of this many azimuths. Its weakest
@@ -263,6 +265,12 @@ class AxialTransport:
         self.edge = self._fan(reach, scale)
         self.image = float(to_numpy(self._meridian(np.array([self.edge])).output)[0, 0])
         panel = _PLANE_PANEL * wavelength0 / max(interface.plus.material.n, 1.5)
+        if self.image / panel * _PLANE_NODES > _MAX_PLANE_NODES:
+            raise ValueError(
+                f"the carried fan's image reaches {self.image / wavelength0:.3g} "
+                "wavelengths: its edge rays leave nearly parallel to the plane; "
+                "bound the fan with a window"
+            )
         self.radius, self.weights = composite_legendre(
             0.0, self.image, panel, _PLANE_NODES
         )

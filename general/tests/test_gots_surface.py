@@ -74,7 +74,9 @@ def test_invalid_parameters_are_rejected(rho):
         surface.z(rho)
 
 
-@pytest.mark.parametrize("design", [(1, -10, 1, 6), (0, -10, 1.5, 6), (1, 10, 1.5, 6)])
+@pytest.mark.parametrize(
+    "design", [(1, -10, 1, 6), (0, -10, 1.5, 6), (1, 0, 1.5, 6), (1, 6, 1.5, 6)]
+)
 def test_invalid_design_fails_at_construction(design):
     with pytest.raises(ValueError):
         CartesianOval.from_conjugates(*design)

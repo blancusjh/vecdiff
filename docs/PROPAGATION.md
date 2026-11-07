@@ -320,6 +320,30 @@ does, on the lattice, on the meridian and in sequences. Rays that miss or
 graze are unsupported, as before; where the cap suffices both map the same.
 The archive's fans reach 80 degrees of incidence: `reference_fans=((72, 80),)`.
 
+### Cylinders, ovals and ovoids
+
+- `surfaces.CylindricalCap(radius, frame)` is the front half of a circular
+  cylinder along the frame's v, a graph for |x| < |R|; `surfaces.Cylinder` closes
+  it, as `Sphere` closes `SphericalCap`. The cylinder is translation-invariant,
+  but a beam focused to a point is not, and neither is its carrier: the map
+  couples both plane axes, so the cylinder takes the lattice leg (no symmetry
+  shortcut applies without changing the carrier).
+- `surfaces.CartesianOval` takes virtual conjugates: an object behind the
+  vertex (object_z > 0), toward which the incident rays converge, or an image
+  in front (image_z < 0); the surface keeps sigma_o n_o |P - O| + sigma_i n_i
+  |P - I| constant, sigma = -1 for a virtual point. Real-conjugate designs
+  keep their code and results; their GOTS form stays theirs alone.
+  `surfaces.CartesianOvoid` closes the oval into its ovoid of revolution for
+  rays, an implicit surface traced by Newton steps from the vertex's
+  osculating sphere.
+- The lattice leg re-expands the carried field within sin < 0.995 of the
+  transmitted medium, as the manuscript does. Nearer the light circle
+  E_z = -kappa . E / k_z amplifies what the lattice leaves there (the edge of
+  the carried support, for a hard pupil): it took a cylinder's E_z to ten
+  times its error. The meridian samples the polar angle and needs no band.
+- A carried fan whose edge rays leave almost parallel to the plane is refused
+  with a request for a window, before its image fills memory.
+
 ### Rotationally symmetric systems
 
 A beam from `fields` is also an incident field of eikonal transport:

@@ -22,17 +22,20 @@ exact for a plane wave on a plane interface and the identity for index-matched
 media, not a solution of the curved-boundary Maxwell problem.
 """
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 
 import numpy as np
 
 from vecdiff_general._backend import bd, divide, to_numpy
 from vecdiff_general.fields import TransverseElectricField
 from vecdiff_general.fields.angular_spectrum import angular_spectrum
+from vecdiff_general.fields.spectrum import PlaneSpectrum
 from vecdiff_general.sampling import CartesianGrid, PointGrid
 from vecdiff_general.surfaces.surface import ImplicitSurface
 
 _EPS = np.finfo(float).eps
+# Transverse band of the lattice leg's re-expansion, in units of n k0.
+_SPECTRAL_CUTOFF = 0.995
 
 
 def _masked(function, xy):
@@ -617,9 +620,12 @@ class EikonalTransport:
         axes = (plane.u, plane.v) if family is None else family.axes
         incoming = self.map.forward(labels)
         self.support = incoming.valid
-        self.output_plane = self._cover(
-            plane, incoming.output[self.support], max_growth
-        )
+        # Rays the window zeroes carry nothing and do not widen the lattice.
+        carried = bd.flatnonzero(self.support)
+        if self.window is not None and len(carried):
+            weight = ray_weights(self.window, incoming.subset(self.support))
+            carried = carried[weight > 0]
+        self.output_plane = self._cover(plane, incoming.output[carried], max_growth)
         out = self.output_plane
         slack = 1e-6 * float(min(plane.u[1] - plane.u[0], plane.v[1] - plane.v[0]))
         imaged = (
@@ -762,8 +768,24 @@ class EikonalTransport:
         return ray_weights(self.window, rays)
 
     def transmit(self, spectrum, *, method="auto", **kwargs):
-        """(PlaneSpectrum in the transmitted medium on the plane, EikonalReport)."""
+        """(PlaneSpectrum in the transmitted medium on the plane, EikonalReport).
+
+        The carried components are re-expanded within the transverse band
+        sin < _SPECTRAL_CUTOFF of the transmitted medium, as the manuscript
+        does: nearer the light circle E_z = -kappa . E / k_z amplifies what the
+        lattice leaves there (the edge of the carried support, for a hard
+        pupil) a hundredfold and more.
+        """
         field, report = self.carry(spectrum, method=method, **kwargs)
         outgoing = angular_spectrum(field, self.interface.plus, evanescent="discard")
+        k = 2 * bd.pi * self.interface.plus.material.n / self.wavelength0
+        transverse = (
+            outgoing.expansion.wavevectors.real @ outgoing.grid.frame.basis[:, :2]
+        )
+        inside = bd.linalg.norm(transverse, axis=-1) <= _SPECTRAL_CUTOFF * k
+        amplitudes = bd.where(inside[:, None], outgoing.expansion.amplitudes, 0)
+        outgoing = PlaneSpectrum(
+            outgoing.grid, replace(outgoing.expansion, amplitudes=amplitudes)
+        )
 
         return outgoing, report

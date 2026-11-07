@@ -1,5 +1,7 @@
 """Eikonal transport: surface Hessians, the plane-surface-plane map and its leg."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import vecdiff_general as o
@@ -220,7 +222,20 @@ def test_index_matched_leg_is_the_identity_on_a_curved_surface():
         1.0,
     )
     outgoing, report = leg.transmit(incident, method="direct")
-    before = host(incident.propagate(0.0).electric.values)
+    # The leg re-expands within sin < 0.995; this periodized Gaussian holds
+    # 1e-8 of its amplitude beyond that band.
+    kt = host(incident.expansion.wavevectors.real)[:, :2]
+    band = np.linalg.norm(kt, axis=-1) <= 0.995 * 2 * np.pi
+    within = F.PlaneSpectrum(
+        incident.grid,
+        replace(
+            incident.expansion,
+            amplitudes=bd.where(
+                bd.asarray(band)[:, None], incident.expansion.amplitudes, 0
+            ),
+        ),
+    )
+    before = host(within.propagate(0.0).electric.values)
     after = host(outgoing.propagate(0.0).electric.values)
     assert_allclose(after, before, atol=1e-13 * abs(before).max())
     assert report.unsupported_relative_amplitude == 0 and report.dark_samples == 0
