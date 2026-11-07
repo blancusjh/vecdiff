@@ -7,6 +7,8 @@ from numpy.polynomial.legendre import leggauss
 from numpy.testing import assert_allclose
 from vecdiff_general import fourier
 
+bd, host = optics.backend.bd, optics.backend.to_numpy
+
 
 def gauss_axis(limit, count):
     nodes, weights = leggauss(count)
@@ -34,7 +36,9 @@ def test_grid_types_fix_array_order_and_physical_coordinates():
     assert polar.coordinate_system == "polar"
     assert_allclose(polar.points[1, 1], frame.origin + 1e-6 * frame.v)
     assert_allclose(polar.weights.sum(), np.pi * (2e-6) ** 2)
-    assert_allclose(polar.translated([0, 0, 5e-6]).points, polar.points + [0, 0, 5e-6])
+    assert_allclose(
+        polar.translated([0, 0, 5e-6]).points, host(polar.points) + [0, 0, 5e-6]
+    )
 
     values = np.zeros(polar.shape + (2,), dtype=complex)
     transverse = optics.fields.TransverseElectricField(polar, 532e-9, values)
@@ -207,7 +211,7 @@ def test_centered_asm_matches_direct_synthesis_on_placed_plane(shape):
         assert_allclose(propagated.electric.values, direct.electric.values, atol=2e-14)
         assert_allclose(propagated.magnetic, direct.magnetic, atol=2e-16)
 
-    restored = spectrum.propagate(0).electric.values @ basis
+    restored = host(spectrum.propagate(0).electric.values) @ basis
 
     assert_allclose(restored[..., :2], values, atol=2e-14)
 
@@ -249,7 +253,7 @@ def test_polar_integral_agrees_with_direct_nonuniform_quadrature():
         coordinates=coordinates,
         frequencies=frequencies,
         weights=area.ravel(),
-        backend="direct",
+        method="direct",
     )
 
     assert_allclose(G, direct, atol=2e-13)
