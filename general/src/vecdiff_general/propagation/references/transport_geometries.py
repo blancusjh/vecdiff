@@ -18,6 +18,7 @@ import numpy as np
 import scipy
 from numpy.polynomial.legendre import leggauss
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.comparisons.surface_radiation import SurfaceRadiation
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.media import Dielectric, HomogeneousRegion
@@ -33,6 +34,7 @@ SHAPES = ("ellipsoid", "box", "cylinder", "rippled")
 AIR = HomogeneousRegion("air", Dielectric(1))
 
 
+@on_cpu
 def boundary(shape, order):
     """Outward surface quadrature; lengths in vacuum wavelengths (lambda0=1)."""
     u, w = leggauss(order)
@@ -87,6 +89,7 @@ def boundary(shape, order):
     return SurfaceGrid(points, area_vector / jacobian[..., None], measure * jacobian)
 
 
+@on_cpu
 def exact_field(grid):
     """Coherent fields of two displaced, differently polarized Hertz dipoles."""
     electric = np.zeros_like(grid.points, complex)
@@ -117,6 +120,7 @@ def exact_field(grid):
     return ElectromagneticField(ElectricField(grid, 1, electric), magnetic)
 
 
+@on_cpu
 def receiver(count=9):
     """An asymmetric curved destination entirely above every source surface."""
     x, y = np.meshgrid(
@@ -125,6 +129,7 @@ def receiver(count=9):
     return PointGrid(np.stack((x, y, 1.2 + 0.2 * x * x - 0.12 * x * y + 0.1 * y), -1))
 
 
+@on_cpu
 def timed(function, repeats):
     """Wall seconds: one untimed warmup, then independent repetitions."""
     function()
@@ -141,6 +146,7 @@ def timed(function, repeats):
     }
 
 
+@on_cpu
 def add_fields(first, second):
     return ElectromagneticField(
         ElectricField(first.grid, 1, first.electric.values + second.electric.values),
@@ -148,6 +154,7 @@ def add_fields(first, second):
     )
 
 
+@on_cpu
 def case(
     shape,
     *,
@@ -222,6 +229,7 @@ def case(
     }
 
 
+@on_cpu
 def bem_case(repeats=3):
     """Transfer a non-spherical BEM solution; no second scattering solve in transport."""
     from vecdiff_general.propagation.references.bem import DielectricBEM
@@ -257,6 +265,7 @@ def bem_case(repeats=3):
     return row
 
 
+@on_cpu
 def additional_checks(repeats=3):
     """Vary spectral order separately from surface order; then receiver count."""
     result = {"spectral_convergence": [], "receiver_scaling": []}
@@ -279,6 +288,7 @@ def additional_checks(repeats=3):
     return result
 
 
+@on_cpu
 def plot_results(data, path):
     import matplotlib
 
@@ -330,6 +340,7 @@ def plot_results(data, path):
     plt.close(fig)
 
 
+@on_cpu
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
