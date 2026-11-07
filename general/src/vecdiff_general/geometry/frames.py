@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from vecdiff_general._arrays import frozen_array
+from vecdiff_general._backend import bd
 
 
 @dataclass(frozen=True, eq=False)
@@ -15,8 +16,8 @@ class Frame:
     in the public API are global Cartesian components unless stated otherwise.
     """
 
-    origin: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    basis: np.ndarray = field(default_factory=lambda: np.eye(3))
+    origin: np.ndarray = field(default_factory=lambda: bd.zeros(3))
+    basis: np.ndarray = field(default_factory=lambda: bd.eye(3))
 
     def __post_init__(self):
         origin = frozen_array(self.origin)
@@ -25,10 +26,10 @@ class Frame:
         if origin.shape != (3,) or basis.shape != (3, 3):
             raise ValueError("expected origin (3,) and basis (3, 3)")
 
-        if not np.allclose(basis.T @ basis, np.eye(3), atol=1e-12, rtol=0):
+        if not bd.allclose(basis.T @ basis, bd.eye(3), atol=1e-12, rtol=0):
             raise ValueError("frame basis must be orthonormal")
 
-        if np.linalg.det(basis) < 0:
+        if bd.linalg.det(basis) < 0:
             raise ValueError("frame basis must be right-handed")
 
         object.__setattr__(self, "origin", origin)

@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from vecdiff_general._backend import on_cpu
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
 from vecdiff_general.geometry import Frame
 from vecdiff_general.media import Dielectric, HomogeneousRegion
@@ -10,6 +11,7 @@ from vecdiff_general.system import DielectricInterface, OpticalSystem
 from vecdiff_general.volumes import VolumeBetweenSurfaces
 
 
+@on_cpu
 def illumination(wavelength0=532e-9, index=1.5):
     exterior = HomogeneousRegion("exterior", Dielectric(1.0))
     interior = HomogeneousRegion("interior", Dielectric(index))
@@ -19,6 +21,7 @@ def illumination(wavelength0=532e-9, index=1.5):
     return source, interior
 
 
+@on_cpu
 def lens_case(
     diameter_wavelengths,
     *,

@@ -5,9 +5,11 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import ConvexHull
 
+from vecdiff_general._backend import cpu_reference, on_cpu
 from vecdiff_general.sampling import SurfaceGrid
 
 
+@on_cpu
 def gauss_rule(order):
     if not isinstance(order, (int, np.integer)) or order < 2:
         raise ValueError("quadrature order must be an integer >= 2")
@@ -15,6 +17,7 @@ def gauss_rule(order):
     return (q + 1) / 2, w / 2
 
 
+@on_cpu
 def triangle_quadrature(corners, order=4):
     """Collapsed Gauss product rule on triangles (T, 3, 3): points and weights.
 
@@ -29,6 +32,7 @@ def triangle_quadrature(corners, order=4):
     return points, np.linalg.norm(cross, axis=1)[:, None] * weights
 
 
+@cpu_reference
 @dataclass(frozen=True)
 class DualBasis:
     """Buffa–Christiansen functions on the barycentric refinement of a SurfaceMesh.
@@ -86,6 +90,7 @@ class DualBasis:
         return gram
 
 
+@on_cpu
 def buffa_christiansen(mesh):
     """Dual (BC) basis of a closed manifold SurfaceMesh, one function per edge.
 
@@ -173,6 +178,7 @@ def buffa_christiansen(mesh):
     )
 
 
+@cpu_reference
 @dataclass
 class SurfaceMesh:
     """Closed, consistently outward oriented triangular dielectric boundary.

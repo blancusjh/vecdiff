@@ -20,6 +20,8 @@ from vecdiff_general.propagation.references.diagnostics import (
     maxwell_residuals,
 )
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 
 def problem(index=1.5, scale=1.0):
     air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
@@ -49,10 +51,8 @@ def test_bem_mesh_convergence_both_fields_and_boundary_traces():
         actual = sol.evaluate(probes())
         errors.append(
             [
-                np.linalg.norm(actual.electric.values - exact.electric.values)
-                / np.linalg.norm(exact.electric.values),
-                np.linalg.norm(actual.magnetic - exact.magnetic)
-                / np.linalg.norm(exact.magnetic),
+                _relative(actual.electric.values, exact.electric.values),
+                _relative(actual.magnetic, exact.magnetic),
             ]
         )
         jumps.append(max(boundary_residuals(sol, mesh.boundary_grid()).values()))
@@ -91,16 +91,8 @@ def test_bem_equal_index_and_si_scaling():
         sol = DielectricBEM(s, SurfaceMesh.sphere(v, 1), g)
         result = sol.evaluate(probes(scale))
         expected = s.evaluate(probes(scale))
-        assert (
-            np.linalg.norm(result.electric.values - expected.electric.values)
-            / np.linalg.norm(expected.electric.values)
-            < 0.025
-        )
-        assert (
-            np.linalg.norm(result.magnetic - expected.magnetic)
-            / np.linalg.norm(expected.magnetic)
-            < 0.025
-        )
+        assert _relative(result.electric.values, expected.electric.values) < 0.025
+        assert _relative(result.magnetic, expected.magnetic) < 0.025
         results.append(result.electric.values)
     assert_allclose(*results, atol=1e-12)
 
@@ -137,10 +129,8 @@ def test_fem_vector_solution_converges_to_mie():
         field = sol.evaluate(probes())
         errors.append(
             [
-                np.linalg.norm(field.electric.values - exact.electric.values)
-                / np.linalg.norm(exact.electric.values),
-                np.linalg.norm(field.magnetic - exact.magnetic)
-                / np.linalg.norm(exact.magnetic),
+                _relative(field.electric.values, exact.electric.values),
+                _relative(field.magnetic, exact.magnetic),
             ]
         )
         assert sol.algebraic_residual < 1e-10
@@ -194,7 +184,7 @@ def test_bem_oblique_coherent_illumination_in_nonunit_background():
     )
     sphere = o.volumes.SphereVolume([0.05, -0.03, 0.1], 0.25)
     grid = o.sampling.PointGrid(
-        sphere.center
+        host(sphere.center)
         + np.array([[0, 0, 0], [0.02, 0.04, 0.06], [0.2, -0.1, 0.5], [0.4, 0.3, -0.2]])
     )
     exact = []
@@ -206,11 +196,7 @@ def test_bem_oblique_coherent_illumination_in_nonunit_background():
     )
     expected_e = sum(f.electric.values for f in exact)
     expected_h = sum(f.magnetic for f in exact)
-    assert (
-        np.linalg.norm(numerical.electric.values - expected_e)
-        / np.linalg.norm(expected_e)
-        < 0.035
-    )
+    assert _relative(numerical.electric.values, expected_e) < 0.035
     assert (
         np.linalg.norm(numerical.magnetic - expected_h) / np.linalg.norm(expected_h)
         < 0.04
@@ -236,6 +222,7 @@ def test_bem_cache_reloads_identical_currents(tmp_path):
 
 
 def _relative(actual, expected):
+    actual, expected = host(actual), host(expected)
     return np.linalg.norm(actual - expected) / np.linalg.norm(expected)
 
 
@@ -256,14 +243,15 @@ def test_buffa_christiansen_dual_basis_is_div_conforming_and_stably_paired():
             # (normal continuity) and sum to zero (a source cell and a sink cell).
             net = defaultdict(float)
             total = np.zeros(len(mesh.edges))
-            for s, corners in enumerate(np.round(dual.corners, 12)):
-                for j, m in enumerate(dual.rows[s]):
+            rows, flux = host(dual.rows), host(dual.flux)
+            for s, corners in enumerate(np.round(host(dual.corners), 12)):
+                for j, m in enumerate(rows[s]):
                     if m < 0:
                         continue
-                    total[m] += dual.flux[s, j].sum()
+                    total[m] += flux[s, j].sum()
                     for k in range(3):
                         side = sorted(map(tuple, corners[[(k + 1) % 3, (k + 2) % 3]]))
-                        net[m, tuple(side)] += dual.flux[s, j, k]
+                        net[m, tuple(side)] += flux[s, j, k]
             assert max(map(abs, net.values())) < 1e-14
             assert abs(total).max() < 1e-14
         conditions.append(np.linalg.cond(dual.gram(mesh)))

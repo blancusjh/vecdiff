@@ -46,7 +46,7 @@ def run(count=280):
     ):
         started = perf_counter()
         field = solution.evaluate(
-            o.sampling.PointGrid(reference["plane"]), backend="nufft", tolerance=1e-12
+            o.sampling.PointGrid(reference["plane"]), method="nufft", tolerance=1e-12
         )
         evaluation_seconds = perf_counter() - started
 
