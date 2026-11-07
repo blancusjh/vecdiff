@@ -34,6 +34,7 @@ from scipy.special import (
 
 from vecdiff_general._backend import on_cpu
 from vecdiff_general.media.medium import Z0
+from vecdiff_general.propagation.references import _bessel
 
 
 def _outgoing(interior):
@@ -352,33 +353,74 @@ def sphere_debye_coefficients(size, n_sphere, n_exterior, orders):
     Inside: outgoing h1 plus R11 h2 equals T12 h1 outside. The regular interior
     field of Debye term p is T21 R11^(p-1) j and its exterior field is
     T21 R11^(p-1) T12 h1 / 2; Lorenz-Mie is their sum (Hovenac and Lock 1992).
+    "zero" is (R22 - 1) / 2, the exterior term 0, and "mie" the Lorenz-Mie
+    interior coefficient T21 / (1 - R11).
+
+    Every coefficient keeps its relative accuracy beyond n = size, where a
+    direct solve in the Hankel basis does not (T21 was off by 1e4 at size 126):
+    they come from the logarithmic derivatives D of xi = x h1 and its
+    log-scaled modulus (_bessel), with Im D = 1/|xi|² from the Wronskian,
+
+        Delta = D_a - nu conj(D_b),       nu = m (TE), 1/m (TM), m = n_sphere / n_exterior,
+        R22 = (nu conj(D_b) - conj(D_a)) / Delta * zeta_a / xi_a,
+        T21 = 2i / (mu |xi_a|² Delta) * zeta_a / zeta_b,      mu = 1/m (TE), 1 (TM),
+        R11 = (nu D_b - D_a) / Delta * xi_b / zeta_b,
+        T12 = 2i mu nu / (|xi_b|² Delta) * xi_b / xi_a,
+        (R22 - 1) / 2 = (nu conj(D_b) psi_a - psi_a') / (Delta xi_a),
+
+    and the Lorenz-Mie coefficient from the regular interior Cauchy data.
     """
-    x, mx = size, size * n_sphere / n_exterior
-    ne, ni = n_exterior, n_sphere
-    out = {kind: _riccati(kind, orders, x) for kind in ("h1", "h2")}
-    ins = {kind: _riccati(kind, orders, mx) for kind in ("h1", "h2")}
+    orders = np.asarray(orders)
+    pair = np.array([size, size * n_sphere / n_exterior])
+    count = int(orders.max())
+    value, derivative, scale = (t[orders] for t in _bessel.regular(count, pair))
+    log, dlog = (t[orders] for t in _bessel.outgoing(count, pair))
+    va, dva, sa, la, Da = (
+        value[:, 0],
+        derivative[:, 0],
+        scale[:, 0],
+        log[:, 0],
+        dlog[:, 0],
+    )
+    vb, dvb, sb, lb, Db = (
+        value[:, 1],
+        derivative[:, 1],
+        scale[:, 1],
+        log[:, 1],
+        dlog[:, 1],
+    )
+    m = n_sphere / n_exterior
     result = {}
     for polarization in ("TE", "TM"):
-        # (E function, H function) of a radial pair (z, D).
-        e, h = (0, 1) if polarization == "TE" else (1, 0)
-
-        def solve(source, source_n, back, back_n, through, through_n):
-            # source + r back = t through, for tangential E and H.
-            matrix = np.array(
-                [
-                    [back[e], -through[e]],
-                    [back_n * back[h], -through_n * through[h]],
-                ]
-            ).transpose(2, 0, 1)
-            rhs = -np.stack([source[e], source_n * source[h]], -1)[..., None]
-            r, t = np.linalg.solve(matrix, rhs)[..., 0].T
-            return r, t
-
-        R22, T21 = solve(out["h2"], ne, out["h1"], ne, ins["h2"], ni)
-        R11, T12 = solve(ins["h1"], ni, ins["h2"], ni, out["h1"], ne)
-        # Lorenz-Mie interior coefficient T21 / (1 - R11), solved directly:
-        # between kR and n kR both factors are tiny (tunnelling multipoles).
-        regular = _riccati("j", orders, x)
-        _, mie = solve(regular, ne, out["h1"], ne, _riccati("j", orders, mx), ni)
-        result[polarization] = dict(R22=R22, T21=T21, R11=R11, T12=T12, mie=mie)
+        if m == 1:
+            zero, one = np.zeros(len(orders), complex), np.ones(len(orders), complex)
+            result[polarization] = dict(
+                R22=zero,
+                T21=one,
+                R11=zero.copy(),
+                T12=one.copy(),
+                zero=zero - 0.5,
+                mie=one.copy(),
+            )
+            continue
+        mv, md = (1 / m, 1.0) if polarization == "TE" else (1.0, 1 / m)
+        nu = md / mv
+        delta = Da - nu * np.conj(Db)
+        # Lorenz-Mie: regular inside, psi_a - sigma xi_a outside (stable scales).
+        u, du = mv * vb, md * dvb
+        ratio = (va * du - dva * u) / (du - Da * u)  # sigma xi_a / e^{s_a}
+        Fa, dFa = va - ratio, dva - ratio * Da
+        mie = (
+            np.exp(sa - sb)
+            * (mv * vb * Fa + md * dvb * dFa)
+            / (mv**2 * vb**2 + md**2 * dvb**2)
+        )
+        result[polarization] = dict(
+            R22=(nu * np.conj(Db) - np.conj(Da)) / delta * np.exp(-2j * la.imag),
+            T21=np.exp(np.log(2j / (mv * delta)) - 2 * la.real + np.conj(la - lb)),
+            R11=(nu * Db - Da) / delta * np.exp(2j * lb.imag),
+            T12=np.exp(np.log(2j * md / delta) - 2 * lb.real + lb - la),
+            zero=np.exp(sa - la + np.log((nu * np.conj(Db) * va - dva) / delta)),
+            mie=mie,
+        )
     return result
