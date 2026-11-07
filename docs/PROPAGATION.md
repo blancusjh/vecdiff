@@ -260,7 +260,8 @@ Options and reports:
 - `EikonalTransport(..., window=...)` rolls the carried field off. It takes
   either `(start, end)` incidence angles in degrees or a callable of the
   `RayMap`, such as a reference fan. Hard-edged inputs depend on this choice;
-  report it with results.
+  report it with results. The pipeline passes `reference_fans=(fan, ...)`,
+  one per surface, to its legs.
 - `EikonalReport` gives the incident amplitude on rays the chart does not
   support (misses, rear or grazing incidence, total reflection, folds), the
   dark output samples, and the inverse-map residual.
@@ -270,3 +271,48 @@ plane wave on a plane interface and the identity for index-matched media; it
 does not solve the curved-boundary Maxwell problem. For now, carrier
 transmission and eikonal transport cross one refracting surface. Continuing
 the carrier through refraction for sequences is the next step.
+
+### Rotationally symmetric systems
+
+A beam from `fields` is also an incident field of eikonal transport:
+
+    pipeline = PropagationPipeline(system, transport="eikonal")
+    field = pipeline(beam, points)          # carrier: beam.carrier by default
+
+When every refracting surface is a surface of revolution about the beam's
+axis (`Plane`, `SphericalCap`, `EvenAsphere`, `AxisymmetricSurface`,
+`CartesianOval`, coaxial) and the carrier is symmetric about it, the map is
+radial and the dyadic acts on (E_rho, E_phi, E_z) by a matrix of the radius
+alone. Each azimuthal order m of the beam is then carried along one meridian,
+by the same `InterfaceMap` and dyadic as the lattice leg, and E_x ± i E_y of
+order m leave as Hankel spectra of orders m ± 1; E_z follows from
+transversality. Circular, linear, radial and azimuthal states are one or two
+orders. The cost grows linearly with the aperture: the aplanatic sphere of the
+manuscript at R = 1000 λ0 takes seconds, where its lattice would not fit in
+memory.
+
+- The input plane is sampled by Gauss-Legendre panels (71 nodes per 15
+  transmitted wavelengths), each node's preimage found by Newton steps with
+  the analytic DΦ; the beam is evaluated exactly there from its direction
+  density, one Hankel sum per order.
+- The transmitted spectrum is sampled in the polar angle of its plane waves,
+  up to grazing: E_z's obliquity and the phase k_z z stay smooth there, so no
+  spectral cutoff is imposed. Its panels resolve every phase the carried
+  extent and the evaluated region can produce, and are formed on first
+  evaluation. The Hankel sums use the fast transform of `fourier.polar`.
+- The fan ends where the surface stops supporting the carrier or the window
+  closes. A `SphericalCap` is a graph and ends at its equator; rays that would
+  enter a full ball beyond it are not carried. A hard pupil's tails reach
+  there, and a hard cut at the fan's edge diffracts: a window that closes
+  before the equator, such as `reference_fans=((50, 56),)` for the
+  manuscript's aplanatic sphere, removes that edge.
+- `EikonalReport.azimuthal_orders` lists the carried orders (empty for the
+  lattice leg); its unsupported amplitude is the incident field outside the
+  carried fan.
+- `axisymmetric=None` (default) takes the meridian for beams and the lattice
+  for sampled fields. `True` takes the meridian for either: a sampled field
+  is read on rings about its grid's centre, its weakest orders are dropped
+  while together they hold below 1e-5 of it (counted as unsupported), and a
+  field beyond 1e-2 of non-axisymmetric content is refused. `False` takes the
+  lattice; a beam must then be sampled on a `CartesianGrid` first. A beam in a
+  system without the symmetry is refused with the reason.

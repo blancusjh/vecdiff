@@ -4,8 +4,9 @@ Two realizations of the surface legs. transport="wave" carries the field to
 each surface exactly (SurfaceTransport) and back to a plane spectrum after a
 spectral, local or carrier-directed Fresnel transmission. transport="eikonal"
 replaces those legs by the plane-surface-plane map along a declared carrier
-(EikonalTransport). Returning branches and finite material edges require a
-separate model.
+(EikonalTransport), on a lattice or, for a rotationally symmetric system, on
+one meridian with Hankel spectra per azimuthal order. Returning branches and
+finite material edges require a separate model.
 """
 
 import importlib.util
@@ -17,10 +18,16 @@ from vecdiff_general.fields import (
     TransverseElectricField,
 )
 from vecdiff_general.fields.angular_spectrum import angular_spectrum
+from vecdiff_general.fields.beams import _Beam
 from vecdiff_general.fields.spectrum import PlaneSpectrum
 from vecdiff_general.geometry.frames import Frame
+from vecdiff_general.propagation._axisymmetric import (
+    AxialTransport,
+    BeamField,
+    footprint,
+)
 from vecdiff_general.propagation.coverage import CoverageEvaluator, validate_coverage
-from vecdiff_general.propagation.eikonal import EikonalTransport
+from vecdiff_general.propagation.eikonal import EikonalTransport, check_window
 from vecdiff_general.propagation.homogeneous import PlaneTransport
 from vecdiff_general.propagation.surface_interaction import (
     CarrierFresnel,
@@ -29,7 +36,7 @@ from vecdiff_general.propagation.surface_interaction import (
 )
 from vecdiff_general.propagation.surface_transfer import SurfaceTransport
 from vecdiff_general.propagation.targets import target_grid
-from vecdiff_general.sampling import CartesianGrid
+from vecdiff_general.sampling import CartesianGrid, PolarGrid
 from vecdiff_general.system import DielectricInterface, OpticalSystem
 
 
@@ -96,7 +103,8 @@ class PropagationSolution:
         ):
             raise ValueError("observation must be beyond the final surface envelope")
         if (
-            isinstance(grid, CartesianGrid)
+            isinstance(self.spectrum, PlaneSpectrum)
+            and isinstance(grid, CartesianGrid)
             and grid.shape == plane.shape
             and bd.array_equal(grid.u, plane.u)
             and bd.array_equal(grid.v, plane.v)
@@ -128,9 +136,23 @@ class PropagationPipeline:
     "carrier" or a Fresnel treatment. transport="eikonal" carries the field
     with the carrier dyadic along each surface's plane-surface-plane map; its
     reference planes sit at ``reference_planes`` offsets from each surface
-    vertex along the axis (None: the vertex planes). "carrier" transmission
-    and eikonal transport need the incident field's carrier, passed as
+    vertex along the axis (None: the vertex planes), and ``reference_fans``
+    weight the carried rays at each surface: None carries every supported
+    ray, (start, end) rolls them off between those incidence angles in
+    degrees, a callable receives the RayMap. "carrier" transmission and
+    eikonal transport need the incident field's carrier, passed as
     ``carrier=`` with the field; for now they cross one refracting surface.
+
+    Eikonal transport also takes a beam from fields as the incident field
+    (its own carrier unless carrier= is given). Surfaces of revolution about
+    the beam's axis, with a carrier symmetric about it, are then carried on
+    one meridian with Hankel spectra per azimuthal order, at a cost linear in
+    the aperture instead of quadratic; a system without that symmetry needs
+    the beam sampled on a CartesianGrid. ``axisymmetric`` makes the choice
+    explicit: None (default) takes the meridian for beams and the lattice
+    for sampled fields, True takes the meridian for either (a sampled field
+    is read on rings and must be a few azimuthal orders about its grid's
+    centre), False the lattice.
     """
 
     def __init__(
@@ -144,6 +166,8 @@ class PropagationPipeline:
         transport_tolerance=1e-10,
         transport="wave",
         reference_planes=None,
+        reference_fans=None,
+        axisymmetric=None,
     ):
         self.system = (
             system
@@ -190,10 +214,25 @@ class PropagationPipeline:
             if len(offsets) != len(self.interfaces):
                 raise ValueError("give one reference-plane offset per interface")
             self.reference_planes = offsets
+            fans = (
+                (None,) * len(self.interfaces)
+                if reference_fans is None
+                else tuple(check_window(fan) for fan in reference_fans)
+            )
+            if len(fans) != len(self.interfaces):
+                raise ValueError("give one reference fan per interface")
+            if axisymmetric not in (None, True, False):
+                raise ValueError("axisymmetric must be None, True or False")
+            self.reference_fans, self.axisymmetric = fans, axisymmetric
         elif reference_planes is not None:
             raise ValueError("reference_planes place the planes of eikonal transport")
+        elif reference_fans is not None or axisymmetric is not None:
+            raise ValueError(
+                "reference_fans and axisymmetric choose how eikonal transport is carried"
+            )
         else:
             self.reference_planes = None
+            self.reference_fans, self.axisymmetric = None, None
         if transmission == "carrier":
             pass
         elif transmission is None or (
@@ -245,7 +284,9 @@ class PropagationPipeline:
         if source is self._input or source is self._source:
             return self._source
         original = source
-        if isinstance(source, (ElectricField, TransverseElectricField)):
+        if isinstance(source, _Beam):
+            source = self._beam_source(source)
+        elif isinstance(source, (ElectricField, TransverseElectricField)):
             if self.incident_region is None:
                 raise ValueError(
                     "a sampled incident field requires the system's incident_region"
@@ -253,9 +294,10 @@ class PropagationPipeline:
             source = angular_spectrum(
                 source, self.incident_region, evanescent="discard"
             )
-        if not isinstance(source, PlaneSpectrum):
+        if not isinstance(source, (PlaneSpectrum, BeamField)):
             raise TypeError(
-                "incident field must be an ElectricField, TransverseElectricField, or PlaneSpectrum"
+                "incident field must be an ElectricField, TransverseElectricField, "
+                "PlaneSpectrum, or a beam for eikonal transport"
             )
         if (
             self.incident_region is not None
@@ -264,6 +306,32 @@ class PropagationPipeline:
             raise ValueError("source medium differs from the system's incident medium")
         self._input, self._source = original, source
         return source
+
+    def _beam_source(self, beam):
+        """The beam as a first stage, charted on the first reference plane."""
+        if self.transport != "eikonal":
+            raise TypeError(
+                "a beam is an incident field of transport='eikonal'; "
+                "sample it on a CartesianGrid for wave transport"
+            )
+        if self.axisymmetric is False:
+            raise ValueError(
+                "axisymmetric=False carries a sampled field: evaluate the beam "
+                "on a CartesianGrid and pass that field"
+            )
+        axis = beam.frame
+        origin = axis.origin
+        if self.interfaces:
+            frame = self.interfaces[0].surface.frame
+            first = frame.origin + self.reference_planes[0] * frame.normal
+            origin = origin + float((first - origin) @ axis.normal) * axis.normal
+        plane = Frame(origin, axis.basis)
+        chart = PolarGrid(
+            bd.linspace(0.0, footprint(beam, plane), 9),
+            2 * bd.pi * bd.arange(8) / 8,
+            plane,
+        )
+        return BeamField(beam, chart)
 
     def __call__(
         self,
@@ -318,8 +386,11 @@ class PropagationPipeline:
             solution.stages, grid, coverage, method=method, **kwargs
         )
 
-    def _prepare(self, source, through, carrier):
+    def _prepare(self, source, through, carrier, axial):
         grid, wavelength = source.grid, source.expansion.wavelength0
+        if axial:
+            self._prepare_axial(source, through, carrier)
+            return
         if not isinstance(grid, CartesianGrid):
             raise TypeError("pipeline requires a CartesianGrid PlaneSpectrum")
         key = (
@@ -352,7 +423,13 @@ class PropagationPipeline:
                 origin = frame.origin + self.reference_planes[index] * frame.normal
                 plane = CartesianGrid(grid.u, grid.v, Frame(origin, frame.basis))
                 operators.append(
-                    EikonalTransport(plane, interface, carrier, wavelength)
+                    EikonalTransport(
+                        plane,
+                        interface,
+                        carrier,
+                        wavelength,
+                        window=self.reference_fans[index],
+                    )
                 )
             self._key, self._operators = key, tuple(operators)
             return
@@ -378,6 +455,46 @@ class PropagationPipeline:
                 )
         self._key, self._operators = key, tuple(operators)
 
+    def _prepare_axial(self, source, through, carrier):
+        """Meridian legs about the incident field's axis, one per refracting surface."""
+        wavelength = source.expansion.wavelength0
+        beam = isinstance(source, BeamField)
+        if beam:
+            axis, identity = source.axis, ("beam", id(source.beam))
+        else:
+            grid = source.grid
+            axis, identity = grid.frame, (grid.u.tobytes(), grid.v.tobytes())
+        key = ("axial", wavelength, identity, axis.origin.tobytes(), id(carrier))
+        operators = list(self._operators) if key == self._key else []
+        for index in range(len(operators), through):
+            interface = self.interfaces[index]
+            if interface.minus.material.n == interface.plus.material.n:
+                operators.append(None)
+                continue
+            frame = interface.surface.frame
+            plane = Frame(
+                frame.origin + self.reference_planes[index] * frame.normal, axis.basis
+            )
+            if beam:
+                reach, scale = None, footprint(source.beam, plane)
+            else:
+                grid = source.grid
+                reach = float(min(-grid.u[0], grid.u[-1], -grid.v[0], grid.v[-1]))
+                scale = reach
+            operators.append(
+                AxialTransport(
+                    interface,
+                    carrier,
+                    axis,
+                    wavelength,
+                    offset=self.reference_planes[index],
+                    window=self.reference_fans[index],
+                    reach=reach,
+                    scale=scale,
+                )
+            )
+        self._key, self._operators = key, tuple(operators)
+
     def solve(self, source=None, *, through=None, carrier=None):
         """Prepare reusable forward fields; normal callers can use operator(...)."""
         source = self._source_spectrum(source)
@@ -388,6 +505,11 @@ class PropagationPipeline:
             raise ValueError(
                 "source medium differs from the first interface incident medium"
             )
+        if carrier is None and isinstance(source, BeamField):
+            carrier = source.carrier
+        axial = self.transport == "eikonal" and (
+            isinstance(source, BeamField) or self.axisymmetric is True
+        )
         if self.treatment in ("eikonal", "carrier"):
             if carrier is None:
                 raise ValueError(
@@ -407,7 +529,7 @@ class PropagationPipeline:
         if carrier is not self._carrier:
             self._solved_source = None
             self._carrier = carrier
-        self._prepare(source, through, carrier)
+        self._prepare(source, through, carrier, axial)
         if self._solved_source is not source:
             self._stages, self._responses = [source], []
             self._solved_source = source
@@ -416,6 +538,28 @@ class PropagationPipeline:
         for interface, operator in zip(
             self.interfaces[start:through], self._operators[start:through]
         ):
+            if axial:
+                if operator is None:
+                    current = (
+                        PlaneSpectrum(
+                            current.grid,
+                            replace(current.expansion, region=interface.plus),
+                        )
+                        if isinstance(current, PlaneSpectrum)
+                        else current.relabeled(interface.plus)
+                    )
+                    response = None
+                else:
+                    if isinstance(current, PlaneSpectrum):
+                        distance = float(
+                            (operator.plane.origin - current.grid.frame.origin)
+                            @ current.grid.frame.normal
+                        )
+                        current = PlaneTransport().spectrum(current, distance)
+                    current, response = operator.transmit(current)
+                self._responses.append(response)
+                self._stages.append(current)
+                continue
             qin, qout = (operator, None) if self.transport == "eikonal" else operator
             distance = float(
                 (qin.plane.frame.origin - current.grid.frame.origin)
@@ -445,6 +589,9 @@ class PropagationPipeline:
             self._stages.append(current)
         if through == 0:
             boundary = None
+        elif axial:
+            last = self._operators[through - 1]
+            boundary = None if last is None else last.boundary
         elif self.transport == "eikonal":
             boundary = self._operators[through - 1].boundary
         else:

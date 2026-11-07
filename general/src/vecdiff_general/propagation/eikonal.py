@@ -410,11 +410,64 @@ class InterfaceMap:
 
 @dataclass(frozen=True)
 class EikonalReport:
-    """What the eikonal leg could not carry, and how well its map was inverted."""
+    """What the eikonal leg could not carry, and how well its map was inverted.
+
+    ``azimuthal_orders`` lists the orders the axisymmetric leg carried along
+    its meridian; it is empty for the lattice leg.
+    """
 
     unsupported_relative_amplitude: float
     dark_samples: int
     newton_residual: float
+    azimuthal_orders: tuple = ()
+
+
+def carried(incident, rays, s, n_incident, n_transmitted):
+    """t_s E_s s + t_p E_p p_t + t_p E_par s_t for unit TE axes s, rows of vectors.
+
+    The continued dyadic of Eq. 4.3 without the factor g exp(i k0 Delta S).
+    It does not depend on the sign of s.
+    """
+    p_i, p_t = bd.cross(s, rays.incident), bd.cross(s, rays.transmitted)
+    c_i, c_t = rays.cos_incident, rays.cos_transmitted
+    t_s = 2 * n_incident * c_i / (n_incident * c_i + n_transmitted * c_t)
+    t_p = 2 * n_incident * c_i / (n_transmitted * c_i + n_incident * c_t)
+    e_s = bd.sum(incident * s, axis=-1)
+    e_p = bd.sum(incident * p_i, axis=-1)
+    e_par = bd.sum(incident * rays.incident, axis=-1)
+
+    return (
+        (t_s * e_s)[:, None] * s
+        + (t_p * e_p)[:, None] * p_t
+        + (t_p * e_par)[:, None] * rays.transmitted
+    )
+
+
+def ray_weights(window, rays):
+    """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off."""
+    cosine = rays.cos_incident
+    if window is None:
+        return bd.ones_like(cosine)
+    if callable(window):
+        return bd.asarray(window(rays), dtype=float)
+    start, end = (np.radians(angle) for angle in window)
+    fraction = bd.clip(
+        (bd.arccos(bd.clip(cosine, -1, 1)) - start) / (end - start), 0, 1
+    )
+    return 0.5 * (1 + bd.cos(bd.pi * fraction))
+
+
+def check_window(window):
+    """None, a callable of the RayMap, or (start, end) incidence degrees as floats."""
+    if window is None or callable(window):
+        return window
+    window = tuple(float(angle) for angle in window)
+    if not (len(window) == 2 and 0 <= window[0] < window[1] <= 90):
+        raise ValueError(
+            "window is (start, end) incidence in degrees with "
+            "0 <= start < end <= 90, or a callable of the RayMap"
+        )
+    return window
 
 
 class EikonalTransport:
@@ -461,14 +514,7 @@ class EikonalTransport:
                 "reference plane and surface must share a transverse origin"
             )
 
-        if window is not None and not callable(window):
-            window = tuple(float(angle) for angle in window)
-            if not (len(window) == 2 and 0 <= window[0] < window[1] <= 90):
-                raise ValueError(
-                    "window is (start, end) incidence in degrees with "
-                    "0 <= start < end <= 90, or a callable of the RayMap"
-                )
-        self.window = window
+        self.window = check_window(window)
         self.plane, self.interface, self.carrier = plane, interface, carrier
         self.wavelength0 = float(wavelength0)
         self.map = InterfaceMap(
@@ -577,23 +623,13 @@ class EikonalTransport:
         )
         s = bd.where(size > 1e-12, s, fallback)
         s = s / bd.linalg.norm(s, axis=-1, keepdims=True)
-        p_i, p_t = bd.cross(s, r.incident), bd.cross(s, r.transmitted)
-        n_i, n_t = self.map.n_incident, self.map.n_transmitted
-        c_i, c_t = r.cos_incident, r.cos_transmitted
-        t_s = 2 * n_i * c_i / (n_i * c_i + n_t * c_t)
-        t_p = 2 * n_i * c_i / (n_t * c_i + n_i * c_t)
-        e_s = bd.sum(incident * s, axis=-1)
-        e_p = bd.sum(incident * p_i, axis=-1)
-        e_par = bd.sum(incident * r.incident, axis=-1)
         k0 = 2 * bd.pi / self.wavelength0
         weight = self._window(r)
-        carried = (weight * r.flux * bd.exp(1j * k0 * r.path))[:, None] * (
-            (t_s * e_s)[:, None] * s
-            + (t_p * e_p)[:, None] * p_t
-            + (t_p * e_par)[:, None] * r.transmitted
-        )
+        transfer = carried(incident, r, s, self.map.n_incident, self.map.n_transmitted)
         values = bd.zeros((self.lit.size, 2), complex)
-        values[self.lit] = carried[:, :2]
+        values[self.lit] = (
+            (weight * r.flux * bd.exp(1j * k0 * r.path))[:, None] * transfer
+        )[:, :2]
         field = TransverseElectricField(
             self.output_plane,
             self.wavelength0,
@@ -615,16 +651,7 @@ class EikonalTransport:
 
     def _window(self, rays):
         """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off."""
-        cosine = rays.cos_incident
-        if self.window is None:
-            return bd.ones_like(cosine)
-        if callable(self.window):
-            return bd.asarray(self.window(rays), dtype=float)
-        start, end = (np.radians(angle) for angle in self.window)
-        fraction = bd.clip(
-            (bd.arccos(bd.clip(cosine, -1, 1)) - start) / (end - start), 0, 1
-        )
-        return 0.5 * (1 + bd.cos(bd.pi * fraction))
+        return ray_weights(self.window, rays)
 
     def transmit(self, spectrum, *, method="auto", **kwargs):
         """(PlaneSpectrum in the transmitted medium on the plane, EikonalReport)."""

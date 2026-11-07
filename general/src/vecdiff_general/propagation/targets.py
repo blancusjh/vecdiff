@@ -7,7 +7,7 @@ field band, with a margin; it is not a physical accuracy estimate.
 """
 
 from vecdiff_general._backend import bd
-from vecdiff_general.sampling.grids import Grid
+from vecdiff_general.sampling.grids import Grid, PolarGrid
 from vecdiff_general.surfaces.surface import GraphSurface, Plane
 
 
@@ -41,14 +41,21 @@ def target_grid(
         raise TypeError("target must be a placed surface or a physical grid")
 
     plane = source.grid
-    width = max(len(plane.u) * plane.spacing[0], len(plane.v) * plane.spacing[1])
+    if isinstance(plane, PolarGrid):
+        # A beam's chart: the disk of its footprint on the first reference plane.
+        width = 2 * float(plane.radius[-1])
+        xy = ((plane.points - plane.frame.origin) @ plane.frame.basis)[..., :2]
+    else:
+        width = max(len(plane.u) * plane.spacing[0], len(plane.v) * plane.spacing[1])
+        xy = bd.stack(bd.meshgrid(plane.u, plane.v), axis=-1)
     if window is None:
         # Project a finite source/path box onto the requested chart. Include
         # one input-chart width downstream for longitudinal observation planes.
         positions = [plane.points.reshape(-1, 3)]
         for interface in interfaces:
-            xy = bd.stack(bd.meshgrid(plane.u, plane.v), axis=-1)
-            positions.append(interface.surface.points(xy).reshape(-1, 3))
+            chart = xy.reshape(-1, 2)
+            chart = chart[interface.surface.domain(chart)]
+            positions.append(interface.surface.points(chart).reshape(-1, 3))
         end = interfaces[-1].surface.frame.origin if interfaces else plane.frame.origin
         positions.append(
             (

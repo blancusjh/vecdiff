@@ -13,7 +13,7 @@ the point's azimuth. Quadratures are chosen from the region to be evaluated.
 import numpy as np
 
 from vecdiff_general._arrays import positive
-from vecdiff_general._backend import bd, jv, leggauss
+from vecdiff_general._backend import bd, jv, leggauss, to_numpy
 from vecdiff_general.fields.carrier import Carrier
 from vecdiff_general.fields.polarization import Jones
 from vecdiff_general.fields.spectrum import PlaneWaveExpansion
@@ -82,13 +82,8 @@ class _Beam:
 
             count *= 2
 
-    def quadrature(self, radius):
-        """Direction nodes theta, phi, weights of dOmega and density values F.
-
-        Exact to roundoff for |r - origin| <= radius: the polar rule resolves
-        the phase k s.(r - origin) and the density structure, the periodic
-        azimuthal rule their combined harmonics.
-        """
+    def _polar_rule(self, radius):
+        """Polar nodes and dtheta weights resolving k s.(r - origin) for |r - origin| <= radius."""
         radius = float(radius)
 
         if not bd.isfinite(radius) or radius < 0:
@@ -96,19 +91,77 @@ class _Beam:
 
         extent = self._extent()
         top = self._theta_max()
-        k = self.wavenumber
-        excursion = k * (radius * top + extent * bd.sin(top))
+        excursion = self.wavenumber * (radius * top + extent * bd.sin(top))
         count = int(bd.ceil(excursion / 2 + 8 * excursion ** (1 / 3) + 24))
         t, w = leggauss(count)
-        theta = top / 2 * (t + 1)
+
+        return top / 2 * (t + 1), top / 2 * w, extent, top
+
+    def _harmonics(self, radius):
+        """Polar nodes, sin(theta) dtheta weights and the density's azimuthal harmonics.
+
+        F(theta, phi) = sum_m exp(i m phi) (F_theta[m] theta_hat + F_phi[m] phi_hat)
+        on the frame axes, as {m: (F_theta, F_phi)} for the orders present
+        above roundoff; exact for |r - origin| <= radius like quadrature(radius).
+        The polar rule is composite, 64 nodes per panel with at most 120
+        radians of phase each, so large radii cost no large Gauss rule.
+        theta_hat and phi_hat turn once per revolution, so their orders reach
+        one beyond the Cartesian components' highest order.
+        """
+        radius = float(radius)
+
+        if not bd.isfinite(radius) or radius < 0:
+            raise ValueError("quadrature radius must be finite and nonnegative")
+
+        extent, top = self._extent(), self._theta_max()
+        excursion = self.wavenumber * (radius * top + extent * bd.sin(top))
+        panels = max(1, int(np.ceil(float(excursion) / 120)))
+        t, w = leggauss(64)
+        edges = top * bd.arange(panels + 1) / panels
+        half = (edges[1:] - edges[:-1])[:, None] / 2
+        theta = ((edges[:-1, None] + half) + half * t[None]).ravel()
+        w = (half * w[None]).ravel()
+        order = self._azimuthal_order(theta[:: max(1, len(theta) // 16)], extent) + 1
+        count = 2 * order + 2
+        phi = 2 * bd.pi * bd.arange(count) / count
+        density = self._density(theta, phi, extent)
+        _, theta_hat, phi_hat = self._directions(theta, phi)
+        parts = [
+            bd.fft.fft(bd.sum(density * axis, -1), axis=1) / count
+            for axis in (theta_hat, phi_hat)
+        ]
+        size = to_numpy(
+            bd.maximum(bd.max(bd.abs(parts[0]), 0), bd.max(bd.abs(parts[1]), 0))
+        )
+        m = np.rint(np.fft.fftfreq(count, 1 / count)).astype(int)
+        present = (size > _ROUNDOFF * size.max()) & (abs(m) <= order)
+
+        return (
+            theta,
+            w * bd.sin(theta),
+            {
+                int(m[j]): (parts[0][:, j], parts[1][:, j])
+                for j in np.flatnonzero(present)
+            },
+        )
+
+    def quadrature(self, radius):
+        """Direction nodes theta, phi, weights of dOmega and density values F.
+
+        Exact to roundoff for |r - origin| <= radius: the polar rule resolves
+        the phase k s.(r - origin) and the density structure, the periodic
+        azimuthal rule their combined harmonics.
+        """
+        theta, w, extent, top = self._polar_rule(radius)
+        count = len(theta)
+        k = self.wavenumber
+        radius = float(radius)
         reach = k * radius * bd.sin(top)
         orders = self._azimuthal_order(theta[:: max(1, count // 16)], extent)
         azimuths = int(orders + reach + 10 * reach ** (1 / 3) + 16)
         azimuths += azimuths % 2
         phi = 2 * bd.pi * bd.arange(azimuths) / azimuths
-        weight = (top / 2 * w * bd.sin(theta))[:, None] * bd.full(
-            azimuths, 2 * bd.pi / azimuths
-        )
+        weight = (w * bd.sin(theta))[:, None] * bd.full(azimuths, 2 * bd.pi / azimuths)
 
         return theta, phi, weight, self._density(theta, phi, extent)
 

@@ -87,7 +87,10 @@ class CoverageEvaluator:
                 local = (
                     source.grid.points - surface.frame.origin
                 ) @ surface.frame.basis
-                height = surface.height(local[..., :2])
+                xy = local[..., :2].reshape(-1, 2)
+                # Chart points beyond the graph's domain do not meet the surface.
+                inside = surface.domain(xy)
+                height = surface.height(xy[inside] if bd.any(inside) else xy[:1] * 0)
                 self._bounds[key] = (
                     source.grid,
                     surface,
