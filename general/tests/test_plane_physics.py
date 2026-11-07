@@ -188,6 +188,20 @@ def test_fft_completion_and_asm_on_embedded_plane(basis):
     assert_allclose(
         actual.grid.points, host(grid.points) + distance * basis[:, 2], atol=1e-15
     )
+    # E alone: the same values, without forming H.
+    alone = spectrum.propagate(distance, magnetic=False)
+    assert isinstance(alone, o.fields.ElectricField)
+    assert_allclose(alone.values, actual.electric.values, rtol=0, atol=0)
+    fields = o.propagation.propagate(
+        TransverseElectricField(grid, WAVELENGTH, values), distance, region(1.0)
+    )
+    electric = o.propagation.propagate(
+        TransverseElectricField(grid, WAVELENGTH, values),
+        distance,
+        region(1.0),
+        magnetic=False,
+    )
+    assert_allclose(electric.values, fields.electric.values, rtol=0, atol=0)
 
 
 @pytest.mark.parametrize("direction", [-1, 1])

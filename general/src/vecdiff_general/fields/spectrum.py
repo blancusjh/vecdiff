@@ -55,10 +55,16 @@ class PlaneWaveExpansion:
         if bd.any(bd.abs(dispersion) > 1e-10 * scale):
             raise ValueError("wavevectors violate the region's dispersion relation")
 
+        # |k| |a| by hypot: the sum of squares underflows for |a| < 1e-154,
+        # where a valid but faint mode would otherwise be rejected.
+        def norm(vectors):
+            size = bd.abs(vectors[..., 0])
+            for axis in (1, 2):
+                size = bd.hypot(size, bd.abs(vectors[..., axis]))
+            return size
+
         transverse_error = bd.abs(bd.sum(k * amplitudes, axis=-1))
-        transverse_scale = bd.linalg.norm(k, axis=-1) * bd.linalg.norm(
-            amplitudes, axis=-1
-        )
+        transverse_scale = norm(k) * norm(amplitudes)
 
         if bd.any(transverse_error > 1e-10 * transverse_scale):
             raise ValueError("electric modal amplitudes are not transverse")
@@ -78,8 +84,14 @@ class PlaneWaveExpansion:
 
         return bd.cross(self.wavevectors, self.amplitudes) / (k0 * Z0)
 
-    def evaluate(self, grid, *, chunk_size=256, method="direct", tolerance=1e-12):
-        """Evaluate SI E/H through the selected nonuniform Fourier summation method."""
+    def evaluate(
+        self, grid, *, chunk_size=256, method="direct", tolerance=1e-12, threads=None
+    ):
+        """Evaluate SI E/H through the selected nonuniform Fourier summation method.
+
+        method "nufft" runs FINUFFT on ``threads`` threads (None:
+        VECDIFF_NUFFT_THREADS, else all cores).
+        """
         from vecdiff_general.fourier.nufft import NUFFT
 
         coefficients = bd.concatenate(
@@ -93,6 +105,7 @@ class PlaneWaveExpansion:
             method=method,
             tolerance=tolerance,
             chunk_size=chunk_size,
+            threads=threads,
         )
         electric = ElectricField(grid, self.wavelength0, values[..., :3])
 
@@ -165,11 +178,11 @@ class PlaneSpectrum:
     def evaluate(self, grid, **kwargs):
         return self.expansion.evaluate(grid, **kwargs)
 
-    def propagate(self, distance, *, model="asm"):
-        """Propagate through the homogeneous region using an explicit model."""
+    def propagate(self, distance, *, model="asm", magnetic=True):
+        """Propagate through the homogeneous region; magnetic=False returns E alone."""
         from vecdiff_general.propagation.homogeneous import propagate_spectrum
 
-        return propagate_spectrum(self, distance, model=model)
+        return propagate_spectrum(self, distance, model=model, magnetic=magnetic)
 
 
 @dataclass(frozen=True)

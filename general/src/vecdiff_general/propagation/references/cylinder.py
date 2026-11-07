@@ -423,7 +423,7 @@ class InfiniteCylinder:
             )
         return out
 
-    def evaluate(self, grid, *, side=None, term=None, chunk_size=8):
+    def evaluate(self, grid, *, side=None, term=None, chunk_size=8, method="direct"):
         """Total field, or one Debye term, inside or outside the cylinder.
 
         side and term as for MieSphere: term None is the total field (incident
@@ -432,7 +432,8 @@ class InfiniteCylinder:
         external reflection and diffraction outside, ("after", P) the rest.
         chunk_size axial nodes are summed at a time. Points that share their
         position across the axis share the cylindrical-wave sums, so planes
-        and lines containing the axis direction are cheap.
+        and lines containing the axis direction are cheap. method selects how the incident field is summed outside ("direct" or
+        "nufft", as for PlaneWaveExpansion.evaluate).
         """
         _check_term(term)
         if side not in (None, "interior", "exterior"):
@@ -496,7 +497,7 @@ class InfiniteCylinder:
         H = cartesian(*values[:, 3:].T) / Z0
         outside = ~inside
         if term is None and np.any(outside):
-            incident = self.incident.evaluate(PointGrid(points[outside]))
+            incident = self.incident.evaluate(PointGrid(points[outside]), method=method)
             E[outside] += incident.electric.values
             H[outside] += incident.magnetic
         if not np.isfinite(E).all() or not np.isfinite(H).all():

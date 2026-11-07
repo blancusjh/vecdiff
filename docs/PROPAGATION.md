@@ -18,7 +18,8 @@ uses exact homogeneous dispersion. It can retain evanescent modes, subject to
 the chosen branch and propagation distance. Paraxial Fresnel propagation uses
 an approximate longitudinal phase. `PlaneTransport.spectrum` preserves a modal
 representation for subsequent operations; `spectrum.propagate` evaluates E/H
-on the translated FFT plane.
+on the translated FFT plane; `magnetic=False` (also for `propagate`) returns E
+alone without forming H.
 
 ## Surface transfer
 

@@ -153,3 +153,27 @@ def test_radial_and_azimuthal_foci_have_their_symmetries():
     ring = o.sampling.PointGrid(rng.normal(size=(30, 3)))
     E = azimuthal.evaluate(ring).electric.values
     assert np.max(abs(E[:, 2])) < 1e-12 * np.max(abs(E))
+
+
+def test_plane_waves_accept_faint_transverse_modes_and_reject_faint_longitudinal_ones():
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
+    k = 2 * np.pi * np.array([[0, 0, 1.0], [0.6, 0, 0.8]])
+    faint = 1e-200 * np.array([[1, 0.3j, 0], [0.8, 0.1, -0.6]])
+    o.fields.PlaneWaveExpansion(k, faint, [0, 0, 0], 1.0, air)
+    with pytest.raises(ValueError, match="transverse"):
+        o.fields.PlaneWaveExpansion(
+            k, faint + [[0, 0, 1e-201], [0, 0, 0]], [0, 0, 0], 1.0, air
+        )
+
+    def gaussian(x, y):  # underflows to 1e-188 before the rim of the pupil
+        return np.exp(-(x**2 + y**2) / 0.05**2)
+
+    beam = o.fields.FocusedBeam(
+        gaussian,
+        o.fields.polarization.x,
+        focal_length=1.0,
+        max_sine=1.0,
+        wavelength0=1e-3,
+        region=air,
+    )
+    assert len(beam.plane_waves(0.0).amplitudes)

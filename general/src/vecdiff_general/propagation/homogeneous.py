@@ -15,9 +15,12 @@ from vecdiff_general.fourier.nufft import phase_factor
 
 
 def propagate_spectrum(
-    spectrum: PlaneSpectrum, distance: float, *, model="asm"
+    spectrum: PlaneSpectrum, distance: float, *, model="asm", magnetic=True
 ) -> ElectromagneticField:
     """Propagate an FFT spectrum by a signed normal distance in metres.
+
+    magnetic=False returns only the ElectricField and never forms the
+    magnetic modes or their transform (half the memory and work for E alone).
 
     ASM uses the exact homogeneous dispersion relation. Fresnel uses the
     paraxial phase k - k_perp**2 / (2*k), retaining the input vector amplitudes.
@@ -59,15 +62,19 @@ def propagate_spectrum(
     shape = grid.shape + (3,)
 
     electric_modes = expansion.amplitudes * phase[:, None]
-    magnetic_modes = expansion.magnetic_amplitudes * phase[:, None]
 
     # IFFT2 divides by N; modal amplitudes already carry that normalization.
     sample_count = math.prod(grid.shape)
     electric = sample_count * IFFT2(electric_modes.reshape(shape))
-    magnetic = sample_count * IFFT2(magnetic_modes.reshape(shape))
+    electric = ElectricField(grid, expansion.wavelength0, electric)
+
+    if not magnetic:
+        return electric
+
+    magnetic_modes = expansion.magnetic_amplitudes * phase[:, None]
 
     return ElectromagneticField(
-        ElectricField(grid, expansion.wavelength0, electric), magnetic
+        electric, sample_count * IFFT2(magnetic_modes.reshape(shape))
     )
 
 
@@ -79,13 +86,17 @@ def propagate(
     model="asm",
     direction=1,
     evanescent="retain",
+    magnetic=True,
 ):
-    """Complete/decompose a plane field, propagate, and return physical E/H."""
+    """Complete/decompose a plane field, propagate, and return physical E/H.
+
+    magnetic=False returns E alone (an ElectricField) without forming H.
+    """
     spectrum = angular_spectrum(
         field, region, direction=direction, evanescent=evanescent
     )
 
-    return propagate_spectrum(spectrum, distance, model=model)
+    return propagate_spectrum(spectrum, distance, model=model, magnetic=magnetic)
 
 
 class PlaneTransport:
