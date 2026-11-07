@@ -96,59 +96,21 @@ def _spherical(local):
     return radius, cosine, sine, np.arctan2(local[..., 1], local[..., 0])
 
 
-@cpu_reference
-class MieSphere:
-    """Analytic sphere reference, truncated at ``order`` multipoles.
+class _SphericalExpansion:
+    """Incident field on vector spherical waves about the centre of ``volume``.
 
-    ``incident`` is any propagating field of the exterior region: a
-    PlaneWaveExpansion (one plane wave, or a sum such as an FFT spectrum) or a
-    beam from fields (PlaneBeam, FocusedBeam), whose quadrature is chosen for
-    the sphere. ``side`` permits evaluating both traces at the identical
-    boundary points; ``term`` selects one Debye term. Increase order to verify
-    convergence. The automatic order is a starting estimate, not an accuracy
-    certificate.
+    Subclasses set incident, exterior, k0, volume (the outer sphere) and order.
     """
 
-    def __init__(self, incident, volume, interior, *, order=None):
-        if not isinstance(volume, SphereVolume):
-            raise TypeError("MieSphere requires a SphereVolume")
+    @staticmethod
+    def _check_incident(incident, owner):
         if isinstance(incident, PlaneWaveExpansion):
             if np.any(incident.wavevectors[np.any(incident.amplitudes != 0, -1)].imag):
-                raise ValueError("Mie illumination must be propagating")
+                raise ValueError(f"{owner} illumination must be propagating")
         elif not hasattr(incident, "quadrature"):
             raise TypeError(
-                "MieSphere requires a PlaneWaveExpansion or a beam from fields"
+                f"{owner} requires a PlaneWaveExpansion or a beam from fields"
             )
-        self.incident, self.volume, self.interior = incident, volume, interior
-        self.exterior = incident.region
-        self.wavelength0 = incident.wavelength0
-        self.k0 = 2 * np.pi / self.wavelength0
-        ni, ne = interior.material.n, self.exterior.material.n
-        x = self.k0 * ne * volume.radius
-        if order is None:
-            # Retain more of the incident-wave tail than the usual efficiency
-            # truncation: near-boundary field continuity is a stricter test.
-            order = int(np.ceil(x + 6 * x ** (1 / 3) + 12))
-        if not isinstance(order, (int, np.integer)) or order < 1:
-            raise ValueError("multipole order must be a positive integer")
-        self.order = order
-        ell = np.arange(1, order + 1)
-        j, dj = _radial(ell, x)
-        h, dh = _radial(ell, x, True)
-        v, dv = _radial(ell, x * ni / ne)
-        self.a = (ni * dj * v - ne * j * dv) / (ni * dh * v - ne * h * dv)
-        self.b = (ni * j * dv - ne * dj * v) / (ni * h * dv - ne * dh * v)
-        # Use both boundary equations to avoid division at Bessel zeros.
-        self.c = (v * (j - self.b * h) + ni * dv * ne * (dj - self.b * dh)) / (
-            v**2 + (ni * dv) ** 2
-        )
-        self.d = (dv * (dj - self.a * dh) + ni * v * ne * (j - self.a * h)) / (
-            dv**2 + (ni * v) ** 2
-        )
-        if not all(np.isfinite(c).all() for c in (self.a, self.b, self.c, self.d)):
-            raise ValueError("nonfinite Mie coefficients; reduce excessive order")
-        self._debye = None
-        self.basis, self.coefficients = self._project()
 
     def _project(self):
         """Local basis (columns u, v, axis) and {m: (A_n, B_n)} about the centre."""
@@ -238,6 +200,55 @@ class MieSphere:
             sorted(orders, key=abs),
         )
 
+
+@cpu_reference
+class MieSphere(_SphericalExpansion):
+    """Analytic sphere reference, truncated at ``order`` multipoles.
+
+    ``incident`` is any propagating field of the exterior region: a
+    PlaneWaveExpansion (one plane wave, or a sum such as an FFT spectrum) or a
+    beam from fields (PlaneBeam, FocusedBeam), whose quadrature is chosen for
+    the sphere. ``side`` permits evaluating both traces at the identical
+    boundary points; ``term`` selects one Debye term. Increase order to verify
+    convergence. The automatic order is a starting estimate, not an accuracy
+    certificate.
+    """
+
+    def __init__(self, incident, volume, interior, *, order=None):
+        if not isinstance(volume, SphereVolume):
+            raise TypeError("MieSphere requires a SphereVolume")
+        self._check_incident(incident, "MieSphere")
+        self.incident, self.volume, self.interior = incident, volume, interior
+        self.exterior = incident.region
+        self.wavelength0 = incident.wavelength0
+        self.k0 = 2 * np.pi / self.wavelength0
+        ni, ne = interior.material.n, self.exterior.material.n
+        x = self.k0 * ne * volume.radius
+        if order is None:
+            # Retain more of the incident-wave tail than the usual efficiency
+            # truncation: near-boundary field continuity is a stricter test.
+            order = int(np.ceil(x + 6 * x ** (1 / 3) + 12))
+        if not isinstance(order, (int, np.integer)) or order < 1:
+            raise ValueError("multipole order must be a positive integer")
+        self.order = order
+        ell = np.arange(1, order + 1)
+        j, dj = _radial(ell, x)
+        h, dh = _radial(ell, x, True)
+        v, dv = _radial(ell, x * ni / ne)
+        self.a = (ni * dj * v - ne * j * dv) / (ni * dh * v - ne * h * dv)
+        self.b = (ni * j * dv - ne * dj * v) / (ni * h * dv - ne * dh * v)
+        # Use both boundary equations to avoid division at Bessel zeros.
+        self.c = (v * (j - self.b * h) + ni * dv * ne * (dj - self.b * dh)) / (
+            v**2 + (ni * dv) ** 2
+        )
+        self.d = (dv * (dj - self.a * dh) + ni * v * ne * (j - self.a * h)) / (
+            dv**2 + (ni * v) ** 2
+        )
+        if not all(np.isfinite(c).all() for c in (self.a, self.b, self.c, self.d)):
+            raise ValueError("nonfinite Mie coefficients; reduce excessive order")
+        self._debye = None
+        self.basis, self.coefficients = self._project()
+
     def _factors(self, side, term):
         """Per-order multipliers of (A, B) and the radial function kind."""
         if term is None:
@@ -292,7 +303,7 @@ class MieSphere:
         index = (
             self.interior.material.n if side == "interior" else self.exterior.material.n
         )
-        radius, cosine, sine, phi = _spherical(local)
+        radius = np.linalg.norm(local, axis=-1)
         # At the centre only n = 1 survives and its angular limit is regular.
         x = self.k0 * index * np.maximum(radius, 1e-12 * self.volume.radius)
         count = self.order
@@ -303,37 +314,18 @@ class MieSphere:
             count = min(count, int(np.ceil(size + 4 * size ** (1 / 3) + 10)))
         n = np.arange(1, count + 1)
         z, D = _riccati(kind, n[:, None], x[None])
-        root = np.sqrt(n * (n + 1))[:, None]
-        Er, Et, Ep, Hr, Ht, Hp = (np.zeros(len(local), complex) for _ in range(6))
-        for m, (A, B) in self.coefficients.items():
-            first = max(abs(m), 1) - 1
-            if first >= count:
-                continue
-            P, pi, tau = _harmonics(count, m, cosine, sine)
-            a = (tA * A)[first:count, None]
-            b = (tB * B)[first:count, None]
-            zs, Ds, s = z[first:], D[first:], root[first:]
-            e = np.exp(1j * m * phi)
-            Er += e * np.sum(b * s * zs / x * P, 0)
-            Et += e * np.sum((-m * a * zs * pi + b * Ds * tau) / s, 0)
-            Ep += e * np.sum((-1j * a * zs * tau + 1j * m * b * Ds * pi) / s, 0)
-            Hr += e * np.sum(a * s * zs / x * P, 0)
-            Ht += e * np.sum((a * Ds * tau + m * b * zs * pi) / s, 0)
-            Hp += e * np.sum((1j * m * a * Ds * pi + 1j * b * zs * tau) / s, 0)
-        cp, sp = np.cos(phi), np.sin(phi)
-
-        def cartesian(r, t, p):
-            vector = np.stack(
-                (
-                    r * sine * cp + t * cosine * cp - p * sp,
-                    r * sine * sp + t * cosine * sp + p * cp,
-                    r * cosine - t * sine,
-                ),
-                -1,
-            )
-            return vector @ self.basis.T
-
-        return cartesian(Er, Et, Ep), index * cartesian(Hr, Ht, Hp)
+        tA, tB = tA[:count, None], tB[:count, None]
+        return _spherical_sum(
+            self.coefficients,
+            self.basis,
+            local,
+            x,
+            tA * z,
+            tA * D,
+            tB * z,
+            tB * D,
+            index,
+        )
 
     def evaluate(self, grid, *, side=None, term=None, chunk_size=128):
         """Total fields, or one Debye term, with optional interior/exterior trace.
@@ -397,6 +389,48 @@ class MieSphere:
             ElectricField(grid, self.wavelength0, E.reshape(grid.shape + (3,))),
             H.reshape(grid.shape + (3,)),
         )
+
+
+def _spherical_sum(coefficients, basis, local, x, ZA, DA, ZB, DB, index):
+    """E and Z0 H of sum_nm A_nm (TE) and B_nm (TM) waves at local points.
+
+    ZA, DA (TE) and ZB, DB (TM) are the radial functions z_n and
+    D_n = (x z_n)' / x, n = 1..count, at x = k |r|, already multiplied by the
+    per-order factor of the field they represent; shape (count, points).
+    Global Cartesian components.
+    """
+    radius, cosine, sine, phi = _spherical(local)
+    count = len(ZA)
+    root = np.sqrt(np.arange(1, count + 1) * np.arange(2, count + 2))[:, None]
+    Er, Et, Ep, Hr, Ht, Hp = (np.zeros(len(local), complex) for _ in range(6))
+    for m, (A, B) in coefficients.items():
+        first = max(abs(m), 1) - 1
+        if first >= count:
+            continue
+        P, pi, tau = _harmonics(count, m, cosine, sine)
+        a, b = A[first:count, None], B[first:count, None]
+        za, da, zb, db, s = ZA[first:], DA[first:], ZB[first:], DB[first:], root[first:]
+        e = np.exp(1j * m * phi)
+        Er += e * np.sum(b * s * zb / x * P, 0)
+        Et += e * np.sum((-m * a * za * pi + b * db * tau) / s, 0)
+        Ep += e * np.sum((-1j * a * za * tau + 1j * m * b * db * pi) / s, 0)
+        Hr += e * np.sum(a * s * za / x * P, 0)
+        Ht += e * np.sum((a * da * tau + m * b * zb * pi) / s, 0)
+        Hp += e * np.sum((1j * m * a * da * pi + 1j * b * zb * tau) / s, 0)
+    cp, sp = np.cos(phi), np.sin(phi)
+
+    def cartesian(r, t, p):
+        vector = np.stack(
+            (
+                r * sine * cp + t * cosine * cp - p * sp,
+                r * sine * sp + t * cosine * sp + p * cp,
+                r * cosine - t * sine,
+            ),
+            -1,
+        )
+        return vector @ basis.T
+
+    return cartesian(Er, Et, Ep), index * cartesian(Hr, Ht, Hp)
 
 
 def _basis(axis):
