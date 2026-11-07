@@ -162,11 +162,56 @@ def divide(numerator, denominator, where):
     return bd.where(where, quotient, bd.zeros_like(quotient))
 
 
-def leggauss(count):
-    """Gauss-Legendre nodes and weights on [-1, 1], placed on the current device."""
-    nodes, weights = np.polynomial.legendre.leggauss(count)
+def _legendre(count, theta):
+    """P_count(cos theta) and dP_count/dtheta for 0 < theta <= pi / 2.
 
-    return bd.asarray(nodes), bd.asarray(weights)
+    The recurrence runs on the differences D_j = P_j - P_(j-1) with
+    y = 1 - x = 2 sin²(theta / 2), j D_j = (j - 1) D_(j-1) - (2j - 1) y P_(j-1),
+    so a node near x = 1 is not limited by the rounding of cos theta.
+    """
+    y = 2 * np.sin(theta / 2) ** 2
+    value, difference = 1 - y, -y
+    for j in range(2, count + 1):
+        difference = ((j - 1) * difference - (2 * j - 1) * y * value) / j
+        value = value + difference
+    return value, count * (difference - y * value) / np.sin(theta)
+
+
+@functools.lru_cache(maxsize=64)
+def _gauss_legendre(count):
+    """Nodes x = cos theta by Newton steps in theta from Tricomi's estimates.
+
+    The weight is 2 / (dP/dtheta)²: in theta neither 1 - x² nor P' cancels
+    near the ends, where the companion-matrix rule loses 6e-7 of the weight
+    at 4000 nodes. Cost O(count²), against O(count³) for the eigenvalues.
+    """
+    if count == 1:
+        return np.zeros(1), np.full(1, 2.0)
+    k = np.arange(1, (count + 1) // 2 + 1)
+    theta = np.pi * (4 * k - 1) / (4 * count + 2)
+    theta = theta + (1 / (8 * count**2) - 1 / (8 * count**3)) / np.tan(theta)
+    for _ in range(100):
+        value, slope = _legendre(count, theta)
+        step = value / slope
+        theta = theta - step
+        if np.max(np.abs(step)) < 4 * np.finfo(float).eps:
+            break
+    value, slope = _legendre(count, theta)
+    x, w = np.cos(theta), 2 / slope**2
+    if count % 2:
+        x[-1] = 0.0
+        return np.r_[-x, x[-2::-1]], np.r_[w, w[-2::-1]]
+    return np.r_[-x, x[::-1]], np.r_[w, w[::-1]]
+
+
+def leggauss(count):
+    """Gauss-Legendre nodes (ascending) and weights on [-1, 1], on the current device."""
+    count = int(count)
+    if count < 1:
+        raise ValueError("the Gauss-Legendre rule needs at least one node")
+    nodes, weights = _gauss_legendre(count)
+
+    return bd.asarray(nodes.copy()), bd.asarray(weights.copy())
 
 
 def gammaln(x):

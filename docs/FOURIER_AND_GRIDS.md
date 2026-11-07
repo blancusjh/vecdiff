@@ -212,6 +212,9 @@ and also supports complex exponential arguments. Zero contributions are removed
 before exponentiation, so an unoccupied growing term cannot overflow a result.
 `sign=1` gives a positive-sign sum; **it does not invert a general nonuniform
 matrix**. Consequently there is no misleading exact `INUFFT` operation.
+FINUFFT runs on `threads=` threads (`NUFFT`, `transform`, `inverse`,
+`PlaneWaveExpansion.evaluate`); None reads `VECDIFF_NUFFT_THREADS`, else all
+cores.
 
 For continuous integral quadrature, use explicit measures:
 

@@ -106,3 +106,26 @@ def test_gpu_bessel_functions_reach_scipy_where_scipy_is_exact(on_gpu):
     assert error.max() < 2e-14
     with pytest.raises(ValueError, match="integer"):
         device_jv(np.array([0.5]), np.array([1.0]))
+
+
+def test_gauss_legendre_is_accurate_at_the_ends_and_matches_numpy():
+    from vecdiff_general._backend import leggauss as rule
+
+    for count in (1, 2, 3, 8, 37, 64):
+        x, w = (o.backend.to_numpy(a) for a in rule(count))
+        x0, w0 = np.polynomial.legendre.leggauss(count)
+        assert_allclose(x, x0, rtol=0, atol=4e-16)
+        assert_allclose(w, w0, rtol=2e-12)
+    # 4000 nodes, against 50-digit mpmath: the companion-matrix rule is off by
+    # 5.9e-7 in the outermost weight.
+    x, w = (o.backend.to_numpy(a) for a in rule(4000))
+    for index, node, weight in (
+        (0, -0.99999981932061770984, 4.6368162771383532908e-7),
+        (50, -0.99920592764437927291, 0.000031289041930535507068),
+        (1999, -0.00039264998729245195819, 0.00078529993422728475904),
+    ):
+        assert abs(x[index] - node) < 2e-16
+        assert abs(w[index] - weight) < 2e-14 * weight
+    assert abs(w.sum() - 2) < 1e-14 and np.all(np.diff(x) > 0)
+    x[0] = 7.0  # callers may modify their copy; the cached rule is untouched
+    assert o.backend.to_numpy(rule(4000)[0])[0] != 7.0

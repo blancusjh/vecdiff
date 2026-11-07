@@ -1,6 +1,7 @@
 """Nonuniform Fourier sums and quadrature in one, two or three dimensions."""
 
 import math
+import os
 
 import numpy as np
 
@@ -61,7 +62,17 @@ def _direct_sum(g, x, q, sign, chunk_size):
     return G
 
 
-def _fast_sum(g, x, q, sign, tolerance):
+def _threads(threads):
+    """FINUFFT thread count: the argument, else VECDIFF_NUFFT_THREADS, else 0 (all cores)."""
+    if threads is None:
+        threads = os.environ.get("VECDIFF_NUFFT_THREADS", 0)
+    threads = int(threads)
+    if threads < 0:
+        raise ValueError("threads must be a nonnegative integer (0: all cores)")
+    return threads
+
+
+def _fast_sum(g, x, q, sign, tolerance, threads=None):
     if bd.any(x.imag) or bd.any(q.imag):
         raise ValueError("FINUFFT requires real coordinates; use method='direct'")
 
@@ -90,14 +101,22 @@ def _fast_sum(g, x, q, sign, tolerance):
         *target_axes,
         isign=sign,
         eps=tolerance,
-        nthreads=1,
+        nthreads=_threads(threads),
     ).T
 
     return bd.asarray(G)
 
 
 def NUFFT(
-    g: np.ndarray, x, q, *, sign=-1, method="nufft", tolerance=1e-12, chunk_size=256
+    g: np.ndarray,
+    x,
+    q,
+    *,
+    sign=-1,
+    method="nufft",
+    tolerance=1e-12,
+    chunk_size=256,
+    threads=None,
 ):
     """Evaluate G[k] = sum_j g[j] exp(sign * i * q[k].x[j]).
 
@@ -108,7 +127,8 @@ def NUFFT(
 
     The default negative sign gives the forward sum. Positive sign gives the
     reverse-sign sum, not a matrix inverse. The direct method supports complex
-    coordinates; FINUFFT accelerates real coordinates with a type-3 transform.
+    coordinates; FINUFFT accelerates real coordinates with a type-3 transform,
+    on ``threads`` threads: None reads VECDIFF_NUFFT_THREADS, else all cores (0).
     """
     if sign not in (-1, 1):
         raise ValueError("Fourier sign must be -1 or +1")
@@ -127,7 +147,7 @@ def NUFFT(
     if method == "direct":
         G = _direct_sum(g, x, q, sign, chunk_size)
     elif method == "nufft":
-        G = _fast_sum(g, x, q, sign, tolerance)
+        G = _fast_sum(g, x, q, sign, tolerance, threads)
     else:
         raise ValueError("method must be 'direct' or 'nufft'")
 
@@ -158,6 +178,7 @@ def transform(
     method="nufft",
     tolerance=1e-12,
     chunk_size=256,
+    threads=None,
 ):
     """Approximate G(q) = integral g(x) exp(-i*q.x) d^d x.
 
@@ -174,6 +195,7 @@ def transform(
         method=method,
         tolerance=tolerance,
         chunk_size=chunk_size,
+        threads=threads,
     )
 
     return G
@@ -188,6 +210,7 @@ def inverse(
     method="nufft",
     tolerance=1e-12,
     chunk_size=256,
+    threads=None,
 ):
     """Approximate g(x) = integral G(q) exp(+i*q.x) d^d q / (2*pi)^d.
 
@@ -205,6 +228,7 @@ def inverse(
         method=method,
         tolerance=tolerance,
         chunk_size=chunk_size,
+        threads=threads,
     )
     dimension = bd.asarray(frequencies).shape[1]
     g = g / (2 * bd.pi) ** dimension

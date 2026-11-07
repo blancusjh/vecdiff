@@ -33,7 +33,9 @@ def curved_problem(transmission="spectral", index=1.15, basis=None):
     values = np.zeros(grid.shape + (2,), complex)
     values[..., 0] = 1
     source = o.fields.TransverseElectricField(grid, 1, values)
-    path = o.propagation.PropagationPipeline(system, transmission=transmission)
+    path = o.propagation.PropagationPipeline(
+        system, transmission=transmission, transport="wave"
+    )
     return source, path
 
 
@@ -112,6 +114,7 @@ def test_flat_interface_sided_limits_match_analytic_fresnel(coverage):
             (o.system.DielectricInterface(o.surfaces.Plane(), air, glass),)
         ),
         coverage=coverage,
+        transport="wave",
     )
     with pytest.raises(ValueError, match="side"):
         path(source, z=0, shape=(3, 3))
@@ -136,7 +139,7 @@ def test_all_masked_target_does_not_solve_interfaces(monkeypatch):
 
 def test_invalid_coverage_and_masked_incident_fields_are_explicit():
     with pytest.raises(ValueError, match="coverage"):
-        o.propagation.PropagationPipeline(coverage="regional")
+        o.propagation.PropagationPipeline(coverage="regional", transport="wave")
     source, path = curved_problem()
     grid = source.grid
     mask = np.ones(grid.shape, bool)

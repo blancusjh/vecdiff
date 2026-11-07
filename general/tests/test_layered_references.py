@@ -526,3 +526,22 @@ def test_sphere_debye_coefficients_keep_relative_accuracy_beyond_the_size():
     for polarization, values in EXACT.items():
         for key, expected in values.items():
             assert_allclose(actual[polarization][key], expected, rtol=2e-11)
+
+
+def test_references_sum_the_incident_field_by_the_chosen_method():
+    pytest.importorskip("finufft")
+    beam = converging(0.5, [0.2, 0.0, 3.0])
+    rng = np.random.default_rng(8)
+    direction = rng.normal(size=(40, 3))
+    direction /= np.linalg.norm(direction, axis=1)[:, None]
+    outside = grid(direction * rng.uniform(1.6, 2.4, 40)[:, None])
+    for reference in (
+        MieSphere(beam, spheres(1.5)[0], GLASS),
+        LayeredSphere(beam, spheres(1.5, 1.0), [GLASS, DENSE]),
+        InfiniteCylinder(
+            beam, o.volumes.CylinderVolume([0, 0, 0], [0, 1, 0], 1.5), GLASS, reach=3.0
+        ),
+    ):
+        direct = reference.evaluate(outside).electric.values
+        fast = reference.evaluate(outside, method="nufft").electric.values
+        assert_allclose(fast, direct, atol=1e-10 * np.abs(direct).max())

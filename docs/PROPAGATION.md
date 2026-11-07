@@ -18,7 +18,8 @@ uses exact homogeneous dispersion. It can retain evanescent modes, subject to
 the chosen branch and propagation distance. Paraxial Fresnel propagation uses
 an approximate longitudinal phase. `PlaneTransport.spectrum` preserves a modal
 representation for subsequent operations; `spectrum.propagate` evaluates E/H
-on the translated FFT plane.
+on the translated FFT plane; `magnetic=False` (also for `propagate`) returns E
+alone without forming H.
 
 ## Surface transfer
 
@@ -89,11 +90,21 @@ The operator takes an incident electric field, an optical system, and a target.
 The system owns geometry and media, optionally the incident field. It does not
 own observations. Geometry and sampling use the existing surface/grid classes.
 
+The default transport is `transport="eikonal"` ([below](#eikonal-transport)):
+vecdiff is meant for macroscopic systems. It needs the incident field's
+carrier, passed as `carrier=` or brought by a beam from `fields`; without one
+the pipeline raises and asks for it. `transport="wave"` keeps the exact
+transport to and from each surface with spectral (its default), local, carrier
+or another Fresnel transmission, and is the transport of fields without a
+carrier. Combinations that do not belong together (eikonal transport with a
+spectral or local Fresnel treatment, reference planes or fans with wave
+transport) raise at construction.
+
 ```python
 from vecdiff_general import propagation, surfaces
 
 propagate = propagation.PropagationPipeline(
-    system, transmission="local", coverage="complete"
+    system, transport="wave", transmission="local", coverage="complete"
 )  # transmission can also be "spectral"; coverage can be "reduced"
 focal = propagate(incident_field, z=f)
 meridian = propagate(incident_field, y=0, window=(-a, a, z0, z1), side="plus")
@@ -210,11 +221,11 @@ not include returning branches or a finite-body rim solver. See the
 
 ### Carrier-directed transmission
 
-`transmission="carrier"` keeps the exact surface transport but takes the
+`transport="wave", transmission="carrier"` keeps the exact surface transport but takes the
 local incident direction from the field's declared carrier (a
 `fields.Carrier`, for example `beam.carrier`), passed with the field:
 
-    pipeline = PropagationPipeline(system, transmission="carrier")
+    pipeline = PropagationPipeline(system, transport="wave", transmission="carrier")
     field = pipeline(incident, z=focus, carrier=beam.carrier)
 
 Each surface sample is transmitted by the continued dyadic of the
@@ -230,7 +241,7 @@ carry no field; their share is reported.
 
 ## Eikonal transport
 
-`PropagationPipeline(system, transport="eikonal")` replaces the exact legs
+`PropagationPipeline(system)`, whose default is `transport="eikonal"`, replaces the exact legs
 to and from each surface by the plane–surface–plane map along the carrier
 (`propagation.EikonalTransport`). A point P of the reference plane follows its
 carrier ray to the surface, refracts by the vector Snell law, and is

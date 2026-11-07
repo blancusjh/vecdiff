@@ -121,3 +121,17 @@ def test_nonuniform_quadrature_requires_an_explicit_valid_measure():
         fourier.transform(
             [1, 1], mode="nonuniform", coordinates=x, frequencies=q, weights=[1, -1]
         )
+
+
+def test_nufft_honours_the_thread_setting(monkeypatch):
+    pytest.importorskip("finufft")
+    random = np.random.default_rng(3)
+    x, q = random.normal(size=(300, 3)), random.normal(size=(40, 3))
+    g = random.normal(size=(300, 2)) + 1j * random.normal(size=(300, 2))
+    expected = NUFFT(g, x, q, method="direct")
+    for threads in (1, 0, 3):
+        assert_allclose(NUFFT(g, x, q, threads=threads), expected, atol=1e-10)
+    monkeypatch.setenv("VECDIFF_NUFFT_THREADS", "2")
+    assert_allclose(NUFFT(g, x, q), expected, atol=1e-10)
+    with pytest.raises(ValueError, match="threads"):
+        NUFFT(g, x, q, threads=-1)

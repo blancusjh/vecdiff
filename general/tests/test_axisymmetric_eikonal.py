@@ -274,9 +274,9 @@ def test_pipeline_chooses_and_guards_the_meridian_leg():
             beam
         )
     with pytest.raises(TypeError, match="eikonal"):
-        P.PropagationPipeline(system).solve(beam)
+        P.PropagationPipeline(system, transport="wave").solve(beam)
     with pytest.raises(ValueError, match="axisymmetric"):
-        P.PropagationPipeline(system, axisymmetric=True)
+        P.PropagationPipeline(system, axisymmetric=True, transport="wave")
     with pytest.raises(ValueError, match="one reference fan"):
         P.PropagationPipeline(
             system, transport="eikonal", reference_fans=((0, 50), None)

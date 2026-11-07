@@ -322,7 +322,7 @@ class MieSphere(_SphericalExpansion):
             index,
         )
 
-    def evaluate(self, grid, *, side=None, term=None, chunk_size=128):
+    def evaluate(self, grid, *, side=None, term=None, chunk_size=128, method="direct"):
         """Total fields, or one Debye term, with optional interior/exterior trace.
 
         term None is the total field: incident plus scattered outside, the
@@ -333,6 +333,8 @@ class MieSphere(_SphericalExpansion):
         the diffraction that forms the shadow; it has no interior part.
         ("after", P) is every term beyond P in closed form, so terms 0..P plus
         it recover Lorenz–Mie minus the incident field outside.
+        method selects how the incident field is summed outside ("direct" or
+        "nufft", as for PlaneWaveExpansion.evaluate).
         """
         if side not in (None, "interior", "exterior"):
             raise ValueError("side must be interior, exterior or None")
@@ -375,7 +377,7 @@ class MieSphere(_SphericalExpansion):
                 H[ids] += magnetic / Z0
         outside = ~mask
         if term is None and np.any(outside):
-            incident = self.incident.evaluate(PointGrid(points[outside]))
+            incident = self.incident.evaluate(PointGrid(points[outside]), method=method)
             E[outside] += incident.electric.values
             H[outside] += incident.magnetic
         if not np.isfinite(E).all() or not np.isfinite(H).all():
