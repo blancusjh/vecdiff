@@ -5,6 +5,8 @@ import pytest
 import vecdiff_general as o
 from numpy.testing import assert_allclose, assert_array_equal
 
+bd, host = o.backend.bd, o.backend.to_numpy
+
 
 def curved_problem(transmission="spectral", index=1.15, basis=None):
     basis = np.eye(3) if basis is None else basis
@@ -31,7 +33,9 @@ def curved_problem(transmission="spectral", index=1.15, basis=None):
     values = np.zeros(grid.shape + (2,), complex)
     values[..., 0] = 1
     source = o.fields.TransverseElectricField(grid, 1, values)
-    path = o.propagation.PropagationPipeline(system, transmission=transmission)
+    path = o.propagation.PropagationPipeline(
+        system, transmission=transmission, transport="wave"
+    )
     return source, path
 
 
@@ -110,6 +114,7 @@ def test_flat_interface_sided_limits_match_analytic_fresnel(coverage):
             (o.system.DielectricInterface(o.surfaces.Plane(), air, glass),)
         ),
         coverage=coverage,
+        transport="wave",
     )
     with pytest.raises(ValueError, match="side"):
         path(source, z=0, shape=(3, 3))
@@ -134,13 +139,14 @@ def test_all_masked_target_does_not_solve_interfaces(monkeypatch):
 
 def test_invalid_coverage_and_masked_incident_fields_are_explicit():
     with pytest.raises(ValueError, match="coverage"):
-        o.propagation.PropagationPipeline(coverage="regional")
+        o.propagation.PropagationPipeline(coverage="regional", transport="wave")
     source, path = curved_problem()
     grid = source.grid
     mask = np.ones(grid.shape, bool)
     mask[0, 0] = False
     field = o.fields.ElectricField(grid, 1, np.ones(grid.shape + (3,)), valid=mask)
-    assert not field.valid.flags.writeable and not field.values.flags.writeable
+    if o.backend.get_backend() == "CPU":  # CuPy arrays cannot be made read-only
+        assert not field.valid.flags.writeable and not field.values.flags.writeable
     with pytest.raises(ValueError, match="uncomputed"):
         path(field, z=2)
     with pytest.raises(ValueError, match="finite"):

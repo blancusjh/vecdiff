@@ -10,6 +10,7 @@ import numpy as np
 from numpy.polynomial.legendre import leggauss
 
 from vecdiff_general._arrays import frozen_array, positive, positive_integer
+from vecdiff_general._backend import cpu_reference
 from vecdiff_general.fields import ElectricField, ElectromagneticField
 from vecdiff_general.fields.spectrum import (
     HalfSpaceSpectrum,
@@ -21,6 +22,7 @@ from vecdiff_general.media.medium import Z0, HomogeneousRegion
 from vecdiff_general.sampling.grids import SurfaceGrid
 
 
+@cpu_reference
 @dataclass(frozen=True)
 class SurfaceRadiation:
     grid: SurfaceGrid
@@ -229,7 +231,7 @@ class SurfaceRadiation:
         )
 
     def angular_spectrum(
-        self, *, direction=1, polar_order=48, azimuthal_order=96, backend="direct"
+        self, *, direction=1, polar_order=48, azimuthal_order=96, method="direct"
     ):
         """Propagating Weyl hemisphere beyond the source's global-z envelope.
 
@@ -272,7 +274,7 @@ class SurfaceRadiation:
         )
         currents *= self.grid.weights.ravel()[:, None]
         transformed = NUFFT(
-            currents, sources - origin, wavevectors, sign=-1, backend=backend
+            currents, sources - origin, wavevectors, sign=-1, method=method
         )
         electric_current, magnetic_current = transformed[:, :3], transformed[:, 3:]
         transverse = (

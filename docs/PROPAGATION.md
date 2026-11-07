@@ -9,7 +9,7 @@ the package top level re-exports nothing.
 | `surface_transfer.py` | `SurfaceTransport` | Evaluate and reconstruct fields on a graph surface |
 | `surface_interaction.py` | `scatter_plane`, `SpectralFresnel`, `LocalFresnel` | Reflection and transmission at fixed boundaries |
 | `pipeline.py` | `PropagationPipeline` | Compose transport and interactions |
-| `references/` | `MieSphere`, `DielectricBEM`, other reference solvers | Independently check physical and numerical accuracy |
+| `references/` | `MieSphere`, `LayeredSphere`, `InfiniteCylinder`, `DielectricBEM`, other reference solvers | Independently check physical and numerical accuracy |
 
 ## Homogeneous propagation
 
@@ -18,7 +18,8 @@ uses exact homogeneous dispersion. It can retain evanescent modes, subject to
 the chosen branch and propagation distance. Paraxial Fresnel propagation uses
 an approximate longitudinal phase. `PlaneTransport.spectrum` preserves a modal
 representation for subsequent operations; `spectrum.propagate` evaluates E/H
-on the translated FFT plane.
+on the translated FFT plane; `magnetic=False` (also for `propagate`) returns E
+alone without forming H.
 
 ## Surface transfer
 
@@ -89,11 +90,21 @@ The operator takes an incident electric field, an optical system, and a target.
 The system owns geometry and media, optionally the incident field. It does not
 own observations. Geometry and sampling use the existing surface/grid classes.
 
+The default transport is `transport="eikonal"` ([below](#eikonal-transport)):
+vecdiff is meant for macroscopic systems. It needs the incident field's
+carrier, passed as `carrier=` or brought by a beam from `fields`; without one
+the pipeline raises and asks for it. `transport="wave"` keeps the exact
+transport to and from each surface with spectral (its default), local, carrier
+or another Fresnel transmission, and is the transport of fields without a
+carrier. Combinations that do not belong together (eikonal transport with a
+spectral or local Fresnel treatment, reference planes or fans with wave
+transport) raise at construction.
+
 ```python
 from vecdiff_general import propagation, surfaces
 
 propagate = propagation.PropagationPipeline(
-    system, transmission="local", coverage="complete"
+    system, transport="wave", transmission="local", coverage="complete"
 )  # transmission can also be "spectral"; coverage can be "reduced"
 focal = propagate(incident_field, z=f)
 meridian = propagate(incident_field, y=0, window=(-a, a, z0, z1), side="plus")
@@ -207,3 +218,173 @@ and transverse origin. Finite edges and stops are rejected. The pipeline does
 not include returning branches or a finite-body rim solver. See the
 [runnable example](../general/examples/propagation_pipeline.py) and
 [validation records](VALIDATION.md).
+
+### Carrier-directed transmission
+
+`transport="wave", transmission="carrier"` keeps the exact surface transport but takes the
+local incident direction from the field's declared carrier (a
+`fields.Carrier`, for example `beam.carrier`), passed with the field:
+
+    pipeline = PropagationPipeline(system, transport="wave", transmission="carrier")
+    field = pipeline(incident, z=focus, carrier=beam.carrier)
+
+Each surface sample is transmitted by the continued dyadic of the
+eikonal–angular-spectrum formulation,
+
+    E_t = t_s E_s s + t_p E_p p_t + t_p E_par s_t,
+
+where E_par is the part of the field along the carrier. Keeping that part
+makes an index-matched interface exactly invisible. Nothing is inferred from
+the field, so the operation is linear for a fixed carrier. Samples whose
+carrier meets the surface from behind, grazes it or is totally reflected
+carry no field; their share is reported.
+
+## Eikonal transport
+
+`PropagationPipeline(system)`, whose default is `transport="eikonal"`, replaces the exact legs
+to and from each surface by the plane–surface–plane map along the carrier
+(`propagation.EikonalTransport`). A point P of the reference plane follows its
+carrier ray to the surface, refracts by the vector Snell law, and is
+extrapolated to P′ on the same geometric plane in the transmitted medium.
+The signed legs give the optical path ΔS = n_i ℓ_i + n_t ℓ_t, and the field
+is carried as
+
+    E′(Φ(ρ)) = g exp(i k0 ΔS) [t_s E_s s + t_p E_p p_t + t_p E_par s_t],
+    g = sqrt(s_iz c_t / (c_i s_tz J)),  J = det DΦ.
+
+`propagation.InterfaceMap` computes Φ, ΔS, g and DΦ. DΦ is analytic: it comes
+from the surface Hessian (`GraphSurface.hessian`, declared by every built-in
+surface; `FreeformSurface` takes a `hessian_function`) and the carrier's
+direction Jacobian. No spherical focus is assumed. The output lattice is
+filled through the inverse map, damped Newton steps from a forward table, so
+the incident field is evaluated exactly at each preimage and never
+interpolated. The carried plane components are then re-expanded in the
+transmitted medium.
+
+Options and reports:
+
+- `reference_planes=(offset, ...)` places each plane along the axis from its
+  surface vertex (default: the vertex planes).
+- The output lattice keeps the input spacing. It grows, up to four times per
+  axis, until it holds the image of every supported ray, because refraction
+  can spread the image beyond the input footprint.
+- `EikonalTransport(..., window=...)` rolls the carried field off. It takes
+  either `(start, end)` incidence angles in degrees or a callable of the
+  `RayMap`, such as a reference fan. Hard-edged inputs depend on this choice;
+  report it with results. The pipeline passes `reference_fans=(fan, ...)`,
+  one per surface, to its legs.
+- `EikonalReport` gives the incident amplitude on rays the chart does not
+  support (misses, rear or grazing incidence, total reflection, folds), the
+  dark output samples, and the inverse-map residual.
+
+The transfer is the formulation's leading-order model. It is exact for a
+plane wave on a plane interface and the identity for index-matched media; it
+does not solve the curved-boundary Maxwell problem.
+
+### Sequences of surfaces
+
+Eikonal transport crosses any number of refracting surfaces, as the
+formulation prescribes: leg, exact angular spectrum, the full field on the
+next reference plane, leg with the refracted carrier, and so on. After a
+refraction the carrier is the family of refracted rays (Appendix B),
+`propagation.eikonal.RefractedRays`: each ray keeps its label, its point on the
+first reference plane, and its surface point and refracted direction (Eq. 3.6)
+are continued in a straight line to the next plane together with their
+Appendix A derivatives along the labels. Nothing is inverted off the rays, so
+the next map's Jacobian, flux factor and inverse stay analytic:
+J = det(d P' / d label) / det(d P / d label). Index-matched surfaces between
+are the identity; the family passes through them.
+
+- The lattice leg reads the previous leg's output lattice and inverts the
+  composed map from the first plane's labels; the meridian leg does the same
+  on one meridian, its intermediate spectrum resolving the depth and radius
+  of the next plane (the κ-aliasing rule of the handoff holds by construction).
+- Each interface reports its own unsupported amplitude: the incident field
+  outside the rays that survive it. No amplitude threshold decides a ray.
+- A ray Newton loses from the height under its start, as behind a surface
+  from a rim-depth plane, is retried from the osculating sphere and then from
+  a march along the ray.
+- Carrier transmission (wave transport) still crosses one refracting surface.
+
+### Closed spheres
+
+A `SphericalCap` is a graph and ends at its equator; rays that would enter a
+ball beyond it are not carried. `surfaces.Sphere` is the same cap closed into
+a ball: regions, charts and targets keep the cap's graph, while eikonal
+transport meets the whole sphere, F(Q) = (R² - |Q - c|²) / (2R) = 0. It is an
+`surfaces.ImplicitSurface`: `implicit(points)` gives F, its gradient (the unit
+normal from the minus into the plus side) and Hessian, `crossing(points,
+directions)` the signed leg to where a ray crosses into the plus side.
+`InterfaceMap` traces any implicit surface, so a Sphere works wherever a cap
+does, on the lattice, on the meridian and in sequences. Rays that miss or
+graze are unsupported, as before; where the cap suffices both map the same.
+The archive's fans reach 80 degrees of incidence: `reference_fans=((72, 80),)`.
+
+### Cylinders, ovals and ovoids
+
+- `surfaces.CylindricalCap(radius, frame)` is the front half of a circular
+  cylinder along the frame's v, a graph for |x| < |R|; `surfaces.Cylinder` closes
+  it, as `Sphere` closes `SphericalCap`. The cylinder is translation-invariant,
+  but a beam focused to a point is not, and neither is its carrier: the map
+  couples both plane axes, so the cylinder takes the lattice leg (no symmetry
+  shortcut applies without changing the carrier).
+- `surfaces.CartesianOval` takes virtual conjugates: an object behind the
+  vertex (object_z > 0), toward which the incident rays converge, or an image
+  in front (image_z < 0); the surface keeps sigma_o n_o |P - O| + sigma_i n_i
+  |P - I| constant, sigma = -1 for a virtual point. Real-conjugate designs
+  keep their code and results; their GOTS form stays theirs alone.
+  `surfaces.CartesianOvoid` closes the oval into its ovoid of revolution for
+  rays, an implicit surface traced by Newton steps from the vertex's
+  osculating sphere.
+- The lattice leg re-expands the carried field within sin < 0.995 of the
+  transmitted medium, as the manuscript does. Nearer the light circle
+  E_z = -kappa . E / k_z amplifies what the lattice leaves there (the edge of
+  the carried support, for a hard pupil): it took a cylinder's E_z to ten
+  times its error. The meridian samples the polar angle and needs no band.
+- A carried fan whose edge rays leave almost parallel to the plane is refused
+  with a request for a window, before its image fills memory.
+
+### Rotationally symmetric systems
+
+A beam from `fields` is also an incident field of eikonal transport:
+
+    pipeline = PropagationPipeline(system, transport="eikonal")
+    field = pipeline(beam, points)          # carrier: beam.carrier by default
+
+When every refracting surface is a surface of revolution about the beam's
+axis (`Plane`, `SphericalCap`, `EvenAsphere`, `AxisymmetricSurface`,
+`CartesianOval`, coaxial) and the carrier is symmetric about it, the map is
+radial and the dyadic acts on (E_rho, E_phi, E_z) by a matrix of the radius
+alone. Each azimuthal order m of the beam is then carried along one meridian,
+by the same `InterfaceMap` and dyadic as the lattice leg, and E_x ± i E_y of
+order m leave as Hankel spectra of orders m ± 1; E_z follows from
+transversality. Circular, linear, radial and azimuthal states are one or two
+orders. The cost grows linearly with the aperture: the aplanatic sphere of the
+manuscript at R = 1000 λ0 takes seconds, where its lattice would not fit in
+memory.
+
+- The input plane is sampled by Gauss-Legendre panels (71 nodes per 15
+  transmitted wavelengths), each node's preimage found by Newton steps with
+  the analytic DΦ; the beam is evaluated exactly there from its direction
+  density, one Hankel sum per order.
+- The transmitted spectrum is sampled in the polar angle of its plane waves,
+  up to grazing: E_z's obliquity and the phase k_z z stay smooth there, so no
+  spectral cutoff is imposed. Its panels resolve every phase the carried
+  extent and the evaluated region can produce, and are formed on first
+  evaluation. The Hankel sums use the fast transform of `fourier.polar`.
+- The fan ends where the surface stops supporting the carrier or the window
+  closes. A `SphericalCap` is a graph and ends at its equator; rays that would
+  enter a full ball beyond it are not carried. A hard pupil's tails reach
+  there, and a hard cut at the fan's edge diffracts: a window that closes
+  before the equator, such as `reference_fans=((50, 56),)` for the
+  manuscript's aplanatic sphere, removes that edge.
+- `EikonalReport.azimuthal_orders` lists the carried orders (empty for the
+  lattice leg); its unsupported amplitude is the incident field outside the
+  carried fan.
+- `axisymmetric=None` (default) takes the meridian for beams and the lattice
+  for sampled fields. `True` takes the meridian for either: a sampled field
+  is read on rings about its grid's centre, its weakest orders are dropped
+  while together they hold below 1e-5 of it (counted as unsupported), and a
+  field beyond 1e-2 of non-axisymmetric content is refused. `False` takes the
+  lattice; a beam must then be sampled on a `CartesianGrid` first. A beam in a
+  system without the symmetry is refused with the reason.

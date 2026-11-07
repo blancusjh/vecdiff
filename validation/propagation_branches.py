@@ -46,7 +46,9 @@ def run():
         return float(np.linalg.norm(a - b) / np.linalg.norm(b))
 
     for method in ("local", "spectral"):
-        propagator = o.propagation.PropagationPipeline(system, transmission=method)
+        propagator = o.propagation.PropagationPipeline(
+            system, transmission=method, transport="wave"
+        )
         tick = perf_counter()
         field = propagator(incident, target, tolerance=1e-12)
         seconds = perf_counter() - tick

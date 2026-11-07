@@ -92,9 +92,11 @@ python3 -m venv .venv
 ```
 
 NumPy and SciPy are required. Matplotlib, Jupyter execution, FINUFFT and Gmsh
-(`reference-mesh`) are optional extras. `requirements-dev.lock` records the
-qualified development environment; the root `pyproject.toml` configures code
-style. See [notebooks](docs/NOTEBOOKS.md) to execute the notebooks.
+(`reference-mesh`) are optional extras; the `cuda12` or `cuda13` extra installs
+CuPy for a CUDA GPU (see [GPU backend](#gpu-backend)). `requirements-dev.lock`
+records the qualified development environment; the root `pyproject.toml`
+configures code style. See [notebooks](docs/NOTEBOOKS.md) to execute the
+notebooks.
 
 ## Organization
 
@@ -106,7 +108,8 @@ vecdiff_general/
     surfaces/       surface shapes and normals
     sampling/       grids and integration measures
     media/          material properties and spatial assignment
-    fields/         field samples, spectra and source representations
+    fields/         field samples, beams, spectra and carriers
+    backend.py      CPU (NumPy) or CUDA GPU (CuPy) arrays
     system.py       surface/media adjacency and optical prescriptions
     fourier/        numerical transforms
     propagation/
@@ -130,11 +133,41 @@ level re-exports nothing.
 
 External comparisons live in `validation/`.
 
+## GPU backend
+
+As in diffractsim, one global switch moves arrays and computation to a CUDA GPU.
+Make it at the top of a script, before building any vecdiff object:
+
+```python
+from vecdiff_general import backend
+
+backend.set_backend("CUDA")   # "CPU" is the default
+```
+
+Everything built and computed afterwards lives on the GPU, in double precision;
+results match the CPU to roundoff. NumPy arrays and lists passed in are moved to
+the device on entry, results stay there until `backend.to_numpy(array)`, and
+plotting converts on its own. Objects built before a switch keep their arrays on
+the old device and must be rebuilt. Geometry, meshing, the reference solvers in
+`propagation.references` and FINUFFT compute on the CPU; their inputs and results
+are moved for them. `backend.bd` is the current array module (NumPy or CuPy) for
+creating arrays on the same device. `VECDIFF_BACKEND=CUDA pytest general/tests`
+runs the test suite on the GPU.
+
+The gain depends on the operation. On a laptop RTX 4060 (8 GB) against 16 CPU
+threads, focal maps of a `FocusedBeam` run about 14× faster, angular-spectrum
+propagation of a 2048² field 10×, an order-1 Hankel transform 37× and the
+curved-surface transfer `SurfaceTransport` 6–9×, all matching the CPU to
+roundoff. Device memory bounds the lattice: angular-spectrum propagation holds
+about 3 GB at 2048². FINUFFT stays on the CPU: in double precision it outpaces
+cuFINUFFT on consumer cards.
+
 ## Physical contracts
 
 - Lengths and vacuum wavelength are metres. Public E and H are SI phasors in V/m and A/m; time dependence is `exp(-i omega t)`.
 - `ElectricField(grid, wavelength0, values)` owns electric samples, with convenient `Ex`, `Ey`, `Ez` views. It has no medium or duplicate sampling state.
 - `Grid` owns physical coordinates, placement, and any integration measure. `PlaneGrid` components use a declared right-handed frame; complete E values are global Cartesian vectors.
+- A beam (`fields.PlaneBeam`, `fields.FocusedBeam`) is a source-free sum of propagating plane waves in one region. It takes a scalar `profile` from `fields.profiles` and a separate `polarization` state from `fields.polarization` (x, y, radial, azimuthal or any Cartesian/polar pair), evaluates anywhere through a quadrature chosen for the evaluation region, and declares its reference rays as a `fields.Carrier`.
 - `TransverseElectricField` prescribes two local plane components. Longitudinal completion needs the material dispersion and a branch supplied separately. A complete electric vector is validated, never silently projected.
 - Material context belongs to regions and systems. `MaterialDistribution` represents piecewise spatial `n(r)`; a geometrical body does not imply that a solver includes its rim scattering.
 - A solution computes consistent H from its spatial/modal representation. `ElectromagneticField` holds evaluated E/H; its `poynting()` and `power()` preserve coherent interference.
@@ -161,7 +194,7 @@ propagated = spectrum.propagate(10 * wavelength, model="asm")
 power_in_watts = propagated.power()
 ```
 
-An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system, transmission="local" | "spectral")` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`; see the [pipeline example](general/examples/propagation_pipeline.py).
+An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system)` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`. Its default, `transport="eikonal"`, is meant for macroscopic systems: it carries the field along its declared carrier (`carrier=`, or a beam from `fields`, which brings its own) with the plane–surface–plane map of the eikonal–angular-spectrum formulation (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)). `PropagationPipeline(system, transport="wave", transmission="local" | "spectral" | "carrier")` keeps the exact surface transport, for fields without a carrier; see the [pipeline example](general/examples/propagation_pipeline.py).
 
 ## Qualification and limits
 
