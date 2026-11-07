@@ -268,9 +268,32 @@ Options and reports:
 
 The transfer is the formulation's leading-order model. It is exact for a
 plane wave on a plane interface and the identity for index-matched media; it
-does not solve the curved-boundary Maxwell problem. For now, carrier
-transmission and eikonal transport cross one refracting surface. Continuing
-the carrier through refraction for sequences is the next step.
+does not solve the curved-boundary Maxwell problem.
+
+### Sequences of surfaces
+
+Eikonal transport crosses any number of refracting surfaces, as the
+formulation prescribes: leg, exact angular spectrum, the full field on the
+next reference plane, leg with the refracted carrier, and so on. After a
+refraction the carrier is the family of refracted rays (Appendix B),
+`propagation.eikonal.RefractedRays`: each ray keeps its label, its point on the
+first reference plane, and its surface point and refracted direction (Eq. 3.6)
+are continued in a straight line to the next plane together with their
+Appendix A derivatives along the labels. Nothing is inverted off the rays, so
+the next map's Jacobian, flux factor and inverse stay analytic:
+J = det(d P' / d label) / det(d P / d label). Index-matched surfaces between
+are the identity; the family passes through them.
+
+- The lattice leg reads the previous leg's output lattice and inverts the
+  composed map from the first plane's labels; the meridian leg does the same
+  on one meridian, its intermediate spectrum resolving the depth and radius
+  of the next plane (the κ-aliasing rule of the handoff holds by construction).
+- Each interface reports its own unsupported amplitude: the incident field
+  outside the rays that survive it. No amplitude threshold decides a ray.
+- A ray Newton loses from the height under its start, as behind a surface
+  from a rim-depth plane, is retried from the osculating sphere and then from
+  a march along the ray.
+- Carrier transmission (wave transport) still crosses one refracting surface.
 
 ### Rotationally symmetric systems
 

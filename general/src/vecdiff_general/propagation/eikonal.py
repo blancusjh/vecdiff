@@ -73,11 +73,18 @@ def _surface(surface, name, xy, tail):
 
 @dataclass(frozen=True)
 class RayMap:
-    """Plane-surface-plane map quantities at input-plane points, surface-local axes.
+    """Plane-surface-plane map quantities of labelled rays, surface-local axes.
 
-    ``output`` is Phi(rho), ``path`` Delta S in metres, ``flux`` the factor g,
-    ``jacobian`` D Phi with output components first; directions are unit
-    vectors in the surface frame. ``valid`` marks rays the chart supports.
+    A ray is labelled by its point on the first reference plane of its
+    family; for a carrier that is the point P on this map's own input plane.
+    ``start`` is P (where the incident field is read), ``output`` Phi(P),
+    ``path`` Delta S in metres, ``flux`` the factor g. ``jacobian`` is
+    d output / d label with output components first, ``start_jacobian`` the
+    same for P (the identity for a carrier). ``surface_point`` is Q and
+    ``surface_derivative``, ``transmitted_derivative`` are dQ / d label and
+    d s_t / d label, shape (..., 3, 2), so the refracted rays can be carried
+    on (Appendix B). Directions are unit vectors in the surface frame;
+    ``valid`` marks rays the chart supports.
     """
 
     valid: np.ndarray
@@ -91,6 +98,11 @@ class RayMap:
     cos_incident: np.ndarray
     cos_transmitted: np.ndarray
     surface_height: np.ndarray
+    start: np.ndarray
+    start_jacobian: np.ndarray
+    surface_point: np.ndarray
+    surface_derivative: np.ndarray
+    transmitted_derivative: np.ndarray
 
     def subset(self, mask):
         """The same quantities at the points selected by ``mask``."""
@@ -102,11 +114,13 @@ class InterfaceMap:
 
     ``offset`` places the reference plane along the surface normal from the
     vertex, in metres (0 is the vertex plane; positive lies in the direction
-    of propagation). Points are surface-local plane coordinates (..., 2).
+    of propagation). ``carrier`` is a fields.Carrier, whose rays are labelled
+    by their surface-local points on this plane (..., 2), or a RefractedRays
+    family from the previous surface, labelled on its first plane.
     """
 
     def __init__(self, surface, carrier, n_incident, n_transmitted, offset=0.0):
-        if not all(
+        if not isinstance(carrier, RefractedRays) and not all(
             callable(getattr(carrier, name, None))
             for name in ("directions", "jacobians")
         ):
@@ -121,48 +135,63 @@ class InterfaceMap:
     def _global(self, local):
         return self.surface.frame.origin + local @ self.basis.T
 
+    @property
+    def family(self):
+        """The label lattice's map for a refracted family, None for a carrier."""
+        return self.carrier if isinstance(self.carrier, RefractedRays) else None
+
     def forward(self, xy):
-        """RayMap at input-plane points xy (..., 2)."""
+        """RayMap of the rays labelled xy (..., 2): plane points for a carrier."""
         xy = bd.asarray(xy, float)
         shape = xy.shape[:-1]
         xy = xy.reshape(-1, 2)
         finite = bd.isfinite(xy).all(axis=-1)
         xy = bd.where(finite[:, None], xy, 0.0)
-        p = bd.concatenate((xy, bd.full((len(xy), 1), self.offset)), axis=-1)
-        world = self._global(p)
-        s = self.carrier.directions(world) @ self.basis
-        ds = bd.einsum(
-            "ji,njk,kl->nil", self.basis, self.carrier.jacobians(world), self.basis
-        )
-        result = list(self._trace(p, s, ds))
+
+        if self.family is not None:
+            p, s, dp, ds, alive = self.family.rays(xy, self.surface.frame, self.offset)
+            finite = finite & alive
+        else:
+            p = bd.concatenate((xy, bd.full((len(xy), 1), self.offset)), axis=-1)
+            world = self._global(p)
+            s = self.carrier.directions(world) @ self.basis
+            jacobian = bd.einsum(
+                "ji,njk,kl->nil", self.basis, self.carrier.jacobians(world), self.basis
+            )
+            ds = jacobian[:, :, :2]
+            dp = bd.zeros((len(xy), 3, 2))
+            dp[:, 0, 0] = dp[:, 1, 1] = 1.0
+
+        result = list(self._trace(bd.where(finite[:, None], p, 0.0), s, dp, ds))
         result[0] = result[0] & finite
+        result[11] = bd.where(finite[:, None], result[11], bd.nan)  # start
 
         return RayMap(*(value.reshape(shape + value.shape[1:]) for value in result))
 
     def _intersect(self, p, s):
         """Signed incident leg to the surface: a starting leg, then Newton on the graph.
 
-        The start is the height under P where the graph has one there, else the
-        crossing with the osculating sphere at the vertex, else a march along
-        the ray; a ray Newton loses from a geometric start is retried from the
-        march.
+        Starts are tried in turn for the rays Newton has not yet found: the
+        height under P where the graph has one there, the crossing with the
+        osculating sphere at the vertex (the surface itself for a cap), and a
+        march along the ray. Behind the surface, as from a rim-depth plane, the
+        height under P can start Newton off the graph's domain.
         """
         height = _surface(self.surface, "height", p[:, :2], ())
         leg = (height - p[:, 2]) / s[:, 2]
         scale = bd.linalg.norm(p, axis=-1) + 1e-300
-        lost = bd.flatnonzero(~bd.isfinite(leg))
-
-        if len(lost):
-            leg[lost] = self._osculating(p[lost], s[lost])
-
         leg = self._newton(p, s, leg, scale)
-        retry = bd.flatnonzero(~bd.isfinite(leg))
-        retry = retry[bd.isin(retry, lost)] if len(lost) else retry[:0]
 
-        if len(retry):
-            reach = 4 * bd.maximum(scale[retry], abs(self.offset))
-            start = self._bracket(p[retry], s[retry], reach)
-            leg[retry] = self._newton(p[retry], s[retry], start, scale[retry])
+        for start in ("osculating", "march"):
+            retry = bd.flatnonzero(~bd.isfinite(leg))
+            if not len(retry):
+                break
+            if start == "osculating":
+                first = self._osculating(p[retry], s[retry])
+            else:
+                reach = 4 * bd.maximum(scale[retry], abs(self.offset))
+                first = self._bracket(p[retry], s[retry], reach)
+            leg[retry] = self._newton(p[retry], s[retry], first, scale[retry])
 
         return leg
 
@@ -247,7 +276,8 @@ class InterfaceMap:
 
         return start
 
-    def _trace(self, p, s, ds):
+    def _trace(self, p, s, dp, ds):
+        """Rays from points p with directions s; dp, ds their (3, 2) label derivatives."""
         n_i, n_t = self.n_incident, self.n_transmitted
         eta = n_i / n_t
         leg_i = self._intersect(p, s)
@@ -276,11 +306,9 @@ class InterfaceMap:
         out = q + leg_t[:, None] * s_t
         path = n_i * leg_i + n_t * leg_t
 
-        # Appendix A: derivatives along the plane axes a = x, y (axis 1).
-        unit = bd.zeros((1, 2, 3))
-        unit[0, 0, 0] = unit[0, 1, 1] = 1.0
-        ds_a = bd.swapaxes(ds[:, :, :2], 1, 2)  # (n, a, component)
-        w = unit + leg_i[:, None, None] * ds_a
+        # Appendix A: derivatives along the labels a = x, y (axis 1).
+        ds_a = bd.swapaxes(ds, 1, 2)  # (n, a, component)
+        w = bd.swapaxes(dp, 1, 2) + leg_i[:, None, None] * ds_a
         w_n = bd.sum(w * normal[:, None], axis=-1)
         dq = w - s[:, None] * (w_n / c_i[:, None])[..., None]
         t = bd.einsum("nij,naj->nai", hess_f, dq)
@@ -297,14 +325,17 @@ class InterfaceMap:
             + (dc_t - eta * dc_i)[..., None] * normal[:, None]
         )
         moved = dq + leg_t[:, None, None] * ds_t
-        dp = moved - s_t[:, None] * (moved[..., 2] / s_t[:, 2:3])[..., None]
-        jacobian = bd.swapaxes(dp[..., :2], 1, 2)
+        dp_out = moved - s_t[:, None] * (moved[..., 2] / s_t[:, 2:3])[..., None]
+        jacobian = bd.swapaxes(dp_out[..., :2], 1, 2)
         det = (
             jacobian[:, 0, 0] * jacobian[:, 1, 1]
             - jacobian[:, 0, 1] * jacobian[:, 1, 0]
         )
-        valid &= bd.isfinite(det) & (det > 0)
-        flux = bd.sqrt(divide(s[:, 2] * c_t, c_i * s_t[:, 2] * det, valid))
+        # Area ratio between the planes: per label, output over input.
+        det_in = dp[:, 0, 0] * dp[:, 1, 1] - dp[:, 0, 1] * dp[:, 1, 0]
+        ratio = divide(det, det_in, det_in != 0)
+        valid &= bd.isfinite(ratio) & (det_in > 0) & (ratio > 0)
+        flux = bd.sqrt(divide(s[:, 2] * c_t, c_i * s_t[:, 2] * ratio, valid))
 
         return (
             valid,
@@ -318,6 +349,11 @@ class InterfaceMap:
             c_i,
             c_t,
             q[:, 2],
+            p[:, :2],
+            dp[:, :2],
+            q,
+            bd.swapaxes(dq, 1, 2),
+            bd.swapaxes(ds_t, 1, 2),
         )
 
     def inverse(self, targets, samples, *, tolerance=1e-12):
@@ -406,6 +442,44 @@ class InterfaceMap:
         converged = found & (residual <= limit)
 
         return rho, converged, residual
+
+
+class RefractedRays:
+    """The rays a surface refracted, carried on to a later reference plane (Appendix B).
+
+    ``previous`` is that surface's InterfaceMap; the labels are its own (the
+    points of the family's first plane, local to the first surface) and
+    ``axes`` = (u, v) are that plane's lattice axes, which seed inverse maps.
+    The refracted direction (Eq. 3.6) and the Appendix A derivatives of the
+    surface point and direction are continued in a straight line to the
+    plane: no carrier is evaluated off the rays, so nothing is inverted.
+    """
+
+    def __init__(self, previous, axes=None):
+        self.previous, self.axes = previous, axes
+
+    @property
+    def labels(self):
+        u, v = self.axes
+        return bd.stack(bd.meshgrid(u, v), axis=-1).reshape(-1, 2)
+
+    def rays(self, labels, frame, offset):
+        """Points on the plane z = offset of ``frame``, directions, (3, 2) label
+        derivatives of both, and which rays live, in that frame's local axes."""
+        r = self.previous.forward(labels)
+        old = self.previous.surface.frame
+        turn = old.basis.T @ frame.basis
+        q = (old.origin + r.surface_point @ old.basis.T - frame.origin) @ frame.basis
+        s = r.transmitted @ turn
+        dq = bd.einsum("nil,ij->njl", r.surface_derivative, turn)
+        ds = bd.einsum("nil,ij->njl", r.transmitted_derivative, turn)
+        leg = (offset - q[:, 2]) / s[:, 2]
+        p = q + leg[:, None] * s
+        moved = dq + leg[:, None, None] * ds
+        dp = moved - s[:, :, None] * (moved[:, 2:3, :] / s[:, 2, None, None])
+        alive = r.valid & (s[:, 2] > 1e-12) & bd.isfinite(p).all(axis=-1)
+
+        return p, s, dp, ds, alive
 
 
 @dataclass(frozen=True)
@@ -526,7 +600,11 @@ class EikonalTransport:
         )
         x, y = bd.meshgrid(plane.u, plane.v)
         lattice = bd.stack((x, y), axis=-1).reshape(-1, 2)
-        incoming = self.map.forward(lattice)
+        family = self.map.family
+        # A carrier's rays are labelled on this plane; refracted ones on the first.
+        labels = lattice if family is None else family.labels
+        axes = (plane.u, plane.v) if family is None else family.axes
+        incoming = self.map.forward(labels)
         self.support = incoming.valid
         self.output_plane = self._cover(
             plane, incoming.output[self.support], max_growth
@@ -540,28 +618,50 @@ class EikonalTransport:
             & (incoming.output[:, 1] <= out.v[-1] + slack)
         )
         self.support = self.support & imaged
+        if family is not None:
+            self.support = self._covered(lattice, incoming)
         targets = bd.stack(bd.meshgrid(out.u, out.v), axis=-1).reshape(-1, 2)
-        stride = seed_stride or max(1, int(np.ceil(max(plane.shape) / 256)))
-        seeds = bd.stack(bd.meshgrid(plane.u[::stride], plane.v[::stride]), axis=-1)
+        stride = seed_stride or max(1, int(np.ceil(max(len(a) for a in axes) / 256)))
+        seeds = bd.stack(bd.meshgrid(axes[0][::stride], axes[1][::stride]), axis=-1)
         rho, found, residual = self.map.inverse(targets, seeds.reshape(-1, 2))
-        # Preimages beyond the sampled input plane would read the periodic
-        # continuation of the incident spectrum; they carry no field.
-        inside = (
-            (rho[:, 0] >= plane.u[0] - slack)
-            & (rho[:, 0] <= plane.u[-1] + slack)
-            & (rho[:, 1] >= plane.v[0] - slack)
-            & (rho[:, 1] <= plane.v[-1] + slack)
-        )
-        self.lit = found & inside
+        self.lit = found
         self.preimage = rho
         rays = self.map.forward(rho[self.lit])
-        self.lit[bd.flatnonzero(self.lit)[~rays.valid]] = False
-        self.rays = rays.subset(rays.valid)
+        # Starts beyond the sampled input plane would read the periodic
+        # continuation of the incident spectrum; they carry no field.
+        start = rays.start
+        inside = (
+            rays.valid
+            & (start[:, 0] >= plane.u[0] - slack)
+            & (start[:, 0] <= plane.u[-1] + slack)
+            & (start[:, 1] >= plane.v[0] - slack)
+            & (start[:, 1] <= plane.v[-1] + slack)
+        )
+        self.lit[bd.flatnonzero(self.lit)[~inside]] = False
+        self.rays = rays.subset(inside)
         self.residual = (
             float(bd.max(residual[self.lit])) if bool(self.lit.any()) else 0.0
         )
         heights = self.rays.surface_height - self.map.offset
         self.boundary = float(max(0.0, bd.max(heights))) if heights.size else 0.0
+
+    def _covered(self, lattice, incoming):
+        """Input-lattice points that a carried ray of the family starts near.
+
+        The ray-validity of the label lattice, interpolated linearly over its
+        starts, must be one: lattice points between rays that fail here, or
+        that no ray of the family reaches, are unsupported.
+        """
+        from scipy.interpolate import griddata
+
+        alive = to_numpy(bd.isfinite(incoming.start).all(axis=-1))
+        starts = to_numpy(incoming.start)[alive]
+        valid = to_numpy(incoming.valid)[alive].astype(float)
+        if len(starts) < 3:
+            return bd.zeros(len(lattice), bool)
+        value = griddata(starts, valid, to_numpy(lattice), method="linear")
+
+        return bd.asarray(np.nan_to_num(value) > 1 - 1e-9)
 
     @staticmethod
     def _cover(plane, image, max_growth):
@@ -599,10 +699,7 @@ class EikonalTransport:
         basis = self.map.basis
         points = self.map._global(
             bd.concatenate(
-                (
-                    self.preimage[self.lit],
-                    bd.full((int(self.lit.sum()), 1), self.map.offset),
-                ),
+                (self.rays.start, bd.full((len(self.rays.start), 1), self.map.offset)),
                 axis=-1,
             )
         )

@@ -114,3 +114,20 @@ def test_nufft_matches_direct_complex_vector_synthesis():
     direct = NUFFT(amplitudes, wavevectors, points, sign=1, method="direct")
     accelerated = NUFFT(amplitudes, wavevectors, points, sign=1, method="nufft")
     assert np.linalg.norm(direct - accelerated) / np.linalg.norm(direct) < 5e-12
+
+
+def test_lattice_modes_on_the_light_circle_are_discarded_not_completed():
+    """164 samples at lambda / 4 put the mode (9, 40) / 41 on the light circle."""
+    import vecdiff_general as o
+
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
+    axis = (np.arange(164) - 82) * 0.25
+    x, y = np.meshgrid(axis, axis)
+    grid = o.sampling.CartesianGrid(axis, axis)
+    gaussian = np.exp(-(x**2 + y**2) / 9) * np.exp(0.5j * x)
+    noise = 1e-9 * np.random.default_rng(4).normal(size=gaussian.shape)
+    values = np.stack((gaussian + noise, 0.3j * gaussian), -1)
+    field = o.fields.TransverseElectricField(grid, 1.0, values)
+    spectrum = o.fields.angular_spectrum(field, air, evanescent="discard")
+    E = to_numpy(spectrum.propagate(0.0).electric.values)
+    assert np.abs(E[..., 2]).max() < 2 * np.abs(values).max()

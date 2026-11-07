@@ -19,6 +19,8 @@ resolve every phase the representation can carry for the extent of the
 carried field and of the region evaluated.
 """
 
+from dataclasses import replace
+
 import numpy as np
 
 from vecdiff_general._backend import bd, to_numpy
@@ -223,7 +225,7 @@ class AxialTransport:
         reach=None,
         scale=None,
     ):
-        from vecdiff_general.propagation.eikonal import InterfaceMap
+        from vecdiff_general.propagation.eikonal import InterfaceMap, RefractedRays
 
         surface = interface.surface
         wavelength0 = float(wavelength0)
@@ -236,6 +238,9 @@ class AxialTransport:
             )
 
         check_coaxial(surface.frame, axis, wavelength0, "the surface")
+        # A surface of revolution turned about its axis is itself: every
+        # surface takes the axis frame's axes, so all meridians coincide.
+        surface = replace(surface, frame=Frame(surface.frame.origin, axis.basis))
         self.interface, self.carrier, self.wavelength0 = interface, carrier, wavelength0
         self.window = window
         self.map = InterfaceMap(
@@ -251,7 +256,8 @@ class AxialTransport:
         scale = float(
             next((v for v in (scale, reach) if v is not None), 100 * wavelength0)
         )
-        self._check_carrier(scale)
+        if not isinstance(carrier, RefractedRays):
+            self._check_carrier(scale)
         self.edge = self._fan(reach, scale)
         self.image = float(to_numpy(self._meridian(np.array([self.edge])).output)[0, 0])
         panel = _PLANE_PANEL * wavelength0 / interface.plus.material.n
@@ -356,9 +362,10 @@ class AxialTransport:
             )
 
         table = np.linspace(0.0, edge, 4097)
-        image = to_numpy(self._meridian(table).output)[:, 0]
+        rays = self._meridian(table)
+        image, start = (to_numpy(a)[:, 0] for a in (rays.output, rays.start))
 
-        if np.any(np.diff(image) <= 0):
+        if np.any(np.diff(image) <= 0) or np.any(np.diff(start) <= 0):
             raise ValueError(
                 "the meridian map folds or crosses the axis inside the carried fan"
             )
@@ -427,11 +434,18 @@ class AxialTransport:
                 "incident field must live in the interface's incident medium"
             )
 
-        radii = bd.asarray(self.preimage)
-        # Input-plane quadrature of the carried disk: d rho = d rho' / Phi'(rho).
-        measure = bd.asarray(self.weights) * radii / self.rays.jacobian[:, 0, 0]
+        rays = self.rays
+        radii = rays.start[:, 0]
+        # Input-plane quadrature of the carried disk, d rho = (d rho / d label)
+        # (d label / d rho') d rho', with labels on the family's first plane.
+        measure = (
+            bd.asarray(self.weights)
+            * radii
+            * rays.start_jacobian[:, 0, 0]
+            / rays.jacobian[:, 0, 0]
+        )
 
-        if isinstance(incident, BeamField):
+        if isinstance(incident, (BeamField, HankelField)):
             harmonics, power = incident.harmonics(self.plane, radii)
         elif isinstance(incident, PlaneSpectrum):
             harmonics, share = ring_harmonics(
@@ -447,7 +461,10 @@ class AxialTransport:
                 np.prod([float(d) for d in incident.grid.spacing])
             )
         else:
-            raise TypeError("axisymmetric transport takes a beam or a plane spectrum")
+            raise TypeError(
+                "axisymmetric transport takes a beam, a plane spectrum or a "
+                "transmitted Hankel field"
+            )
 
         held = (
             2
@@ -492,7 +509,7 @@ class HankelField:
 
     def __init__(self, frame, region, wavelength0, radius, weights, harmonics):
         self.frame, self.region, self.wavelength0 = frame, region, float(wavelength0)
-        self.radius, self.weights, self.harmonics = radius, weights, harmonics
+        self.radius, self.weights, self.carried = radius, weights, harmonics
         self.wavenumber = 2 * np.pi * region.material.n / self.wavelength0
         self.extent = float(bd.max(radius))
         self.grid = PolarGrid(radius, 2 * bd.pi * bd.arange(4) / 4, frame, weights)
@@ -513,7 +530,7 @@ class HankelField:
             self.wavelength0,
             self.radius,
             self.weights,
-            self.harmonics,
+            self.carried,
         )
         clone._cache = self._cache
 
@@ -540,7 +557,7 @@ class HankelField:
         measure = self.radius * self.weights
         columns, orders = [], []
 
-        for m, (plus, minus) in self.harmonics.items():
+        for m, (plus, minus) in self.carried.items():
             columns += [measure * plus, measure * minus]
             orders += [m + 1, m - 1]
 
@@ -549,6 +566,42 @@ class HankelField:
         self._cache = (panels, result)
 
         return result
+
+    def harmonics(self, plane, radii):
+        """{m: (E_rho, E_phi, E_z)} at radii on a plane across the axis, and |E|² on it.
+
+        The plane shares the frame's axes. Its power follows from Parseval,
+        2 pi sum_m integral (|E+|² / 2 + |E-|² / 2 + |E_z|²) kappa d kappa.
+        """
+        check_coaxial(plane, self.frame, self.wavelength0, "the next plane")
+        if not bd.allclose(plane.basis, self.frame.basis, rtol=0, atol=1e-12):
+            raise ValueError("the next plane must share the field's axes")
+        depth = float((plane.origin - self.frame.origin) @ self.frame.normal)
+        radii = bd.asarray(radii, dtype=float)
+        reach = float(bd.max(radii)) if len(radii) else 0.0
+        theta, w, kappa, plus, minus = self.spectrum(abs(depth), reach)
+        k = self.wavenumber
+        sine, cosine = bd.sin(theta)[:, None], bd.cos(theta)[:, None]
+        flat, steep = k**2 * sine * cosine * w[:, None], k**2 * sine**2 * w[:, None]
+        phase = bd.exp(1j * k * cosine * depth)
+        orders = list(self.carried)
+        columns = [flat * phase * plus, flat * phase * minus]
+        columns.append(0.5j * steep * phase * (plus - minus))
+        bessel = [m + 1 for m in orders] + [m - 1 for m in orders] + orders
+        S = hankel_sum(bd.concatenate(columns, -1), kappa, radii, order=bessel)
+        count = len(orders)
+        result = {}
+        for index, m in enumerate(orders):
+            upper, lower = S[:, index], S[:, count + index]
+            axial = S[:, 2 * count + index]
+            result[m] = ((upper + lower) / 2, (upper - lower) / 2j, axial)
+        # |E_z|² kappa d kappa = (kappa / 2 k_z)² |E+ - E-|² kappa d kappa.
+        axial = steep**2 / (4 * flat) * abs(plus - minus) ** 2
+        power = (
+            2 * bd.pi * bd.sum(flat * (abs(plus) ** 2 + abs(minus) ** 2) / 2 + axial)
+        )
+
+        return result, float(power)
 
     def _sums(self, points, magnetic, method):
         """Cartesian E (and Z0 H) at points, one plane of constant depth at a time."""
@@ -563,7 +616,7 @@ class HankelField:
         sine, cosine = bd.sin(theta)[:, None], bd.cos(theta)[:, None]
         # kappa d kappa = k² sin cos d theta and (kappa / k_z) kappa d kappa = k² sin² d theta.
         flat, steep = k**2 * sine * cosine * w[:, None], k**2 * sine**2 * w[:, None]
-        orders = list(self.harmonics)
+        orders = list(self.carried)
         bessel = [m + 1 for m in orders] + [m - 1 for m in orders] + orders
         fields = 2 if magnetic else 1
         values = np.zeros((fields, len(radius), 3), complex)

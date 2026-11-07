@@ -19,6 +19,17 @@ from vecdiff_general.media.medium import HomogeneousRegion
 from vecdiff_general.sampling.grids import PlaneGrid
 
 
+def _on_light_circle(transverse_squared, wavenumber):
+    """Modes on the light circle to roundoff in k² - kappa².
+
+    k_z = sqrt(k² - kappa²) of a lattice mode exactly on the circle is about
+    1e-8 k, not zero, so the test is on its square.
+    """
+    return bd.abs(wavenumber**2 - transverse_squared) <= 64 * np.finfo(float).eps * (
+        wavenumber**2
+    )
+
+
 def angular_spectrum(
     field,
     region,
@@ -87,7 +98,7 @@ def angular_spectrum(
     if evanescent == "discard":
         # A mode exactly on the light circle carries no power and has no
         # transverse completion; it leaves with the decaying modes.
-        grazing = bd.abs(normal_wavenumber) < 1e-12 * wavenumber
+        grazing = _on_light_circle(transverse_squared, wavenumber)
         discarded = (transverse_squared > wavenumber**2) | grazing
         evanescent_removed = float(bd.linalg.norm(coefficients[discarded]))
         coefficients[discarded] = 0
@@ -95,7 +106,7 @@ def angular_spectrum(
     # Complete only explicitly transverse inputs, in the plane's local basis.
     if isinstance(field, TransverseElectricField):
         occupied = bd.any(coefficients != 0, axis=-1)
-        grazing = bd.abs(normal_wavenumber) < 1e-12 * wavenumber
+        grazing = _on_light_circle(transverse_squared, wavenumber)
 
         if bd.any(grazing & occupied):
             raise ValueError(

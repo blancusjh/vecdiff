@@ -217,3 +217,123 @@ def test_axisymmetric_leg_meets_the_manuscript_spheres_at_a_thousand_wavelengths
         reference = references[term]
         error = 100 * np.sqrt(norm(field - reference) / norm(reference))
         assert abs(error - value) < 2e-3 * value
+
+
+# Two concentric surfaces at R1 = 1000 lambda0 (the handoff's shell cases):
+# indices outside / shell / core, A / R1, R2 / R1, u_max.
+SHELLS = {
+    "aplanatic pair": (1.0, 1.5, 2.0, 1.5, 0.5, 0.4),
+    "meniscus": (1.0, 1.5, 1.0, 0.75, 0.85, 0.65),
+}
+
+
+def marginal_ray(geometry, u):
+    """Unit-sphere meridional trace: surface points, and the axis crossing after both."""
+    n0, n1, n2, focus, inner, _ = SHELLS[geometry]
+
+    def refract(d, normal, ratio):
+        c = -normal @ d
+        return ratio * d + (ratio * c - np.sqrt(1 - ratio**2 * (1 - c**2))) * normal
+
+    d = np.array([-np.sin(np.arcsin(u)), np.cos(np.arcsin(u))])
+    p = np.array([0.0, focus]) - 5 * d
+    b = p @ d
+    q1 = p + (-b - np.sqrt(b * b - (p @ p - 1))) * d
+    d1 = refract(d, q1, n0 / n1)
+    b = q1 @ d1
+    q2 = q1 + (-b - np.sqrt(b * b - (q1 @ q1 - inner**2))) * d1
+    d2 = refract(d1, q2 / inner, n1 / n2)
+    return q1, q2, q2[1] - q2[0] * d2[1] / d2[0]
+
+
+def shell_beam(radius, geometry, pupil):
+    _, _, _, focus, _, umax = SHELLS[geometry]
+    profile = (
+        o.fields.profiles.Uniform(umax)
+        if pupil == "hard"
+        else lambda x, y: np.clip(1 - (x**2 + y**2) / umax**2, 0, None) ** 3
+    )
+    return o.fields.FocusedBeam(
+        profile,
+        o.fields.polarization.cartesian(1 / np.sqrt(2), 1j / np.sqrt(2)),
+        focal_length=1.0,
+        max_sine=umax,
+        wavelength0=1.0,
+        region=AIR,
+        frame=o.geometry.Frame([0, 0, focus * radius]),
+        apodization="none",
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def layered_focal_line(radius, geometry, pupil):
+    """First entry through both surfaces on 81 radii of the image plane."""
+    from vecdiff_general.propagation.references import LayeredSphere
+
+    n0, n1, n2, _, inner, _ = SHELLS[geometry]
+    shell = o.media.HomogeneousRegion("shell", o.media.Dielectric(n1))
+    core = o.media.HomogeneousRegion("core", o.media.Dielectric(n2))
+    image = marginal_ray(geometry, 1e-5)[2] * radius
+    rho = np.linspace(0, 5, 81)
+    points = o.sampling.PointGrid(np.c_[rho, 0 * rho, np.full(81, image)])
+    sphere = LayeredSphere(
+        shell_beam(radius, geometry, pupil),
+        tuple(o.volumes.SphereVolume([0, 0, 0], r * radius) for r in (1, inner)),
+        (shell, core),
+    )
+    reference = host(sphere.evaluate(points, term=1, side="interior").electric.values)
+    return rho, points, (shell, core), reference
+
+
+@pytest.mark.parametrize(
+    "geometry, pupil, planes, fans, expected",
+    [
+        ("aplanatic pair", "smooth", "vertex", (None, None), 0.01914),
+        ("aplanatic pair", "smooth", "rim", (None, None), 0.02049),
+        ("meniscus", "smooth", "vertex", (None, (34.0, 38.0)), 0.001924),
+        ("meniscus", "smooth", "rim", (None, (34.0, 38.0)), 0.001038),
+        ("meniscus", "hard", "vertex", (None, (34.0, 38.0)), 0.02670),
+    ],
+)
+def test_two_surfaces_meet_the_layered_sphere_at_a_thousand_wavelengths(
+    geometry, pupil, planes, fans, expected
+):
+    """First-entry error in percent on the 5 lambda0 image disk, both surfaces carried.
+
+    The archived two-surface code gives 0.0191 / 0.0205 (aplanatic pair,
+    smooth pupil, vertex / rim-depth planes), 0.00192 / 0.00104 (meniscus,
+    smooth) and 0.0260 (meniscus, hard, vertex). The meniscus's second fan
+    stops before total reflection, as there. With a hard pupil the aplanatic
+    pair's marginal ray meets the inner cap at its equator and its tails go on
+    beyond, which a graph cap does not carry (the archive: 0.883 / 0.0795).
+    """
+    radius = 1000.0
+    _, _, _, _, inner, umax = SHELLS[geometry]
+    rho, points, (shell, core), reference = layered_focal_line(radius, geometry, pupil)
+    caps = [
+        o.surfaces.SphericalCap(r * radius, o.geometry.Frame([0, 0, -r * radius]))
+        for r in (1, inner)
+    ]
+    if planes == "vertex":
+        offsets = (0.0, 0.0)
+    else:
+        q1, q2, _ = marginal_ray(geometry, umax)
+        offsets = ((q1[1] + 1) * radius, (q2[1] + inner) * radius)
+    pipeline = o.propagation.PropagationPipeline(
+        (
+            o.system.DielectricInterface(caps[0], AIR, shell),
+            o.system.DielectricInterface(caps[1], shell, core),
+        ),
+        transport="eikonal",
+        reference_planes=offsets,
+        reference_fans=fans,
+    )
+    solution = pipeline.solve(shell_beam(radius, geometry, pupil))
+    field = host(solution.evaluate(points).electric.values)
+    assert [r.azimuthal_orders for r in solution.interactions] == [(1,), (1,)]
+
+    def norm(E):
+        return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
+
+    error = 100 * np.sqrt(norm(field - reference) / norm(reference))
+    assert abs(error - expected) < 2e-3 * expected

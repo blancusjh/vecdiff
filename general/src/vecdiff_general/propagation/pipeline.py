@@ -27,7 +27,11 @@ from vecdiff_general.propagation._axisymmetric import (
     footprint,
 )
 from vecdiff_general.propagation.coverage import CoverageEvaluator, validate_coverage
-from vecdiff_general.propagation.eikonal import EikonalTransport, check_window
+from vecdiff_general.propagation.eikonal import (
+    EikonalTransport,
+    RefractedRays,
+    check_window,
+)
 from vecdiff_general.propagation.homogeneous import PlaneTransport
 from vecdiff_general.propagation.surface_interaction import (
     CarrierFresnel,
@@ -141,7 +145,10 @@ class PropagationPipeline:
     ray, (start, end) rolls them off between those incidence angles in
     degrees, a callable receives the RayMap. "carrier" transmission and
     eikonal transport need the incident field's carrier, passed as
-    ``carrier=`` with the field; for now they cross one refracting surface.
+    ``carrier=`` with the field. Eikonal transport crosses any sequence of
+    surfaces: after each refraction the carrier is the family of refracted
+    rays (Appendix B), labelled on the first plane, with its Appendix A
+    derivatives; carrier transmission crosses one refracting surface.
 
     Eikonal transport also takes a beam from fields as the incident field
     (its own carrier unless carrier= is given). Surfaces of revolution about
@@ -419,14 +426,25 @@ class PropagationPipeline:
         if self.transport == "eikonal":
             for index in range(len(operators), through):
                 interface = self.interfaces[index]
+                if interface.minus.material.n == interface.plus.material.n:
+                    operators.append(None)
+                    continue
                 frame = interface.surface.frame
                 origin = frame.origin + self.reference_planes[index] * frame.normal
-                plane = CartesianGrid(grid.u, grid.v, Frame(origin, frame.basis))
+                last = next((leg for leg in reversed(operators) if leg), None)
+                # The next leg reads the previous leg's output lattice, and its
+                # carrier is the family that leg refracted.
+                lattice = grid if last is None else last.output_plane
+                family = carrier
+                if last is not None:
+                    first = next(leg for leg in operators if leg)
+                    family = RefractedRays(last.map, (first.plane.u, first.plane.v))
+                plane = CartesianGrid(lattice.u, lattice.v, Frame(origin, frame.basis))
                 operators.append(
                     EikonalTransport(
                         plane,
                         interface,
-                        carrier,
+                        family,
                         wavelength,
                         window=self.reference_fans[index],
                     )
@@ -475,16 +493,23 @@ class PropagationPipeline:
             plane = Frame(
                 frame.origin + self.reference_planes[index] * frame.normal, axis.basis
             )
-            if beam:
+            last = next((leg for leg in reversed(operators) if leg), None)
+            if last is not None:
+                # Labels on the first plane: the fan can only narrow from there.
+                reach, scale = None, last.edge
+                family = RefractedRays(last.map)
+            elif beam:
                 reach, scale = None, footprint(source.beam, plane)
             else:
                 grid = source.grid
                 reach = float(min(-grid.u[0], grid.u[-1], -grid.v[0], grid.v[-1]))
                 scale = reach
+            if last is None:
+                family = carrier
             operators.append(
                 AxialTransport(
                     interface,
-                    carrier,
+                    family,
                     axis,
                     wavelength,
                     offset=self.reference_planes[index],
@@ -521,10 +546,10 @@ class PropagationPipeline:
                 for x in self.interfaces[:through]
                 if x.minus.material.n != x.plus.material.n
             ]
-            if len(refracting) > 1:
+            if len(refracting) > 1 and self.treatment == "carrier":
                 raise ValueError(
                     "the carrier is not yet continued through refraction; "
-                    f"{self.treatment} transmission crosses one refracting surface"
+                    "carrier transmission crosses one refracting surface"
                 )
         if carrier is not self._carrier:
             self._solved_source = None
@@ -560,6 +585,14 @@ class PropagationPipeline:
                 self._responses.append(response)
                 self._stages.append(current)
                 continue
+            if operator is None:
+                # An index-matched surface between eikonal legs: the identity.
+                current = PlaneSpectrum(
+                    current.grid, replace(current.expansion, region=interface.plus)
+                )
+                self._stages.append(current)
+                self._responses.append(None)
+                continue
             qin, qout = (operator, None) if self.transport == "eikonal" else operator
             distance = float(
                 (qin.plane.frame.origin - current.grid.frame.origin)
@@ -593,7 +626,8 @@ class PropagationPipeline:
             last = self._operators[through - 1]
             boundary = None if last is None else last.boundary
         elif self.transport == "eikonal":
-            boundary = self._operators[through - 1].boundary
+            last = self._operators[through - 1]
+            boundary = None if last is None else last.boundary
         else:
             boundary = float(max(0, self._operators[through - 1][1].height.max()))
         result = PropagationSolution(

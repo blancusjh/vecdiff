@@ -288,7 +288,7 @@ def test_pipeline_checks_the_eikonal_options():
         ),
     )
     with pytest.raises(ValueError, match="one refracting surface"):
-        P.PropagationPipeline(two, transport="eikonal").solve(
+        P.PropagationPipeline(two, transmission="carrier").solve(
             incident, carrier=F.Carrier.collimated([0, 0, 1])
         )
 
