@@ -68,11 +68,24 @@ the transverse polarization.
 **Thorlabs AL1225 (notebook 06).** Spectral pipeline fields of the catalog asphere, geometrically
 scaled to R/λ = 3, 10, 30 and 100: meridional and focal-plane |E|².
 
+## Eikonal–angular-spectrum transport
+
+vecdiff carries vector fields through macroscopic curved interfaces with the eikonal–angular-spectrum method of the manuscript. This is `PropagationPipeline`'s default, `transport="eikonal"`.
+
+- **Across each surface** the field follows its carrier by the plane–surface–plane map, with the flux factor and the continued Fresnel dyadic, and analytic Jacobians (Appendix A).
+- **Between surfaces** it is an exact angular spectrum.
+- **Sequences** follow the refracted ray family (Appendix B).
+- **Surfaces:** planes, spheres, aspheres, Cartesian ovals (real or virtual conjugates), cylinders and freeforms, as graph caps or as closed surfaces.
+- **Rotationally symmetric systems** run on one meridian with a fast Hankel sum. The manuscript's aplanatic sphere at 1000 λ0 takes about a second and reproduces the archived method to seven digits (0.1417746 %).
+- **Exact references** for checking: `MieSphere`, `LayeredSphere` and `InfiniteCylinder`, each with its Debye terms.
+
+The [propagation guide](docs/PROPAGATION.md#eikonal-transport) describes the method, its options and the regression against the handoff's table. [Notebook 08](general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it in use. `transport="wave"` keeps the exact surface transport for fields without a carrier.
+
 ## Documentation
 
-- [Notebooks](docs/NOTEBOOKS.md): seven executed optical studies using the current methods.
+- [Notebooks](docs/NOTEBOOKS.md): eight executed optical studies using the current methods.
 - [Architecture](docs/ARCHITECTURE.md): responsibilities, units and source map.
-- [Propagation](docs/PROPAGATION.md): homogeneous propagation and the R Q⁻¹ T Q R path.
+- [Propagation](docs/PROPAGATION.md): homogeneous propagation, the R Q⁻¹ T Q R path and eikonal transport.
 - [Fourier API and grids](docs/FOURIER_AND_GRIDS.md): Cartesian, polar and nonuniform transforms with physical coordinates.
 - [Validation](docs/VALIDATION.md): tests, full-wave references (BEM, FEM, Mie) and their limits.
 

@@ -241,172 +241,186 @@ carry no field; their share is reported.
 
 ## Eikonal transport
 
-`PropagationPipeline(system)`, whose default is `transport="eikonal"`, replaces the exact legs
-to and from each surface by the plane–surface–plane map along the carrier
-(`propagation.EikonalTransport`). A point P of the reference plane follows its
-carrier ray to the surface, refracts by the vector Snell law, and is
-extrapolated to P′ on the same geometric plane in the transmitted medium.
-The signed legs give the optical path ΔS = n_i ℓ_i + n_t ℓ_t, and the field
-is carried as
+`PropagationPipeline(system)` carries fields with the eikonal–angular-spectrum method of the manuscript *Vectorial field transport through general curved interfaces*. This is the default, `transport="eikonal"`: vecdiff is meant for macroscopic systems. Between surfaces the field travels as an exact angular spectrum. Across each surface it is carried along its **carrier**, the ray family it declares. The method computes the **first entry**: the wave transmitted through every surface without reflection. [Notebook 08](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it on three geometries against their exact references.
 
-    E′(Φ(ρ)) = g exp(i k0 ΔS) [t_s E_s s + t_p E_p p_t + t_p E_par s_t],
-    g = sqrt(s_iz c_t / (c_i s_tz J)),  J = det DΦ.
+### The method in brief
 
-`propagation.InterfaceMap` computes Φ, ΔS, g and DΦ. DΦ is analytic: it comes
-from the surface Hessian (`GraphSurface.hessian`, declared by every built-in
-surface; `FreeformSurface` takes a `hessian_function`) and the carrier's
-direction Jacobian. No spherical focus is assumed. The output lattice is
-filled through the inverse map, damped Newton steps from a forward table, so
-the incident field is evaluated exactly at each preimage and never
-interpolated. The carried plane components are then re-expanded in the
-transmitted medium.
+A point P of a reference plane in front of a surface follows its carrier ray to the surface, refracts there by the vector Snell law, and continues to P′ on the same geometric plane in the transmitted medium. This plane–surface–plane map Φ, with signed legs ℓ_i and ℓ_t, carries the field as
 
-Options and reports:
+    E′(Φ(P)) = g exp(i k0 ΔS) [t_s E_s s + t_p E_p p_t + t_p E_par s_t],
+    ΔS = n_i ℓ_i + n_t ℓ_t,   g = sqrt(s_iz c_t / (c_i s_tz J)),   J = det DΦ.
 
-- `reference_planes=(offset, ...)` places each plane along the axis from its
-  surface vertex (default: the vertex planes).
-- The output lattice keeps the input spacing. It grows, up to four times per
-  axis, until it holds the image of every supported ray, because refraction
-  can spread the image beyond the input footprint.
-- `EikonalTransport(..., window=...)` rolls the carried field off. It takes
-  either `(start, end)` incidence angles in degrees or a callable of the
-  `RayMap`, such as a reference fan. Hard-edged inputs depend on this choice;
-  report it with results. The pipeline passes `reference_fans=(fan, ...)`,
-  one per surface, to its legs.
-- `EikonalReport` gives the incident amplitude on rays the chart does not
-  support (misses, rear or grazing incidence, total reflection, folds), the
-  dark output samples, and the inverse-map residual.
+- **Continued dyadic.** The bracket is the continued dyadic (Eq. 4.3), and E_par is the part of the field along the carrier. Keeping E_par makes an index-matched surface exactly the identity.
+- **Exact limits.** The transfer is exact for a plane wave on a plane interface.
+- **What it is.** It is the formulation's leading-order model: it does not solve the curved-boundary Maxwell problem, and its error falls as 1/(R/λ0).
+- **Carried plane components.** They are re-expanded in the transmitted medium and continue as an exact angular spectrum to the next surface or the observation points.
 
-The transfer is the formulation's leading-order model. It is exact for a
-plane wave on a plane interface and the identity for index-matched media; it
-does not solve the curved-boundary Maxwell problem.
+`propagation.InterfaceMap` computes Φ, ΔS, g and DΦ; `propagation.RayMap` holds the rays.
+- **DΦ is analytic (Appendix A).** It comes from the surface Hessian and the carrier's direction Jacobian; no spherical focus is assumed.
+- **Intersection.** Each ray–surface intersection starts from the height under P, then the osculating sphere at the vertex, then a march along the ray, and finishes with Newton's method. A ray that Newton loses from behind a surface (from a rim-depth plane) is retried from the osculating sphere.
+
+### Wave or eikonal transport, and carriers
+
+- **`transport="eikonal"` (default).** It needs the incident field's carrier.
+  - A beam from `fields` (`FocusedBeam`, `PlaneBeam`) can be the incident field itself, and brings `beam.carrier`. It is carried on one meridian, or on a lattice with `lattice=grid`.
+  - A sampled field or spectrum takes `carrier=` at the call: a `fields.Carrier` (`Carrier.converging(focus)`, `diverging`, `collimated`, or a general optical path with gradient and Hessian).
+  - Without a carrier the pipeline raises and names `carrier=` and `transport="wave"`.
+  - Transmission is the carrier dyadic (`transmission=None` or `"carrier"`).
+- **`transport="wave"`.** It carries the field exactly to and from each surface (`SurfaceTransport`) and takes `transmission="spectral"` (its default), `"local"`, `"carrier"` or another Fresnel treatment ([above](#surface-interaction)). It is the transport of fields without a carrier. `transmission="carrier"` keeps the exact surface transport but takes the local direction from the carrier ([Carrier-directed transmission](#carrier-directed-transmission)).
+- **Inadmissible pairs raise at construction:** eikonal transport with a spectral or local Fresnel treatment, and reference planes, fans or `axisymmetric` with wave transport.
+
+### Reference planes and fans
+
+- **`reference_planes=(offset, ...)`**, one per surface, places each plane along the axis from its surface vertex (default: the vertex planes).
+  - A plane at the depth where the marginal ray meets the surface shortens the legs.
+  - That lowers a hard pupil's error: for the aplanatic sphere at 1000 λ0, 0.1418 % (vertex plane) against 0.01524 % (rim plane).
+- **`reference_fans=(fan, ...)`**, one per surface, weights the carried rays:
+  - None carries every supported ray;
+  - `(start, end)` rolls them off between those incidence angles, in degrees;
+  - a callable receives the `RayMap` (its `label` is the ray's point on the first plane, so a fan can roll off along the input radius).
+- **Fans and hard pupils.** A hard pupil's result depends on the fan, so report it with results. A hard cut at the fan's edge diffracts: 0.14182 % on the vertex plane and 0.01729 % on the rim plane, against 0.14177 % and 0.01524 % tapered. A taper that closes before the surface stops supporting the carrier removes that edge.
+
+### The lattice leg
+
+`propagation.EikonalTransport` is one leg on a Cartesian lattice. It is what a sampled field, a beam given `lattice=` and every non-axisymmetric system use.
+- It fills the output lattice through the inverse map: a forward table, then damped Newton steps with DΦ. The incident field is evaluated exactly at each preimage, never interpolated.
+- The output lattice keeps the input spacing. It grows, up to four times per axis, until it holds the image of every ray the window weights. Refraction toward a closer image spreads P′ beyond the input footprint, and cutting it there diffracted spuriously.
+- It re-expands within sin < 0.995 of the transmitted medium, as the manuscript does. Nearer the light circle E_z = −κ·E/k_z amplifies what the lattice leaves there.
+- A fan whose edge rays leave almost parallel to the plane is refused with a request for a window, before its image fills memory.
+- **The leg streams its lattices.** Rays are traced, inverted and carried one block of rows at a time: `block_size` points, 2^20 by default; on the CPU backend, blocks of 2^18 run on up to eight threads.
+  - It keeps only the preimages, the lit and supported masks and the carried field, in host memory. Before, whole-lattice ray maps took about 1.2 kB a point.
+  - Blocks change nothing but roundoff.
+  - The incident field is read on the reference plane by two-dimensional sums, its plane waves' normal phase folded into their amplitudes.
+- **A beam on a lattice.** `PropagationPipeline(system, lattice=grid)` carries a beam on the lattice leg, `grid` (a `CartesianGrid`) setting its spacing and extent.
+  - The beam is read exactly at the preimages, so no sampled copy of the input lattice is held.
+  - The result is a `LatticeSpectrum`: two transverse coefficients per mode in host memory, in place of a `PlaneSpectrum`'s wavevector and three amplitudes. Its modes are formed and summed one block of rows at a time, by a 2D type-3 transform when the targets lie on one plane.
+  - A sampled field still gives a `PlaneSpectrum`.
+  - The archive's cylinder at R = 1000 λ0 (an 11852² lattice, 140 million points) runs this way in double precision: 13 GB of host memory and an 8 GB GPU.
 
 ### Sequences of surfaces
 
-Eikonal transport crosses any number of refracting surfaces, as the
-formulation prescribes: leg, exact angular spectrum, the full field on the
-next reference plane, leg with the refracted carrier, and so on. After a
-refraction the carrier is the family of refracted rays (Appendix B),
-`propagation.eikonal.RefractedRays`: each ray keeps its label, its point on the
-first reference plane, and its surface point and refracted direction (Eq. 3.6)
-are continued in a straight line to the next plane together with their
-Appendix A derivatives along the labels. Nothing is inverted off the rays, so
-the next map's Jacobian, flux factor and inverse stay analytic:
-J = det(d P' / d label) / det(d P / d label). Index-matched surfaces between
-are the identity; the family passes through them.
+Eikonal transport crosses any number of refracting surfaces, as the formulation prescribes:
+1. a leg;
+2. the exact angular spectrum;
+3. the full field on the next reference plane;
+4. a leg along the refracted carrier;
+5. and so on.
 
-- The lattice leg reads the previous leg's output lattice and inverts the
-  composed map from the first plane's labels; the meridian leg does the same
-  on one meridian, its intermediate spectrum resolving the depth and radius
-  of the next plane (the κ-aliasing rule of the handoff holds by construction).
-- Each interface reports its own unsupported amplitude: the incident field
-  outside the rays that survive it. No amplitude threshold decides a ray.
-- A ray Newton loses from the height under its start, as behind a surface
-  from a rim-depth plane, is retried from the osculating sphere and then from
-  a march along the ray.
-- Carrier transmission (wave transport) still crosses one refracting surface.
+After a refraction the carrier is the family of refracted rays (Appendix B), `propagation.eikonal.RefractedRays`.
+- Each ray keeps its label, its point on the first reference plane.
+- Its surface point and refracted direction (Eq. 3.6) continue in a straight line to the next plane, together with their Appendix A derivatives along the labels.
+- Nothing is evaluated off the rays or inverted, so the next map's Jacobian, flux factor and inverse stay analytic, with J = det(dP′/d label) / det(dP/d label).
 
-### Closed spheres
+How the two legs chain, and the bookkeeping:
+- **Index-matched surfaces** between legs are the identity; the family passes through them.
+- **The lattice leg** reads the previous leg's output lattice and inverts the composed map from the first plane's labels.
+- **The meridian leg** reads the previous leg's Hankel field. Its intermediate spectrum resolves the depth and radius of the next plane, so the handoff's κ-aliasing rule holds by construction.
+- **Each interface reports its own unsupported amplitude:** the incident field outside the rays that survive it. No amplitude threshold decides a ray.
+- **Fans:** a later fan stays within the labels the first leg carried.
+- **Wave transport:** carrier transmission still crosses one refracting surface.
 
-A `SphericalCap` is a graph and ends at its equator; rays that would enter a
-ball beyond it are not carried. `surfaces.Sphere` is the same cap closed into
-a ball: regions, charts and targets keep the cap's graph, while eikonal
-transport meets the whole sphere, F(Q) = (R² - |Q - c|²) / (2R) = 0. It is an
-`surfaces.ImplicitSurface`: `implicit(points)` gives F, its gradient (the unit
-normal from the minus into the plus side) and Hessian, `crossing(points,
-directions)` the signed leg to where a ray crosses into the plus side.
-`InterfaceMap` traces any implicit surface, so a Sphere works wherever a cap
-does, on the lattice, on the meridian and in sequences. Rays that miss or
-graze are unsupported, as before; where the cap suffices both map the same.
-The archive's fans reach 80 degrees of incidence: `reference_fans=((72, 80),)`.
+### Surfaces
 
-### Cylinders, ovals and ovoids
+Eikonal transport needs a surface's Hessian, and every built-in surface declares one.
 
-- `surfaces.CylindricalCap(radius, frame)` is the front half of a circular
-  cylinder along the frame's v, a graph for |x| < |R|; `surfaces.Cylinder` closes
-  it, as `Sphere` closes `SphericalCap`. The cylinder is translation-invariant,
-  but a beam focused to a point is not, and neither is its carrier: the map
-  couples both plane axes, so the cylinder takes the lattice leg (no symmetry
-  shortcut applies without changing the carrier).
-- `surfaces.CartesianOval` takes virtual conjugates: an object behind the
-  vertex (object_z > 0), toward which the incident rays converge, or an image
-  in front (image_z < 0); the surface keeps sigma_o n_o |P - O| + sigma_i n_i
-  |P - I| constant, sigma = -1 for a virtual point. Real-conjugate designs
-  keep their code and results; their GOTS form stays theirs alone.
-  `surfaces.CartesianOvoid` closes the oval into its ovoid of revolution for
-  rays, an implicit surface traced by Newton steps from the vertex's
-  osculating sphere.
-- The lattice leg re-expands the carried field within sin < 0.995 of the
-  transmitted medium, as the manuscript does. Nearer the light circle
-  E_z = -kappa . E / k_z amplifies what the lattice leaves there (the edge of
-  the carried support, for a hard pupil): it took a cylinder's E_z to ten
-  times its error. The meridian samples the polar angle and needs no band.
-- A carried fan whose edge rays leave almost parallel to the plane is refused
-  with a request for a window, before its image fills memory.
+| Surface | Kind | Notes |
+|---|---|---|
+| `Plane`, `SphericalCap`, `EvenAsphere`, `AxisymmetricSurface` (`curvature_function=`) | graph | surfaces of revolution |
+| `CartesianOval` | graph | stigmatic for a conjugate pair; real or virtual conjugates (object behind the vertex, image in front); Hessian by implicit differentiation |
+| `FreeformSurface` | graph | `hessian_function=` |
+| `CylindricalCap` | graph | front half of a circular cylinder along the frame's v, for \|x\| < \|R\| |
+| `Sphere` | closed, implicit | the `SphericalCap` of the same radius closed into a ball |
+| `Cylinder` | closed, implicit | closes `CylindricalCap` |
+| `CartesianOvoid` | closed, implicit | closes the oval into its ovoid of revolution |
 
-### Large lattices
+- **Graphs end at their rim.** A `SphericalCap` ends at its equator, so rays that would enter a ball beyond it are not carried. That limits a hard pupil whose edge tails reach the equator (the aplanatic pair's marginal ray meets its inner cap exactly there).
+- **Closed surfaces** (`surfaces.ImplicitSurface`, F(Q) = 0) meet rays beyond their graph chart.
+  - `implicit(points)` gives F, its gradient (the normal from the minus into the plus side, equal to the graph normal where both exist) and its Hessian.
+  - `crossing(points, directions)` gives the signed leg to where a ray crosses into the plus side.
+  - `InterfaceMap` traces them with the same Appendix A formulas.
+  - Regions, charts, targets and coverage keep the graph, so a closed surface works wherever its cap does: on the lattice, on the meridian and in sequences.
+  - Where the cap suffices, both map the same.
+  - The archive's sphere fans reach 80°: `reference_fans=((72, 80),)`.
 
-The lattice leg streams its lattices: rays are traced, inverted and carried
-`block_size` points at a time (2^20 by default), and it keeps only the
-preimages, the lit and supported masks and the carried field, in host
-memory. Blocks change nothing but roundoff. The incident field is read on
-the reference plane by two-dimensional sums, its plane waves' normal phase
-folded into their amplitudes.
+### Rotationally symmetric systems: one meridian
 
-- `PropagationPipeline(system, lattice=grid)` carries a beam on the lattice
-  `grid` (a `CartesianGrid`: its spacing and extent). The beam is read exactly
-  at the preimages, so no sampled copy of the input lattice is held, and the
-  result is a `LatticeSpectrum`: two transverse coefficients per mode in host
-  memory, in place of a `PlaneSpectrum`'s wavevector and three amplitudes,
-  with its modes formed and summed one block of rows at a time. A sampled
-  field still gives a `PlaneSpectrum`.
-- The archive's cylinder at R = 1000 λ0 (an 11852² lattice, 140 million
-  points) runs this way in double precision: 13 GB of host memory and an
-  8 GB GPU, about twenty minutes for both pupils. On the CPU backend the
-  blocks run on up to eight threads.
+If every refracting surface is a surface of revolution about the beam's axis (coaxial `Plane`, `SphericalCap`, `Sphere`, `EvenAsphere`, `AxisymmetricSurface`, `CartesianOval` or `CartesianOvoid`) and the carrier is symmetric about it, then the map is radial. The dyadic then acts on (E_rho, E_phi, E_z) by a matrix of the radius alone.
 
-### Rotationally symmetric systems
+- **One meridian per azimuthal order.** Each order m of the beam is carried along one meridian, by the same `InterfaceMap` and dyadic as the lattice leg.
+- **Hankel spectra.** E_x ± i E_y of order m leave as Hankel spectra of orders m ± 1, and E_z follows from transversality.
+- **Cost.** Circular, linear, radial and azimuthal states are one or two orders. The cost grows linearly with the aperture instead of quadratically: the manuscript's aplanatic sphere at 1000 λ0 takes 1.1–1.4 s (the archived prototype: 64 s).
 
-A beam from `fields` is also an incident field of eikonal transport:
+`axisymmetric=` chooses the realization:
+- **None (default):** the meridian for beams without a lattice, the lattice otherwise.
+- **True:** the meridian for either. A sampled field is read on rings about its grid's centre; its weakest orders are dropped while together they stay below 1e-5 (counted as unsupported); a field with more than 1e-2 of non-axisymmetric content is refused.
+- **False:** the lattice; a beam then needs `lattice=` (see [the lattice leg](#the-lattice-leg)).
+- **No symmetry:** a beam in a system without the symmetry (a cylinder, a decentred surface, an asymmetric carrier) and without a lattice is refused, with the reason.
 
-    pipeline = PropagationPipeline(system, transport="eikonal")
-    field = pipeline(beam, points)          # carrier: beam.carrier by default
+How the meridian is sampled:
+- **Input plane:** Gauss–Legendre panels at most 10 λ0 wide. Each node's preimage is found by Newton steps with DΦ, and the beam is evaluated exactly there from its direction density, one Hankel sum per order.
+- **Transmitted spectrum:** sampled in the polar angle of its plane waves, up to grazing. E_z's obliquity and the phase k_z z stay smooth there, so no spectral cut-off is imposed. Its panels resolve every phase that the carried extent and the evaluated region can produce.
+- **Fast Hankel sum:** `fourier.polar.hankel_sum`, and `HT`/`IHT(method="fast")`.
+  - Where tx ≥ z0 ≈ 40, the kernel is its ten-term Hankel asymptotic expansion, each term one type-3 FINUFFT sharing a plan across orders.
+  - Where tx < 2 z0, the kernel is interpolated at Chebyshev nodes (kernel compression).
+  - It agrees with direct sums to 1e-12–1e-15.
 
-When every refracting surface is a surface of revolution about the beam's
-axis (`Plane`, `SphericalCap`, `EvenAsphere`, `AxisymmetricSurface`,
-`CartesianOval`, coaxial) and the carrier is symmetric about it, the map is
-radial and the dyadic acts on (E_rho, E_phi, E_z) by a matrix of the radius
-alone. Each azimuthal order m of the beam is then carried along one meridian,
-by the same `InterfaceMap` and dyadic as the lattice leg, and E_x ± i E_y of
-order m leave as Hankel spectra of orders m ± 1; E_z follows from
-transversality. Circular, linear, radial and azimuthal states are one or two
-orders. The cost grows linearly with the aperture: the aplanatic sphere of the
-manuscript at R = 1000 λ0 takes seconds, where its lattice would not fit in
-memory.
+### Reports
 
-- The input plane is sampled by Gauss-Legendre panels (71 nodes per 15
-  transmitted wavelengths), each node's preimage found by Newton steps with
-  the analytic DΦ; the beam is evaluated exactly there from its direction
-  density, one Hankel sum per order.
-- The transmitted spectrum is sampled in the polar angle of its plane waves,
-  up to grazing: E_z's obliquity and the phase k_z z stay smooth there, so no
-  spectral cutoff is imposed. Its panels resolve every phase the carried
-  extent and the evaluated region can produce, and are formed on first
-  evaluation. The Hankel sums use the fast transform of `fourier.polar`.
-- The fan ends where the surface stops supporting the carrier or the window
-  closes. A `SphericalCap` is a graph and ends at its equator; rays that would
-  enter a full ball beyond it are not carried. A hard pupil's tails reach
-  there, and a hard cut at the fan's edge diffracts: a window that closes
-  before the equator, such as `reference_fans=((50, 56),)` for the
-  manuscript's aplanatic sphere, removes that edge.
-- `EikonalReport.azimuthal_orders` lists the carried orders (empty for the
-  lattice leg); its unsupported amplitude is the incident field outside the
-  carried fan.
-- `axisymmetric=None` (default) takes the meridian for beams without a
-  lattice and the lattice otherwise. `True` takes the meridian for either: a sampled field
-  is read on rings about its grid's centre, its weakest orders are dropped
-  while together they hold below 1e-5 of it (counted as unsupported), and a
-  field beyond 1e-2 of non-axisymmetric content is refused. `False` takes the
-  lattice; a beam then needs `lattice=` (see Large lattices). A beam in a
-  system without the symmetry, and without a lattice, is refused with the
-  reason.
+`solution.interactions` holds one `propagation.EikonalReport` per interface:
+- `unsupported_relative_amplitude`: the incident amplitude on rays the surface does not support (misses, rear or grazing incidence, total reflection, folds, or outside the fan);
+- `dark_samples`: output samples no ray reaches;
+- `newton_residual`: the inverse map's residual;
+- `azimuthal_orders`: the orders carried on the meridian (empty for the lattice leg).
+
+### Exact references
+
+`propagation.references` holds the oracles. Each is one physical problem that takes `incident=` any propagating field (plane waves, FFT spectra or beams); see also [validation](VALIDATION.md#layered-sphere-and-infinite-cylinder).
+- **`MieSphere`**: a homogeneous sphere.
+- **`LayeredSphere`**: concentric layers.
+- **`InfiniteCylinder`**: a circular cylinder at normal and oblique incidence.
+
+`evaluate(grid, side=, term=)` gives the total field or one Debye term:
+- `term=1` is the first entry, the quantity the method models;
+- `term=p` is the waves that met p − 1 reflections;
+- `term=0` is the external reflection and diffraction outside;
+- `("after", P)` is the rest.
+
+All stay exact at size parameters near 10⁴: log-scaled Bessel functions and Wronskian-reduced coefficients replace the ill-conditioned direct Hankel-basis solve.
+
+### Regression against the handoff
+
+Raw complex-field L2 errors in percent: on the 5 λ0 focal disk (161 radii, Eq. 8.2) for the spheres, on the 3.5 λ0 disk (140² grid) for the cylinder; n = 1 → 1.5 unless stated; R = 1000 λ0 unless stated. The handoff's numbers come from the archived prototype with its 80° fans. vecdiff uses the archive's fans: tapers 50°→56° for the aplanatic cap (identical to 80° for this sphere), 72°→80° on closed spheres, and 34°→38° for the meniscus's second surface. The opt-in module `test_eikonal_regression.py` (`VECDIFF_SLOW=1`) pins the rows marked †.
+
+| Case | Handoff | vecdiff |
+|---|---|---|
+| Aplanatic sphere (A = 1.5R, u_max 0.4), hard, vertex plane, first / full | 0.142 / 0.386 (Table 1: 0.1421 / 0.3874) | 0.1417746 / 0.3864750 † |
+| Same, smooth pupil | 0.009 | 0.0085149 † |
+| Same, rim-depth plane | 0.0153 | 0.0152384 † |
+| Non-aplanatic sphere (A = 2R), hard, first / full | 4.115 / 4.143 (Table 1: 4.127 / 4.155) | 4.11451 / 4.14281 (closed `Sphere`) † |
+| Aplanatic error law | 1.42/(R/λ0) from R ≈ 150 | error × R: 152.2 at 100, 146.1 at 154, 141.7 from 1259 to 3000 |
+| Two aplanatic surfaces, hard, vertex / rim planes | 0.883 / 0.0795 | 0.88324 / 0.07967 (closed spheres) † |
+| Same, smooth, vertex / rim | 0.0191 / 0.0205 | 0.019095 / 0.020461 (closed spheres); 0.01914 / 0.02049 with caps † |
+| Meniscus, hard, vertex / rim | 0.0260 / 0.0114 | 0.02603 † / **0.0031975** (corrected, see below) |
+| Meniscus, smooth, vertex / rim | 0.00192 / 0.00104 | 0.001924 / 0.0010382 † |
+| Cylinder (u_max 0.25), hard, R = 100 / 300 / 1000 | 0.193 / 0.0642 / 0.0192 | 0.19298 † / 0.06420 † / 0.01918 |
+| Same, smooth | 0.0552 / 0.0183 / 0.0055 | 0.055186 † / 0.01834 † / 0.00550 |
+| Index-matched second surface, smooth | 1.8e-5 | 3.9e-5 |
+| Oval at 300 λ0: 2D code vs axisymmetric code | 0.115 | 8.0e-5 (lattice vs meridian, 6778²) †; not reproduced, see below |
+
+Rows that differ, and why:
+- **Meniscus, hard, rim planes: the handoff's 0.0114 is the archive's κ aliasing.**
+  - The archive's intermediate spectrum on rim planes used the factor-2 rule (extent + 1.5|d|), which ignores how far out the next plane is read. Here the starts reach 12 R1, so the spectrum is under-resolved at 1000 λ0.
+  - With factor 3 the archive itself gives 0.0031970 %, against vecdiff's 0.0031975 %. vecdiff's panels resolve the next plane's radius by construction, and its plane panels are converged.
+  - At 100 λ0 the archive is converged at factor 2, and the two agree to 0.3 %.
+  - This is the pitfall the handoff names ("2.6 % on the meniscus rim planes"), at a larger size.
+- **Index-matched second surface: 3.9e-5 against 1.8e-5.** The meridian leg returns the single-surface field up to the field beyond the second fan; that field is the whole difference.
+- **Table 1 against the handoff.** The manuscript's Table 1 differs from the archive by 0.3 % (4.127 against 4.115). vecdiff reproduces the archive with the archive's plane quadratures (30 743 nodes for the non-aplanatic sphere).
+- **The sphere rows need the closed sphere.** With a `SphericalCap` the hard-pupil rows whose edge tails pass the cap's equator are not reproduced: the non-aplanatic sphere gives 4.036 %, the aplanatic pair 5.38 %. The archive with its fans cut at the same equator gives the same numbers, so the whole gap is the cap.
+- **Oval: the archive's 0.115 % is not reproduced, and the gap is the archive's.**
+  - vecdiff's lattice and meridian legs (6778², the archive's fans) differ by 8.0e-5 %, and all of it is their two fans: the meridian run with the lattice's fan differs from the meridian with its own radial taper by the same 8.0e-5 %. With equal fans the two legs agree to about 1e-8.
+  - The fans' effect falls as the hard pupil's shadow fades: 0.2498 % at R = 30, 0.0017 % at 100, 8.0e-5 % at 300.
+  - The archive's own two codes differ by 0.2424, 0.056 and 0.115 % at those radii. The rise between 100 and 300 is not a fan effect: the archive's general code carries about 0.1 % of its own at these sizes (where exactly was not traced).
+  - vecdiff's meridian against the archive's axisymmetric code: 0.0038 % (hard) and 3e-11 (smooth) at 300 λ0.
+- **Runtimes.**
+  - Spheres at 1000 λ0 (i7-12650H, one thread): 0.8–4.1 s per row on the meridian, against 64 s (one sphere) to 390–650 s (two surfaces) for the archived code.
+  - Cylinder, both pupils, streamed lattice on the CUDA backend: 9.8 + 1.1 s at 100 λ0 (1.6 GB host / 2.8 GB GPU), 52 + 19 s at 300, 728 + 391 s at 1000 (13.0 / 8.1 GB, measured with about 40 % contention).

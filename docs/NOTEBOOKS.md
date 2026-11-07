@@ -1,6 +1,6 @@
 # Notebooks
 
-The seven main notebooks are in [`general/notebooks/`](../general/notebooks/).
+The eight main notebooks are in [`general/notebooks/`](../general/notebooks/).
 They contain executed figures and numerical checks. They use the current
 package; none loads retired solvers from Git history.
 
@@ -13,6 +13,7 @@ package; none loads retired solvers from Git history.
 | [05 · High-NA lithography through the propagation pipeline](../general/notebooks/05_single_lens_lithography.ipynb) | Dense-mask imaging at NA ≈ 1.10 through `PropagationPipeline`. Transverse-intensity unity reference (`ts=tp=1`) versus total electric intensity with Fresnel transmission, plus polarization-prepared illumination. Plain intensity images and profiles lead the comparison; separate polarization edge views and a longitudinal section retain physical scales. Includes occupied NA, throughput, registered gap depths and timings. |
 | [06 · Thorlabs AL1225](../general/notebooks/06_full_wave_reference_validation.ipynb) | Catalog prescription and newly measured spectral pipeline fields for scaled AL1225 models at R/λ = 3, 10, 30, 100. Fields use `hot`, followed by complete timings and independent-reference availability. Full-size propagation remains pending. |
 | [07 · Macroscopic interface operators](../general/notebooks/07_macroscopic_interface_operators.ipynb) | Local and spectral propagation on the same R/λ=100 sphere, with electric fields first, then Debye/full-Mie differences and complete operator timings. |
+| [08 · Eikonal–angular-spectrum transport](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) | The manuscript's method, the pipeline's default, on the aplanatic sphere (R = 100λ, with the 1/R error law from 20 to 250λ), two aplanatic surfaces in sequence (NA 1.6) and a cylinder's line focus (R = 30λ, lattice leg). Component intensities, phase, signed E_z, polarization ellipses and error maps against `MieSphere`, `LayeredSphere` and `InfiniteCylinder` (first entry). |
 
 ## Run
 
