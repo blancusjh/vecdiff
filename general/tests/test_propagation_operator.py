@@ -19,7 +19,7 @@ def problem(transmission="spectral"):
         o.system.DielectricInterface(o.surfaces.Plane.z(2), glass, air),
     ]
     return source, o.propagation.PropagationPipeline(
-        o.system.OpticalSystem(interfaces), transmission=transmission
+        o.system.OpticalSystem(interfaces), transmission=transmission, transport="wave"
     )
 
 
@@ -72,7 +72,7 @@ def test_target_stops_before_unneeded_interface_and_reuses_source(monkeypatch):
 def test_target_equivalence_and_source_owned_by_system():
     source, original = problem()
     system = o.system.OpticalSystem(original.interfaces, incident_field=source)
-    propagate = o.propagation.PropagationPipeline(system)
+    propagate = o.propagation.PropagationPipeline(system, transport="wave")
     kw = dict(window=(-1, 1, -1, 1), shape=(7, 9))
     a = propagate(z=3, **kw)
     b = propagate(o.surfaces.Plane.z(3), **kw)
@@ -95,7 +95,7 @@ def test_curved_and_rotated_targets_match_analytic_homogeneous_wave():
     source, old = problem()
     region = old.interfaces[0].minus
     propagate = o.propagation.PropagationPipeline(
-        o.system.OpticalSystem(incident_region=region)
+        o.system.OpticalSystem(incident_region=region), transport="wave"
     )
     tilted = o.surfaces.Plane(
         o.geometry.Frame([0, 0, 4], [[1, 0, 0], [0, 0.8, -0.6], [0, 0.6, 0.8]])
@@ -177,7 +177,7 @@ def test_zero_local_field_and_compatibility_alias():
     assert_allclose(propagate(zero, z=3, shape=(3, 3)).values, 0)
     assert o.propagation.DirectionResolvedFresnel is o.propagation.SpectralFresnel
     with pytest.raises(ValueError, match="transmission"):
-        o.propagation.PropagationPipeline(transmission="unknown")
+        o.propagation.PropagationPipeline(transmission="unknown", transport="wave")
 
 
 @pytest.mark.parametrize("ka", [100, 1000, 10000])

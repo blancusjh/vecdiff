@@ -24,7 +24,7 @@ def main():
     )
     for treatment in ("local", "spectral"):
         propagate = optics.propagation.PropagationPipeline(
-            system, transmission=treatment
+            system, transmission=treatment, transport="wave"
         )
         field = propagate(incident, z=20 * wavelength)
         print(f"{treatment}: peak |E|² = {field.norm2().max():.6g} V²/m²")

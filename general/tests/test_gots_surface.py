@@ -2,10 +2,13 @@
 
 import numpy as np
 import pytest
+import vecdiff_general as o
 from numpy.testing import assert_allclose
 from vecdiff_general.geometry import Frame
 from vecdiff_general.propagation._directions import transmitted_direction
 from vecdiff_general.surfaces import CartesianOval, gots_parameters
+
+bd, host = o.backend.bd, o.backend.to_numpy
 
 
 @pytest.mark.parametrize("no, ni", [(1.0, 1.5), (1.5, 1.0)])
@@ -14,7 +17,7 @@ def test_gots_optical_path_graph_and_snell(no, ni, length):
     z0, zi = -10 * length, 6 * length
     surface = CartesianOval.from_conjugates(no, z0, ni, zi)
     rho = np.linspace(0, 0.3, 31) * length
-    points = surface.parametric_points(rho, 0.37)
+    points = host(surface.parametric_points(rho, 0.37))
     xy = points[..., :2]
     object_vector = points - [0, 0, z0]
     image_vector = [0, 0, zi] - points
@@ -26,7 +29,7 @@ def test_gots_optical_path_graph_and_snell(no, ni, length):
     assert_allclose(surface.rho_from_r(surface.r(rho)), rho, atol=3e-14 * length)
 
     refracted = transmitted_direction(
-        object_vector / l0[:, None], surface.normals(xy), no, ni
+        object_vector / l0[:, None], host(surface.normals(xy)), no, ni
     )
     assert_allclose(refracted, image_vector / li[:, None], atol=2e-14)
 
@@ -71,7 +74,9 @@ def test_invalid_parameters_are_rejected(rho):
         surface.z(rho)
 
 
-@pytest.mark.parametrize("design", [(1, -10, 1, 6), (0, -10, 1.5, 6), (1, 10, 1.5, 6)])
+@pytest.mark.parametrize(
+    "design", [(1, -10, 1, 6), (0, -10, 1.5, 6), (1, 0, 1.5, 6), (1, 6, 1.5, 6)]
+)
 def test_invalid_design_fails_at_construction(design):
     with pytest.raises(ValueError):
         CartesianOval.from_conjugates(*design)
@@ -83,7 +88,7 @@ def test_collimated_gots_path_snell_curvature_and_finite_limit(no, ni):
     surface = CartesianOval.from_conjugates(no, -np.inf, ni, zi)
     radius = np.linspace(0, 0.15 * zi, 31)
     xy = np.stack((radius, np.zeros_like(radius)), axis=-1)
-    points = surface.points(xy)
+    points = host(surface.points(xy))
     image_vector = [0, 0, zi] - points
     distance = np.linalg.norm(image_vector, axis=-1)
     curvature = ni / (zi * (ni - no))

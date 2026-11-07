@@ -1,9 +1,11 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
+from scipy.special import ive, jv
+from vecdiff_general._backend import to_numpy
 from vecdiff_general.fourier.cartesian import FFT2, IFFT2
 from vecdiff_general.fourier.nufft import NUFFT
-from vecdiff_general.fourier.polar import HT, azimuthal_coefficients
+from vecdiff_general.fourier.polar import HT, azimuthal_coefficients, hankel_sum
 
 
 @pytest.mark.parametrize("shape", [(9, 12, 3), (8, 7, 2, 3), (6, 8), (7, 9)])
@@ -37,6 +39,63 @@ def test_gaussian_hankel_pair_and_nonzero_order():
     assert_allclose(actual, frequency / 4 * np.exp(-(frequency**2) / 4), atol=1e-12)
 
 
+@pytest.mark.parametrize("sources, targets", [(3000, 1500), (1200, 4000)])
+def test_fast_hankel_sum_matches_the_direct_sum(sources, targets):
+    """Asymptotic NUFFT far field and Chebyshev near field, cut along either axis."""
+    pytest.importorskip("finufft")
+    generator = np.random.default_rng(11)
+    x = np.r_[0.0, generator.uniform(0, 400.0, sources - 1)]
+    t = np.r_[0.0, generator.uniform(0, 9.0, targets - 1)]
+    orders = [0, 1, -1, 2, -3, 6]
+    c = generator.normal(size=(sources, 6)) + 1j * generator.normal(size=(sources, 6))
+    c *= np.exp(5j * x)[:, None]
+    fast = to_numpy(hankel_sum(c, x, t, order=orders, method="fast"))
+    probe = np.r_[0, generator.choice(targets, 60, replace=False)]
+    direct = hankel_sum(c, x, t[probe], order=orders, method="direct")
+    expected = np.stack(
+        [jv(n, np.outer(t[probe], x)) @ c[:, i] for i, n in enumerate(orders)], -1
+    )
+    assert_allclose(direct, expected, atol=1e-13 * abs(expected).max())
+    error = np.linalg.norm(fast[probe] - expected, axis=0) / np.linalg.norm(
+        expected, axis=0
+    )
+    assert error.max() < 1e-12
+    assert hankel_sum(c[:, 0], x, t[:3], order=2).shape == (3,)
+    with pytest.raises(ValueError, match="integer"):
+        hankel_sum(c[:, 0], x, t, order=0.5)
+
+
+@pytest.mark.parametrize("order", [0, 1, 3])
+def test_fast_hankel_transform_reproduces_dlmf_pairs(order):
+    """DLMF 10.22.51 (Gaussian) and 10.22.67 (Weber's second integral)."""
+    pytest.importorskip("finufft")
+    x, w = np.polynomial.legendre.leggauss(64)
+    edges = np.linspace(0, 120, 121)
+    r = ((edges[:-1, None] + edges[1:, None]) / 2 + x / 2).ravel()
+    dr = np.tile(w / 2, 120)
+    q = np.linspace(0, 40, 4001)
+    p, b = 0.06, 25.0
+    gaussian = HT(
+        np.exp(-((p * r) ** 2)) * r**order, r, q, order=order, weights=dr, method="fast"
+    )
+    closed = q**order / (2 * p**2) ** (order + 1) * np.exp(-(q**2) / (4 * p**2))
+    assert_allclose(gaussian, closed, atol=1e-12 * abs(closed).max())
+    weber = HT(
+        np.exp(-((p * r) ** 2)) * jv(order, b * r),
+        r,
+        q,
+        order=order,
+        weights=dr,
+        method="fast",
+    )
+    closed = (
+        np.exp(-((q - b) ** 2) / (4 * p**2))
+        * ive(order, q * b / (2 * p**2))
+        / (2 * p**2)
+    )
+    assert_allclose(weber, closed, atol=1e-12 * abs(closed).max())
+
+
 def test_harmonics_reject_unresolved_tail():
     phi = 2 * np.pi * np.arange(32) / 32
     values = np.exp(3j * phi)
@@ -52,6 +111,23 @@ def test_nufft_matches_direct_complex_vector_synthesis():
     wavevectors = generator.normal(size=(80, 3)) * 1e7
     amplitudes = generator.normal(size=(80, 6)) + 1j * generator.normal(size=(80, 6))
     points = generator.normal(size=(31, 3)) * 1e-6
-    direct = NUFFT(amplitudes, wavevectors, points, sign=1, backend="direct")
-    accelerated = NUFFT(amplitudes, wavevectors, points, sign=1, backend="nufft")
+    direct = NUFFT(amplitudes, wavevectors, points, sign=1, method="direct")
+    accelerated = NUFFT(amplitudes, wavevectors, points, sign=1, method="nufft")
     assert np.linalg.norm(direct - accelerated) / np.linalg.norm(direct) < 5e-12
+
+
+def test_lattice_modes_on_the_light_circle_are_discarded_not_completed():
+    """164 samples at lambda / 4 put the mode (9, 40) / 41 on the light circle."""
+    import vecdiff_general as o
+
+    air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
+    axis = (np.arange(164) - 82) * 0.25
+    x, y = np.meshgrid(axis, axis)
+    grid = o.sampling.CartesianGrid(axis, axis)
+    gaussian = np.exp(-(x**2 + y**2) / 9) * np.exp(0.5j * x)
+    noise = 1e-9 * np.random.default_rng(4).normal(size=gaussian.shape)
+    values = np.stack((gaussian + noise, 0.3j * gaussian), -1)
+    field = o.fields.TransverseElectricField(grid, 1.0, values)
+    spectrum = o.fields.angular_spectrum(field, air, evanescent="discard")
+    E = to_numpy(spectrum.propagate(0.0).electric.values)
+    assert np.abs(E[..., 2]).max() < 2 * np.abs(values).max()
