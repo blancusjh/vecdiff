@@ -3,9 +3,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-import numpy as np
-
 from vecdiff_general._arrays import positive
+from vecdiff_general._backend import bd
 from vecdiff_general.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
@@ -47,12 +46,12 @@ class EikonalField:
             )
 
     def directions(self, points):
-        gradient = np.broadcast_to(
-            np.asarray(self.path_gradient(points), dtype=float), np.shape(points)
+        gradient = bd.broadcast_to(
+            bd.asarray(self.path_gradient(points), dtype=float), bd.shape(points)
         )
 
-        if not np.isfinite(gradient).all() or not np.allclose(
-            np.linalg.norm(gradient, axis=-1),
+        if not bd.isfinite(gradient).all() or not bd.allclose(
+            bd.linalg.norm(gradient, axis=-1),
             self.region.material.n,
             rtol=1e-9,
             atol=1e-12,
@@ -64,35 +63,35 @@ class EikonalField:
         return gradient / self.region.material.n
 
     def amplitudes(self, points):
-        electric = np.broadcast_to(
-            np.asarray(self.envelope(points), dtype=complex), np.shape(points)
+        electric = bd.broadcast_to(
+            bd.asarray(self.envelope(points), dtype=complex), bd.shape(points)
         )
         direction = self.directions(points)
 
-        if not np.isfinite(electric).all() or np.any(
-            np.abs(np.sum(direction * electric, axis=-1))
-            > 1e-10 * np.linalg.norm(electric, axis=-1)
+        if not bd.isfinite(electric).all() or bd.any(
+            bd.abs(bd.sum(direction * electric, axis=-1))
+            > 1e-10 * bd.linalg.norm(electric, axis=-1)
         ):
             raise ValueError("eikonal envelope must be finite and locally transverse")
 
         return electric
 
     def evaluate(self, grid):
-        path = np.broadcast_to(
-            np.asarray(self.optical_path(grid.points), dtype=float), grid.shape
+        path = bd.broadcast_to(
+            bd.asarray(self.optical_path(grid.points), dtype=float), grid.shape
         )
 
-        if not np.isfinite(path).all():
+        if not bd.isfinite(path).all():
             raise ValueError("optical path must be finite")
 
         electric = (
             self.amplitudes(grid.points)
-            * np.exp(2j * np.pi * path / self.wavelength0)[..., None]
+            * bd.exp(2j * bd.pi * path / self.wavelength0)[..., None]
         )
         magnetic = (
             self.region.material.n
             / Z0
-            * np.cross(self.directions(grid.points), electric)
+            * bd.cross(self.directions(grid.points), electric)
         )
 
         return ElectromagneticField(

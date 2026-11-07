@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
-
+from vecdiff_general._backend import bd
 from vecdiff_general.geometry.frames import Frame
 from vecdiff_general.media.medium import HomogeneousRegion
 
@@ -107,7 +106,7 @@ class OpticalSystem:
         )
 
         if len(apertures) != len(interfaces) or any(
-            value is not None and (not np.isfinite(value) or value <= 0)
+            value is not None and (not bd.isfinite(value) or value <= 0)
             for value in apertures
         ):
             raise ValueError("provide one positive aperture or None per encounter")
@@ -117,7 +116,7 @@ class OpticalSystem:
         )
 
         if len(stops) != len(interfaces) or any(
-            value is not None and (not np.isfinite(value) or value <= 0)
+            value is not None and (not bd.isfinite(value) or value <= 0)
             for value in stops
         ):
             raise ValueError("provide one positive stop radius or None per encounter")

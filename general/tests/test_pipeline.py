@@ -52,7 +52,7 @@ def test_top_level_exposes_only_namespaces():
 
 def test_empty_pipeline_is_homogeneous_transport():
     plane, air, glass, source = setup()
-    result = o.propagation.PropagationPipeline().solve(source)
+    result = o.propagation.PropagationPipeline(transport="wave").solve(source)
     target = plane.translated(3 * plane.frame.normal)
     expected = source.evaluate(target)
     actual = result.evaluate(target)
@@ -72,6 +72,7 @@ def test_plane_pipeline_matches_exact_modal_transmission(wavelength, angle):
     pipeline = o.propagation.PropagationPipeline(
         [interface],
         transmission=o.propagation.DirectionResolvedFresnel(nodes=18, cutoff=0),
+        transport="wave",
     )
     result = pipeline.solve(source)
     exact = o.propagation.scatter_plane(
@@ -94,7 +95,7 @@ def test_transparent_curved_interface_does_not_filter_or_reconstruct():
     other = o.media.HomogeneousRegion("other_air", o.media.Dielectric(1))
     surface = o.surfaces.SphericalCap(30, plane.frame)
     result = o.propagation.PropagationPipeline(
-        [o.system.DielectricInterface(surface, air, other)]
+        [o.system.DielectricInterface(surface, air, other)], transport="wave"
     ).solve(source)
     assert_allclose(
         result.spectrum.expansion.amplitudes,
@@ -108,7 +109,7 @@ def test_transparent_curved_interface_does_not_filter_or_reconstruct():
 def test_zero_field_and_single_normal_mode_have_well_defined_angular_plans():
     plane, air, glass, _ = setup()
     boundary = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
-    pipeline = o.propagation.PropagationPipeline([boundary])
+    pipeline = o.propagation.PropagationPipeline([boundary], transport="wave")
     for value in [0.0, 1.0]:
         a = np.zeros(plane.shape + (2,), complex)
         a[..., 0] = value
@@ -127,13 +128,13 @@ def test_explicit_scope_and_material_validation():
     interface = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
     with pytest.raises(ValueError, match="edges and stops"):
         o.propagation.PropagationPipeline(
-            o.system.OpticalSystem([interface], stops=[2])
+            o.system.OpticalSystem([interface], stops=[2]), transport="wave"
         )
     wrong = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), glass, air)
     with pytest.raises(ValueError, match="source medium"):
-        o.propagation.PropagationPipeline([wrong]).solve(source)
+        o.propagation.PropagationPipeline([wrong], transport="wave").solve(source)
     tilted = o.system.DielectricInterface(
         o.surfaces.Plane(o.geometry.Frame([0, 0, 0])), air, glass
     )
     with pytest.raises(ValueError, match="transverse origin"):
-        o.propagation.PropagationPipeline([tilted]).solve(source)
+        o.propagation.PropagationPipeline([tilted], transport="wave").solve(source)

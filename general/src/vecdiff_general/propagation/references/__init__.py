@@ -2,7 +2,9 @@
 
 from vecdiff_general.propagation.references.bem import DielectricBEM
 from vecdiff_general.propagation.references.boundary import boundary_meridian
+from vecdiff_general.propagation.references.cylinder import InfiniteCylinder
 from vecdiff_general.propagation.references.fem import DielectricFEM, TetrahedralMesh
+from vecdiff_general.propagation.references.layered_sphere import LayeredSphere
 from vecdiff_general.propagation.references.mesh import SurfaceMesh
 from vecdiff_general.propagation.references.meshing import (
     surface_mesh,
@@ -18,5 +20,7 @@ __all__ = [
     "surface_mesh",
     "tetrahedral_mesh",
     "MieSphere",
+    "LayeredSphere",
+    "InfiniteCylinder",
     "boundary_meridian",
 ]
