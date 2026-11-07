@@ -159,6 +159,27 @@ independent, matching the coordinate-first convention of the other transforms.
 Polar data uses `(radius, angle, ...)`. Angular frequency `q` is in radians per
 coordinate unit. The angular axes retain their supplied origins and order.
 
+### Fast Hankel sums
+
+`HT(..., method="fast")` and `IHT(..., method="fast")` sum the same quadrature
+in O(N + M) work up to logarithms instead of O(N M). Their engine,
+`polar.hankel_sum(c, x, t, order=...)`, evaluates
+S[i] = sum_j c[j] J_n(t[i] x[j]) for any nonnegative nodes, several orders at
+once (one per trailing component):
+
+- where t x ≥ z0 (about 40), the kernel is its Hankel asymptotic expansion,
+  ten terms, each a type-3 FINUFFT of c x^(-k-1/2). The terms do not depend
+  on the order, so one plan serves all orders;
+- where t x < 2 z0, the kernel has low rank and is interpolated at Chebyshev
+  nodes in x and in t (kernel compression);
+- the (t, x) plane is cut into dyadic shells along the longer of the two axes,
+  so each far rectangle repeats the shorter one.
+
+It agrees with the direct sum to 1e-12 of the result's norm (tested against
+direct sums and DLMF 10.22.51 and 10.22.67). `method="auto"` takes it for large
+sums when FINUFFT is installed, or when the kernel never oscillates far; it
+runs on the host on either backend. `HT` keeps `method="direct"` by default.
+
 The common `fourier.transform(..., mode="polar")` and `fourier.inverse` dispatch
 to these functions. Neither applies a Cartesian 2D FFT to the polar array.
 There is no universally inferred radial frequency grid: callers choose radial

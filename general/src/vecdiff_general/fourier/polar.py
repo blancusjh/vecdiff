@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from vecdiff_general._backend import bd, jv
+from vecdiff_general._backend import bd, jv, to_numpy
 
 
 def radial_weights(radius):
@@ -43,13 +43,14 @@ def _radial_measure(radius, weights):
     return radius * weights
 
 
-def HT(g: np.ndarray, r, q, *, order=0, weights=None) -> np.ndarray:
+def HT(g: np.ndarray, r, q, *, order=0, weights=None, method="direct") -> np.ndarray:
     """Hankel transform G(q) = integral g(r) J_order(q*r) r dr.
 
     The first axis of g corresponds to r; trailing components are independent.
     q is angular radial frequency. Optional weights integrate dr, not r*dr.
     There is no hidden 2*pi factor. The order is an integer, including negative
-    angular harmonics. Radial nodes must increase and be nonnegative.
+    angular harmonics. Radial nodes must increase and be nonnegative. method
+    selects the summation of the quadrature, as in hankel_sum.
     """
     if isinstance(order, bool) or not bd.isfinite(order) or int(order) != order:
         raise ValueError("Hankel order must be an integer")
@@ -69,23 +70,345 @@ def HT(g: np.ndarray, r, q, *, order=0, weights=None) -> np.ndarray:
         raise ValueError("Hankel inputs must be finite")
 
     components = g.reshape(len(r), -1)
-    bessel = jv(int(order), q[:, None] * r[None, :])
-    integrand = measure[:, None] * components
-
-    G = bessel @ integrand
+    G = hankel_sum(measure[:, None] * components, r, q, order=order, method=method)
 
     return G.reshape((len(q),) + g.shape[1:])
 
 
-def IHT(G: np.ndarray, q, r, *, order=0, weights=None) -> np.ndarray:
+def IHT(G: np.ndarray, q, r, *, order=0, weights=None, method="direct") -> np.ndarray:
     """Inverse Hankel integral g(r) = integral G(q) J_order(q*r) q dq.
 
     Optional weights integrate dq. The continuous Hankel pair is self-reciprocal;
     its finite quadrature is approximate, not an exact discrete matrix inverse.
     """
-    g = HT(G, q, r, order=order, weights=weights)
+    g = HT(G, q, r, order=order, weights=weights, method=method)
 
     return g
+
+
+# Fast Hankel sums. Where t x >= z0 the Bessel kernel is its Hankel asymptotic
+# expansion, J_n(z) = Re sqrt(2 / (pi z)) exp(i(z - n pi / 2 - pi / 4))
+# sum_k i^k a_k(n) z^-k, so each term is one type-3 NUFFT of c x^(-k-1/2).
+# The terms do not depend on n: one plan serves every order. Where t x < 2 z0
+# the kernel has low rank and is interpolated at Chebyshev nodes in x and t.
+_FAR_TERMS = 10
+# Sums below this many kernel evaluations are formed directly.
+_DIRECT_PAIRS = 200_000
+
+
+def hankel_sum(c, x, t, *, order=0, method="auto", tolerance=1e-13, chunk_size=1024):
+    """S[i] = sum_j c[j] J_n(t[i] x[j]) for nonnegative nodes x and frequencies t.
+
+    c has shape (len(x), ...) with independent trailing components; order is
+    one integer or one per trailing component (flattened). Nodes need no
+    order and carry no quadrature weight. method "direct" forms the Bessel
+    matrix in blocks of chunk_size frequencies, on the current device. "fast"
+    costs O((N + M) log) instead of O(N M): the asymptotic expansion of the
+    kernel through FINUFFT where t x is large, Chebyshev interpolation of the
+    kernel where it is not; it runs on the host and agrees with "direct" to
+    about ``tolerance`` relative to the result's norm. "auto" is "fast" when
+    FINUFFT is installed and the sum is large.
+    """
+    import importlib.util
+
+    c = bd.asarray(c, dtype=complex)
+    x = bd.asarray(x, dtype=float)
+    t = bd.atleast_1d(bd.asarray(t, dtype=float))
+
+    if x.ndim != 1 or t.ndim != 1 or c.ndim < 1 or c.shape[0] != len(x):
+        raise ValueError("c must have shape (len(x), ...) with 1D nodes x and t")
+
+    if bd.any(x < 0) or bd.any(t < 0):
+        raise ValueError("Hankel nodes and frequencies must be nonnegative")
+
+    if not (bd.isfinite(c).all() and bd.isfinite(x).all() and bd.isfinite(t).all()):
+        raise ValueError("Hankel inputs must be finite")
+
+    components = c.reshape(len(x), -1)
+    orders = np.broadcast_to(np.asarray(to_numpy(order)), (components.shape[1],))
+
+    if orders.dtype == bool or not np.all(np.mod(orders, 1) == 0):
+        raise ValueError("Hankel orders must be integers")
+
+    orders = orders.astype(int)
+
+    if method == "auto":
+        # Without FINUFFT only a sum whose kernel never oscillates far is fast.
+        small = len(x) * len(t) <= _DIRECT_PAIRS
+        near = float(bd.max(x)) * float(bd.max(t)) <= _far_threshold(orders, tolerance)
+        fast = not small and (near or importlib.util.find_spec("finufft") is not None)
+        method = "fast" if fast else "direct"
+
+    if method == "direct":
+        S = _hankel_direct(components, x, t, orders, chunk_size)
+    elif method == "fast":
+        if not 0 < tolerance < 1:
+            raise ValueError("Hankel tolerance must lie in (0, 1)")
+        S = bd.asarray(
+            _hankel_fast(
+                to_numpy(components), to_numpy(x), to_numpy(t), orders, tolerance
+            )
+        )
+    else:
+        raise ValueError("method must be 'auto', 'direct' or 'fast'")
+
+    return S.reshape((len(t),) + c.shape[1:])
+
+
+def _hankel_direct(c, x, t, orders, chunk_size):
+    if isinstance(chunk_size, bool) or int(chunk_size) != chunk_size or chunk_size < 1:
+        raise ValueError("chunk_size must be a positive integer")
+
+    S = bd.zeros((len(t), c.shape[1]), dtype=complex)
+    bessel = _host_jv if isinstance(S, np.ndarray) else jv
+
+    for n in np.unique(orders):
+        columns = np.flatnonzero(orders == n)
+        part = c[:, bd.asarray(columns)]
+
+        for start in range(0, len(t), int(chunk_size)):
+            stop = start + int(chunk_size)
+            kernel = bessel(int(n), t[start:stop, None] * x[None, :])
+            S[start:stop, bd.asarray(columns)] = kernel @ part
+
+    return S
+
+
+def _host_jv(order, x):
+    """J_n(x) for an integer order on the host: Cephes J0, J1 and forward recurrence.
+
+    The recurrence is stable for x >= |n|; below, SciPy's jv. About fifteen
+    times faster than jv alone for low orders.
+    """
+    from scipy.special import j0, j1
+    from scipy.special import jv as general
+
+    n = abs(int(order))
+    x = np.asarray(x, dtype=float)
+
+    if n == 0:
+        value = j0(x)
+    elif n == 1:
+        value = j1(x)
+    else:
+        previous, value = j0(x), j1(x)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            for k in range(1, n):
+                previous, value = value, (2 * k / x) * value - previous
+        low = x < n
+        if low.any():
+            value[low] = general(n, x[low])
+
+    return -value if order < 0 and n % 2 else value
+
+
+def _asymptotic_coefficients(order, count):
+    """a_k(n) = prod_{l <= k} (4 n² - (2l - 1)²) / (k! 8^k) for k < count."""
+    a = [1.0]
+
+    for k in range(1, count):
+        a.append(a[-1] * (4.0 * order * order - (2 * k - 1) ** 2) / (8.0 * k))
+
+    return np.array(a)
+
+
+def _far_threshold(orders, tolerance):
+    """Smallest t x at which _FAR_TERMS terms reach the tolerance, for every order."""
+    largest = 0.0
+
+    for n in np.unique(np.abs(orders)):
+        omitted = abs(_asymptotic_coefficients(n, _FAR_TERMS + 1)[-1])
+        reach = (omitted / tolerance) ** (1 / _FAR_TERMS)
+        largest = max(largest, reach, n * n + 10.0)
+
+    return largest
+
+
+def _chebyshev_rank(phase):
+    """Chebyshev nodes for exp(i phase s) on [-1, 1] to roundoff (measured fit)."""
+    return int(np.ceil(phase + 11 * phase ** (1 / 3)))
+
+
+def _chebyshev(lo, hi, count):
+    k = np.arange(count)
+    angle = np.pi * (2 * k + 1) / (2 * count)
+    nodes = lo + (hi - lo) * (np.cos(angle) + 1) / 2
+
+    return nodes, (-1.0) ** k * np.sin(angle)
+
+
+def _lagrange(points, nodes, weights):
+    """Barycentric Lagrange basis at points, shape (len(points), len(nodes))."""
+    difference = points[:, None] - nodes[None, :]
+    exact = difference == 0
+    basis = weights[None, :] / np.where(exact, 1.0, difference)
+    basis /= basis.sum(axis=1, keepdims=True)
+    hit = exact.any(axis=1)
+
+    if hit.any():
+        basis[hit] = exact[hit]
+
+    return basis
+
+
+def _hankel_fast(c, x, t, orders, tolerance):
+    """Partition the (t, x) plane along t x = z0 into far and near rectangles.
+
+    Dyadic shells are cut along the larger of the two axes: the far
+    rectangles then repeat the smaller one, costing O(N + M log(N M)).
+    """
+    S = np.zeros((len(t), c.shape[1]), complex)
+    signs = np.where((orders < 0) & (orders % 2 == 1), -1.0, 1.0)
+    orders = np.abs(orders)
+    z0 = _far_threshold(orders, tolerance)
+    X, T = float(x.max(initial=0.0)), float(t.max(initial=0.0))
+    every_x, every_t = np.arange(len(x)), np.arange(len(t))
+
+    if X * T <= z0:
+        _near(S, c, x, t, orders, every_x, (0.0, X), every_t, (0.0, T))
+        return S * signs
+
+    shells_in_x = len(x) >= len(t)
+    top, other = (X, T) if shells_in_x else (T, X)
+    hi = top
+
+    while hi * other > z0:
+        lo = hi / 2
+        split = z0 / lo
+        if shells_in_x:
+            shell = np.flatnonzero((x > lo) & (x <= hi))
+            _near(
+                S,
+                c,
+                x,
+                t,
+                orders,
+                shell,
+                (lo, hi),
+                np.flatnonzero(t < split),
+                (0.0, split),
+            )
+            _far(S, c, x, t, orders, shell, lo, np.flatnonzero(t >= split), tolerance)
+        else:
+            shell = np.flatnonzero((t > lo) & (t <= hi))
+            _near(
+                S,
+                c,
+                x,
+                t,
+                orders,
+                np.flatnonzero(x < split),
+                (0.0, split),
+                shell,
+                (lo, hi),
+            )
+            _far(
+                S, c, x, t, orders, np.flatnonzero(x >= split), split, shell, tolerance
+            )
+        hi = lo
+
+    if shells_in_x:
+        _near(S, c, x, t, orders, np.flatnonzero(x <= hi), (0.0, hi), every_t, (0.0, T))
+    else:
+        _near(S, c, x, t, orders, every_x, (0.0, X), np.flatnonzero(t <= hi), (0.0, hi))
+
+    return S * signs
+
+
+def _near(S, c, x, t, orders, sources, x_range, targets, t_range):
+    """Add pairs with t x below 2 z0: the kernel at Chebyshev nodes in x and t."""
+    if not (len(sources) and len(targets)):
+        return
+
+    (x_lo, x_hi), (t_lo, t_hi) = x_range, t_range
+    rank_x = _chebyshev_rank((x_hi - x_lo) * t_hi / 2)
+    rank_t = _chebyshev_rank((t_hi - t_lo) * x_hi / 2)
+    xs, cs = x[sources], c[sources]
+
+    if len(xs) > rank_x:
+        nodes, weights = _chebyshev(x_lo, x_hi, rank_x)
+        cs = sum(
+            _lagrange(xs[i : i + 65536], nodes, weights).T @ cs[i : i + 65536]
+            for i in range(0, len(xs), 65536)
+        )
+        xs = nodes
+
+    compressed = len(targets) > rank_t
+    ts = t[targets]
+
+    if compressed:
+        ts, weights = _chebyshev(t_lo, t_hi, rank_t)
+
+    values = np.empty((len(ts), c.shape[1]), complex)
+
+    for n in np.unique(orders):
+        columns = orders == n
+        values[:, columns] = _host_jv(n, ts[:, None] * xs[None, :]) @ cs[:, columns]
+
+    if not compressed:
+        S[targets] += values
+        return
+
+    for i in range(0, len(targets), 65536):
+        block = targets[i : i + 65536]
+        S[block] += _lagrange(t[block], ts, weights) @ values
+
+
+def _far(S, c, x, t, orders, sources, low, targets, tolerance):
+    """Add pairs with t x >= z0 (sources at x >= low): one NUFFT per asymptotic term.
+
+    sum_j c_j J_n(t x_j) = Re sum_j c_j H_n(t x_j) for real and imaginary
+    parts of c separately; with u = t low, (t x)^(-k - 1/2) is
+    u^(-k - 1/2) (x / low)^(-k - 1/2), bounded on both factors.
+    """
+    import finufft
+
+    if not (len(sources) and len(targets)):
+        return
+
+    xs, ts, cs = x[sources], t[targets], c[sources]
+    width = c.shape[1]
+    # (x / low)^(-k - 1/2) and (t low)^(-k - 1/2) for every term, once per block.
+    source_powers, target_powers = [(xs / low) ** -0.5], [(ts * low) ** -0.5]
+    for _ in range(1, _FAR_TERMS):
+        source_powers.append(source_powers[-1] * (low / xs))
+        target_powers.append(target_powers[-1] / (ts * low))
+    coefficients = {
+        n: (1j ** np.arange(_FAR_TERMS)) * _asymptotic_coefficients(n, _FAR_TERMS)
+        for n in np.unique(orders)
+    }
+    # Vectors per transform: about 256 MB of input or output at a time.
+    batch = max(1, min(2 * _FAR_TERMS * width, 2**24 // max(len(xs), len(ts))))
+    # One thread, as in fourier.nufft: many small plans, and shared machines.
+    plan = finufft.Plan(
+        3, 1, n_trans=batch, eps=max(tolerance, 1e-14), isign=1, nthreads=1
+    )
+    plan.setpts(x=xs, s=ts)
+    labels = [
+        (k, part, column)
+        for column in range(width)
+        for part in (0, 1)
+        for k in range(_FAR_TERMS)
+    ]
+    totals = {}
+
+    for first in range(0, len(labels), batch):
+        chunk = labels[first : first + batch]
+        vectors = np.zeros((batch, len(xs)), complex)
+        for row, (k, part, column) in enumerate(chunk):
+            values = cs[:, column].imag if part else cs[:, column].real
+            vectors[row] = values * source_powers[k]
+        transformed = plan.execute(vectors)
+        for row, (k, part, column) in enumerate(chunk):
+            term = coefficients[orders[column]][k] * target_powers[k] * transformed[row]
+            totals[part, column] = totals.get((part, column), 0) + term
+
+    for column in range(width):
+        n = orders[column]
+        phase = np.sqrt(2 / np.pi) * np.exp(-1j * (n * np.pi / 2 + np.pi / 4))
+        S[targets, column] += (phase * totals[0, column]).real + 1j * (
+            phase * totals[1, column]
+        ).real
 
 
 def azimuthal_coefficients(g, *, axis=-1, max_order=None, tail_tolerance=1e-10):
