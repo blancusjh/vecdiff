@@ -496,7 +496,7 @@ class PropagationPipeline:
             last = next((leg for leg in reversed(operators) if leg), None)
             if last is not None:
                 # Labels on the first plane: the fan can only narrow from there.
-                reach, scale = None, last.edge
+                reach, scale = last.edge, last.edge
                 family = RefractedRays(last.map)
             elif beam:
                 reach, scale = None, footprint(source.beam, plane)

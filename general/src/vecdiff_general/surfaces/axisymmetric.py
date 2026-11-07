@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from vecdiff_general._backend import bd, divide
 from vecdiff_general.geometry.frames import Frame
-from vecdiff_general.surfaces.surface import GraphSurface
+from vecdiff_general.surfaces.surface import GraphSurface, ImplicitSurface
 
 
 def _radial_hessian(xy, slope, curvature):
@@ -97,3 +97,41 @@ class SphericalCap(GraphSurface):
         outer = xy[..., :, None] * xy[..., None, :]
 
         return bd.sign(self.radius) * (bd.eye(2) / root + outer / root**3)
+
+
+@dataclass(frozen=True)
+class Sphere(SphericalCap, ImplicitSurface):
+    """The closed sphere whose front cap is the SphericalCap of the same radius.
+
+    Regions, charts and targets use the cap's graph, as for SphericalCap;
+    eikonal transport meets the whole sphere, so a ray that passes the cap's
+    equator still enters (or leaves) the ball on its far side. With
+    F(Q) = (R² - |Q - c|²) / (2 R) and c = (0, 0, R), grad F = (c - Q) / R is
+    the unit normal from the minus into the plus side and the Hessian is
+    -I / R; R is signed as for the cap.
+    """
+
+    def _centre(self):
+        return bd.asarray([0.0, 0.0, float(self.radius)])
+
+    def implicit(self, points):
+        offset = bd.asarray(points, dtype=float) - self._centre()
+        R = float(self.radius)
+        value = (R**2 - bd.sum(offset**2, axis=-1)) / (2 * R)
+        hessian = bd.broadcast_to(-bd.eye(3) / R, offset.shape + (3,)).copy()
+
+        return value, -offset / R, hessian
+
+    def crossing(self, points, directions):
+        offset = bd.asarray(points, dtype=float) - self._centre()
+        s = bd.asarray(directions, dtype=float)
+        b = bd.sum(s * offset, axis=-1)
+        c = bd.sum(offset**2, axis=-1) - float(self.radius) ** 2
+        disc = b * b - c
+        root = bd.sqrt(bd.where(disc >= 0, disc, bd.nan))
+        # The crossing into the plus side has s . grad F = -s . offset / R > 0:
+        # the near root for a convex sphere, the far one for a concave one.
+        if self.radius > 0:
+            # Stable form of -b - root.
+            return divide(c, -b + root, (-b + root) != 0)
+        return -b + root

@@ -71,6 +71,28 @@ class GraphSurface(ABC):
         )
 
 
+class ImplicitSurface(ABC):
+    """A surface F(Q) = 0 that rays meet beyond its graph chart.
+
+    A graph surface may also declare its implicit form; eikonal transport
+    then intersects rays with the whole surface F = 0, while regions, charts
+    and targets keep the graph. Points and directions are frame-local.
+    """
+
+    @abstractmethod
+    def implicit(self, points):
+        """F, its gradient (..., 3) and Hessian (..., 3, 3) at local points.
+
+        The gradient points from the minus side into the plus side, as the
+        graph normal (-grad h, 1) does where both exist.
+        """
+
+    @abstractmethod
+    def crossing(self, points, directions):
+        """Signed leg from each point to where its ray first crosses F = 0
+        from the minus side into the plus side; NaN where it never does."""
+
+
 @dataclass(frozen=True)
 class Plane(GraphSurface):
     frame: Frame = field(default_factory=Frame)

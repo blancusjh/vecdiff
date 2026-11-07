@@ -30,6 +30,7 @@ from vecdiff_general._backend import bd, divide, to_numpy
 from vecdiff_general.fields import TransverseElectricField
 from vecdiff_general.fields.angular_spectrum import angular_spectrum
 from vecdiff_general.sampling import CartesianGrid, PointGrid
+from vecdiff_general.surfaces.surface import ImplicitSurface
 
 _EPS = np.finfo(float).eps
 
@@ -83,7 +84,8 @@ class RayMap:
     same for P (the identity for a carrier). ``surface_point`` is Q and
     ``surface_derivative``, ``transmitted_derivative`` are dQ / d label and
     d s_t / d label, shape (..., 3, 2), so the refracted rays can be carried
-    on (Appendix B). Directions are unit vectors in the surface frame;
+    on (Appendix B); ``label`` is the label itself. Directions are unit vectors
+    in the surface frame;
     ``valid`` marks rays the chart supports.
     """
 
@@ -103,6 +105,7 @@ class RayMap:
     surface_point: np.ndarray
     surface_derivative: np.ndarray
     transmitted_derivative: np.ndarray
+    label: np.ndarray
 
     def subset(self, mask):
         """The same quantities at the points selected by ``mask``."""
@@ -165,6 +168,7 @@ class InterfaceMap:
         result = list(self._trace(bd.where(finite[:, None], p, 0.0), s, dp, ds))
         result[0] = result[0] & finite
         result[11] = bd.where(finite[:, None], result[11], bd.nan)  # start
+        result.append(xy)
 
         return RayMap(*(value.reshape(shape + value.shape[1:]) for value in result))
 
@@ -280,15 +284,22 @@ class InterfaceMap:
         """Rays from points p with directions s; dp, ds their (3, 2) label derivatives."""
         n_i, n_t = self.n_incident, self.n_transmitted
         eta = n_i / n_t
-        leg_i = self._intersect(p, s)
-        q = p + leg_i[:, None] * s
-        slope = _surface(self.surface, "gradient", q[:, :2], (2,))
-        curvature = _surface(self.surface, "hessian", q[:, :2], (2, 2))
-        grad_f = bd.concatenate((-slope, bd.ones((len(q), 1))), axis=-1)
+        if isinstance(self.surface, ImplicitSurface):
+            # The whole surface F = 0, beyond its graph chart.
+            leg_i = self.surface.crossing(p, s)
+            q = p + leg_i[:, None] * s
+            _, grad_f, hess_f = self.surface.implicit(q)
+        else:
+            # F = z - h(x, y) on the graph.
+            leg_i = self._intersect(p, s)
+            q = p + leg_i[:, None] * s
+            slope = _surface(self.surface, "gradient", q[:, :2], (2,))
+            curvature = _surface(self.surface, "hessian", q[:, :2], (2, 2))
+            grad_f = bd.concatenate((-slope, bd.ones((len(q), 1))), axis=-1)
+            hess_f = bd.zeros((len(q), 3, 3))
+            hess_f[:, :2, :2] = -curvature
         size = bd.linalg.norm(grad_f, axis=-1)
         normal = grad_f / size[:, None]
-        hess_f = bd.zeros((len(q), 3, 3))
-        hess_f[:, :2, :2] = -curvature
         c_i = bd.sum(s * normal, axis=-1)
         tangent = eta * (s - c_i[:, None] * normal)
         radicand = 1 - bd.sum(tangent**2, axis=-1)

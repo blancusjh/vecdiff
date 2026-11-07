@@ -33,8 +33,10 @@ from vecdiff_general.geometry.frames import Frame
 from vecdiff_general.media.medium import Z0
 from vecdiff_general.sampling import PointGrid, PolarGrid
 
-# Gauss-Legendre panels on the reference plane: 71 nodes per 15 transmitted
-# wavelengths resolve the carried phase twice over.
+# Gauss-Legendre panels on the reference plane: 71 nodes per 15 wavelengths
+# of the transmitted medium, and no wider than 10 lambda0 (index below 1.5):
+# where the map compresses, the carried phase can outrun the medium's
+# wavenumber (the meniscus's rim planes need it in air).
 _PLANE_PANEL, _PLANE_NODES = 15.0, 71
 # Spectral panels: 64 nodes integrate exp(i w s) on [-1, 1] to 1e-13 for w <= 85.
 _SPECTRAL_NODES, _SPECTRAL_PHASE = 64, 80.0
@@ -260,7 +262,7 @@ class AxialTransport:
             self._check_carrier(scale)
         self.edge = self._fan(reach, scale)
         self.image = float(to_numpy(self._meridian(np.array([self.edge])).output)[0, 0])
-        panel = _PLANE_PANEL * wavelength0 / interface.plus.material.n
+        panel = _PLANE_PANEL * wavelength0 / max(interface.plus.material.n, 1.5)
         self.radius, self.weights = composite_legendre(
             0.0, self.image, panel, _PLANE_NODES
         )

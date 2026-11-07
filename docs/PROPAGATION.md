@@ -295,6 +295,20 @@ are the identity; the family passes through them.
   a march along the ray.
 - Carrier transmission (wave transport) still crosses one refracting surface.
 
+### Closed spheres
+
+A `SphericalCap` is a graph and ends at its equator; rays that would enter a
+ball beyond it are not carried. `surfaces.Sphere` is the same cap closed into
+a ball: regions, charts and targets keep the cap's graph, while eikonal
+transport meets the whole sphere, F(Q) = (R² - |Q - c|²) / (2R) = 0. It is an
+`surfaces.ImplicitSurface`: `implicit(points)` gives F, its gradient (the unit
+normal from the minus into the plus side) and Hessian, `crossing(points,
+directions)` the signed leg to where a ray crosses into the plus side.
+`InterfaceMap` traces any implicit surface, so a Sphere works wherever a cap
+does, on the lattice, on the meridian and in sequences. Rays that miss or
+graze are unsupported, as before; where the cap suffices both map the same.
+The archive's fans reach 80 degrees of incidence: `reference_fans=((72, 80),)`.
+
 ### Rotationally symmetric systems
 
 A beam from `fields` is also an incident field of eikonal transport:

@@ -337,3 +337,87 @@ def test_two_surfaces_meet_the_layered_sphere_at_a_thousand_wavelengths(
 
     error = 100 * np.sqrt(norm(field - reference) / norm(reference))
     assert abs(error - expected) < 2e-3 * expected
+
+
+# The closed Sphere at R = 1000 lambda0, with the archive's fans: incidence 72 to
+# 80 degrees, and for a beam converging inside the sphere (the meniscus) a radial
+# roll-off from the ray at sin(theta) = 0.845 to the archive's 3 R scan limit.
+def radial_fan(start, end):
+    def window(rays):
+        radius = np.hypot(host(rays.start)[:, 0], host(rays.start)[:, 1])
+        fraction = np.clip((radius - start) / (end - start), 0, 1)
+        return 0.5 * (1 + np.cos(np.pi * fraction))
+
+    return window
+
+
+def test_closed_sphere_meets_the_archived_non_aplanatic_sphere():
+    """Table 1: 4.127 / 4.155; the archive 4.115 / 4.143 (its rays reach 80 degrees)."""
+    radius = 1000.0
+    rho, points, references = mie_focal_line(radius, "nonaplanatic", "hard")
+    pipeline = o.propagation.PropagationPipeline(
+        (
+            o.system.DielectricInterface(
+                o.surfaces.Sphere(radius, o.geometry.Frame([0, 0, -radius])), AIR, GLASS
+            ),
+        ),
+        transport="eikonal",
+        reference_fans=((72.0, 80.0),),
+    )
+    solution = pipeline.solve(manuscript_beam(radius, "nonaplanatic", "hard"))
+    field = host(solution.evaluate(points).electric.values)
+
+    def norm(E):
+        return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
+
+    for term, value in (("first", 4.1145), ("full", 4.1428)):
+        reference = references[term]
+        error = 100 * np.sqrt(norm(field - reference) / norm(reference))
+        assert abs(error - value) < 2e-3 * value
+
+
+@pytest.mark.parametrize(
+    "geometry, planes, expected",
+    [
+        ("aplanatic pair", "vertex", 0.8832),
+        ("aplanatic pair", "rim", 0.07967),
+        ("meniscus", "vertex", 0.02603),
+    ],
+)
+def test_closed_spheres_meet_the_archived_hard_pupil_shells(geometry, planes, expected):
+    """The archive gives 0.883 / 0.0795 (aplanatic pair) and 0.0260 (meniscus, vertex)."""
+    radius = 1000.0
+    n0, n1, n2, focus, inner, umax = SHELLS[geometry]
+    rho, points, (shell, core), reference = layered_focal_line(radius, geometry, "hard")
+    spheres = [
+        o.surfaces.Sphere(r * radius, o.geometry.Frame([0, 0, -r * radius]))
+        for r in (1, inner)
+    ]
+    if planes == "vertex":
+        offsets = (0.0, 0.0)
+    else:
+        q1, q2, _ = marginal_ray(geometry, umax)
+        offsets = ((q1[1] + 1) * radius, (q2[1] + inner) * radius)
+    if geometry == "meniscus":
+        depth = focus * radius + radius - offsets[0]
+        taper = 0.845 * depth / np.sqrt(1 - 0.845**2)
+        fans = (radial_fan(taper, 3 * radius), (34.0, 38.0))
+    else:
+        fans = ((72.0, 80.0), (72.0, 80.0))
+    pipeline = o.propagation.PropagationPipeline(
+        (
+            o.system.DielectricInterface(spheres[0], AIR, shell),
+            o.system.DielectricInterface(spheres[1], shell, core),
+        ),
+        transport="eikonal",
+        reference_planes=offsets,
+        reference_fans=fans,
+    )
+    solution = pipeline.solve(shell_beam(radius, geometry, "hard"))
+    field = host(solution.evaluate(points).electric.values)
+
+    def norm(E):
+        return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
+
+    error = 100 * np.sqrt(norm(field - reference) / norm(reference))
+    assert abs(error - expected) < 2e-3 * expected
