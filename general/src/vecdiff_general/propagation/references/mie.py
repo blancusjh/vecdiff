@@ -273,7 +273,7 @@ class MieSphere(_SphericalExpansion):
             elif side == "interior":
                 value = c["T21"] * c["R11"] ** (term - 1)
             elif term == 0:
-                value = 0.5 * (c["R22"] - 1)
+                value = c["zero"]
             else:
                 value = 0.5 * c["T21"] * c["R11"] ** (term - 1) * c["T12"]
             pair.append(value)
@@ -307,11 +307,6 @@ class MieSphere(_SphericalExpansion):
         # At the centre only n = 1 survives and its angular limit is regular.
         x = self.k0 * index * np.maximum(radius, 1e-12 * self.volume.radius)
         count = self.order
-        if term is not None and side == "exterior":
-            # Debye parts outside grow like h1 at high order and only cancel on
-            # paper; the scattered coefficients have decayed past this order.
-            size = self.k0 * self.exterior.material.n * self.volume.radius
-            count = min(count, int(np.ceil(size + 4 * size ** (1 / 3) + 10)))
         n = np.arange(1, count + 1)
         z, D = _riccati(kind, n[:, None], x[None])
         tA, tB = tA[:count, None], tB[:count, None]
