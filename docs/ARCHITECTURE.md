@@ -50,9 +50,10 @@ to supported methods, with changes of physical model stated explicitly. The dedi
 
 ## Field → system → target
 
-`PropagationPipeline(system, transmission="local" | "spectral")` is callable
-with an existing incident field and a target surface/grid or coordinate-plane
-shorthand. It returns the existing `ElectricField`; no H or eikonal input is
+`PropagationPipeline(system, transport="wave", transmission="local" | "spectral")`
+is callable with an existing incident field and a target surface/grid or
+coordinate-plane shorthand; the default `transport="eikonal"` needs the
+field's carrier as well. It returns the existing `ElectricField`; no H or eikonal input is
 required. `targets.py` resolves placement/sampling without introducing a second
 surface or field ontology. `GraphSurface.sample` produces the existing grids.
 `LocalFresnel` owns phase-gradient estimation; `SpectralFresnel` owns directional

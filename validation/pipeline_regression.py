@@ -35,7 +35,8 @@ def run(count=280):
             o.system.DielectricInterface(
                 o.surfaces.SphericalCap(-100, o.geometry.Frame([0, 0, 100])), glass, air
             ),
-        ]
+        ],
+        transport="wave",
     )
     solution = path.solve(source)
     solve_seconds = perf_counter() - started

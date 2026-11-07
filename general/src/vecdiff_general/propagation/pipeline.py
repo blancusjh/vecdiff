@@ -136,9 +136,12 @@ class PropagationPipeline:
     operator with a target to return an ElectricField; geometry stays in the
     OpticalSystem and observations belong to each operator invocation.
 
-    transport="wave" (default) takes transmission "spectral" (default), "local",
-    "carrier" or a Fresnel treatment. transport="eikonal" carries the field
-    with the carrier dyadic along each surface's plane-surface-plane map; its
+    transport="eikonal" (default; vecdiff is meant for macroscopic systems)
+    carries the field with the carrier dyadic along each surface's
+    plane-surface-plane map, and needs the incident field's carrier.
+    transport="wave" carries it exactly to and from each surface and takes
+    transmission "spectral" (its default), "local", "carrier" or a Fresnel
+    treatment; it is the transport of fields without a carrier. Eikonal
     reference planes sit at ``reference_planes`` offsets from each surface
     vertex along the axis (None: the vertex planes), and ``reference_fans``
     weight the carried rays at each surface: None carries every supported
@@ -171,7 +174,7 @@ class PropagationPipeline:
         incident_region=None,
         max_sine=0.85,
         transport_tolerance=1e-10,
-        transport="wave",
+        transport="eikonal",
         reference_planes=None,
         reference_fans=None,
         axisymmetric=None,
@@ -210,7 +213,8 @@ class PropagationPipeline:
             if transmission not in (None, "carrier"):
                 raise ValueError(
                     "eikonal transport transmits with the carrier dyadic; "
-                    "transmission must be None or 'carrier'"
+                    "transmission must be None or 'carrier' (pass transport='wave' "
+                    "for spectral, local or another Fresnel treatment)"
                 )
             transmission = "carrier"
             offsets = (
@@ -540,6 +544,11 @@ class PropagationPipeline:
                 raise ValueError(
                     f"{self.treatment} transmission needs the incident carrier: "
                     "pass carrier= (a fields.Carrier) with the field"
+                    + (
+                        ", or transport='wave' for a field without one"
+                        if self.treatment == "eikonal"
+                        else ""
+                    )
                 )
             refracting = [
                 x

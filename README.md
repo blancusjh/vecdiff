@@ -194,7 +194,7 @@ propagated = spectrum.propagate(10 * wavelength, model="asm")
 power_in_watts = propagated.power()
 ```
 
-An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system, transmission="local" | "spectral" | "carrier")` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`; see the [pipeline example](general/examples/propagation_pipeline.py). `transport="eikonal"` carries the field along the declared carrier with the plane–surface–plane map of the eikonal–angular-spectrum formulation instead of exact surface transport (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)).
+An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system)` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`. Its default, `transport="eikonal"`, is meant for macroscopic systems: it carries the field along its declared carrier (`carrier=`, or a beam from `fields`, which brings its own) with the plane–surface–plane map of the eikonal–angular-spectrum formulation (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)). `PropagationPipeline(system, transport="wave", transmission="local" | "spectral" | "carrier")` keeps the exact surface transport, for fields without a carrier; see the [pipeline example](general/examples/propagation_pipeline.py).
 
 ## Qualification and limits
 

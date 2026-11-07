@@ -51,8 +51,12 @@ def test_prescription_round_trip_preserves_coherent_complex_solution(tmp_path):
     save_system(system, path)
     restored = load_system(path)
     source = plane_wave(system.interfaces[0].minus)
-    first = optics.propagation.PropagationPipeline(system).solve(sample(source))
-    second = optics.propagation.PropagationPipeline(restored).solve(sample(source))
+    first = optics.propagation.PropagationPipeline(system, transport="wave").solve(
+        sample(source)
+    )
+    second = optics.propagation.PropagationPipeline(restored, transport="wave").solve(
+        sample(source)
+    )
     grid = optics.sampling.PointGrid([[0, 0, 11e-6], [0.2e-6, 0.1e-6, 12e-6]])
     assert_allclose(
         first.evaluate(grid).electric.values,
@@ -66,7 +70,7 @@ def test_operational_transport_matches_two_planar_fresnel_encounters():
     source = plane_wave(system.interfaces[0].minus, amplitude=(1, 0.3j, 0))
     axis = (np.arange(24) - 12) * WAVELENGTH
     quadrature = optics.sampling.CartesianGrid(axis, axis)
-    result = optics.propagation.PropagationPipeline(system).solve(
+    result = optics.propagation.PropagationPipeline(system, transport="wave").solve(
         sample(source, quadrature)
     )
     expected_phase = np.exp(2j * np.pi / WAVELENGTH * 1.5 * 10e-6)
@@ -97,7 +101,7 @@ def test_modal_transport_preserves_interference_and_linearity():
     grid = optics.sampling.CartesianGrid(axis, axis)
     observation = optics.sampling.PointGrid([[0, 0, 20e-6], [0.5e-6, 0.2e-6, 20e-6]])
     values = [
-        optics.propagation.PropagationPipeline(system)
+        optics.propagation.PropagationPipeline(system, transport="wave")
         .solve(sample(s, grid))
         .evaluate(observation)
         .electric.values
@@ -130,7 +134,7 @@ def test_sequential_plane_assembly_preserves_single_pass_phase():
     system = slab_system(apertures=(None, None))
     source = plane_wave(system.interfaces[0].minus)
     axis = (np.arange(24) - 12) * WAVELENGTH
-    solution = optics.propagation.PropagationPipeline(system).solve(
+    solution = optics.propagation.PropagationPipeline(system, transport="wave").solve(
         sample(source, optics.sampling.CartesianGrid(axis, axis))
     )
     observation = optics.sampling.PointGrid([[0, 0, 12e-6]])
@@ -145,7 +149,7 @@ def test_sequential_plane_assembly_preserves_single_pass_phase():
 def test_infinite_plane_assembly_rejects_finite_aperture_prescription():
     system = slab_system()
     with pytest.raises(ValueError, match="finite material edges"):
-        optics.propagation.PropagationPipeline(system)
+        optics.propagation.PropagationPipeline(system, transport="wave")
 
 
 def sample(source, grid=None):

@@ -304,6 +304,7 @@ def compare_closed_body(
                 threads=pipeline_threads,
                 cache_bytes=128 * 1024**2,
             ),
+            transport="wave",
         )
         preparation = perf_counter() - start
         start = perf_counter()
