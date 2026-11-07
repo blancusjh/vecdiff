@@ -172,6 +172,7 @@ def test_two_surfaces_on_the_lattice_and_the_meridian_agree():
         ("lattice", {}, spectrum),
         ("meridian", dict(axisymmetric=True), spectrum),
         ("beam", {}, source),
+        ("beam on the lattice", dict(lattice=spectrum.grid), source),
     ):
         pipeline = P.PropagationPipeline(system, transport="eikonal", **kwargs)
         solution = pipeline.solve(incident, carrier=source.carrier)
@@ -180,6 +181,9 @@ def test_two_surfaces_on_the_lattice_and_the_meridian_agree():
     scale = np.linalg.norm(fields["beam"])
     assert np.linalg.norm(fields["meridian"] - fields["beam"]) < 1e-6 * scale
     assert np.linalg.norm(fields["lattice"] - fields["meridian"]) < 1e-3 * scale
+    # Read at the preimages, the beam crosses both legs as its samples do.
+    difference = np.linalg.norm(fields["beam on the lattice"] - fields["lattice"])
+    assert difference < 1e-6 * scale
 
 
 def test_aplanatic_pair_meets_the_layered_sphere_at_thirty_wavelengths():

@@ -67,8 +67,11 @@ def test_closed_cylinder_maps_like_its_half_and_on_beyond():
     assert host(rays.valid).all() and (host(rays.surface_height) > radius).all()
 
 
-def cylinder_error(radius, pupil):
-    """The archive's cylinder (A = 1.5 R, u_max = 0.25) on its lattice and fan, vs Mie."""
+def cylinder_error(radius, pupil, sampled=True):
+    """The archive's cylinder (A = 1.5 R, u_max = 0.25) on its lattice and fan, vs Mie.
+
+    The beam is sampled on the lattice, or (sampled=False) read at the preimages.
+    """
     from vecdiff_general.propagation.references import InfiniteCylinder
 
     umax = 0.25
@@ -98,17 +101,21 @@ def cylinder_error(radius, pupil):
     count = int(round(11.86 * radius)) + int(round(11.86 * radius)) % 2
     axis = (np.arange(count) - count // 2) / 3
     plane = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -radius]))
-    sampled = beam.evaluate(plane, method="nufft").electric.values[..., :2]
-    incident = F.angular_spectrum(
-        F.TransverseElectricField(plane, 1.0, sampled), AIR, evanescent="discard"
-    )
+    incident = beam
+    if sampled:
+        values = beam.evaluate(plane, method="nufft").electric.values[..., :2]
+        incident = F.angular_spectrum(
+            F.TransverseElectricField(plane, 1.0, values), AIR, evanescent="discard"
+        )
     surface = S.CylindricalCap(radius, Frame([0, 0, -radius]))
     pipeline = P.PropagationPipeline(
         (o.system.DielectricInterface(surface, AIR, GLASS),),
         transport="eikonal",
         reference_fans=(fan,),
+        lattice=None if sampled else plane,
     )
     solution = pipeline.solve(incident, carrier=beam.carrier)
+    assert isinstance(solution.spectrum, F.PlaneSpectrum) == sampled
     xs = np.linspace(-3.5, 3.5, 140)
     x, y = np.meshgrid(xs, xs, indexing="ij")
     disk = np.hypot(x, y) <= 3.5
@@ -132,6 +139,14 @@ def test_cylinder_on_the_lattice_meets_the_archive_at_ten_wavelengths(pupil, exp
     """
     pytest.importorskip("finufft")
     assert abs(cylinder_error(10.0, pupil) - expected) < 1e-4 * expected
+
+
+@pytest.mark.parametrize("pupil, expected", [("hard", 5.56765), ("smooth", 1.14523)])
+def test_a_beam_read_at_the_preimages_meets_the_archive_to_six_digits(pupil, expected):
+    """With lattice= the beam is read exactly at the preimages, as the archive
+    read its own: no sampled copy of it, and a LatticeSpectrum out."""
+    pytest.importorskip("finufft")
+    assert abs(cylinder_error(10.0, pupil, sampled=False) - expected) < 1e-5 * expected
 
 
 def test_virtual_conjugate_oval_is_stigmatic_and_its_ovoid_closes_it():

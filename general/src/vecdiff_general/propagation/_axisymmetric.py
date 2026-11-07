@@ -238,7 +238,8 @@ class AxialTransport:
             raise ValueError(
                 f"{type(surface).__name__} is not a surface of revolution; "
                 "axisymmetric transport takes Plane, SphericalCap, EvenAsphere, "
-                "AxisymmetricSurface or CartesianOval"
+                "AxisymmetricSurface or CartesianOval; others take the lattice "
+                "(a sampled field, or a beam with lattice=)"
             )
 
         check_coaxial(surface.frame, axis, wavelength0, "the surface")

@@ -356,3 +356,133 @@ def test_output_lattice_holds_the_refracted_image_and_windows_weight_the_rays():
     assert ((weight > 0) & (weight < 1)).any()
     with pytest.raises(ValueError, match="window"):
         P.EikonalTransport(grid, interface, carrier, 1.0, window=(30.0, 10.0))
+
+
+def test_streamed_leg_does_not_depend_on_its_blocks():
+    """Blocks of 512 points give the whole lattice's preimages, masks and field."""
+    radius, n = 20.0, 96
+    axis = (np.arange(n) - n // 2) * 0.5
+    surface = S.SphericalCap(radius, Frame([0, 0, -radius]))
+    grid = o.sampling.CartesianGrid(axis, axis, surface.frame)
+    interface = o.system.DielectricInterface(surface, AIR, GLASS)
+    carrier = F.Carrier.converging([0, 0, 1.5 * radius])
+    x, y = np.meshgrid(axis, axis)
+    values = np.stack([np.exp(-(x**2 + y**2) / 8**2), 0.3j * np.exp(-(x**2) / 50)], -1)
+    incident = F.angular_spectrum(
+        F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
+    )
+    whole = P.EikonalTransport(grid, interface, carrier, 1.0, window=(50.0, 70.0))
+    blocks = P.EikonalTransport(
+        grid, interface, carrier, 1.0, window=(50.0, 70.0), block_size=512
+    )
+    assert blocks.output_plane.shape == whole.output_plane.shape
+    for name in ("lit", "support"):
+        assert np.array_equal(getattr(blocks, name), getattr(whole, name))
+    # Identical on the host; a GPU's reductions may round a block differently.
+    lit = whole.lit
+    assert_allclose(blocks.preimage[lit], whole.preimage[lit], rtol=0, atol=1e-11)
+    assert max(blocks.residual, whole.residual) < 1e-12 * 36
+    assert_allclose(blocks.boundary, whole.boundary, rtol=1e-13)
+    (a, first), (b, second) = whole.transmit(incident), blocks.transmit(incident)
+    before, after = (
+        host(a.propagate(0.0).electric.values),
+        host(b.propagate(0.0).electric.values),
+    )
+    assert_allclose(after, before, atol=1e-12 * abs(before).max())
+    assert first.dark_samples == second.dark_samples
+    assert_allclose(
+        first.unsupported_relative_amplitude,
+        second.unsupported_relative_amplitude,
+        rtol=1e-12,
+    )
+    with pytest.raises(ValueError, match="block_size"):
+        P.EikonalTransport(grid, interface, carrier, 1.0, block_size=0)
+
+
+@pytest.mark.parametrize("method", ["direct", "nufft"])
+def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
+    """The lean output sums, by rows, the band-limited modes of the PlaneSpectrum."""
+    from vecdiff_general.propagation._lattice import lattice_spectrum
+
+    if method == "nufft":
+        pytest.importorskip("finufft")
+    n, step = 40, 0.3
+    u = (np.arange(n) - n // 2) * step
+    v = (np.arange(n + 6) - (n + 6) // 2) * step + 0.1
+    tilt = np.array([[0.8, 0, 0.6], [0, 1, 0], [-0.6, 0, 0.8]])
+    grid = o.sampling.CartesianGrid(u, v, Frame([0.3, -0.2, 1.0], tilt))
+    x, y = np.meshgrid(u, v)
+    values = np.stack(
+        [np.exp(-(x**2 + y**2) / 9) * np.exp(2j * x), 0.5j * np.exp(-(y**2) / 4)], -1
+    ) + 1e-3 * rng.standard_normal((n + 6, n, 2))
+    spectrum = F.angular_spectrum(
+        F.TransverseElectricField(grid, 1.0, values), GLASS, evanescent="discard"
+    )
+    k = 2 * np.pi * 1.5
+    kt = host(spectrum.expansion.wavevectors.real) @ host(grid.frame.basis)[:, :2]
+    band = bd.asarray(np.linalg.norm(kt, axis=-1) <= 0.995 * k)
+    spectrum = F.PlaneSpectrum(
+        grid,
+        replace(
+            spectrum.expansion,
+            amplitudes=bd.where(band[:, None], spectrum.expansion.amplitudes, 0),
+        ),
+    )
+    lean = lattice_spectrum(grid, GLASS, 1.0, values.copy(), cutoff=0.995, block=100)
+    assert lean.relabeled(AIR).region == AIR and lean.expansion is lean
+    depth = 2.0 * host(grid.frame.normal)
+    flat = (
+        host(grid.frame.origin)
+        + depth
+        + rng.uniform(-3, 3, (30, 1)) * host(grid.frame.u)
+        + rng.uniform(-3, 3, (30, 1)) * host(grid.frame.v)
+    )
+    spread = flat + rng.uniform(0, 2, (30, 1)) * host(grid.frame.normal)
+    for points in (flat, spread):
+        target = o.sampling.PointGrid(points)
+        exact = spectrum.evaluate(target, method="direct")
+        field = lean.evaluate(target, method=method)
+        scale = abs(host(exact.electric.values)).max()
+        assert_allclose(
+            host(field.electric.values),
+            host(exact.electric.values),
+            atol=1e-11 * scale,
+        )
+        assert_allclose(
+            host(field.magnetic),
+            host(exact.magnetic),
+            atol=1e-11 * abs(host(exact.magnetic)).max(),
+        )
+        assert_allclose(
+            host(lean.electric(target, method=method).values),
+            host(field.electric.values),
+            atol=1e-14 * scale,
+        )
+
+
+def test_pipeline_carries_a_beam_on_a_lattice_only_when_asked():
+    system = (o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),)
+    axis = (np.arange(16) - 8) * 0.5
+    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
+    beam = F.FocusedBeam(
+        F.profiles.Uniform(0.2),
+        F.polarization.cartesian(1.0, 0.0),
+        focal_length=1.0,
+        max_sine=0.2,
+        wavelength0=1.0,
+        region=AIR,
+        frame=Frame([0, 0, 40.0]),
+    )
+    with pytest.raises(ValueError, match="lattice="):
+        P.PropagationPipeline(system, axisymmetric=False).solve(beam)
+    with pytest.raises(ValueError, match="meridian"):
+        P.PropagationPipeline(system, axisymmetric=True, lattice=grid)
+    with pytest.raises(TypeError, match="CartesianGrid"):
+        P.PropagationPipeline(system, lattice=grid.frame)
+    with pytest.raises(ValueError, match="lattice"):
+        P.PropagationPipeline(system, transport="wave", lattice=grid)
+    incident = plane_wave(grid, 0.0, 0.0, [1.0, 0.0], AIR)
+    with pytest.raises(ValueError, match="own lattice"):
+        P.PropagationPipeline(system, lattice=grid).solve(
+            incident, carrier=beam.carrier
+        )

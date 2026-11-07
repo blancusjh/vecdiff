@@ -448,59 +448,87 @@ def archive_lattice(beam, radius, count):
     )
 
 
-@pytest.mark.parametrize("pupil, expected", [("hard", 0.1930), ("smooth", 0.05519)])
-def test_cylinder_meets_the_archive_at_a_hundred_wavelengths(pupil, expected):
-    """The archive's cylinder row at R = 100: 0.193 (hard) and 0.0552 (smooth).
+@pytest.mark.parametrize(
+    "radius, count, sampled, expected",
+    [
+        (100.0, 1186, True, (0.1930, 0.05519)),
+        (300.0, 3556, False, (0.06420, 0.01834)),
+    ],
+)
+def test_cylinder_meets_the_handoff(radius, count, sampled, expected):
+    """The archive's cylinder rows: 0.193 / 0.0642 % (hard) and 0.0552 / 0.0183 %
+    (smooth) at R = 100 / 300.
 
-    Its 1186² lattice (lambda0 / 3) takes 5 minutes and 10 GB; 300 and 1000
-    need 3556² and 11852², beyond a leg that holds the whole lattice.
+    One leg serves both pupils. At 100 the beam is sampled on the lattice; at
+    300 it is read at the preimages (lattice=) and the streamed leg carries a
+    3556² lattice. R = 1000 (11852²: 0.01918 / 0.00550 % against the archive's
+    0.0192 / 0.0055) is left out: its two references alone take a quarter of
+    an hour.
     """
     from vecdiff_general.propagation.references import InfiniteCylinder
 
-    radius, umax = 100.0, 0.25
-    beam = o.fields.FocusedBeam(
-        o.fields.profiles.Uniform(umax)
-        if pupil == "hard"
-        else lambda x, y: np.clip(1 - (x**2 + y**2) / umax**2, 0, None) ** 3,
-        o.fields.polarization.cartesian(1 / np.sqrt(2), 1j / np.sqrt(2)),
-        focal_length=1.0,
-        max_sine=umax,
-        wavelength0=1.0,
-        region=AIR,
-        frame=o.geometry.Frame([0, 0, 1.5 * radius]),
-        apodization="none",
-    )
+    umax = 0.25
+    axis = (np.arange(count) - count // 2) / 3
+    plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -radius]))
     surface = o.surfaces.CylindricalCap(radius, o.geometry.Frame([0, 0, -radius]))
     pipeline = o.propagation.PropagationPipeline(
         (o.system.DielectricInterface(surface, AIR, GLASS),),
         transport="eikonal",
         reference_fans=(archive_fan(umax, 1.7, 1.9),),
+        lattice=None if sampled else plane,
     )
-    solution = pipeline.solve(archive_lattice(beam, radius, 1186), carrier=beam.carrier)
+    carrier = o.fields.Carrier.converging([0, 0, 1.5 * radius])
     xs = np.linspace(-3.5, 3.5, 140)
     x, y = np.meshgrid(xs, xs, indexing="ij")
     disk = np.hypot(x, y) <= 3.5
     points = o.sampling.PointGrid(
         np.c_[x[disk], y[disk], np.full(disk.sum(), radius / 1.5)]
     )
-    field = host(solution.evaluate(points).electric.values)
-    cylinder = InfiniteCylinder(
-        beam, o.volumes.CylinderVolume([0, 0, 0], [0, 1, 0], radius), GLASS
-    )
-    exact = host(cylinder.evaluate(points, term=1, side="interior").electric.values)
-    error = 100 * np.linalg.norm(field - exact) / np.linalg.norm(exact)
-    assert abs(error - expected) < 2e-3 * expected
+    for pupil, value in zip(("hard", "smooth"), expected):
+        beam = o.fields.FocusedBeam(
+            o.fields.profiles.Uniform(umax)
+            if pupil == "hard"
+            else lambda x, y: np.clip(1 - (x**2 + y**2) / umax**2, 0, None) ** 3,
+            o.fields.polarization.cartesian(1 / np.sqrt(2), 1j / np.sqrt(2)),
+            focal_length=1.0,
+            max_sine=umax,
+            wavelength0=1.0,
+            region=AIR,
+            frame=o.geometry.Frame([0, 0, 1.5 * radius]),
+            apodization="none",
+        )
+        source = archive_lattice(beam, radius, count) if sampled else beam
+        solution = pipeline.solve(source, carrier=carrier)
+        field = host(solution.evaluate(points).electric.values)
+        del solution, source
+        pipeline.last_solution = None
+        cylinder = InfiniteCylinder(
+            beam, o.volumes.CylinderVolume([0, 0, 0], [0, 1, 0], radius), GLASS
+        )
+        exact = host(cylinder.evaluate(points, term=1, side="interior").electric.values)
+        error = 100 * np.linalg.norm(field - exact) / np.linalg.norm(exact)
+        assert abs(error - value) < 2e-3 * value
 
 
-def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do():
+@pytest.mark.parametrize(
+    "radius, count, sampled, expected",
+    [(30.0, 678, True, 0.2499), (300.0, 6778, False, 8.004e-5)],
+)
+def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do(
+    radius, count, sampled, expected
+):
     """The archive's oval (virtual object A = 2.5 R behind the vertex, focus 1.8 R).
 
-    At R = 30 the archive's general and axisymmetric codes differ by 0.2424 %;
-    vecdiff's lattice and meridian legs by 0.2499 %. (At 300 the archive gives
-    0.115 % on a 6778² lattice, beyond a leg that holds the whole lattice; there
-    vecdiff's meridian equals the archive's axisymmetric code to 0.0038 %.)
+    The archive's general and axisymmetric codes differ by 0.2424 % at R = 30
+    and 0.115 % at 300 (its 6778² lattice); vecdiff's lattice and meridian
+    legs by 0.2499 % and 8.0e-5 %. All of vecdiff's difference is the two fans':
+    the meridian with the lattice's fan differs from its own by the same
+    amount, and that falls as the hard pupil's shadow fades (0.0017 % at 100,
+    where the archive's codes still differ by 0.056 %). At 30 the beam is
+    sampled on the lattice; at 300 it is read at the preimages (lattice=) by
+    the streamed leg.
     """
-    radius, umax = 30.0, 0.4
+    umax = 0.4
     beam = manuscript_beam(radius, "aplanatic", "hard")
     ovoid = o.surfaces.CartesianOvoid.from_conjugates(
         1.0, 2.5 * radius, 1.5, 1.8 * radius, frame=o.geometry.Frame([0, 0, -radius])
@@ -528,9 +556,17 @@ def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do():
         system, transport="eikonal", reference_fans=(radial,)
     ).solve(beam)
     reference = host(meridian.evaluate(points).electric.values)
+    axis = (np.arange(count) - count // 2) / 3
+    plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -radius]))
     lattice = o.propagation.PropagationPipeline(
-        system, transport="eikonal", reference_fans=(archive_fan(umax, 1.45, 1.6),)
-    ).solve(archive_lattice(beam, radius, 678), carrier=beam.carrier)
+        system,
+        transport="eikonal",
+        reference_fans=(archive_fan(umax, 1.45, 1.6),),
+        lattice=None if sampled else plane,
+    ).solve(
+        archive_lattice(beam, radius, count) if sampled else beam,
+        carrier=beam.carrier,
+    )
     field = host(lattice.evaluate(points).electric.values)
     difference = 100 * np.linalg.norm(field - reference) / np.linalg.norm(reference)
-    assert abs(difference - 0.2499) < 5e-3 * 0.2499
+    assert abs(difference - expected) < 5e-3 * expected

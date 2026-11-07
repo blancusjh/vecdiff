@@ -344,6 +344,27 @@ The archive's fans reach 80 degrees of incidence: `reference_fans=((72, 80),)`.
 - A carried fan whose edge rays leave almost parallel to the plane is refused
   with a request for a window, before its image fills memory.
 
+### Large lattices
+
+The lattice leg streams its lattices: rays are traced, inverted and carried
+`block_size` points at a time (2^20 by default), and it keeps only the
+preimages, the lit and supported masks and the carried field, in host
+memory. Blocks change nothing but roundoff. The incident field is read on
+the reference plane by two-dimensional sums, its plane waves' normal phase
+folded into their amplitudes.
+
+- `PropagationPipeline(system, lattice=grid)` carries a beam on the lattice
+  `grid` (a `CartesianGrid`: its spacing and extent). The beam is read exactly
+  at the preimages, so no sampled copy of the input lattice is held, and the
+  result is a `LatticeSpectrum`: two transverse coefficients per mode in host
+  memory, in place of a `PlaneSpectrum`'s wavevector and three amplitudes,
+  with its modes formed and summed one block of rows at a time. A sampled
+  field still gives a `PlaneSpectrum`.
+- The archive's cylinder at R = 1000 λ0 (an 11852² lattice, 140 million
+  points) runs this way in double precision: 13 GB of host memory and an
+  8 GB GPU, about twenty minutes for both pupils. On the CPU backend the
+  blocks run on up to eight threads.
+
 ### Rotationally symmetric systems
 
 A beam from `fields` is also an incident field of eikonal transport:
@@ -381,10 +402,11 @@ memory.
 - `EikonalReport.azimuthal_orders` lists the carried orders (empty for the
   lattice leg); its unsupported amplitude is the incident field outside the
   carried fan.
-- `axisymmetric=None` (default) takes the meridian for beams and the lattice
-  for sampled fields. `True` takes the meridian for either: a sampled field
+- `axisymmetric=None` (default) takes the meridian for beams without a
+  lattice and the lattice otherwise. `True` takes the meridian for either: a sampled field
   is read on rings about its grid's centre, its weakest orders are dropped
   while together they hold below 1e-5 of it (counted as unsupported), and a
   field beyond 1e-2 of non-axisymmetric content is refused. `False` takes the
-  lattice; a beam must then be sampled on a `CartesianGrid` first. A beam in a
-  system without the symmetry is refused with the reason.
+  lattice; a beam then needs `lattice=` (see Large lattices). A beam in a
+  system without the symmetry, and without a lattice, is refused with the
+  reason.

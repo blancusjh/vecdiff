@@ -157,12 +157,15 @@ class PropagationPipeline:
     (its own carrier unless carrier= is given). Surfaces of revolution about
     the beam's axis, with a carrier symmetric about it, are then carried on
     one meridian with Hankel spectra per azimuthal order, at a cost linear in
-    the aperture instead of quadratic; a system without that symmetry needs
-    the beam sampled on a CartesianGrid. ``axisymmetric`` makes the choice
-    explicit: None (default) takes the meridian for beams and the lattice
-    for sampled fields, True takes the meridian for either (a sampled field
-    is read on rings and must be a few azimuthal orders about its grid's
-    centre), False the lattice.
+    the aperture instead of quadratic. A system without that symmetry carries
+    the beam on ``lattice``, a CartesianGrid giving the lattice's spacing and
+    extent: the beam is read exactly at the preimages and the result is a
+    LatticeSpectrum, so no sampled copy of either lattice is held. A sampled
+    field brings its own lattice. ``axisymmetric`` makes the choice
+    explicit: None (default) takes the meridian for beams without a
+    lattice and the lattice otherwise, True takes the meridian for either
+    (a sampled field is read on rings and must be a few azimuthal orders
+    about its grid's centre), False the lattice.
     """
 
     def __init__(
@@ -178,6 +181,7 @@ class PropagationPipeline:
         reference_planes=None,
         reference_fans=None,
         axisymmetric=None,
+        lattice=None,
     ):
         self.system = (
             system
@@ -234,16 +238,27 @@ class PropagationPipeline:
                 raise ValueError("give one reference fan per interface")
             if axisymmetric not in (None, True, False):
                 raise ValueError("axisymmetric must be None, True or False")
+            if lattice is not None and not isinstance(lattice, CartesianGrid):
+                raise TypeError("lattice must be a CartesianGrid")
+            if lattice is not None and axisymmetric is True:
+                raise ValueError("a lattice carries the beam off the meridian")
             self.reference_fans, self.axisymmetric = fans, axisymmetric
+            self.lattice = lattice
         elif reference_planes is not None:
             raise ValueError("reference_planes place the planes of eikonal transport")
-        elif reference_fans is not None or axisymmetric is not None:
+        elif (
+            reference_fans is not None
+            or axisymmetric is not None
+            or lattice is not None
+        ):
             raise ValueError(
-                "reference_fans and axisymmetric choose how eikonal transport is carried"
+                "reference_fans, axisymmetric and lattice choose how eikonal "
+                "transport is carried"
             )
         else:
             self.reference_planes = None
             self.reference_fans, self.axisymmetric = None, None
+            self.lattice = None
         if transmission == "carrier":
             pass
         elif transmission is None or (
@@ -297,6 +312,10 @@ class PropagationPipeline:
         original = source
         if isinstance(source, _Beam):
             source = self._beam_source(source)
+        elif self.lattice is not None:
+            raise ValueError(
+                "lattice= carries a beam; a sampled field brings its own lattice"
+            )
         elif isinstance(source, (ElectricField, TransverseElectricField)):
             if self.incident_region is None:
                 raise ValueError(
@@ -325,10 +344,12 @@ class PropagationPipeline:
                 "a beam is an incident field of transport='eikonal'; "
                 "sample it on a CartesianGrid for wave transport"
             )
+        if self.lattice is not None:
+            return BeamField(beam, self.lattice)
         if self.axisymmetric is False:
             raise ValueError(
-                "axisymmetric=False carries a sampled field: evaluate the beam "
-                "on a CartesianGrid and pass that field"
+                "axisymmetric=False carries a beam on a lattice: pass lattice= "
+                "(a CartesianGrid), or a sampled field"
             )
         axis = beam.frame
         origin = axis.origin
@@ -536,8 +557,10 @@ class PropagationPipeline:
             )
         if carrier is None and isinstance(source, BeamField):
             carrier = source.carrier
+        on_lattice = isinstance(source.grid, CartesianGrid)
         axial = self.transport == "eikonal" and (
-            isinstance(source, BeamField) or self.axisymmetric is True
+            (isinstance(source, BeamField) and not on_lattice)
+            or self.axisymmetric is True
         )
         if self.treatment in ("eikonal", "carrier"):
             if carrier is None:
@@ -596,18 +619,24 @@ class PropagationPipeline:
                 continue
             if operator is None:
                 # An index-matched surface between eikonal legs: the identity.
-                current = PlaneSpectrum(
-                    current.grid, replace(current.expansion, region=interface.plus)
+                current = (
+                    PlaneSpectrum(
+                        current.grid, replace(current.expansion, region=interface.plus)
+                    )
+                    if isinstance(current, PlaneSpectrum)
+                    else current.relabeled(interface.plus)
                 )
                 self._stages.append(current)
                 self._responses.append(None)
                 continue
             qin, qout = (operator, None) if self.transport == "eikonal" else operator
-            distance = float(
-                (qin.plane.frame.origin - current.grid.frame.origin)
-                @ current.grid.frame.normal
-            )
-            current = PlaneTransport().spectrum(current, distance)
+            if isinstance(current, PlaneSpectrum):
+                # A beam or a LatticeSpectrum is read at any depth.
+                distance = float(
+                    (qin.plane.frame.origin - current.grid.frame.origin)
+                    @ current.grid.frame.normal
+                )
+                current = PlaneTransport().spectrum(current, distance)
             if interface.minus.material.n == interface.plus.material.n:
                 # Equal-index transport is an identity, without a spectral cut
                 # or finite-chart reconstruction of an already known solution.

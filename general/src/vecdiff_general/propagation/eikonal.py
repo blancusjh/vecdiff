@@ -22,6 +22,7 @@ exact for a plane wave on a plane interface and the identity for index-matched
 media, not a solution of the curved-boundary Maxwell problem.
 """
 
+import math
 from dataclasses import dataclass, fields, replace
 
 import numpy as np
@@ -30,7 +31,18 @@ from vecdiff_general._backend import bd, divide, to_numpy
 from vecdiff_general.fields import TransverseElectricField
 from vecdiff_general.fields.angular_spectrum import angular_spectrum
 from vecdiff_general.fields.spectrum import PlaneSpectrum
-from vecdiff_general.sampling import CartesianGrid, PointGrid
+from vecdiff_general.propagation._lattice import (
+    READ,
+    LatticeSpectrum,
+    PlaneReader,
+    default_block,
+    in_blocks,
+    lattice_points,
+    lattice_spectrum,
+    plane_blocks,
+    row_blocks,
+)
+from vecdiff_general.sampling import CartesianGrid
 from vecdiff_general.surfaces.surface import ImplicitSurface
 
 _EPS = np.finfo(float).eps
@@ -378,31 +390,29 @@ class InterfaceMap:
         with the analytic D Phi. Targets outside the table's image or without a
         converged preimage are marked missing.
         """
-        from scipy.interpolate import griddata
-        from scipy.spatial import cKDTree
-
         targets = bd.asarray(targets, float).reshape(-1, 2)
-        table = self.forward(bd.asarray(samples, float).reshape(-1, 2))
+        scale = float(bd.max(bd.abs(targets))) + 1e-300
+
+        return self.invert(targets, self.seed_table(samples), tolerance * scale)
+
+    def seed_table(self, samples):
+        """The forward table of seed labels that starts every inversion."""
+        samples = bd.asarray(samples, float).reshape(-1, 2)
+        table = self.forward(samples)
         keep = to_numpy(table.valid)
-        images = to_numpy(table.output)[keep]
-        sources = to_numpy(bd.asarray(samples, float).reshape(-1, 2))[keep]
-        wanted = to_numpy(targets)
-        guess = griddata(images, sources, wanted, method="linear")
-        missing = np.flatnonzero(~np.isfinite(guess).all(axis=-1))
 
-        if len(missing) and len(images) > 1:
-            # Targets on the hull boundary lose the linear guess to roundoff:
-            # start them from the nearest table ray if it lies close enough.
-            tree = cKDTree(images)
-            spacing = np.median(tree.query(images, k=2)[0][:, 1])
-            distance, nearest = tree.query(wanted[missing])
-            close = distance <= 2 * spacing
-            guess[missing[close]] = sources[nearest[close]]
+        return _SeedTable(to_numpy(table.output)[keep], to_numpy(samples)[keep])
 
+    def invert(self, targets, table, limit):
+        """inverse() of ``targets`` from a seed table, converged to ``limit`` in metres.
+
+        Each target is inverted on its own, so blocks of targets give the
+        preimages of the whole lattice.
+        """
+        targets = bd.asarray(targets, float).reshape(-1, 2)
+        guess = table.guess(to_numpy(targets))
         found = bd.asarray(np.isfinite(guess).all(axis=-1))
         rho = bd.asarray(np.nan_to_num(guess))
-        scale = float(bd.max(bd.abs(targets))) + 1e-300
-        limit = tolerance * scale
         residual = bd.full(len(targets), bd.inf)
         active = found.copy()
 
@@ -416,7 +426,7 @@ class InterfaceMap:
             residual[index] = norm
             converged = norm <= limit
             active[index[converged]] = False
-            index, m, error = index[~converged], m, error[~converged]
+            index, error = index[~converged], error[~converged]
             jac = m.jacobian[~converged]
             det = jac[:, 0, 0] * jac[:, 1, 1] - jac[:, 0, 1] * jac[:, 1, 0]
             step = (
@@ -430,32 +440,77 @@ class InterfaceMap:
                 / det[:, None]
             )
             current = residual[index]
-            factor = bd.ones(len(index))
             pending = bd.isfinite(step).all(axis=-1)
+            # A target without a finite step (an unsupported ray) keeps it:
+            # nothing moves it, so it stops now.
+            stuck = ~pending
             step = bd.where(pending[:, None], step, 0.0)
 
-            for _ in range(12):
-                if not bool(pending.any()):
+            # The full step first; where it does not improve, the first of
+            # eleven halvings that does, all traced in one call.
+            for factors in (bd.ones(1), 0.5 ** bd.arange(1.0, 12.0)):
+                trying = bd.flatnonzero(pending)
+                if not len(trying):
                     break
-                trial = rho[index] + factor[:, None] * step
-                mt = self.forward(trial)
+                trial = (
+                    rho[index[trying]][None]
+                    + factors[:, None, None] * step[trying][None]
+                )
+                mt = self.forward(trial.reshape(-1, 2))
                 norm_t = bd.where(
                     mt.valid,
-                    bd.linalg.norm(mt.output - targets[index], axis=-1),
+                    bd.linalg.norm(
+                        mt.output - bd.tile(targets[index[trying]], (len(factors), 1)),
+                        axis=-1,
+                    ),
                     bd.inf,
-                )
-                better = pending & (norm_t < current)
-                rho[index[better]] = trial[better]
-                residual[index[better]] = norm_t[better]
-                pending &= ~better
-                factor = bd.where(pending, factor / 2, factor)
+                ).reshape(len(factors), -1)
+                better = norm_t < current[trying][None]
+                first = bd.argmax(better, axis=0)
+                improved = bd.flatnonzero(better.any(axis=0))
+                rho[index[trying[improved]]] = trial[first[improved], improved]
+                residual[index[trying[improved]]] = norm_t[first[improved], improved]
+                pending[trying[improved]] = False
 
             # No improving step (or none at all): this target stops here.
-            active[index[pending | ~bd.isfinite(step).all(axis=-1)]] = False
+            active[index[pending | stuck]] = False
 
         converged = found & (residual <= limit)
 
         return rho, converged, residual
+
+
+class _SeedTable:
+    """Images and labels of the seed rays, with the interpolants that start Newton."""
+
+    def __init__(self, images, sources):
+        from scipy.interpolate import LinearNDInterpolator
+        from scipy.spatial import cKDTree
+
+        self.images, self.sources = images, sources
+        # griddata(method="linear") is this interpolant, built once here; one
+        # evaluation builds its lazy parts before blocks share it.
+        self._linear = LinearNDInterpolator(images, sources)
+        self._linear(images[:1])
+        self._tree = None
+        if len(images) > 1:
+            tree = cKDTree(images)
+            self._tree = tree, np.median(tree.query(images, k=2)[0][:, 1])
+
+    def guess(self, wanted):
+        """Linear interpolation of the labels at ``wanted`` (host), NaN off the table."""
+        guess = self._linear(wanted)
+        missing = np.flatnonzero(~np.isfinite(guess).all(axis=-1))
+
+        if len(missing) and self._tree is not None:
+            # Targets on the hull boundary lose the linear guess to roundoff:
+            # start them from the nearest table ray if it lies close enough.
+            tree, spacing = self._tree
+            distance, nearest = tree.query(wanted[missing])
+            close = distance <= 2 * spacing
+            guess[missing[close]] = self.sources[nearest[close]]
+
+        return guess
 
 
 class RefractedRays:
@@ -568,11 +623,17 @@ class EikonalTransport:
     supported ray: refraction can spread the image beyond the input
     footprint, and cutting it would diffract spuriously. ``window`` = (start,
     end) rolls the carried field off with a raised cosine between those
-    incidence angles in degrees; a callable window receives the RayMap of the
-    carried rays and returns their weights (a reference fan). Hard-edged
-    inputs are sensitive to this choice, which belongs with any result.
-    The map and its inverse are prepared once per
-    geometry and carrier and reused for every incident spectrum.
+    incidence angles in degrees; a callable window receives the RayMap of
+    carried rays and returns their weights ray by ray (a reference fan).
+    Hard-edged inputs are sensitive to this choice, which belongs with any
+    result. The map and its inverse are prepared once per geometry and
+    carrier and reused for every incident spectrum.
+
+    The lattices are streamed: rays are traced, inverted and carried
+    ``block_size`` points at a time, and only the preimages, the lit and
+    supported masks and the carried field are kept, in host memory. A beam
+    is read exactly at the preimages, and its leg returns a LatticeSpectrum,
+    which holds lattices a PlaneSpectrum cannot.
     """
 
     def __init__(
@@ -585,6 +646,7 @@ class EikonalTransport:
         window=None,
         max_growth=4,
         seed_stride=None,
+        block_size=None,
     ):
         if not isinstance(plane, CartesianGrid):
             raise TypeError("eikonal transport needs a CartesianGrid reference plane")
@@ -602,9 +664,18 @@ class EikonalTransport:
                 "reference plane and surface must share a transverse origin"
             )
 
+        block_size = default_block() if block_size is None else block_size
+        if (
+            isinstance(block_size, bool)
+            or int(block_size) != block_size
+            or block_size < 1
+        ):
+            raise ValueError("block_size must be a positive integer")
+
         self.window = check_window(window)
         self.plane, self.interface, self.carrier = plane, interface, carrier
         self.wavelength0 = float(wavelength0)
+        self.block_size = int(block_size)
         self.map = InterfaceMap(
             surface,
             carrier,
@@ -612,57 +683,117 @@ class EikonalTransport:
             interface.plus.material.n,
             float(shift[2]),
         )
-        x, y = bd.meshgrid(plane.u, plane.v)
-        lattice = bd.stack((x, y), axis=-1).reshape(-1, 2)
         family = self.map.family
         # A carrier's rays are labelled on this plane; refracted ones on the first.
-        labels = lattice if family is None else family.labels
         axes = (plane.u, plane.v) if family is None else family.axes
-        incoming = self.map.forward(labels)
-        self.support = incoming.valid
-        # Rays the window zeroes carry nothing and do not widen the lattice.
-        carried = bd.flatnonzero(self.support)
-        if self.window is not None and len(carried):
-            weight = ray_weights(self.window, incoming.subset(self.support))
-            carried = carried[weight > 0]
-        self.output_plane = self._cover(plane, incoming.output[carried], max_growth)
+        width = len(axes[0])
+        count = width * len(axes[1])
+        valid = np.zeros(count, bool)
+        image = np.full((count, 2), np.nan)
+        starts = None if family is None else np.full((count, 2), np.nan)
+        need = [0.0, 0.0]
+
+        def label(rows):
+            incoming = self.map.forward(lattice_points(axes[0], axes[1], rows))
+            # Rays the window zeroes carry nothing and do not widen the lattice.
+            carried = bd.flatnonzero(incoming.valid)
+            if self.window is not None and len(carried):
+                weight = ray_weights(self.window, incoming.subset(incoming.valid))
+                carried = carried[weight > 0]
+            reach = (
+                to_numpy(bd.max(bd.abs(incoming.output[carried]), axis=0))
+                if len(carried)
+                else (0.0, 0.0)
+            )
+            start = None if starts is None else to_numpy(incoming.start)
+            return (
+                rows,
+                to_numpy(incoming.valid),
+                to_numpy(incoming.output),
+                start,
+                reach,
+            )
+
+        blocks = row_blocks(len(axes[1]), width, self.block_size)
+        for rows, ok, output, start, reach in in_blocks(label, blocks):
+            flat = slice(rows.start * width, rows.stop * width)
+            valid[flat], image[flat] = ok, output
+            if starts is not None:
+                starts[flat] = start
+            need = [max(a, float(b)) for a, b in zip(need, reach)]
+
+        self.output_plane = self._cover(plane, need, max_growth)
         out = self.output_plane
         slack = 1e-6 * float(min(plane.u[1] - plane.u[0], plane.v[1] - plane.v[0]))
-        imaged = (
-            (incoming.output[:, 0] >= out.u[0] - slack)
-            & (incoming.output[:, 0] <= out.u[-1] + slack)
-            & (incoming.output[:, 1] >= out.v[0] - slack)
-            & (incoming.output[:, 1] <= out.v[-1] + slack)
-        )
-        self.support = self.support & imaged
+        bounds = [float(out.u[0]), float(out.u[-1]), float(out.v[0]), float(out.v[-1])]
+        with np.errstate(invalid="ignore"):
+            imaged = (
+                (image[:, 0] >= bounds[0] - slack)
+                & (image[:, 0] <= bounds[1] + slack)
+                & (image[:, 1] >= bounds[2] - slack)
+                & (image[:, 1] <= bounds[3] + slack)
+            )
+        del image
+        # Supported rays of this plane's lattice, in host memory.
+        self.support = valid & imaged
         if family is not None:
-            self.support = self._covered(lattice, incoming)
-        targets = bd.stack(bd.meshgrid(out.u, out.v), axis=-1).reshape(-1, 2)
+            self.support = self._covered(starts, valid)
+
         stride = seed_stride or max(1, int(np.ceil(max(len(a) for a in axes) / 256)))
         seeds = bd.stack(bd.meshgrid(axes[0][::stride], axes[1][::stride]), axis=-1)
-        rho, found, residual = self.map.inverse(targets, seeds.reshape(-1, 2))
-        self.lit = found
-        self.preimage = rho
-        rays = self.map.forward(rho[self.lit])
-        # Starts beyond the sampled input plane would read the periodic
-        # continuation of the incident spectrum; they carry no field.
-        start = rays.start
-        inside = (
-            rays.valid
-            & (start[:, 0] >= plane.u[0] - slack)
-            & (start[:, 0] <= plane.u[-1] + slack)
-            & (start[:, 1] >= plane.v[0] - slack)
-            & (start[:, 1] <= plane.v[-1] + slack)
-        )
-        self.lit[bd.flatnonzero(self.lit)[~inside]] = False
-        self.rays = rays.subset(inside)
-        self.residual = (
-            float(bd.max(residual[self.lit])) if bool(self.lit.any()) else 0.0
-        )
-        heights = self.rays.surface_height - self.map.offset
-        self.boundary = float(max(0.0, bd.max(heights))) if heights.size else 0.0
+        table = self.map.seed_table(seeds.reshape(-1, 2))
+        scale = max(float(bd.max(bd.abs(out.u))), float(bd.max(bd.abs(out.v))))
+        limit = 1e-12 * (scale + 1e-300)
+        bounds = [
+            float(plane.u[0]),
+            float(plane.u[-1]),
+            float(plane.v[0]),
+            float(plane.v[-1]),
+        ]
+        size = math.prod(out.shape)
+        lit = np.zeros(size, bool)
+        preimage = np.zeros((size, 2))
+        self.residual, top = 0.0, None
 
-    def _covered(self, lattice, incoming):
+        def invert(rows):
+            rho, found, residual = self.map.invert(
+                lattice_points(out.u, out.v, rows), table, limit
+            )
+            rays = self.map.forward(rho[found])
+            # Starts beyond the sampled input plane would read the periodic
+            # continuation of the incident spectrum; they carry no field.
+            start = rays.start
+            inside = (
+                rays.valid
+                & (start[:, 0] >= bounds[0] - slack)
+                & (start[:, 0] <= bounds[1] + slack)
+                & (start[:, 1] >= bounds[2] - slack)
+                & (start[:, 1] <= bounds[3] + slack)
+            )
+            found[bd.flatnonzero(found)[~inside]] = False
+            worst = height = None
+            if bool(found.any()):
+                worst = float(bd.max(residual[found]))
+                height = float(bd.max(rays.surface_height[inside]))
+            return rows, to_numpy(found), to_numpy(rho), worst, height
+
+        blocks = row_blocks(len(out.v), len(out.u), self.block_size)
+        for rows, found, rho, worst, height in in_blocks(invert, blocks):
+            flat = slice(rows.start * len(out.u), rows.stop * len(out.u))
+            lit[flat], preimage[flat] = found, rho
+            if worst is not None:
+                self.residual = max(self.residual, worst)
+                top = height if top is None else max(top, height)
+
+        self.lit, self.preimage = lit, preimage
+        self.boundary = 0.0 if top is None else max(0.0, top - self.map.offset)
+
+    @property
+    def rays(self):
+        """RayMap of the carried rays, at the lit output points in order."""
+        return self.map.forward(bd.asarray(self.preimage[self.lit]))
+
+    def _covered(self, starts, valid):
         """Input-lattice points that a carried ray of the family starts near.
 
         The ray-validity of the label lattice, interpolated linearly over its
@@ -671,24 +802,29 @@ class EikonalTransport:
         """
         from scipy.interpolate import griddata
 
-        alive = to_numpy(bd.isfinite(incoming.start).all(axis=-1))
-        starts = to_numpy(incoming.start)[alive]
-        valid = to_numpy(incoming.valid)[alive].astype(float)
-        if len(starts) < 3:
-            return bd.zeros(len(lattice), bool)
-        value = griddata(starts, valid, to_numpy(lattice), method="linear")
+        alive = np.isfinite(starts).all(axis=-1)
+        lattice = np.stack(
+            np.meshgrid(to_numpy(self.plane.u), to_numpy(self.plane.v)), axis=-1
+        ).reshape(-1, 2)
+        if alive.sum() < 3:
+            return np.zeros(len(lattice), bool)
+        value = griddata(
+            starts[alive], valid[alive].astype(float), lattice, method="linear"
+        )
 
-        return bd.asarray(np.nan_to_num(value) > 1 - 1e-9)
+        return np.nan_to_num(value) > 1 - 1e-9
 
     @staticmethod
-    def _cover(plane, image, max_growth):
-        """The input lattice, or one with its spacing and frame grown to hold ``image``."""
+    def _cover(plane, need, max_growth):
+        """The input lattice, or one with its spacing and frame grown to reach ``need``.
+
+        ``need`` is the largest |u| and |v| of the image to hold.
+        """
         sizes = []
-        for axis, column in ((plane.u, 0), (plane.v, 1)):
+        for axis, reach in zip((plane.u, plane.v), need):
             step = float(axis[1] - axis[0])
             extent = float(bd.max(bd.abs(axis)))
-            need = float(bd.max(bd.abs(image[:, column]))) if len(image) else 0.0
-            count = len(axis) if need <= extent else 2 * int(np.ceil(need / step)) + 4
+            count = len(axis) if reach <= extent else 2 * int(np.ceil(reach / step)) + 4
             sizes.append(min(count, int(max_growth * len(axis))))
         if sizes == [len(plane.u), len(plane.v)]:
             return plane
@@ -696,37 +832,38 @@ class EikonalTransport:
         v = (bd.arange(sizes[1]) - sizes[1] // 2) * float(plane.v[1] - plane.v[0])
         return CartesianGrid(u, v, plane.frame)
 
-    def carry(self, spectrum, *, method="auto", **kwargs):
-        """Carried plane components on the output lattice and the EikonalReport.
+    def _reader(self, spectrum, method, **kwargs):
+        """The incident field at points (x, y) of this plane, E (n, 3) global."""
+        frame = self.map.surface.frame
+        origin = frame.origin + self.map.offset * frame.normal
+        axes = self.map.basis[:, :2]
+        if isinstance(spectrum, LatticeSpectrum):
+            blocks = spectrum.blocks
+        elif hasattr(spectrum, "beam"):
+            # The beam exactly, from plane waves that resolve the whole plane.
+            plane = self.plane
+            corners = bd.stack(
+                [
+                    origin + a * axes[:, 0] + b * axes[:, 1]
+                    for a in (plane.u[0], plane.u[-1])
+                    for b in (plane.v[0], plane.v[-1])
+                ]
+            )
+            beam = spectrum.beam
+            step = float(max(plane.u[1] - plane.u[0], plane.v[1] - plane.v[0]))
+            reach = float(bd.max(bd.linalg.norm(corners - beam.frame.origin, axis=-1)))
+            blocks = plane_blocks(beam.plane_waves(reach + step))
+        else:
+            blocks = plane_blocks(spectrum.expansion)
 
-        The TransverseElectricField holds g exp(i k0 Delta S) T E at every
-        lattice point with a supported preimage and zero elsewhere, before the
-        spectral re-expansion that ``transmit`` performs.
+        return PlaneReader(blocks, origin, axes, method=method, **kwargs)
+
+    def _transfer(self, r):
+        """Per ray, the matrix from incident E (local axes) to the carried u, v components.
+
+        g exp(i k0 Delta S) times the window and t_s s s + t_p p_t p_i + t_p s_t s_i
+        (Eq. 4.3), of shape (n, 2, 3).
         """
-        import importlib.util
-
-        if spectrum.expansion.region != self.interface.minus:
-            raise ValueError(
-                "incident spectrum must live in the interface's incident medium"
-            )
-
-        if method == "auto":
-            method = "nufft" if importlib.util.find_spec("finufft") else "direct"
-
-        basis = self.map.basis
-        points = self.map._global(
-            bd.concatenate(
-                (self.rays.start, bd.full((len(self.rays.start), 1), self.map.offset)),
-                axis=-1,
-            )
-        )
-        incident = (
-            spectrum.evaluate(
-                PointGrid(points), method=method, **kwargs
-            ).electric.values
-            @ basis
-        )
-        r = self.rays
         s = bd.cross(r.normal, r.incident)
         size = bd.linalg.norm(s, axis=-1, keepdims=True)
         fallback = bd.cross(r.incident, bd.asarray([0.0, 1.0, 0.0]))
@@ -737,48 +874,143 @@ class EikonalTransport:
         )
         s = bd.where(size > 1e-12, s, fallback)
         s = s / bd.linalg.norm(s, axis=-1, keepdims=True)
+        n_i, n_t = self.map.n_incident, self.map.n_transmitted
+        p_i, p_t = bd.cross(s, r.incident), bd.cross(s, r.transmitted)
+        c_i, c_t = r.cos_incident, r.cos_transmitted
+        t_s = 2 * n_i * c_i / (n_i * c_i + n_t * c_t)
+        t_p = 2 * n_i * c_i / (n_t * c_i + n_i * c_t)
         k0 = 2 * bd.pi / self.wavelength0
-        weight = self._window(r)
-        transfer = carried(incident, r, s, self.map.n_incident, self.map.n_transmitted)
-        values = bd.zeros((self.lit.size, 2), complex)
-        values[self.lit] = (
-            (weight * r.flux * bd.exp(1j * k0 * r.path))[:, None] * transfer
-        )[:, :2]
+        factor = self._window(r) * r.flux * bd.exp(1j * k0 * r.path)
+        dyadic = (
+            t_s[:, None, None] * s[:, :2, None] * s[:, None, :]
+            + t_p[:, None, None] * p_t[:, :2, None] * p_i[:, None, :]
+            + t_p[:, None, None] * r.transmitted[:, :2, None] * r.incident[:, None, :]
+        )
+
+        return factor[:, None, None] * dyadic
+
+    def _carried(self, spectrum, method, **kwargs):
+        """Carried u, v components on the output lattice: a host array (n, 2)."""
+        if spectrum.expansion.region != self.interface.minus:
+            raise ValueError(
+                "incident spectrum must live in the interface's incident medium"
+            )
+        if method == "auto":
+            import importlib.util
+
+            method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+
+        read = self._reader(spectrum, method, **kwargs)
+        basis = self.map.basis
+        values = np.zeros((self.lit.size, 2), complex)
+        lit = np.flatnonzero(self.lit)
+
+        def geometry(index):
+            rays = self.map.forward(bd.asarray(self.preimage[index]))
+            return self._transfer(rays), rays.start
+
+        # Incident sums cost most per call, so each reads many blocks' starts.
+        for begin in range(0, len(lit), READ):
+            index = lit[begin : begin + READ]
+            parts = [
+                index[part : part + self.block_size]
+                for part in range(0, len(index), self.block_size)
+            ]
+            transfers, starts = zip(*in_blocks(geometry, parts))
+            incident = read(bd.concatenate(starts)) @ basis
+            carried = bd.einsum("nij,nj->ni", bd.concatenate(transfers), incident)
+            values[index] = to_numpy(carried)
+
+        return values
+
+    def _lost(self, spectrum, method, **kwargs):
+        """Relative amplitude of the incident field on unsupported lattice points."""
+        if isinstance(spectrum, PlaneSpectrum):
+            lattice = spectrum.propagate(
+                float(
+                    (self.plane.frame.origin - spectrum.grid.frame.origin)
+                    @ spectrum.grid.frame.normal
+                )
+            ).electric.values.reshape(-1, 3)
+            power = to_numpy(bd.sum(bd.abs(lattice) ** 2, axis=-1))
+            lost, total = power[~self.support].sum(), power.sum()
+        else:
+            if method == "auto":
+                import importlib.util
+
+                method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+            read = self._reader(spectrum, method, **kwargs)
+            plane, lost, total = self.plane, 0.0, 0.0
+            rows = row_blocks(len(plane.v), len(plane.u), READ)
+            for block in rows:
+                flat = slice(block.start * len(plane.u), block.stop * len(plane.u))
+                field = read(lattice_points(plane.u, plane.v, block))
+                power = to_numpy(bd.sum(bd.abs(field) ** 2, axis=-1))
+                lost += power[~self.support[flat]].sum()
+                total += power.sum()
+
+        return float(np.sqrt(lost / max(float(total), 1e-300)))
+
+    def carry(self, spectrum, *, method="auto", **kwargs):
+        """Carried plane components on the output lattice and the EikonalReport.
+
+        The TransverseElectricField holds g exp(i k0 Delta S) T E at every
+        lattice point with a supported preimage and zero elsewhere, before the
+        spectral re-expansion that ``transmit`` performs.
+        """
+        values = self._carried(spectrum, method, **kwargs)
         field = TransverseElectricField(
             self.output_plane,
             self.wavelength0,
-            values.reshape(self.output_plane.shape + (2,)),
+            bd.asarray(values.reshape(self.output_plane.shape + (2,))),
         )
-        lattice = spectrum.propagate(
-            float(
-                (self.plane.frame.origin - spectrum.grid.frame.origin)
-                @ spectrum.grid.frame.normal
-            )
-        ).electric.values.reshape(-1, 3)
-        power = bd.sum(bd.abs(lattice) ** 2, axis=-1)
-        lost = float(
-            bd.sqrt(bd.sum(power[~self.support]) / max(float(bd.sum(power)), 1e-300))
-        )
-        report = EikonalReport(lost, int((~self.lit).sum()), self.residual)
 
-        return field, report
+        return field, self._report(spectrum, method, **kwargs)
+
+    def _report(self, spectrum, method, **kwargs):
+        return EikonalReport(
+            self._lost(spectrum, method, **kwargs),
+            int((~self.lit).sum()),
+            self.residual,
+        )
 
     def _window(self, rays):
         """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off."""
         return ray_weights(self.window, rays)
 
     def transmit(self, spectrum, *, method="auto", **kwargs):
-        """(PlaneSpectrum in the transmitted medium on the plane, EikonalReport).
+        """(Spectrum in the transmitted medium on the plane, EikonalReport).
 
         The carried components are re-expanded within the transverse band
         sin < _SPECTRAL_CUTOFF of the transmitted medium, as the manuscript
         does: nearer the light circle E_z = -kappa . E / k_z amplifies what the
         lattice leaves there (the edge of the carried support, for a hard
-        pupil) a hundredfold and more.
+        pupil) a hundredfold and more. A sampled incident field (a
+        PlaneSpectrum) gives a PlaneSpectrum; a beam or a LatticeSpectrum
+        gives a LatticeSpectrum, transformed in place.
         """
-        field, report = self.carry(spectrum, method=method, **kwargs)
-        outgoing = angular_spectrum(field, self.interface.plus, evanescent="discard")
-        k = 2 * bd.pi * self.interface.plus.material.n / self.wavelength0
+        values = self._carried(spectrum, method, **kwargs)
+        report = self._report(spectrum, method, **kwargs)
+        plus = self.interface.plus
+
+        if not isinstance(spectrum, PlaneSpectrum):
+            outgoing = lattice_spectrum(
+                self.output_plane,
+                plus,
+                self.wavelength0,
+                values,
+                cutoff=_SPECTRAL_CUTOFF,
+                block=self.block_size,
+            )
+            return outgoing, report
+
+        field = TransverseElectricField(
+            self.output_plane,
+            self.wavelength0,
+            bd.asarray(values.reshape(self.output_plane.shape + (2,))),
+        )
+        outgoing = angular_spectrum(field, plus, evanescent="discard")
+        k = 2 * bd.pi * plus.material.n / self.wavelength0
         transverse = (
             outgoing.expansion.wavevectors.real @ outgoing.grid.frame.basis[:, :2]
         )
