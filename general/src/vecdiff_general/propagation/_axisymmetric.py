@@ -646,6 +646,8 @@ class HankelField:
         fields = 2 if magnetic else 1
         values = np.zeros((fields, len(radius), 3), complex)
         planes, index = np.unique(depth, return_inverse=True)
+        if method not in ("auto", "nufft", "direct"):
+            raise ValueError("method must be 'auto', 'nufft' or 'direct'")
         summation = "direct" if method == "direct" else "auto"
 
         for p, z in enumerate(planes):
@@ -682,12 +684,18 @@ class HankelField:
 
         return bd.asarray(values @ to_numpy(self.frame.basis).T)
 
-    def electric(self, grid, *, method="auto", **kwargs):
+    def electric(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        """E on any grid. The options are those of every spectrum; the Hankel
+        sums use ``method`` ("auto", "nufft" or "direct") and their own tolerance."""
         values = self._sums(bd.asarray(grid.points).reshape(-1, 3), False, method)[0]
 
         return ElectricField(grid, self.wavelength0, values.reshape(grid.shape + (3,)))
 
-    def evaluate(self, grid, *, method="auto", **kwargs):
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
         """SI E and H; method "direct" sums the Hankel integrals densely."""
         E, H = self._sums(bd.asarray(grid.points).reshape(-1, 3), True, method)
 

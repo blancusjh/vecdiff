@@ -375,7 +375,11 @@ How the meridian is sampled:
 - `newton_residual`: the inverse map's residual;
 - `azimuthal_orders`: the orders carried on the meridian (empty for the lattice leg);
 - `caustics`: the caustic index κ of the carried rays;
-- `folded_relative_amplitude`: the share of the carried amplitude on rays of another caustic index, beyond a fold of the map, which carry no field.
+- `folded_relative_amplitude`: the share of the carried amplitude on rays of another caustic index, beyond a fold of the map, which carry no field;
+- `undersampled_relative_amplitude` (lattice leg): the share on rays that leave the surface steeper than the output lattice samples. The carried field turns at n_t k0 s_t across the plane, so the spacing must stay below λ0 / (2 n_t sin θ_t), whatever the input needed;
+- `band_removed_relative_amplitude` (lattice leg): the share in propagating plane waves beyond sin = 0.995 of the transmitted medium, which the re-expansion removes.
+
+A leg is refused, with the reason, when the folded, undersampled or band-removed share passes 1 %. Options that no spectrum has are refused on every path.
 
 ### Exact references
 

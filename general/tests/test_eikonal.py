@@ -486,3 +486,78 @@ def test_pipeline_carries_a_beam_on_a_lattice_only_when_asked():
         P.PropagationPipeline(system, lattice=grid).solve(
             incident, carrier=beam.carrier
         )
+
+
+def test_leg_refuses_an_output_lattice_too_coarse_for_the_refracted_field():
+    """Refraction steepens the carried phase: n_t k0 s_t can pass the lattice's Nyquist.
+
+    The input (NA 0.4) is well sampled at 0.9 wavelength; the field carried
+    into the glass turns up to 0.9 k0 across the plane, which needs 0.556.
+    Unchecked, this case was 16 % wrong with a clean report.
+    """
+    radius, sine = 12.0, 0.4
+    beam = F.FocusedBeam(
+        lambda x, y: np.clip(1 - (x**2 + y**2) / sine**2, 0, None) ** 3,
+        F.polarization.x,
+        focal_length=1.0,
+        max_sine=sine,
+        wavelength0=1.0,
+        region=AIR,
+        frame=Frame([0, 0, 1.5 * radius]),
+        apodization="none",
+    )
+    interface = o.system.DielectricInterface(
+        S.SphericalCap(radius, Frame([0, 0, -radius])), AIR, GLASS
+    )
+
+    def leg(spacing):
+        count = int(np.ceil(44 / spacing)) // 2 * 2
+        axis = (np.arange(count) - count // 2) * spacing
+        plane = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -radius - 1]))
+        values = beam.evaluate(plane).electric.values[..., :2]
+        incident = F.angular_spectrum(
+            F.TransverseElectricField(plane, 1.0, values), AIR, evanescent="discard"
+        )
+        transport = P.EikonalTransport(plane, interface, beam.carrier, 1.0)
+        return transport.carry(incident, method="direct")[1]
+
+    with pytest.raises(ValueError, match="steeper than the output lattice can sample"):
+        leg(0.9)
+    assert leg(0.3).undersampled_relative_amplitude == 0
+
+
+def test_leg_refuses_to_lose_propagating_waves_next_to_the_light_circle():
+    """Glass to air just below the critical angle: the transmitted wave grazes the plane.
+
+    The re-expansion keeps sin < 0.995 of the transmitted medium. A wave at
+    0.996 carries 27 % of the incident power and was removed without a trace.
+    """
+    count, step = 1000, 0.25
+    x = (np.arange(count) - count // 2) * step
+    y = (np.arange(8) - 4) * step
+    grid = o.sampling.CartesianGrid(x, y, Frame())
+    frequencies = 2 * np.pi * np.fft.fftfreq(count, step)
+    interface = o.system.DielectricInterface(S.Plane(), GLASS, AIR)
+
+    def transmitted(mode):
+        kx = frequencies[mode]
+        kz = np.sqrt((3 * np.pi) ** 2 - kx**2)
+        values = np.zeros((len(y), count, 2), complex)
+        values[..., 1] = np.exp(1j * kx * x)[None]
+        incident = F.angular_spectrum(
+            F.TransverseElectricField(grid, 1.0, values), GLASS, evanescent="discard"
+        )
+        leg = P.EikonalTransport(
+            grid, interface, F.Carrier.collimated([kx, 0, kz]), 1.0
+        )
+        outgoing, report = leg.transmit(incident, method="direct")
+        t_s = 2 * kz / (kz + np.sqrt((2 * np.pi) ** 2 - kx**2))
+        return kx / (2 * np.pi), outgoing, report, t_s
+
+    sine, outgoing, report, t_s = transmitted(248)
+    assert 0.99 < sine < 0.995 and report.band_removed_relative_amplitude < 1e-12
+    amplitude = abs(host(outgoing.propagate(0.0).electric.values)[..., 1])
+    assert_allclose(amplitude, t_s, rtol=1e-10)
+
+    with pytest.raises(ValueError, match="grazing the reference plane"):
+        transmitted(249)

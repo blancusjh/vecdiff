@@ -170,6 +170,7 @@ class LatticeSpectrum:
         block=BLOCK,
         roundoff_removed_rms=0.0,
         evanescent_removed_rms=0.0,
+        band_removed_rms=0.0,
     ):
         self.grid, self.region = grid, region
         self.wavelength0 = float(wavelength0)
@@ -177,6 +178,7 @@ class LatticeSpectrum:
         self.block = int(block)
         self.roundoff_removed_rms = float(roundoff_removed_rms)
         self.evanescent_removed_rms = float(evanescent_removed_rms)
+        self.band_removed_rms = float(band_removed_rms)
         if coefficients.shape != grid.shape + (2,):
             raise ValueError("coefficients must have grid.shape + (2,)")
         frame = grid.frame
@@ -202,6 +204,7 @@ class LatticeSpectrum:
             block=self.block,
             roundoff_removed_rms=self.roundoff_removed_rms,
             evanescent_removed_rms=self.evanescent_removed_rms,
+            band_removed_rms=self.band_removed_rms,
         )
 
     def blocks(self, magnetic=False):
@@ -286,7 +289,8 @@ def lattice_spectrum(grid, region, wavelength0, values, *, cutoff, block=BLOCK):
 
     Transformed in place, like angular_spectrum with evanescent='discard':
     modes below roundoff of the largest are zeroed, then those on or beyond
-    the light circle, and finally those beyond ``cutoff`` of it.
+    the light circle, and finally those beyond ``cutoff`` of it. The
+    propagating modes the cutoff removes are counted in ``band_removed_rms``.
     """
     ny, nx = grid.shape
     values = fft2_rows(values.reshape(ny, nx, 2), block)
@@ -299,7 +303,7 @@ def lattice_spectrum(grid, region, wavelength0, values, *, cutoff, block=BLOCK):
     largest = max(
         float(np.max(np.sqrt(np.sum(abs(values[rows]) ** 2, -1)))) for rows in blocks
     )
-    roundoff = evanescent = 0.0
+    roundoff = evanescent = band = 0.0
     for rows in blocks:
         part = values[rows]
         size = np.sqrt(np.sum(abs(part) ** 2, -1))
@@ -310,7 +314,9 @@ def lattice_spectrum(grid, region, wavelength0, values, *, cutoff, block=BLOCK):
         grazing = abs(k**2 - kappa2) <= _ROUNDOFF * k**2
         beyond = (kappa2 > k**2) | grazing
         evanescent += float(np.sum(abs(part[beyond]) ** 2))
-        part[beyond | (kappa2 > (cutoff * k) ** 2)] = 0
+        outside = ~beyond & (kappa2 > (cutoff * k) ** 2)
+        band += float(np.sum(abs(part[outside]) ** 2))
+        part[beyond | outside] = 0
 
     return LatticeSpectrum(
         grid,
@@ -320,4 +326,5 @@ def lattice_spectrum(grid, region, wavelength0, values, *, cutoff, block=BLOCK):
         block=block,
         roundoff_removed_rms=np.sqrt(roundoff),
         evanescent_removed_rms=np.sqrt(evanescent),
+        band_removed_rms=np.sqrt(band),
     )

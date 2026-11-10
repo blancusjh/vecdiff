@@ -57,8 +57,12 @@ _EPS = np.finfo(float).eps
 _SPECTRAL_CUTOFF = 0.995
 # exp(-i pi kappa / 2) for kappa mod 4, exactly.
 _QUARTER_TURNS = (1.0, -1j, -1.0, 1j)
-# Largest share of the carried amplitude that may lie beyond a fold of the map.
+# Largest share of the carried amplitude that may lie beyond a fold of the map,
+# or on rays the output lattice cannot sample.
 _FOLD_TOLERANCE = 1e-2
+_SAMPLING_TOLERANCE = 1e-2
+# Largest share of the carried amplitude the re-expansion's band may remove.
+_BAND_TOLERANCE = 1e-2
 
 
 def _masked(function, xy):
@@ -617,7 +621,11 @@ class EikonalReport:
     which their tube collapsed on the leg. Rays with another index reach the
     output plane from the far side of a caustic, where the map folds; they
     carry no field, and ``folded_relative_amplitude`` is their share of the
-    carried amplitude.
+    carried amplitude. ``undersampled_relative_amplitude`` is the share on
+    rays that leave the surface steeper than the output lattice can sample,
+    and ``band_removed_relative_amplitude`` the share in propagating plane
+    waves that the lattice leg's re-expansion removes next to the light
+    circle (beyond sin = 0.995 in the transmitted medium).
     """
 
     unsupported_relative_amplitude: float
@@ -626,6 +634,8 @@ class EikonalReport:
     azimuthal_orders: tuple = ()
     caustics: int = 0
     folded_relative_amplitude: float = 0.0
+    undersampled_relative_amplitude: float = 0.0
+    band_removed_relative_amplitude: float = 0.0
 
 
 def carried(incident, rays, s, n_incident, n_transmitted):
@@ -763,6 +773,9 @@ class EikonalTransport:
             if self.window is not None and len(carried):
                 weight = ray_weights(self.window, incoming.subset(incoming.valid))
                 carried = carried[weight > 0]
+            # A ray the fan cuts is unsupported, like one the surface refuses.
+            fanned = bd.zeros(len(incoming.valid), dtype=bool)
+            fanned[carried] = True
             reach = (
                 to_numpy(bd.max(bd.abs(incoming.output[carried]), axis=0))
                 if len(carried)
@@ -771,7 +784,7 @@ class EikonalTransport:
             start = None if starts is None else to_numpy(incoming.start)
             return (
                 rows,
-                to_numpy(incoming.valid),
+                to_numpy(fanned),
                 to_numpy(incoming.output),
                 start,
                 reach,
@@ -954,12 +967,14 @@ class EikonalTransport:
 
     def _carried(self, spectrum, method, **kwargs):
         """Carried u, v components on the output lattice, a host array (n, 2),
-        with the caustic index of the carried rays and the folded share.
+        and what was found on the way: the caustic index of the carried rays,
+        the folded share and the undersampled share.
 
         The rays of one caustic index carry the field: those that hold most of
         it. Rays of another index lie beyond a fold of the map; they are
         zeroed, and a leg that would lose more than _FOLD_TOLERANCE of its
-        amplitude that way is refused.
+        amplitude that way is refused. So is a leg whose output lattice
+        cannot sample more than _SAMPLING_TOLERANCE of what it carries.
         """
         if spectrum.expansion.region != self.interface.minus:
             raise ValueError(
@@ -975,10 +990,19 @@ class EikonalTransport:
         values = np.zeros((self.lit.size, 2), complex)
         lit = np.flatnonzero(self.lit)
         caustics = np.zeros(self.lit.size, np.int8)
+        coarse = np.zeros(self.lit.size, bool)
+        # The carried field turns at n_t k0 s_t across the output plane, and
+        # its lattice holds half a wave per sample at most.
+        out = self.output_plane
+        nyquist = self.wavelength0 / (2 * self.map.n_transmitted)
+        steps = bd.asarray([float(out.u[1] - out.u[0]), float(out.v[1] - out.v[0])])
 
         def geometry(index):
             rays = self.map.forward(bd.asarray(self.preimage[index]))
             caustics[index] = to_numpy(rays.caustics)
+            coarse[index] = to_numpy(
+                bd.any(bd.abs(rays.transmitted[:, :2]) * steps > nyquist, axis=-1)
+            )
             return self._transfer(rays), rays.start
 
         # Incident sums cost most per call, so each reads many blocks' starts.
@@ -994,13 +1018,26 @@ class EikonalTransport:
             values[index] = to_numpy(carried)
 
         power = np.sum(np.abs(values[lit]) ** 2, axis=-1)
+        total = max(float(power.sum()), 1e-300)
+        undersampled = float(np.sqrt(power[coarse[lit]].sum() / total))
+        if undersampled > _SAMPLING_TOLERANCE:
+            sine = self.wavelength0 / (2 * self.map.n_transmitted * float(steps.max()))
+            raise ValueError(
+                f"{undersampled:.1e} of the carried amplitude leaves the surface "
+                "steeper than the output lattice can sample: refracted rays reach "
+                f"sin(theta) > {sine:.2f} in the transmitted medium (index "
+                f"{self.map.n_transmitted:g}), where the lattice spacing must stay "
+                "below wavelength0 / (2 n sin(theta)). Refine the lattice"
+            )
+        found = {"caustics": 0, "folded": 0.0, "undersampled": undersampled}
         indices, member = np.unique(caustics[lit], return_inverse=True)
         if len(indices) < 2:
-            return values, int(indices[0]) if len(indices) else 0, 0.0
+            found["caustics"] = int(indices[0]) if len(indices) else 0
+            return values, found
 
         shares = np.bincount(member, weights=power)
         main = int(np.argmax(shares))
-        folded = float(np.sqrt(1 - shares[main] / max(float(shares.sum()), 1e-300)))
+        folded = float(np.sqrt(1 - shares[main] / total))
         if folded > _FOLD_TOLERANCE:
             raise ValueError(
                 f"{folded:.1e} of the carried amplitude reaches the output plane "
@@ -1011,8 +1048,9 @@ class EikonalTransport:
                 "plane away from it"
             )
         values[lit[member != main]] = 0
+        found.update(caustics=int(indices[main]), folded=folded)
 
-        return values, int(indices[main]), folded
+        return values, found
 
     def _lost(self, spectrum, method, **kwargs):
         """Relative amplitude of the incident field on unsupported lattice points."""
@@ -1049,22 +1087,33 @@ class EikonalTransport:
         lattice point with a supported preimage and zero elsewhere, before the
         spectral re-expansion that ``transmit`` performs.
         """
-        values, caustics, folded = self._carried(spectrum, method, **kwargs)
+        values, found = self._carried(spectrum, method, **kwargs)
         field = TransverseElectricField(
             self.output_plane,
             self.wavelength0,
             bd.asarray(values.reshape(self.output_plane.shape + (2,))),
         )
 
-        return field, self._report(spectrum, method, caustics, folded, **kwargs)
+        return field, self._report(spectrum, method, found, **kwargs)
 
-    def _report(self, spectrum, method, caustics, folded, **kwargs):
+    def _report(self, spectrum, method, found, band_removed=0.0, **kwargs):
+        if band_removed > _BAND_TOLERANCE:
+            raise ValueError(
+                f"{band_removed:.1e} of the carried amplitude leaves the surface "
+                f"within {100 * (1 - _SPECTRAL_CUTOFF):.1f} % of grazing the "
+                "reference plane (sin(theta) > "
+                f"{_SPECTRAL_CUTOFF} in the transmitted medium). The lattice leg "
+                "does not re-expand those plane waves, whose normal component is "
+                "unbounded on a lattice; they would be lost"
+            )
         return EikonalReport(
             self._lost(spectrum, method, **kwargs),
             int((~self.lit).sum()),
             self.residual,
-            caustics=caustics,
-            folded_relative_amplitude=folded,
+            caustics=found["caustics"],
+            folded_relative_amplitude=found["folded"],
+            undersampled_relative_amplitude=found["undersampled"],
+            band_removed_relative_amplitude=band_removed,
         )
 
     def _window(self, rays):
@@ -1082,9 +1131,10 @@ class EikonalTransport:
         PlaneSpectrum) gives a PlaneSpectrum; a beam or a LatticeSpectrum
         gives a LatticeSpectrum, transformed in place.
         """
-        values, caustics, folded = self._carried(spectrum, method, **kwargs)
-        report = self._report(spectrum, method, caustics, folded, **kwargs)
+        values, found = self._carried(spectrum, method, **kwargs)
         plus = self.interface.plus
+        # Modal norm of the carried field: sum |c|² over the lattice's modes.
+        total = max(float(np.sqrt(np.sum(np.abs(values) ** 2) / len(values))), 1e-300)
 
         if not isinstance(spectrum, PlaneSpectrum):
             outgoing = lattice_spectrum(
@@ -1094,6 +1144,9 @@ class EikonalTransport:
                 values,
                 cutoff=_SPECTRAL_CUTOFF,
                 block=self.block_size,
+            )
+            report = self._report(
+                spectrum, method, found, outgoing.band_removed_rms / total, **kwargs
             )
             return outgoing, report
 
@@ -1108,6 +1161,10 @@ class EikonalTransport:
             outgoing.expansion.wavevectors.real @ outgoing.grid.frame.basis[:, :2]
         )
         inside = bd.linalg.norm(transverse, axis=-1) <= _SPECTRAL_CUTOFF * k
+        cut = outgoing.expansion.amplitudes[~inside] @ outgoing.grid.frame.basis[:, :2]
+        report = self._report(
+            spectrum, method, found, float(bd.linalg.norm(cut)) / total, **kwargs
+        )
         amplitudes = bd.where(inside[:, None], outgoing.expansion.amplitudes, 0)
         outgoing = PlaneSpectrum(
             outgoing.grid, replace(outgoing.expansion, amplitudes=amplitudes)

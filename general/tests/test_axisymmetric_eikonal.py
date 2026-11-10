@@ -353,3 +353,16 @@ def test_zoned_pupils_cross_the_sphere_as_their_sum_of_disks(zoned, disks, bound
 
     expected = sum(c * through(F.profiles.Uniform(r)) for r, c in disks.items())
     assert_allclose(through(zoned), expected, atol=bound * abs(expected).max())
+
+
+def test_meridian_result_refuses_options_no_spectrum_has():
+    """A misspelt or retired option is an error on every path, not ignored."""
+    beam = converging(8.0)
+    solution = P.PropagationPipeline(sphere(8.0), transport="eikonal").solve(beam)
+    points = o.sampling.PointGrid(np.array([[0.0, 0.0, 8.0 / 1.5]]))
+
+    solution.evaluate(points, method="direct", tolerance=1e-10, threads=1)
+    with pytest.raises(TypeError, match="backend"):
+        solution.evaluate(points, backend="direct")
+    with pytest.raises(ValueError, match="method must be"):
+        solution.evaluate(points, method="fast")
