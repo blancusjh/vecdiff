@@ -332,11 +332,18 @@ class AxialTransport:
         from vecdiff_general.propagation.eikonal import ray_weights
 
         rays = self._meridian(radii)
-        valid = to_numpy(rays.valid)
+        # The meridian carries the rays that met no caustic on this leg: its
+        # map is inverted as an increasing function of the radius.
+        start = to_numpy(rays.start_jacobian)
+        valid = (
+            to_numpy(rays.valid)
+            & (to_numpy(rays.caustics) == 0)
+            & (start[:, 0, 0] * start[:, 1, 1] - start[:, 0, 1] * start[:, 1, 0] > 0)
+        )
         supported = valid.copy()
 
         if valid.any():
-            weight = to_numpy(ray_weights(self.window, rays.subset(rays.valid)))
+            weight = to_numpy(ray_weights(self.window, rays.subset(bd.asarray(valid))))
             supported[valid] = weight > 0
 
         return supported
@@ -349,6 +356,13 @@ class AxialTransport:
             radii = np.linspace(0.0, top, 4097)
             supported = self._supported(radii)
             if not supported[0]:
+                axial = self._meridian(radii[:1])
+                if bool(axial.valid[0]) and int(axial.caustics[0]) != 0:
+                    raise ValueError(
+                        "the carrier focuses inside this leg; the meridian leg "
+                        "carries no rays through a focus: pass lattice= to carry "
+                        "them on a lattice, or move the reference plane past the focus"
+                    )
                 raise ValueError("this surface does not carry the carrier's axial ray")
             if not supported.all():
                 first = int(np.argmin(supported))

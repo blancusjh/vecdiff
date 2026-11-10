@@ -257,6 +257,9 @@ A point P of a reference plane in front of a surface follows its carrier ray to 
 
 `propagation.InterfaceMap` computes Φ, ΔS, g and DΦ; `propagation.RayMap` holds the rays.
 - **DΦ is analytic (Appendix A).** It comes from the surface Hessian and the carrier's direction Jacobian; no spherical focus is assumed.
+- **A focus inside the leg.** Where the ray tube has collapsed between the two planes, J has passed through zero and the root in g continues through it as 1/√J → exp(−iπκ/2)/√|J|. κ, `RayMap.caustics`, counts the transverse directions in which the tube collapsed: one at a focal line, two at a point focus. It is counted on each straight segment from the tube's own cross-section, forward on a real segment and backward on a virtual one (a reference plane beyond the surface). This is the continuation the angular spectrum itself produces through a focus; the error of the leg still falls as 1/size, with a larger constant than without a focus.
+  - The lattice leg carries such rays. Where the map folds, rays from both sides of a caustic reach the same points: the rays of one caustic index carry the field, the others carry none and are reported, and a leg that would lose more than 1 % of its amplitude that way is refused.
+  - The meridian leg carries only rays that met no caustic and says so; a beam focused in front of its first surface needs `lattice=`.
 - **Intersection.** Each ray–surface intersection starts from the height under P, then the osculating sphere at the vertex, then a march along the ray, and finishes with Newton's method. A ray that Newton loses from behind a surface (from a rim-depth plane) is retried from the osculating sphere.
 
 ### Wave or eikonal transport, and carriers
@@ -367,10 +370,12 @@ How the meridian is sampled:
 ### Reports
 
 `solution.interactions` holds one `propagation.EikonalReport` per interface:
-- `unsupported_relative_amplitude`: the incident amplitude on rays the surface does not support (misses, rear or grazing incidence, total reflection, folds, or outside the fan);
+- `unsupported_relative_amplitude`: the incident amplitude on rays the surface does not support (misses, rear or grazing incidence, total reflection, or outside the fan);
 - `dark_samples`: output samples no ray reaches;
 - `newton_residual`: the inverse map's residual;
-- `azimuthal_orders`: the orders carried on the meridian (empty for the lattice leg).
+- `azimuthal_orders`: the orders carried on the meridian (empty for the lattice leg);
+- `caustics`: the caustic index κ of the carried rays;
+- `folded_relative_amplitude`: the share of the carried amplitude on rays of another caustic index, beyond a fold of the map, which carry no field.
 
 ### Exact references
 

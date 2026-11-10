@@ -10,14 +10,21 @@ optical path increment Delta S = n_i l_i + n_t l_t, and the field is carried by
 
 with g = sqrt(s_iz c_t / (c_i s_tz J)) and J = det D Phi. The Jacobian follows
 analytically from the surface Hessian and the carrier's direction Jacobian;
-no spherical focus is assumed. The output lattice is filled through the
+no spherical focus is assumed. Where the ray tube has collapsed between the
+planes J has passed through zero, and the root continues through it as
+1 / sqrt(J) -> exp(-i pi kappa / 2) / sqrt(|J|): kappa counts the collapsed
+transverse directions met along the ray (one at a focal line, two at a point
+focus), forward on a real segment and backward on a virtual one. The output lattice is filled through the
 inverse map, so the incident field is evaluated exactly at the preimages and
 never interpolated. The transmitted plane components are re-expanded in the
 transmitted medium, which restores the longitudinal component spectrally.
 
-Rays that miss the surface, meet it from behind, are totally reflected, leave
-backward or fold the map carry no field; the incident power they hold is
-reported, not hidden. The transfer is the stated leading-order model: it is
+Rays that miss the surface, meet it from behind, are totally reflected or
+leave backward carry no field; the incident power they hold is reported, not
+hidden. Where the map folds, rays from both sides of a caustic reach the same points
+and one ray per point cannot carry the field: the rays beyond the fold carry
+nothing, their share is reported, and a leg that would lose more than a
+hundredth of its amplitude that way is refused. The transfer is the stated leading-order model: it is
 exact for a plane wave on a plane interface and the identity for index-matched
 media, not a solution of the curved-boundary Maxwell problem.
 """
@@ -48,6 +55,10 @@ from vecdiff_general.surfaces.surface import ImplicitSurface
 _EPS = np.finfo(float).eps
 # Transverse band of the lattice leg's re-expansion, in units of n k0.
 _SPECTRAL_CUTOFF = 0.995
+# exp(-i pi kappa / 2) for kappa mod 4, exactly.
+_QUARTER_TURNS = (1.0, -1j, -1.0, 1j)
+# Largest share of the carried amplitude that may lie beyond a fold of the map.
+_FOLD_TOLERANCE = 1e-2
 
 
 def _masked(function, xy):
@@ -87,6 +98,34 @@ def _surface(surface, name, xy, tail):
     return out
 
 
+def _collapses(s, a1, a2, b1, b2, leg):
+    """Signed count of the collapses of a straight ray tube along its leg.
+
+    Neighbouring rays of the tube lie at a_j + tau b_j from the ray (rows of
+    3-vectors, j = 1, 2 the label axes), and s is its unit direction. The
+    tube's cross-section s . (a_1 + tau b_1) x (a_2 + tau b_2) is a quadratic
+    in tau; each root strictly inside the leg is a transverse direction in
+    which the tube collapses there (a double root is a point focus). Roots of
+    a leg run forward count +1, of a leg continued backward (leg < 0) -1.
+    The rays of an eikonal are normal to its wavefronts, so the roots are
+    real; a discriminant that roundoff left negative is a double root.
+    """
+    c0 = bd.sum(s * bd.cross(a1, a2), axis=-1)
+    c1 = bd.sum(s * (bd.cross(a1, b2) + bd.cross(b1, a2)), axis=-1)
+    c2 = bd.sum(s * bd.cross(b1, b2), axis=-1)
+    root = bd.sqrt(bd.maximum(c1 * c1 - 4 * c2 * c0, 0.0))
+    # The stable pair of roots: q / c2 and c0 / q.
+    q = -0.5 * (c1 + bd.where(c1 < 0, -root, root))
+    lo, hi = bd.minimum(leg, 0.0), bd.maximum(leg, 0.0)
+    count = bd.zeros(len(leg), dtype=int)
+    for numerator, denominator in ((q, c2), (c0, q)):
+        defined = denominator != 0
+        tau = divide(numerator, denominator, defined)
+        count = count + (defined & (tau > lo) & (tau < hi))
+
+    return bd.where(leg < 0, -count, count)
+
+
 @dataclass(frozen=True)
 class RayMap:
     """Plane-surface-plane map quantities of labelled rays, surface-local axes.
@@ -94,7 +133,11 @@ class RayMap:
     A ray is labelled by its point on the first reference plane of its
     family; for a carrier that is the point P on this map's own input plane.
     ``start`` is P (where the incident field is read), ``output`` Phi(P),
-    ``path`` Delta S in metres, ``flux`` the factor g. ``jacobian`` is
+    ``path`` Delta S in metres, ``flux`` the factor g, complex: its phase is
+    exp(-i pi caustics / 2). ``caustics`` is the signed count kappa of
+    transverse directions in which the ray tube collapsed between the planes:
+    crossings on a real segment add, crossings on a virtual one (a segment
+    continued backward) subtract. ``jacobian`` is
     d output / d label with output components first, ``start_jacobian`` the
     same for P (the identity for a carrier). ``surface_point`` is Q and
     ``surface_derivative``, ``transmitted_derivative`` are dQ / d label and
@@ -121,6 +164,7 @@ class RayMap:
     surface_derivative: np.ndarray
     transmitted_derivative: np.ndarray
     label: np.ndarray
+    caustics: np.ndarray
 
     def subset(self, mask):
         """The same quantities at the points selected by ``mask``."""
@@ -183,7 +227,8 @@ class InterfaceMap:
         result = list(self._trace(bd.where(finite[:, None], p, 0.0), s, dp, ds))
         result[0] = result[0] & finite
         result[11] = bd.where(finite[:, None], result[11], bd.nan)  # start
-        result.append(xy)
+        caustics = result.pop()
+        result.extend((xy, caustics))
 
         return RayMap(*(value.reshape(shape + value.shape[1:]) for value in result))
 
@@ -360,8 +405,18 @@ class InterfaceMap:
         # Area ratio between the planes: per label, output over input.
         det_in = dp[:, 0, 0] * dp[:, 1, 1] - dp[:, 0, 1] * dp[:, 1, 0]
         ratio = divide(det, det_in, det_in != 0)
-        valid &= bd.isfinite(ratio) & (det_in > 0) & (ratio > 0)
-        flux = bd.sqrt(divide(s[:, 2] * c_t, c_i * s_t[:, 2] * ratio, valid))
+        # Where the tube collapsed on the way the ratio changed sign, and the
+        # root of g continues through each zero by exp(-i pi / 2).
+        caustics = _collapses(
+            s, dp[:, :, 0], dp[:, :, 1], ds[:, :, 0], ds[:, :, 1], leg_i
+        ) + _collapses(s_t, dq[:, 0], dq[:, 1], ds_t[:, 0], ds_t[:, 1], leg_t)
+        odd = caustics % 2 == 1
+        valid &= bd.isfinite(ratio) & (ratio != 0) & ((ratio < 0) == odd)
+        flux = (
+            bd.sqrt(bd.abs(divide(s[:, 2] * c_t, c_i * s_t[:, 2] * ratio, valid)))
+            * bd.asarray(_QUARTER_TURNS)[caustics % 4]
+        )
+        caustics = bd.where(valid, caustics, 0)
 
         return (
             valid,
@@ -380,6 +435,7 @@ class InterfaceMap:
             q,
             bd.swapaxes(dq, 1, 2),
             bd.swapaxes(ds_t, 1, 2),
+            caustics,
         )
 
     def inverse(self, targets, samples, *, tolerance=1e-12):
@@ -556,13 +612,20 @@ class EikonalReport:
     """What the eikonal leg could not carry, and how well its map was inverted.
 
     ``azimuthal_orders`` lists the orders the axisymmetric leg carried along
-    its meridian; it is empty for the lattice leg.
+    its meridian; it is empty for the lattice leg. ``caustics`` is the caustic
+    index of the carried rays: the signed number of transverse directions in
+    which their tube collapsed on the leg. Rays with another index reach the
+    output plane from the far side of a caustic, where the map folds; they
+    carry no field, and ``folded_relative_amplitude`` is their share of the
+    carried amplitude.
     """
 
     unsupported_relative_amplitude: float
     dark_samples: int
     newton_residual: float
     azimuthal_orders: tuple = ()
+    caustics: int = 0
+    folded_relative_amplitude: float = 0.0
 
 
 def carried(incident, rays, s, n_incident, n_transmitted):
@@ -890,7 +953,14 @@ class EikonalTransport:
         return factor[:, None, None] * dyadic
 
     def _carried(self, spectrum, method, **kwargs):
-        """Carried u, v components on the output lattice: a host array (n, 2)."""
+        """Carried u, v components on the output lattice, a host array (n, 2),
+        with the caustic index of the carried rays and the folded share.
+
+        The rays of one caustic index carry the field: those that hold most of
+        it. Rays of another index lie beyond a fold of the map; they are
+        zeroed, and a leg that would lose more than _FOLD_TOLERANCE of its
+        amplitude that way is refused.
+        """
         if spectrum.expansion.region != self.interface.minus:
             raise ValueError(
                 "incident spectrum must live in the interface's incident medium"
@@ -904,9 +974,11 @@ class EikonalTransport:
         basis = self.map.basis
         values = np.zeros((self.lit.size, 2), complex)
         lit = np.flatnonzero(self.lit)
+        caustics = np.zeros(self.lit.size, np.int8)
 
         def geometry(index):
             rays = self.map.forward(bd.asarray(self.preimage[index]))
+            caustics[index] = to_numpy(rays.caustics)
             return self._transfer(rays), rays.start
 
         # Incident sums cost most per call, so each reads many blocks' starts.
@@ -921,7 +993,26 @@ class EikonalTransport:
             carried = bd.einsum("nij,nj->ni", bd.concatenate(transfers), incident)
             values[index] = to_numpy(carried)
 
-        return values
+        power = np.sum(np.abs(values[lit]) ** 2, axis=-1)
+        indices, member = np.unique(caustics[lit], return_inverse=True)
+        if len(indices) < 2:
+            return values, int(indices[0]) if len(indices) else 0, 0.0
+
+        shares = np.bincount(member, weights=power)
+        main = int(np.argmax(shares))
+        folded = float(np.sqrt(1 - shares[main] / max(float(shares.sum()), 1e-300)))
+        if folded > _FOLD_TOLERANCE:
+            raise ValueError(
+                f"{folded:.1e} of the carried amplitude reaches the output plane "
+                "from beyond a caustic (caustic indices "
+                f"{[int(i) for i in indices[shares > 0]]}): the ray map folds on "
+                "this leg and one ray per point cannot carry the field. End the "
+                "fan before the caustic with a window, or move the reference "
+                "plane away from it"
+            )
+        values[lit[member != main]] = 0
+
+        return values, int(indices[main]), folded
 
     def _lost(self, spectrum, method, **kwargs):
         """Relative amplitude of the incident field on unsupported lattice points."""
@@ -958,20 +1049,22 @@ class EikonalTransport:
         lattice point with a supported preimage and zero elsewhere, before the
         spectral re-expansion that ``transmit`` performs.
         """
-        values = self._carried(spectrum, method, **kwargs)
+        values, caustics, folded = self._carried(spectrum, method, **kwargs)
         field = TransverseElectricField(
             self.output_plane,
             self.wavelength0,
             bd.asarray(values.reshape(self.output_plane.shape + (2,))),
         )
 
-        return field, self._report(spectrum, method, **kwargs)
+        return field, self._report(spectrum, method, caustics, folded, **kwargs)
 
-    def _report(self, spectrum, method, **kwargs):
+    def _report(self, spectrum, method, caustics, folded, **kwargs):
         return EikonalReport(
             self._lost(spectrum, method, **kwargs),
             int((~self.lit).sum()),
             self.residual,
+            caustics=caustics,
+            folded_relative_amplitude=folded,
         )
 
     def _window(self, rays):
@@ -989,8 +1082,8 @@ class EikonalTransport:
         PlaneSpectrum) gives a PlaneSpectrum; a beam or a LatticeSpectrum
         gives a LatticeSpectrum, transformed in place.
         """
-        values = self._carried(spectrum, method, **kwargs)
-        report = self._report(spectrum, method, **kwargs)
+        values, caustics, folded = self._carried(spectrum, method, **kwargs)
+        report = self._report(spectrum, method, caustics, folded, **kwargs)
         plus = self.interface.plus
 
         if not isinstance(spectrum, PlaneSpectrum):
