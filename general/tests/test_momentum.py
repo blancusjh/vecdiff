@@ -5,7 +5,7 @@ import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
 from vecdiff.media.medium import C0, EPSILON0, MU0
-from vecdiff.propagation.references import MieSphere
+from vecdiff.references import MieSphere
 
 bd, host = o.backend.bd, o.backend.to_numpy
 obs = o.observables

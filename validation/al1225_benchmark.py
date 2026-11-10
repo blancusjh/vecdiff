@@ -7,7 +7,7 @@ catalog lens. Field plots and timings use the same completed runs.
 
 from pathlib import Path
 
-from vecdiff.propagation.references.al1225 import (
+from vecdiff_validation.al1225 import (
     al1225_size_study,
     save_al1225_study,
 )

@@ -5,8 +5,8 @@ import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
 from scipy.integrate import simpson
-from vecdiff.transport.meridian import MeridianTransport, BeamField
 from vecdiff.transport import RefractedRays
+from vecdiff.transport.meridian import BeamField, MeridianTransport
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation
@@ -194,7 +194,7 @@ def test_aplanatic_pair_meets_the_layered_sphere_at_thirty_wavelengths():
     The archived two-surface code, with its second fan cut where the inner cap
     ends (53.13 degrees, the beam's marginal ray), gives 1.0798 %.
     """
-    from vecdiff.propagation.references import LayeredSphere
+    from vecdiff.references import LayeredSphere
 
     outer = 30.0
     source = beam(outer)

@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 import vecdiff as o
 from scipy.integrate import simpson
-from vecdiff.propagation.references import MieSphere
+from vecdiff.references import MieSphere
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("VECDIFF_SLOW") != "1", reason="slow regression: VECDIFF_SLOW=1"
@@ -268,7 +268,7 @@ def shell_beam(radius, geometry, pupil):
 @functools.lru_cache(maxsize=None)
 def layered_focal_line(radius, geometry, pupil):
     """First entry through both surfaces on 81 radii of the image plane."""
-    from vecdiff.propagation.references import LayeredSphere
+    from vecdiff.references import LayeredSphere
 
     n0, n1, n2, _, inner, _ = SHELLS[geometry]
     shell = o.media.HomogeneousRegion("shell", o.media.Dielectric(n1))
@@ -465,7 +465,7 @@ def test_cylinder_meets_the_handoff(radius, count, sampled, expected):
     0.0192 / 0.0055) is left out: its two references alone take a quarter of
     an hour.
     """
-    from vecdiff.propagation.references import InfiniteCylinder
+    from vecdiff.references import InfiniteCylinder
 
     umax = 0.25
     axis = (np.arange(count) - count // 2) / 3

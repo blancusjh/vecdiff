@@ -53,11 +53,11 @@ source surface, transport that field, and compare it at the destination.
 There is no Fresnel interaction or second scattering solve in this check.
 
 ```sh
-.venv/bin/python -m vecdiff.propagation.references.pure_surface_transport \
+.venv/bin/python -m vecdiff_validation.pure_surface_transport \
   --output validation/reference_data/pure_surface_transport.json
-.venv/bin/python -m vecdiff.propagation.references.surface_transport \
+.venv/bin/python -m vecdiff_validation.surface_transport \
   --output validation/reference_data/surface_transport.json
-.venv/bin/python -m vecdiff.propagation.references.transport_geometries \
+.venv/bin/python -m vecdiff_validation.transport_geometries \
   --help
 ```
 
@@ -77,11 +77,13 @@ records geometry, quadrature, errors, thread settings and repeated timings.
 
 ## Independent references
 
-`propagation/references/` retains Mie and Debye sphere solutions under any
-propagating incident field (plane waves, FFT spectra or beams), PMCHWT and
-Müller BEM formulations, first-order FEM, MFS and a periodic Fourier–Maxwell
-reference. BEM/FEM kernels are compiled from `general/native/`; they remain
-outside the forward pipeline. Mesh refinement, boundary/flux diagnostics and
+`vecdiff.references` holds the exact solutions: Mie, layered-sphere and
+cylinder fields with their Debye series under any propagating incident field
+(plane waves, FFT spectra or beams). The separate `vecdiff_validation`
+package in `validation/` holds PMCHWT and Müller BEM formulations, first-order
+FEM, MFS and a periodic Fourier–Maxwell reference; its BEM/FEM kernels are
+compiled from `validation/native/`. None of them is used by the forward
+pipeline. Mesh refinement, boundary/flux diagnostics and
 comparisons with Mie qualify the native solvers on their tested cases. A small
 algebraic residual alone does not establish a converged physical reference.
 

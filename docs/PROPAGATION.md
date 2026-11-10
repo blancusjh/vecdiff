@@ -5,11 +5,12 @@ the package top level re-exports nothing.
 
 | Module | Main API | Operation |
 |---|---|---|
-| `homogeneous.py` | `propagate`, `PlaneTransport` | Evolution in a homogeneous medium |
-| `surface_transfer.py` | `SurfaceTransport` | Evaluate and reconstruct fields on a graph surface |
-| `surface_interaction.py` | `scatter_plane`, `SpectralFresnel`, `LocalFresnel` | Reflection and transmission at fixed boundaries |
-| `pipeline.py` | `PropagationPipeline` | Compose transport and interactions |
-| `references/` | `MieSphere`, `LayeredSphere`, `InfiniteCylinder`, `DielectricBEM`, other reference solvers | Independently check physical and numerical accuracy |
+| `transport/` | `InterfaceMap`, `LatticeTransport`, `MeridianTransport`, `TransportReport` | Carry a field across a surface along its carrier's rays |
+| `propagation/homogeneous.py` | `propagate`, `PlaneTransport` | Evolution in a homogeneous medium |
+| `propagation/pipeline.py` | `PropagationPipeline` | Compose transport and propagation through a system |
+| `alternatives/surface_transfer.py` | `SurfaceTransport` | Evaluate and reconstruct fields on a graph surface |
+| `alternatives/surface_interaction.py` | `scatter_plane`, `SpectralFresnel`, `LocalFresnel` | Reflection and transmission at fixed boundaries |
+| `references/` | `MieSphere`, `LayeredSphere`, `InfiniteCylinder` | Independently check physical and numerical accuracy |
 
 ## Homogeneous propagation
 
@@ -383,7 +384,7 @@ A leg is refused, with the reason, when the folded, undersampled or band-removed
 
 ### Exact references
 
-`propagation.references` holds the oracles. Each is one physical problem that takes `incident=` any propagating field (plane waves, FFT spectra or beams); see also [validation](VALIDATION.md#layered-sphere-and-infinite-cylinder).
+`references` holds the oracles. Each is one physical problem that takes `incident=` any propagating field (plane waves, FFT spectra or beams); see also [validation](VALIDATION.md#layered-sphere-and-infinite-cylinder).
 - **`MieSphere`**: a homogeneous sphere.
 - **`LayeredSphere`**: concentric layers.
 - **`InfiniteCylinder`**: a circular cylinder at normal and oblique incidence.

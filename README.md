@@ -91,13 +91,20 @@ The [propagation guide](docs/PROPAGATION.md#eikonal-transport) describes the met
 
 ## Install and verify
 
-Python 3.10 or newer is required. The build also needs a C
-compiler and a Fortran compiler (tested with gfortran). Run from this directory:
+Python 3.10 or newer is required. The library is pure Python:
 
 ```sh
 python3 -m venv .venv
+.venv/bin/python -m pip install -e './general[test,notebooks,nufft]'
+```
+
+The independent solvers in `validation/` and the sibling stigmatic package are
+only needed to run the whole test suite. The validation package builds a
+Fortran extension and needs a C and a Fortran compiler (tested with gfortran):
+
+```sh
 .venv/bin/python -m pip install meson-python ninja 'numpy>=2'
-.venv/bin/python -m pip install --no-build-isolation -e './general[test,notebooks,nufft,reference-mesh]'
+.venv/bin/python -m pip install --no-build-isolation './validation[test,mesh]'
 .venv/bin/python -m pip install -e './stigmatic[test,notebooks,nufft]' ruff
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check .
@@ -125,13 +132,18 @@ vecdiff/
     backend.py      CPU (NumPy) or CUDA GPU (CuPy) arrays
     system.py       surface/media adjacency and optical prescriptions
     fourier/        numerical transforms
-    propagation/
+    transport/      the method: a field across a surface along its carrier's rays
+        rays.py                 plane-surface-plane ray map, its Jacobian and caustic index
+        dyadic.py               continued Fresnel dyadic and fans of rays
+        lattice.py              the leg on a lattice, for any geometry
+        meridian.py             the leg on one meridian, for systems of revolution
+        report.py               what a leg could not carry
+    propagation/    general propagation
         homogeneous.py          propagation in a homogeneous medium (ASM/Fresnel)
-        surface_transfer.py     surface trace Q and outgoing reconstruction
-        surface_interaction.py  transmission and reflection at a boundary
-        pipeline.py             composition along an optical path
-        references/             Mie, BEM and independent reference solutions
+        pipeline.py             a field through a whole optical system
     observables/    energy, power, momentum, spin, forces, polarization, detectors
+    references/     exact solutions to check against: Mie, layered sphere, cylinder
+    alternatives/   other methods: wave transport onto a surface, Fresnel treatments
     visualization/  plots and animations
 ```
 
@@ -144,7 +156,10 @@ Public objects are used through these namespaces, for example
 `surfaces.SphericalCap` or `propagation.PropagationPipeline`; the package top
 level re-exports nothing.
 
-External comparisons live in `validation/`.
+Independent full-wave solvers (boundary elements, finite elements, the method
+of fundamental solutions), the comparisons built on them and their Fortran
+extension live in `validation/` as a separate package, `vecdiff_validation`.
+The library itself is pure Python.
 
 ## GPU backend
 
@@ -162,7 +177,7 @@ results match the CPU to roundoff. NumPy arrays and lists passed in are moved to
 the device on entry, results stay there until `backend.to_numpy(array)`, and
 plotting converts on its own. Objects built before a switch keep their arrays on
 the old device and must be rebuilt. Geometry, meshing, the reference solvers in
-`propagation.references` and FINUFFT compute on the CPU; their inputs and results
+`references` and FINUFFT compute on the CPU; their inputs and results
 are moved for them. `backend.bd` is the current array module (NumPy or CuPy) for
 creating arrays on the same device. `VECDIFF_BACKEND=CUDA pytest general/tests`
 runs the test suite on the GPU.

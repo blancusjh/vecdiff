@@ -74,7 +74,7 @@ def cylinder_error(radius, pupil, sampled=True):
 
     The beam is sampled on the lattice, or (sampled=False) read at the preimages.
     """
-    from vecdiff.propagation.references import InfiniteCylinder
+    from vecdiff.references import InfiniteCylinder
 
     umax = 0.25
     profile = (

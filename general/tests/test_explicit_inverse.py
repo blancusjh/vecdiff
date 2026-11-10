@@ -13,7 +13,7 @@ def test_explicit_inverse_recovers_a_curved_interface_field_from_both_traces():
     the remaining difference is the edge's own diffraction.
     """
     from scipy.special import erfc
-    from vecdiff.propagation.references.debye import sphere_single_interface
+    from vecdiff.references.debye import sphere_single_interface
 
     radius = 300 / (2 * np.pi)
     half = 0.45 * radius

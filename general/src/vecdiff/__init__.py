@@ -7,8 +7,8 @@ each surface, ``propagation`` its propagation through the whole system and
 ``observables`` what is measured. ``alternatives`` holds other methods.
 Nothing is re-exported at this level.
 ``backend.set_backend("CUDA")`` moves arrays and computation to a GPU.
-Plotting (``visualization``) and independent references
-(``propagation.references``) are imported explicitly when needed.
+Plotting (``visualization``) and the exact solutions used as references
+(``references``) are imported explicitly when needed.
 """
 
 from vecdiff import (

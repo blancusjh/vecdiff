@@ -179,7 +179,7 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
         )
         # This fixture records a prescribed-current comparison, not the primary
         # operational ASM model. Construct its local Fresnel trace explicitly.
-        from vecdiff.comparisons import SurfaceRadiation
+        from vecdiff_validation.comparisons import SurfaceRadiation
         from vecdiff.alternatives._directions import transmitted_direction
         from vecdiff.alternatives._fresnel import transmit
 

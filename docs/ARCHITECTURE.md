@@ -13,22 +13,23 @@ share no runtime optical kernel; external validation compares explicit arrays.
 | Fields | `fields/` | Electric samples, E/H traces, beams and their carriers, modal and eikonal representations |
 | Optical prescription | `system.py` | Oriented surface/media adjacency and sequences |
 | Numerical transforms | `fourier/` | FFT, Hankel, angular harmonics and NUFFT |
+| Transport across a surface | `transport/` | The ray map, its Jacobian and caustic index (`rays.py`); the continued Fresnel dyadic (`dyadic.py`); the leg on a lattice (`lattice.py`) and on a meridian (`meridian.py`); its report |
 | Homogeneous propagation | `propagation/homogeneous.py` | ASM and paraxial Fresnel evolution |
-| Surface transfer | `propagation/surface_transfer.py` | Q, least-squares inversion and surface-equivalence reconstruction |
-| Surface interaction | `propagation/surface_interaction.py` | Exact planar scattering; spectral and local Fresnel treatments |
 | Composition | `propagation/pipeline.py` | Field/system/target operator with reusable forward states |
-| Reference solutions | `propagation/references/` | Mie, Debye, BEM, FEM and independent transfer checks |
+| Exact solutions | `references/` | Mie, layered sphere and cylinder with their Debye series |
+| Other methods | `alternatives/` | Surface transfer Q with least-squares inversion; exact planar scattering; spectral and local Fresnel treatments |
+| Independent solvers | `validation/` (package `vecdiff_validation`) | BEM, FEM, MFS and prescribed-current comparisons, outside the library |
 | Measurement | `observables/`, `visualization/` | Physical diagnostics, detectors and plots |
 
 Public objects are reached through the namespace of what they are:
 `surfaces.SphericalCap`, `fields.angular_spectrum`, `system.OpticalSystem`,
 `propagation.PropagationPipeline`. The package top level holds only these
-namespaces and re-exports nothing. `visualization` and `propagation.references`
+namespaces and re-exports nothing. `visualization` and `references`
 are imported explicitly, so importing the package loads neither plotting nor
 reference solvers.
 
 The private `_directions.py` and `_fresnel.py` modules contain shared algebra
-for the surface-interaction methods. `comparisons/surface_radiation.py` provides
+for the surface-interaction methods in `alternatives/`. `vecdiff_validation.comparisons.surface_radiation` provides
 independent prescribed-current Green/Weyl evaluation. Reference solvers and
 comparison tools are not imported or invoked by the propagation pipeline.
 
