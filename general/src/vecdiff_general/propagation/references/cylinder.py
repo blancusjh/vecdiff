@@ -164,6 +164,82 @@ def _polar_cuts(gamma, top, count):
     return cuts, [True] * north_near + [False] * middle + [True] * south_near
 
 
+def _zoned_cuts(gamma, angles, count, half_width):
+    """Panels in the polar angle about +a for a cap with edge cones inside it.
+
+    angles are the half-angles of the cones about the beam axis where the
+    density jumps, the cap's own last. Each cone cuts the cone of a polar
+    angle about a in an arc of half-width half_width(angle, cone), with
+    branch points at |gamma -/+ cone|: all of them are cuts, and each cone
+    near an axis direction brings the graded panels of _polar_cuts. A branch
+    point just beyond a panel on which its arc is partial (two edges close to
+    each other, a thin ring) is not resolved by that panel's nodes; the panel
+    is then graded toward that end, each piece no wider than _EDGE_GROWTH
+    times its distance to the point.
+    """
+    if len(angles) == 1:
+        return _polar_cuts(gamma, angles[0], count)
+    # The merged panels are shorter than a cone's own: take the least count.
+    families = [_polar_cuts(gamma, cone, lambda lo, hi: 24) for cone in angles]
+    low, high = families[-1][0][0], families[-1][0][-1]
+    points = sorted(x for cuts, _ in families for x in cuts if low <= x <= high)
+    polar = [
+        (lo, hi)
+        for cuts, near in families
+        for lo, hi, flag in zip(cuts[:-1], cuts[1:], near)
+        if flag
+    ]
+    branches = []
+    for cone in angles:
+        far = gamma + cone
+        branches.append((abs(gamma - cone), cone))
+        branches.append((far if far <= np.pi else 2 * np.pi - far, cone))
+    tiny = 1e-13
+    cuts = [points[0]]
+    for x in points[1:]:
+        if x - cuts[-1] > tiny:
+            cuts.append(x)
+    graded = [cuts[0]]
+    for lo, hi in zip(cuts[:-1], cuts[1:]):
+        middle = (lo + hi) / 2
+        seen = [
+            point
+            for point, cone in branches
+            if 0 < half_width(middle, cone) < np.pi
+            and (point < lo - tiny or point > hi + tiny)
+        ]
+        below = max((x for x in seen if x < lo), default=None)
+        above = min((x for x in seen if x > hi), default=None)
+        nodes = count(lo, hi)
+
+        def unresolved(distance):
+            return nodes * np.sqrt(distance / (hi - lo)) < _EDGE_RESOLVED
+
+        below = below if below is not None and unresolved(lo - below) else None
+        above = above if above is not None and unresolved(above - hi) else None
+        inner_lo, inner_hi = [], []
+        limit = middle if below is not None and above is not None else None
+        if below is not None:
+            x, stop = lo, hi if limit is None else limit
+            while (x - below) * _EDGE_GROWTH < stop - x:
+                x = below + (x - below) * (1 + _EDGE_GROWTH)
+                inner_lo.append(x)
+        if above is not None:
+            x, stop = hi, lo if limit is None else limit
+            while (above - x) * _EDGE_GROWTH < x - stop:
+                x = above - (above - x) * (1 + _EDGE_GROWTH)
+                inner_hi.append(x)
+        if limit is not None:
+            inner_lo.append(limit)
+        inner = [x for x in inner_lo + inner_hi[::-1] if lo + tiny < x < hi - tiny]
+        graded += sorted(set(inner)) + [hi]
+    near = [
+        any(lo <= (x + y) / 2 <= hi for lo, hi in polar)
+        for x, y in zip(graded[:-1], graded[1:])
+    ]
+    return graded, near
+
+
 def _basis(axis):
     """Right-handed columns (u, v, axis)."""
     seed = np.eye(3)[np.argmin(np.abs(axis))]
@@ -291,6 +367,11 @@ class InfiniteCylinder:
         geometrically from eps, each no wider than four times its distance to
         the axis, and are laid out in the polar angle, which resolves
         directions that h = k cos(angle) cannot tell from the axis.
+
+        A pupil with interior edges (stops, rings, phase belts) has one such
+        cone per edge. The range is cut at the branch points of every cone,
+        and on each h the azimuthal rule runs zone by zone, between the arcs
+        of consecutive cones: one arc, or one on either side of the centre.
         """
         k, N = beam.wavenumber, self.order
         u, v, a = self.basis.T
@@ -306,13 +387,16 @@ class InfiniteCylinder:
         offset_a = float(offset @ a)
         offset_u, offset_v = float(offset @ u), float(offset @ v)
 
-        def half_width(angle):
-            # Of the arc that the cone at this polar angle cuts from the cap.
+        # Cones about the beam axis where the density jumps; the cap's own last.
+        cones = (*beam._polar_edges(top), top)
+
+        def half_width(angle, cone=top):
+            # Of the arc that the cone at this polar angle cuts from a cap.
             if spread <= _ALIGNED:
                 return np.pi
             if np.sin(angle) <= 0:
-                return np.pi if np.cos(angle) * along >= np.cos(top) else 0.0
-            c = (np.cos(top) - along * np.cos(angle)) / (np.sin(angle) * spread)
+                return np.pi if np.cos(angle) * along >= np.cos(cone) else 0.0
+            c = (np.cos(cone) - along * np.cos(angle)) / (np.sin(angle) * spread)
             return float(np.arccos(np.clip(c, -1, 1)))
 
         def default_count(lo, hi):
@@ -327,7 +411,8 @@ class InfiniteCylinder:
             )
             # Where the arc closes over the panel its ends sweep the cone, and
             # the phase there runs at up to kappa * across per unit of t.
-            sweep = abs(half_width(hi) - half_width(lo)) / np.pi
+            sweep = max(abs(half_width(hi, e) - half_width(lo, e)) for e in cones)
+            sweep /= np.pi
             excursion += sweep * max(kappa_low, kappa_high) * across
             # excursion is the one-way range of a phase quadratic in h
             # (defocus), which runs out and back over the interval; in t its
@@ -338,9 +423,11 @@ class InfiniteCylinder:
         # Polar angles, from +a, between which the arc is one analytic piece;
         # near[i] marks a piece laid out in the polar angle.
         if spread > _ALIGNED:
-            cuts, near = _polar_cuts(gamma, top, default_count)
+            cuts, near = _zoned_cuts(gamma, cones, default_count, half_width)
         else:
-            cuts, near = ([0.0, top] if along > 0 else [np.pi - top, np.pi]), [False]
+            cuts = [0.0, *cones] if along > 0 else [np.pi - e for e in cones[::-1]]
+            cuts = cuts if along > 0 else [*cuts, np.pi]
+            near = [False] * (len(cuts) - 1)
         counts = [default_count(lo, hi) for lo, hi in zip(cuts[:-1], cuts[1:])]
         if self._axial_nodes:
             if self._axial_nodes < len(counts):
@@ -387,28 +474,48 @@ class InfiniteCylinder:
         coefficients = np.zeros((2, 2 * N + 1, count), complex)
         for q in range(count):
             kappa = kappa_h[q]
-            if spread * kappa > 0:
-                c = (np.cos(top) - along * h[q] / k) / (kappa / k * spread)
-                full, empty = c <= -1, c >= 1
-            else:
-                full = along * h[q] / k >= np.cos(top)
-                empty = not full
-            if empty:
+            # Half-width of the arc inside each cone: zone i lies between
+            # those of cones i - 1 and i, on both sides of the centre.
+            pieces, inner = [], 0.0
+            for cone in cones:
+                if spread * kappa > 0:
+                    c = (np.cos(cone) - along * h[q] / k) / (kappa / k * spread)
+                    outer = np.pi if c <= -1 else 0.0 if c >= 1 else np.arccos(c)
+                else:
+                    outer = np.pi if along * h[q] / k >= np.cos(cone) else 0.0
+                if outer > inner:
+                    pieces.append((inner, outer))
+                    inner = outer
+            alpha, weight = [], []
+            for inner, outer in pieces:
+                if inner == 0 and outer == np.pi:
+                    nodes = int(2 * (N + kappa * np.hypot(offset_u, offset_v)) + 32)
+                    alpha.append(2 * np.pi * np.arange(nodes) / nodes)
+                    weight.append(np.full(nodes, 2 * np.pi / nodes))
+                    continue
+                # Arcs as (centre, half-width) about the cap's azimuth; the
+                # nodes stay inside the zone, where alone its density is known.
+                if inner == 0:
+                    arcs = [(0.0, outer)]
+                elif outer == np.pi:
+                    arcs = [(np.pi, np.pi - inner)]
+                else:
+                    middle, width = (outer + inner) / 2, (outer - inner) / 2
+                    arcs = [(-middle, width), (middle, width)]
+                for middle, width in arcs:
+                    start = centre_azimuth + middle
+                    probe = start + width * np.linspace(-1, 1, 65)
+                    slope = kappa * np.max(
+                        np.abs(-np.sin(probe) * offset_u + np.cos(probe) * offset_v)
+                    )
+                    phase = (N + slope) * 2 * width
+                    nodes = int(np.ceil(phase / 2 + 8 * phase ** (1 / 3) + 24))
+                    x, w = leggauss(nodes)
+                    alpha.append(start + width * x)
+                    weight.append(width * w)
+            if not alpha:
                 continue
-            if full:
-                nodes = int(2 * (N + kappa * np.hypot(offset_u, offset_v)) + 32)
-                alpha = 2 * np.pi * np.arange(nodes) / nodes
-                weight = np.full(nodes, 2 * np.pi / nodes)
-            else:
-                width = np.arccos(c)
-                probe = centre_azimuth + width * np.linspace(-1, 1, 65)
-                slope = kappa * np.max(
-                    np.abs(-np.sin(probe) * offset_u + np.cos(probe) * offset_v)
-                )
-                phase = (N + slope) * 2 * width
-                nodes = int(np.ceil(phase / 2 + 8 * phase ** (1 / 3) + 24))
-                x, weight = leggauss(nodes)
-                alpha, weight = centre_azimuth + width * x, width * weight
+            alpha, weight = np.concatenate(alpha), np.concatenate(weight)
             s = (h[q] / k) * a + (kappa / k) * (
                 np.cos(alpha)[:, None] * u + np.sin(alpha)[:, None] * v
             )

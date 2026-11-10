@@ -441,6 +441,73 @@ def test_cylinder_with_its_axis_inside_the_beam_cone_is_continuous_at_its_surfac
     assert max(np.abs(electric).max(), np.abs(magnetic).max()) < 1e-10 * scale
 
 
+ZONED_PUPILS = {
+    "stop": o.fields.profiles.Annulus(0.15, 0.4),
+    "thin ring": o.fields.profiles.Annulus(0.3, 0.3005),
+    "phase belts": o.fields.profiles.Zones((0.12, 0.25, 0.4), (1, -1, 1, 0)),
+}
+# Cylinder axis outside the beam's cone, inside it, and inside an edge cone.
+ZONED_AXES = {"outside": 90.0, "inside": 12.0, "inside an edge": 5.0}
+
+
+@pytest.mark.parametrize("axis", ZONED_AXES)
+@pytest.mark.parametrize("pupil", ZONED_PUPILS)
+def test_cylinder_resolves_interior_pupil_edges_of_a_focused_beam(pupil, axis):
+    # Index-matched, the answer is the beam itself; its own rule breaks at the
+    # edges. A ring far thinner than the node spacing must not be missed.
+    beam = converging(0.4, [0.0, 0.0, 0.0], ZONED_PUPILS[pupil])
+    cylinder = _tilted_cylinder(np.radians(ZONED_AXES[axis]))
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+@pytest.mark.parametrize("axis", ZONED_AXES)
+def test_cylinder_field_of_a_zoned_pupil_is_the_signed_sum_of_its_disks(axis):
+    # A disk's only edge is its rim, so by linearity the disks give the belts.
+    cylinder = _tilted_cylinder(np.radians(ZONED_AXES[axis]))
+    points = grid(_inside_points(cylinder))
+
+    def first_entry(profile):
+        beam = converging(0.4, [0.0, 0.0, 0.0], profile)
+        reference = InfiniteCylinder(beam, cylinder, GLASS)
+        return reference.evaluate(points, term=1, side="interior").electric.values
+
+    disk = o.fields.profiles.Uniform
+    belts = first_entry(ZONED_PUPILS["phase belts"])
+    disks = (
+        2 * first_entry(disk(0.12))
+        - 2 * first_entry(disk(0.25))
+        + first_entry(disk(0.4))
+    )
+    # With the axis inside the cone a Debye term of a disk is itself good to
+    # about 1e-9 at the default nodes: its response is not analytic at grazing
+    # incidence, h -> k, whatever the pupil.
+    bound = 1e-10 if axis == "outside" else 2e-8
+    assert np.abs(belts - disks).max() < bound * np.abs(disks).max()
+
+
+def test_cylinder_rule_for_an_edgeless_pupil_ignores_an_edge_without_a_jump():
+    # The same pupil declared with an edge where nothing jumps: the zoned rule
+    # must agree with the plain one, which spends no nodes on edges.
+    cylinder = _tilted_cylinder(np.radians(40.0))
+    points = grid(_inside_points(cylinder))
+    plain = InfiniteCylinder(
+        converging(0.4, [0.0, 0.0, 0.0], o.fields.profiles.Uniform(0.4)),
+        cylinder,
+        GLASS,
+    )
+    zoned = InfiniteCylinder(
+        converging(
+            0.4, [0.0, 0.0, 0.0], o.fields.profiles.Zones((0.2, 0.4), (1, 1, 0))
+        ),
+        cylinder,
+        GLASS,
+    )
+    assert len(plain.axial) < len(zoned.axial)
+    expected = plain.evaluate(points, term=1, side="interior").electric.values
+    actual = zoned.evaluate(points, term=1, side="interior").electric.values
+    assert np.abs(actual - expected).max() < 1e-10 * np.abs(expected).max()
+
+
 @pytest.mark.parametrize("polarization", ["parallel", "perpendicular"])
 def test_cylinder_normal_incidence_matches_bohren_huffman(polarization):
     """Scattered axial field: -b_n (E along the axis) or -a_n (H along it), BH 8.4."""
