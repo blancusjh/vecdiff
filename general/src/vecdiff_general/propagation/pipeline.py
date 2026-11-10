@@ -519,12 +519,15 @@ class PropagationPipeline:
                 frame.origin + self.reference_planes[index] * frame.normal, axis.basis
             )
             last = next((leg for leg in reversed(operators) if leg), None)
+            extent = None
             if last is not None:
                 # Labels on the first plane: the fan can only narrow from there.
                 reach, scale = last.edge, last.edge
                 family = RefractedRays(last.map)
             elif beam:
                 reach, scale = None, footprint(source.beam, plane)
+                # A surface that carries every ray leaves the fan to the beam.
+                extent = 2 * scale
             else:
                 grid = source.grid
                 reach = float(min(-grid.u[0], grid.u[-1], -grid.v[0], grid.v[-1]))
@@ -541,6 +544,7 @@ class PropagationPipeline:
                     window=self.reference_fans[index],
                     reach=reach,
                     scale=scale,
+                    extent=extent,
                 )
             )
         self._key, self._operators = key, tuple(operators)

@@ -366,3 +366,51 @@ def test_meridian_result_refuses_options_no_spectrum_has():
         solution.evaluate(points, backend="direct")
     with pytest.raises(ValueError, match="method must be"):
         solution.evaluate(points, method="fast")
+
+
+@pytest.mark.parametrize("waist, bound", [(6.0, 4e-4), (20.0, 4e-5)])
+def test_collimated_beam_crosses_a_flat_face_as_its_plane_waves_do(waist, bound):
+    """A plane carries every ray, so the fan ends where the beam does.
+
+    Exact reference: each plane wave of the beam with its own Fresnel
+    coefficients. The leg takes them at the carrier's direction, so its
+    error falls with the beam's angular width. This case used to raise.
+    """
+    start = np.array([0.0, 0.0, -5.0])
+    beam = F.PlaneBeam(
+        F.profiles.Gaussian(waist),
+        F.polarization.x,
+        wavelength0=1.0,
+        region=AIR,
+        frame=Frame(start),
+    )
+    pipeline = P.PropagationPipeline(
+        (o.system.DielectricInterface(S.Plane(), AIR, GLASS),)
+    )
+    rho = np.linspace(0, 1.5 * waist, 31)
+    where = np.c_[rho, 0.3 * rho, np.full(rho.size, 12.0)]
+    solution = pipeline.solve(beam)
+    field = host(solution.evaluate(o.sampling.PointGrid(where)).electric.values)
+
+    waves = beam.plane_waves(float(np.linalg.norm(where - start, axis=-1).max()) + 2)
+    k, a = host(waves.wavevectors).real, host(waves.amplitudes)
+    k1, k2 = 2 * np.pi, 3 * np.pi
+    kz2 = np.sqrt(k2**2 - k[:, 0] ** 2 - k[:, 1] ** 2)
+    s_i, s_t = k / k1, np.c_[k[:, :2], kz2] / k2
+    te = np.cross([0, 0, 1.0], s_i)
+    size = np.linalg.norm(te, axis=1, keepdims=True)
+    te = np.where(size > 1e-12, te / np.where(size > 1e-12, size, 1), [1.0, 0, 0])
+    p_i, p_t = np.cross(te, s_i), np.cross(te, s_t)
+    c_i, c_t = s_i[:, 2], s_t[:, 2]
+    t_s, t_p = 2 * c_i / (c_i + 1.5 * c_t), 2 * c_i / (1.5 * c_i + c_t)
+    transmitted = (t_s * np.sum(a * te, 1))[:, None] * te + (t_p * np.sum(a * p_i, 1))[
+        :, None
+    ] * p_t
+    transmitted = transmitted * np.exp(-1j * k[:, 2] * start[2])[:, None]
+    exact = (
+        np.exp(1j * (where[:, :2] @ k[:, :2].T + np.outer(where[:, 2], kz2)))
+        @ transmitted
+    )
+
+    assert np.linalg.norm(field - exact) < bound * np.linalg.norm(exact)
+    assert solution.interactions[0].unsupported_relative_amplitude < 1e-6

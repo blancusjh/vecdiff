@@ -212,7 +212,9 @@ class AxialTransport:
     it. ``window`` weights the carried rays as in EikonalTransport. The fan
     of carried rays ends where the surface stops supporting the carrier,
     where the window closes, or at ``reach`` (a sampled input's inscribed
-    radius); the search for that edge starts from ``scale``. The output plane
+    radius); the search for that edge starts from ``scale``. A surface that
+    carries every ray, such as a plane under a collimated beam, leaves the
+    edge to ``extent``, the radius where the incident field ends. The output plane
     is sampled by Gauss-Legendre panels on [0, Phi(edge)], and each node's
     preimage is found by Newton steps with the analytic D Phi.
     """
@@ -228,6 +230,7 @@ class AxialTransport:
         window=None,
         reach=None,
         scale=None,
+        extent=None,
     ):
         from vecdiff_general.propagation.eikonal import InterfaceMap, RefractedRays
 
@@ -263,7 +266,7 @@ class AxialTransport:
         )
         if not isinstance(carrier, RefractedRays):
             self._check_carrier(scale)
-        self.edge = self._fan(reach, scale)
+        self.edge = self._fan(reach, scale, extent)
         self.image = float(to_numpy(self._meridian(np.array([self.edge])).output)[0, 0])
         panel = _PLANE_PANEL * wavelength0 / max(interface.plus.material.n, 1.5)
         if self.image / panel * _PLANE_NODES > _MAX_PLANE_NODES:
@@ -348,7 +351,7 @@ class AxialTransport:
 
         return supported
 
-    def _fan(self, reach, scale):
+    def _fan(self, reach, scale, extent=None):
         """Input radius where the carried fan ends."""
         top = float(reach if reach is not None else 2 * scale)
 
@@ -381,10 +384,15 @@ class AxialTransport:
                 break
             top *= 2
         else:
-            raise ValueError(
-                "the surface carries the field at every radius searched; "
-                "bound the fan with an incidence window"
-            )
+            # Every radius is carried (a plane, or a surface far wider than
+            # the field): the fan ends where the incident field does.
+            if extent is None:
+                raise ValueError(
+                    "the surface carries the field at every radius searched and "
+                    "the incident field declares no extent; bound the fan with "
+                    "a window (a callable of the RayMap, on its label radius)"
+                )
+            edge = float(extent)
 
         table = np.linspace(0.0, edge, 4097)
         rays = self._meridian(table)
