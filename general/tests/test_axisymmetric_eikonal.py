@@ -311,3 +311,45 @@ def test_pipeline_chooses_and_guards_the_meridian_leg():
         )
     )
     assert_allclose(edge, 30, atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "zoned, disks, bound",
+    [
+        # A central stop, a ring far thinner than a polar panel, three phase belts.
+        (F.profiles.Annulus(0.15, 0.4), {0.4: 1, 0.15: -1}, 1e-8),
+        (F.profiles.Annulus(0.3, 0.3005), {0.3005: 1, 0.3: -1}, 1e-5),
+        (
+            F.profiles.Zones((0.15, 0.25, 0.4), (1, -1, 1, 0)),
+            {0.15: 2, 0.25: -2, 0.4: 1},
+            1e-7,
+        ),
+    ],
+)
+def test_zoned_pupils_cross_the_sphere_as_their_sum_of_disks(zoned, disks, bound):
+    """The meridian reads the beam on a polar rule that breaks at the pupil's edges.
+
+    A zoned pupil is a signed sum of disks, whose only edge is their rim, and
+    the leg is linear in the field. Without the breaks the three cases are
+    off by 1e-3, 0.14 and 1e-2.
+    """
+    radius = 30.0
+    rho = np.linspace(0, 5, 41)
+    points = o.sampling.PointGrid(np.c_[rho, 0 * rho, np.full(rho.size, radius / 1.5)])
+
+    def through(profile):
+        beam = F.FocusedBeam(
+            profile,
+            CIRCULAR,
+            focal_length=1.0,
+            max_sine=0.4,
+            wavelength0=1.0,
+            region=AIR,
+            frame=Frame([0, 0, 1.5 * radius]),
+            apodization="none",
+        )
+        pipeline = P.PropagationPipeline(sphere(radius), transport="eikonal")
+        return host(pipeline.solve(beam).evaluate(points).electric.values)
+
+    expected = sum(c * through(F.profiles.Uniform(r)) for r, c in disks.items())
+    assert_allclose(through(zoned), expected, atol=bound * abs(expected).max())
