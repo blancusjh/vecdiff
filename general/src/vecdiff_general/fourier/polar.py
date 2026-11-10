@@ -90,7 +90,8 @@ def IHT(G: np.ndarray, q, r, *, order=0, weights=None, method="direct") -> np.nd
 # expansion, J_n(z) = Re sqrt(2 / (pi z)) exp(i(z - n pi / 2 - pi / 4))
 # sum_k i^k a_k(n) z^-k, so each term is one type-3 NUFFT of c x^(-k-1/2).
 # The terms do not depend on n: one plan serves every order. Where t x < 2 z0
-# the kernel has low rank and is interpolated at Chebyshev nodes in x and t.
+# the kernel has low rank and is interpolated at Chebyshev nodes in x and t,
+# to the tolerance relative to the largest J_n in the rectangle.
 _FAR_TERMS = 10
 # Sums below this many kernel evaluations are formed directly.
 _DIRECT_PAIRS = 200_000
@@ -106,8 +107,14 @@ def hankel_sum(c, x, t, *, order=0, method="auto", tolerance=1e-13, chunk_size=1
     costs O((N + M) log) instead of O(N M): the asymptotic expansion of the
     kernel through FINUFFT where t x is large, Chebyshev interpolation of the
     kernel where it is not; it runs on the host and agrees with "direct" to
-    about ``tolerance`` relative to the result's norm. "auto" is "fast" when
-    FINUFFT is installed and the sum is large.
+    about ``tolerance`` relative to the norm of each component's result, for
+    any order and from max(t) max(x) = 0 upward, as far as the sum is well
+    conditioned. Two limits are common to both methods. The phase t x is
+    known to eps t x, so beyond max(t) max(x) of about 1e4 neither is better
+    than about eps max(t) max(x) (measured between them: 2e-13 at 2e4, 5e-12
+    at 1e6, 5e-11 at 1e7). And for |n| of several tens SciPy's jv, which both
+    use below t x = |n|, holds about 1e-13. "auto" is "fast" when FINUFFT is
+    installed and the sum is large.
     """
     import importlib.util
 
@@ -192,7 +199,7 @@ def _host_jv(order, x):
         value = j1(x)
     else:
         previous, value = j0(x), j1(x)
-        with np.errstate(divide="ignore", invalid="ignore"):
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
             for k in range(1, n):
                 previous, value = value, (2 * k / x) * value - previous
         low = x < n
@@ -224,9 +231,50 @@ def _far_threshold(orders, tolerance):
     return largest
 
 
-def _chebyshev_rank(phase):
-    """Chebyshev nodes for exp(i phase s) on [-1, 1] to roundoff (measured fit)."""
-    return int(np.ceil(phase + 11 * phase ** (1 / 3)))
+def _chebyshev_rank(phase, order, reach, tolerance):
+    """Chebyshev nodes for J_n over a rectangle, |n| <= order, to the tolerance.
+
+    phase is half the range of t x along the interpolated variable and reach
+    the largest t x of the rectangle. J_n(t x) is a mean of exp(i t x sin),
+    and exp(i phase s) on [-1, 1] has the Chebyshev coefficients
+    2 i^k J_k(phase), so r nodes leave at most
+
+        2 sum_{k >= r} |J_k(phase)| <= 2 (phase/2)^r / r! / (1 - phase / (2r + 2)).
+
+    For a phase beyond the order and a few units, phase + 11 phase^(1/3)
+    nodes bring this to roundoff (measured fit). Below, the kernel itself is
+    small, max |J_n| = J_n(reach) ~ (reach/2)^n / n!, and the remainder must
+    be small against that: at least n + 1 nodes, and never none.
+    """
+    fitted = int(np.ceil(phase + 11 * phase ** (1 / 3)))
+
+    if phase >= max(order, 16):
+        return fitted
+
+    if reach == 0:
+        # J_n(0): one node reproduces the constant.
+        return 1
+
+    from scipy.special import gammaln
+    from scipy.special import jv as general
+
+    # The largest order has the smallest kernel; J_n grows up to beyond z = n.
+    peak = general(order, min(reach, order)) if order else 1.0
+    if peak > 1e-290:
+        log_peak = np.log(peak)
+    else:
+        log_peak = order * np.log(reach / 2) - gammaln(order + 1)
+
+    r = np.arange(int(phase / 2) + 1, fitted + order + 64)
+    remainder = (
+        np.log(2)
+        + r * np.log(phase / 2)
+        - gammaln(r + 1)
+        - np.log1p(-phase / (2 * r + 2))
+    )
+    enough = remainder <= np.log(tolerance / 8) + log_peak
+
+    return max(fitted, int(r[np.argmax(enough)]) if enough.any() else int(r[-1]))
 
 
 def _chebyshev(lo, hi, count):
@@ -265,7 +313,7 @@ def _hankel_fast(c, x, t, orders, tolerance):
     every_x, every_t = np.arange(len(x)), np.arange(len(t))
 
     if X * T <= z0:
-        _near(S, c, x, t, orders, every_x, (0.0, X), every_t, (0.0, T))
+        _near(S, c, x, t, orders, every_x, (0.0, X), every_t, (0.0, T), tolerance)
         return S * signs
 
     shells_in_x = len(x) >= len(t)
@@ -287,6 +335,7 @@ def _hankel_fast(c, x, t, orders, tolerance):
                 (lo, hi),
                 np.flatnonzero(t < split),
                 (0.0, split),
+                tolerance,
             )
             _far(S, c, x, t, orders, shell, lo, np.flatnonzero(t >= split), tolerance)
         else:
@@ -301,6 +350,7 @@ def _hankel_fast(c, x, t, orders, tolerance):
                 (0.0, split),
                 shell,
                 (lo, hi),
+                tolerance,
             )
             _far(
                 S, c, x, t, orders, np.flatnonzero(x >= split), split, shell, tolerance
@@ -308,21 +358,44 @@ def _hankel_fast(c, x, t, orders, tolerance):
         hi = lo
 
     if shells_in_x:
-        _near(S, c, x, t, orders, np.flatnonzero(x <= hi), (0.0, hi), every_t, (0.0, T))
+        _near(
+            S,
+            c,
+            x,
+            t,
+            orders,
+            np.flatnonzero(x <= hi),
+            (0.0, hi),
+            every_t,
+            (0.0, T),
+            tolerance,
+        )
     else:
-        _near(S, c, x, t, orders, every_x, (0.0, X), np.flatnonzero(t <= hi), (0.0, hi))
+        _near(
+            S,
+            c,
+            x,
+            t,
+            orders,
+            every_x,
+            (0.0, X),
+            np.flatnonzero(t <= hi),
+            (0.0, hi),
+            tolerance,
+        )
 
     return S * signs
 
 
-def _near(S, c, x, t, orders, sources, x_range, targets, t_range):
+def _near(S, c, x, t, orders, sources, x_range, targets, t_range, tolerance):
     """Add pairs with t x below 2 z0: the kernel at Chebyshev nodes in x and t."""
     if not (len(sources) and len(targets)):
         return
 
     (x_lo, x_hi), (t_lo, t_hi) = x_range, t_range
-    rank_x = _chebyshev_rank((x_hi - x_lo) * t_hi / 2)
-    rank_t = _chebyshev_rank((t_hi - t_lo) * x_hi / 2)
+    order, reach = int(orders.max(initial=0)), x_hi * t_hi
+    rank_x = _chebyshev_rank((x_hi - x_lo) * t_hi / 2, order, reach, tolerance)
+    rank_t = _chebyshev_rank((t_hi - t_lo) * x_hi / 2, order, reach, tolerance)
     xs, cs = x[sources], c[sources]
 
     if len(xs) > rank_x:
