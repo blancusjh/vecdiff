@@ -19,7 +19,7 @@ m-independent factors per n: Lorenz–Mie, or one Debye term.
 """
 
 import numpy as np
-from scipy.special import spherical_jn, spherical_yn
+from scipy.special import gammaln, spherical_jn, spherical_yn
 
 from vecdiff_general._backend import cpu_reference
 from vecdiff_general.fields import ElectricField, ElectromagneticField
@@ -88,6 +88,33 @@ def _harmonics(order, m, cosine, sine):
     return P, pi, tau
 
 
+def _harmonic_bound(order, mu, sine):
+    """Upper bound of mu |pibar_n^mu| and |taubar_n^mu| for n <= order, sin(theta) <= sine.
+
+    Pbar_n^mu = N sin^mu G with G = d^mu P_n / dx^mu, an ultraspherical
+    polynomial, so |G| <= G(1) = (n + mu)! / (2^mu mu! (n - mu)!) on [-1, 1],
+    and the same holds for G'. Hence, with N² = (2n + 1)(n - mu)! / (4 pi (n + mu)!),
+
+        |pibar|  <= b = sqrt((2n + 1)/(4 pi) (n + mu)!/(n - mu)!) sin^(mu-1) / (2^mu mu!),
+        |taubar| <= b (mu + sin² (n + mu + 1)(n - mu) / (2 (mu + 1))).
+
+    Both grow with n, so n = order bounds every retained multipole. This is
+    the small-argument bound ((n + 1/2) sin / 2)^mu / mu! of J_mu((n + 1/2) theta):
+    an azimuthal order is negligible only beyond about order * sin(theta).
+    """
+    if mu > order or sine == 0:
+        return 0.0
+    log = (
+        0.5 * (np.log((2 * order + 1) / (4 * np.pi)))
+        + 0.5 * (gammaln(order + mu + 1) - gammaln(order - mu + 1))
+        + (mu - 1) * np.log(sine)
+        - mu * np.log(2)
+        - gammaln(mu + 1)
+    )
+    slope = mu + sine**2 * (order + mu + 1) * (order - mu) / (2 * (mu + 1))
+    return float(np.exp(min(log + np.log(slope), 700.0)))
+
+
 def _spherical(local):
     radius = np.linalg.norm(local, axis=-1)
     safe = np.where(radius == 0, 1.0, radius)
@@ -125,10 +152,9 @@ class _SphericalExpansion:
         else:
             basis, cosine, sine, harmonic, orders = self._beam_modes(k)
         coefficients = {}
-        # Near the axis Pbar_n^|m| carries sin^|m|: skip orders that cannot reach roundoff.
         reach = np.max(sine, initial=0.0)
         for m in orders:
-            if abs(m) > 1 and reach ** (abs(m) - 1) < _ROUNDOFF**2:
+            if abs(m) > 1 and _harmonic_bound(self.order, abs(m), reach) < _ROUNDOFF**2:
                 continue
             g_theta, g_phi = harmonic(m)
             if not (np.any(g_theta) or np.any(g_phi)):
