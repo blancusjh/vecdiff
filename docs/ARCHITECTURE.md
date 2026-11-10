@@ -1,6 +1,6 @@
 # Architecture
 
-`vecdiff_general` and `vecdiff_stigmatic` are independent distributions. They
+`vecdiff` and `vecdiff_stigmatic` are independent distributions. They
 share no runtime optical kernel; external validation compares explicit arrays.
 
 | Responsibility | Location | Meaning |

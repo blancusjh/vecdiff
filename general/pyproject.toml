@@ -4,7 +4,7 @@ build-backend = "mesonpy"
 
 [project]
 license = { file = "LICENSE" }
-name = "vecdiff-general"
+name = "vecdiff"
 version = "0.1.0"
 description = "Explicit vector optical propagation and dielectric scattering"
 requires-python = ">=3.10"

@@ -10,7 +10,7 @@ from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-import vecdiff_general as o
+import vecdiff as o
 from scipy.special import erfc
 
 

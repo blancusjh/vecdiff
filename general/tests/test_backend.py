@@ -4,7 +4,7 @@ import importlib.util
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
 from scipy.special import jv
 
@@ -95,7 +95,7 @@ def test_gpu_beam_spectrum_and_fft_match_the_cpu(on_gpu):
 
 @gpu
 def test_gpu_bessel_functions_reach_scipy_where_scipy_is_exact(on_gpu):
-    from vecdiff_general._backend import jv as device_jv
+    from vecdiff._backend import jv as device_jv
 
     rng = np.random.default_rng(2)
     order = rng.integers(-40, 41, 20000)
@@ -109,7 +109,7 @@ def test_gpu_bessel_functions_reach_scipy_where_scipy_is_exact(on_gpu):
 
 
 def test_gauss_legendre_is_accurate_at_the_ends_and_matches_numpy():
-    from vecdiff_general._backend import leggauss as rule
+    from vecdiff._backend import leggauss as rule
 
     for count in (1, 2, 3, 8, 37, 64):
         x, w = (o.backend.to_numpy(a) for a in rule(count))

@@ -2,10 +2,10 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from scipy.special import ive, jv
-from vecdiff_general._backend import to_numpy
-from vecdiff_general.fourier.cartesian import FFT2, IFFT2
-from vecdiff_general.fourier.nufft import NUFFT
-from vecdiff_general.fourier.polar import HT, azimuthal_coefficients, hankel_sum
+from vecdiff._backend import to_numpy
+from vecdiff.fourier.cartesian import FFT2, IFFT2
+from vecdiff.fourier.nufft import NUFFT
+from vecdiff.fourier.polar import HT, azimuthal_coefficients, hankel_sum
 
 
 @pytest.mark.parametrize("shape", [(9, 12, 3), (8, 7, 2, 3), (6, 8), (7, 9)])
@@ -164,7 +164,7 @@ def test_nufft_matches_direct_complex_vector_synthesis():
 
 def test_lattice_modes_on_the_light_circle_are_discarded_not_completed():
     """164 samples at lambda / 4 put the mode (9, 40) / 41 on the light circle."""
-    import vecdiff_general as o
+    import vecdiff as o
 
     air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
     axis = (np.arange(164) - 82) * 0.25

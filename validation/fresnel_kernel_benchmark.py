@@ -4,9 +4,9 @@ import json
 from time import perf_counter
 
 import numpy as np
-import vecdiff_general as o
+import vecdiff as o
 from scipy.fft import ifft2
-from vecdiff_general.propagation.surface_transfer import BandSynthesis
+from vecdiff.propagation.surface_transfer import BandSynthesis
 
 
 def batched(plan, coefficients, workers, batch):

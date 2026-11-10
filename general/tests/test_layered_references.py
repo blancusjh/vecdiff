@@ -6,17 +6,17 @@ cyl_exact.py), converted to the library normalization of the beam.
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.observables.diagnostics import interface_residuals
-from vecdiff_general.propagation.references import (
+from vecdiff.observables.diagnostics import interface_residuals
+from vecdiff.propagation.references import (
     InfiniteCylinder,
     LayeredSphere,
     MieSphere,
 )
-from vecdiff_general.propagation.references.cylinder import _basis as _cylinder_basis
-from vecdiff_general.propagation.references.cylinder import _focused_density
-from vecdiff_general.propagation.references.diagnostics import maxwell_residuals
+from vecdiff.propagation.references.cylinder import _basis as _cylinder_basis
+from vecdiff.propagation.references.cylinder import _focused_density
+from vecdiff.propagation.references.diagnostics import maxwell_residuals
 
 host = o.backend.to_numpy
 Z0 = o.media.medium.Z0
@@ -213,7 +213,7 @@ def test_large_sphere_far_off_the_beam_axis_is_continuous_across_its_surface():
 
 
 def test_azimuthal_order_skip_bound_dominates_the_angular_functions():
-    from vecdiff_general.propagation.references.mie import _harmonic_bound, _harmonics
+    from vecdiff.propagation.references.mie import _harmonic_bound, _harmonics
 
     for order, sine in ((6, 1.0), (60, 0.3), (235, 0.05), (235, 0.9)):
         theta = np.linspace(0, np.arcsin(sine), 60)
@@ -608,7 +608,7 @@ def test_sphere_debye_coefficients_keep_relative_accuracy_beyond_the_size():
     A direct solve in the Hankel basis lost these orders (T21 by 1e-9 here and
     by 1e4 at size 126; the exterior term 0 entirely).
     """
-    from vecdiff_general.propagation.references.debye import sphere_debye_coefficients
+    from vecdiff.propagation.references.debye import sphere_debye_coefficients
 
     EXACT = {
         "TE": {

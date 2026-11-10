@@ -25,7 +25,7 @@ introducing polar sampling does not silently resample data or change that solver
 ## Direct centered transforms
 
 ```python
-from vecdiff_general.fourier import FFT2, IFFT2, frequency_grid
+from vecdiff.fourier import FFT2, IFFT2, frequency_grid
 
 G = FFT2(g)
 g = IFFT2(G)
@@ -67,7 +67,7 @@ optical fields, materials, grids, or propagation algorithms.
 
 ```python
 import numpy as np
-from vecdiff_general import fourier, sampling
+from vecdiff import fourier, sampling
 
 u = np.linspace(-6, 6, 128, endpoint=False)
 v = np.linspace(-5, 5, 96, endpoint=False)
@@ -97,7 +97,7 @@ The discrete Cartesian forward/inverse pair is exact to roundoff on its periodic
 cell. Finite support and discretization still limit its continuous approximation.
 
 ```python
-from vecdiff_general import sampling
+from vecdiff import sampling
 
 radius = np.linspace(0, 6, 501)
 azimuth = 2 * np.pi * np.arange(32) / 32
@@ -140,7 +140,7 @@ Cartesian and polar calculations at common frequency coordinates.
 ## Direct polar operations
 
 ```python
-from vecdiff_general.fourier.polar import FT2, IFT2, HT, IHT
+from vecdiff.fourier.polar import FT2, IFT2, HT, IHT
 
 G = FT2(g, (r, phi), (q, theta), weights=dr)
 g = IFT2(G, (r, phi), (q, theta), weights=dq)
@@ -195,7 +195,7 @@ Angular harmonic truncation and cylindrical synthesis remain available.
 ## Nonuniform operations
 
 ```python
-from vecdiff_general.fourier import NUFFT
+from vecdiff.fourier import NUFFT
 
 G = NUFFT(g, x, q)
 G_direct = NUFFT(g, x, q, method="direct")
@@ -219,7 +219,7 @@ cores.
 For continuous integral quadrature, use explicit measures:
 
 ```python
-from vecdiff_general import fourier
+from vecdiff import fourier
 
 G = fourier.transform(
     g,

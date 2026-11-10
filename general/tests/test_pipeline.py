@@ -6,7 +6,7 @@ import types
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
 
 
@@ -38,7 +38,7 @@ def test_core_import_does_not_load_research_or_reference_solvers():
         [
             sys.executable,
             "-c",
-            "import sys; import vecdiff_general as o; assert not any(n.startswith(('vecdiff_general.research','vecdiff_general.propagation.references')) for n in sys.modules); assert not any(hasattr(o,n) for n in ['propagate_interfaces','propagate_high_frequency','propagate_layers','LayerStack','HighFrequencySolution']); assert hasattr(o.propagation,'PropagationPipeline')",
+            "import sys; import vecdiff as o; assert not any(n.startswith(('vecdiff.research','vecdiff.propagation.references')) for n in sys.modules); assert not any(hasattr(o,n) for n in ['propagate_interfaces','propagate_high_frequency','propagate_layers','LayerStack','HighFrequencySolution']); assert hasattr(o.propagation,'PropagationPipeline')",
         ],
         check=True,
     )

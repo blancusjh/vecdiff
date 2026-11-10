@@ -8,7 +8,7 @@ carried field is compared with that reference on the virtual output plane.
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation
@@ -253,7 +253,7 @@ def test_leg_that_folds_under_the_field_is_refused():
 
 
 def test_meridian_leg_says_when_the_carrier_focuses_inside_it():
-    from vecdiff_general.propagation._axisymmetric import AxialTransport
+    from vecdiff.propagation._axisymmetric import AxialTransport
 
     interface = o.system.DielectricInterface(S.Plane(), AIR, DENSE)
 

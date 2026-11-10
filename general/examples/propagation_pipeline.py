@@ -1,7 +1,7 @@
 """Electric-field propagation through a system onto placed target surfaces."""
 
 import numpy as np
-import vecdiff_general as optics
+import vecdiff as optics
 
 
 def main():

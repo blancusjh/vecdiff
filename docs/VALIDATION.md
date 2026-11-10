@@ -53,11 +53,11 @@ source surface, transport that field, and compare it at the destination.
 There is no Fresnel interaction or second scattering solve in this check.
 
 ```sh
-.venv/bin/python -m vecdiff_general.propagation.references.pure_surface_transport \
+.venv/bin/python -m vecdiff.propagation.references.pure_surface_transport \
   --output validation/reference_data/pure_surface_transport.json
-.venv/bin/python -m vecdiff_general.propagation.references.surface_transport \
+.venv/bin/python -m vecdiff.propagation.references.surface_transport \
   --output validation/reference_data/surface_transport.json
-.venv/bin/python -m vecdiff_general.propagation.references.transport_geometries \
+.venv/bin/python -m vecdiff.propagation.references.transport_geometries \
   --help
 ```
 

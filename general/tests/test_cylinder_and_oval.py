@@ -2,9 +2,9 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.propagation.eikonal import ray_weights
+from vecdiff.propagation.eikonal import ray_weights
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation
@@ -72,7 +72,7 @@ def cylinder_error(radius, pupil, sampled=True):
 
     The beam is sampled on the lattice, or (sampled=False) read at the preimages.
     """
-    from vecdiff_general.propagation.references import InfiniteCylinder
+    from vecdiff.propagation.references import InfiniteCylinder
 
     umax = 0.25
     profile = (

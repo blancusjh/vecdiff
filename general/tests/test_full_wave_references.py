@@ -2,15 +2,15 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.propagation.references import MieSphere, boundary_meridian
-from vecdiff_general.propagation.references.diagnostics import (
+from vecdiff.propagation.references import MieSphere, boundary_meridian
+from vecdiff.propagation.references.diagnostics import (
     boundary_residuals,
     closed_flux_residual,
     maxwell_residuals,
 )
-from vecdiff_general.propagation.references.mfs import AxisymmetricMFS
+from vecdiff.propagation.references.mfs import AxisymmetricMFS
 
 bd, host = o.backend.bd, o.backend.to_numpy
 
@@ -158,7 +158,7 @@ def test_reference_package_is_not_imported_by_primary_evaluation():
         [
             sys.executable,
             "-c",
-            "import sys; import vecdiff_general; assert not any(m.startswith('vecdiff_general.propagation.references') for m in sys.modules)",
+            "import sys; import vecdiff; assert not any(m.startswith('vecdiff.propagation.references') for m in sys.modules)",
         ],
         capture_output=True,
         text=True,
@@ -168,7 +168,7 @@ def test_reference_package_is_not_imported_by_primary_evaluation():
 
 @pytest.mark.parametrize("interior", [True, False])
 def test_stable_single_interface_sphere_is_exact_beyond_the_direct_series(interior):
-    from vecdiff_general.propagation.references.debye import (
+    from vecdiff.propagation.references.debye import (
         _sphere_single_interface_direct,
         sphere_single_interface,
     )

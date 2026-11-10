@@ -2,10 +2,10 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as optics
+import vecdiff as optics
 from numpy.polynomial.legendre import leggauss
 from numpy.testing import assert_allclose
-from vecdiff_general import fourier
+from vecdiff import fourier
 
 bd, host = optics.backend.bd, optics.backend.to_numpy
 

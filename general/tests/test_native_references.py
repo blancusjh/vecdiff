@@ -2,9 +2,9 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.propagation.references import (
+from vecdiff.propagation.references import (
     DielectricBEM,
     DielectricFEM,
     MieSphere,
@@ -13,8 +13,8 @@ from vecdiff_general.propagation.references import (
     surface_mesh,
     tetrahedral_mesh,
 )
-from vecdiff_general.propagation.references.benchmarks import lens_case
-from vecdiff_general.propagation.references.diagnostics import (
+from vecdiff.propagation.references.benchmarks import lens_case
+from vecdiff.propagation.references.diagnostics import (
     boundary_residuals,
     closed_flux_residual,
     maxwell_residuals,
@@ -147,7 +147,7 @@ def test_fem_vector_solution_converges_to_mie():
 
 def test_fem_equal_index_and_scale_invariance():
     pytest.importorskip("gmsh")
-    from vecdiff_general.propagation.references import TetrahedralMesh
+    from vecdiff.propagation.references import TetrahedralMesh
 
     s, v, g = problem(index=1)
     mesh = tetrahedral_mesh(v, edge_size=0.3, physical_padding=0.4, pml_width=0.4)
@@ -204,8 +204,8 @@ def test_bem_oblique_coherent_illumination_in_nonunit_background():
 
 
 def test_bem_cache_reloads_identical_currents(tmp_path):
-    from vecdiff_general.propagation.references import DielectricBEM, SurfaceMesh
-    from vecdiff_general.volumes import SphereVolume
+    from vecdiff.propagation.references import DielectricBEM, SurfaceMesh
+    from vecdiff.volumes import SphereVolume
 
     air = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
     glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
@@ -229,7 +229,7 @@ def _relative(actual, expected):
 def test_buffa_christiansen_dual_basis_is_div_conforming_and_stably_paired():
     from collections import defaultdict
 
-    from vecdiff_general.propagation.references.mesh import buffa_christiansen
+    from vecdiff.propagation.references.mesh import buffa_christiansen
 
     _, v, _ = problem()
     conditions = []

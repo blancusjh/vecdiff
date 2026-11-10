@@ -116,7 +116,7 @@ notebooks.
 The code separates physical data from algorithms:
 
 ```text
-vecdiff_general/
+vecdiff/
     geometry/       coordinate frames
     surfaces/       surface shapes and normals
     sampling/       grids and integration measures
@@ -152,7 +152,7 @@ As in diffractsim, one global switch moves arrays and computation to a CUDA GPU.
 Make it at the top of a script, before building any vecdiff object:
 
 ```python
-from vecdiff_general import backend
+from vecdiff import backend
 
 backend.set_backend("CUDA")   # "CPU" is the default
 ```
@@ -191,7 +191,7 @@ cuFINUFFT on consumer cards.
 
 ```python
 import numpy as np
-from vecdiff_general import fields, media, sampling
+from vecdiff import fields, media, sampling
 
 wavelength = 532e-9
 region = media.HomogeneousRegion("air", media.Dielectric(1.0))

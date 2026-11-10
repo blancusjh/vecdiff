@@ -1,19 +1,19 @@
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.fields import (
+from vecdiff.fields import (
     ElectricField,
     PlaneWaveExpansion,
     TransverseElectricField,
     angular_spectrum,
 )
-from vecdiff_general.geometry import Frame
-from vecdiff_general.media import Z0, Dielectric, HomogeneousRegion
-from vecdiff_general.observables import boundary_residuals
-from vecdiff_general.propagation import scatter_plane
-from vecdiff_general.sampling import PlaneGrid, PointGrid
-from vecdiff_general.system import PlanarInterface
+from vecdiff.geometry import Frame
+from vecdiff.media import Z0, Dielectric, HomogeneousRegion
+from vecdiff.observables import boundary_residuals
+from vecdiff.propagation import scatter_plane
+from vecdiff.sampling import PlaneGrid, PointGrid
+from vecdiff.system import PlanarInterface
 
 host = o.backend.to_numpy
 

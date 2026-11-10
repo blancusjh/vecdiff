@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
 
 bd, host = o.backend.bd, o.backend.to_numpy
@@ -35,7 +35,7 @@ def spectrum(source, grid):
 def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
     monkeypatch, cache_compact
 ):
-    from vecdiff_general.propagation import surface_transfer as transfer
+    from vecdiff.propagation import surface_transfer as transfer
 
     region, grid = setup()
     surface = o.surfaces.SphericalCap(30)
@@ -133,7 +133,7 @@ def test_negative_height_is_not_the_curved_inverse():
     s = spectrum(source, grid)
     coefficients = s.expansion.amplitudes.reshape(grid.shape + (3,)) * Q.size
     curved = Q._synthesize(coefficients)
-    from vecdiff_general.fourier.cartesian import FFT2
+    from vecdiff.fourier.cartesian import FFT2
 
     wrong = minus._synthesize(FFT2(curved))
     expected = source.evaluate(grid).electric.values

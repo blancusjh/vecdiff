@@ -7,9 +7,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-import vecdiff_general as optics
-from vecdiff_general.visualization import plot_focal_polarization, plot_polarization
-from vecdiff_general.visualization.polarization import (
+import vecdiff as optics
+from vecdiff.visualization import plot_focal_polarization, plot_polarization
+from vecdiff.visualization.polarization import (
     _layout_nodes,
     _size_fraction,
 )

@@ -2,10 +2,10 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.media.medium import C0, EPSILON0, MU0
-from vecdiff_general.propagation.references import MieSphere
+from vecdiff.media.medium import C0, EPSILON0, MU0
+from vecdiff.propagation.references import MieSphere
 
 bd, host = o.backend.bd, o.backend.to_numpy
 obs = o.observables

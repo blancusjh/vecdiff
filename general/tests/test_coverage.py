@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose, assert_array_equal
 
 bd, host = o.backend.bd, o.backend.to_numpy

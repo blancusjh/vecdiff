@@ -2,12 +2,12 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
 from scipy.integrate import simpson
-from vecdiff_general.propagation._axisymmetric import AxialTransport, BeamField
-from vecdiff_general.propagation.eikonal import carried
-from vecdiff_general.propagation.references import MieSphere
+from vecdiff.propagation._axisymmetric import AxialTransport, BeamField
+from vecdiff.propagation.eikonal import carried
+from vecdiff.propagation.references import MieSphere
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation

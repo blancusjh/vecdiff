@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import vecdiff_general as general
+import vecdiff as general
 import vecdiff_stigmatic as stigmatic
 from numpy.testing import assert_allclose
 
@@ -179,9 +179,9 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
         )
         # This fixture records a prescribed-current comparison, not the primary
         # operational ASM model. Construct its local Fresnel trace explicitly.
-        from vecdiff_general.comparisons import SurfaceRadiation
-        from vecdiff_general.propagation._directions import transmitted_direction
-        from vecdiff_general.propagation._fresnel import transmit
+        from vecdiff.comparisons import SurfaceRadiation
+        from vecdiff.propagation._directions import transmitted_direction
+        from vecdiff.propagation._fresnel import transmit
 
         incident_direction = source.directions(quadrature.points)
         outgoing = transmitted_direction(incident_direction, quadrature.normals, 1, 1.5)

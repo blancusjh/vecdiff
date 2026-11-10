@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as optics
+import vecdiff as optics
 from numpy.testing import assert_allclose
 
 host = optics.backend.to_numpy

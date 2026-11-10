@@ -1,6 +1,6 @@
 # Propagation
 
-The public algorithms are reached through `vecdiff_general.propagation`;
+The public algorithms are reached through `vecdiff.propagation`;
 the package top level re-exports nothing.
 
 | Module | Main API | Operation |
@@ -101,7 +101,7 @@ spectral or local Fresnel treatment, reference planes or fans with wave
 transport) raise at construction.
 
 ```python
-from vecdiff_general import propagation, surfaces
+from vecdiff import propagation, surfaces
 
 propagate = propagation.PropagationPipeline(
     system, transport="wave", transmission="local", coverage="complete"

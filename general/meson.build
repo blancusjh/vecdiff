@@ -1,4 +1,4 @@
-project('vecdiff-general', 'c', 'fortran', version: '0.1.0',
+project('vecdiff', 'c', 'fortran', version: '0.1.0',
         default_options: ['buildtype=release'])
 py = import('python').find_installation(pure: false)
 numpy_inc = run_command(py, ['-c', 'import numpy; print(numpy.get_include())'], check: true).stdout().strip()
@@ -16,9 +16,9 @@ py.extension_module('_reference_core',
   include_directories: include_directories(numpy_inc, f2py_inc),
   fortran_args: openmp_flags,
   dependencies: gomp,
-  subdir: 'vecdiff_general/propagation/references', install: true)
+  subdir: 'vecdiff/propagation/references', install: true)
 cache_dirs = run_command(py, ['-c',
   'from pathlib import Path; import sys; root = Path(sys.argv[1]); print(*sorted({str(p.parent.relative_to(root) / "__pycache__") for p in root.rglob("*.py")}), sep=chr(10))',
-  meson.current_source_dir() / 'src/vecdiff_general'], check: true).stdout().strip().split('\n')
-install_subdir('src/vecdiff_general', install_dir: py.get_install_dir(),
+  meson.current_source_dir() / 'src/vecdiff'], check: true).stdout().strip().split('\n')
+install_subdir('src/vecdiff', install_dir: py.get_install_dir(),
                exclude_directories: cache_dirs)

@@ -65,7 +65,7 @@ an aspheric entrance (conic plus A4–A16) and a plane exit. N-BK7 dispersion
 is evaluated at the requested wavelength; at 780 nm the physical rim gives
 R/λ = 8012.82. `scale != 1` denotes a geometrically scaled model, not the
 manufactured part. The source coefficients and orientation are documented in
-[`catalog.py`](../general/src/vecdiff_general/catalog.py).
+[`catalog.py`](../general/src/vecdiff/catalog.py).
 The full-size field, runtime and independent accuracy are **pending**;
 the geometry plot is not a propagation result. This finite prescription is
 not silently converted into the continued open faces used by the pipeline.

@@ -1,6 +1,6 @@
 """Unmodified exact Mie traces: distinguish full transfer from its projections."""
 
-from vecdiff_general.propagation.references.pure_surface_transport import (
+from vecdiff.propagation.references.pure_surface_transport import (
     complete_reference_case,
     global_case,
     total_field_box_case,

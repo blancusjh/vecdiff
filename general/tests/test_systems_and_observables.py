@@ -2,11 +2,11 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as optics
+import vecdiff as optics
 from numpy.testing import assert_allclose
-from vecdiff_general.io import load_system, save_system
-from vecdiff_general.observables import detector_image, energy_density
-from vecdiff_general.observables.polarization import stokes
+from vecdiff.io import load_system, save_system
+from vecdiff.observables import detector_image, energy_density
+from vecdiff.observables.polarization import stokes
 
 WAVELENGTH = 532e-9
 

@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
 
 bd, host = o.backend.bd, o.backend.to_numpy
@@ -402,7 +402,7 @@ def test_streamed_leg_does_not_depend_on_its_blocks():
 @pytest.mark.parametrize("method", ["direct", "nufft"])
 def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
     """The lean output sums, by rows, the band-limited modes of the PlaneSpectrum."""
-    from vecdiff_general.propagation._lattice import lattice_spectrum
+    from vecdiff.propagation._lattice import lattice_spectrum
 
     if method == "nufft":
         pytest.importorskip("finufft")

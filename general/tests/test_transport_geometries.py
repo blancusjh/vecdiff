@@ -2,13 +2,13 @@
 
 import numpy as np
 import pytest
-from vecdiff_general.comparisons.surface_radiation import SurfaceRadiation
-from vecdiff_general.propagation.references.diagnostics import maxwell_residuals
-from vecdiff_general.propagation.references.pure_surface_transport import (
+from vecdiff.comparisons.surface_radiation import SurfaceRadiation
+from vecdiff.propagation.references.diagnostics import maxwell_residuals
+from vecdiff.propagation.references.pure_surface_transport import (
     evanescent_spectrum,
 )
-from vecdiff_general.propagation.references.surface_transport import relative_fields
-from vecdiff_general.propagation.references.transport_geometries import (
+from vecdiff.propagation.references.surface_transport import relative_fields
+from vecdiff.propagation.references.transport_geometries import (
     AIR,
     SHAPES,
     add_fields,

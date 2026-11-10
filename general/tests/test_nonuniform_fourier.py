@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from numpy.polynomial.legendre import leggauss
 from numpy.testing import assert_allclose
-from vecdiff_general import fourier
-from vecdiff_general.fourier import NUFFT
+from vecdiff import fourier
+from vecdiff.fourier import NUFFT
 
 
 @pytest.mark.parametrize("dimension", [1, 2, 3])

@@ -2,16 +2,16 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff_general.propagation._directions import transmitted_direction
-from vecdiff_general.propagation._fresnel import (
+from vecdiff.propagation._directions import transmitted_direction
+from vecdiff.propagation._fresnel import (
     apply_fresnel,
     apply_transmission,
     fresnel_transmission_matrix,
     polarization_basis,
 )
-from vecdiff_general.propagation.surface_transfer import BandSynthesis
+from vecdiff.propagation.surface_transfer import BandSynthesis
 
 bd, host = o.backend.bd, o.backend.to_numpy
 
@@ -91,7 +91,7 @@ def test_single_mode_band_has_rank_one_without_losing_sag_phase():
 
 
 def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
-    from vecdiff_general.comparisons import scatter_surface
+    from vecdiff.comparisons import scatter_surface
 
     axis = np.arange(-12, 12) * 0.5
     plane = o.sampling.CartesianGrid(axis, axis)
@@ -166,7 +166,7 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
     )
     expected_e = bd.zeros(q.grid.shape + (3,), complex)
     expected_h = bd.zeros_like(expected_e)
-    from vecdiff_general.media import Z0
+    from vecdiff.media import Z0
 
     for k, amplitude in zip(source.expansion.wavevectors, source.expansion.amplitudes):
         if not bd.any(amplitude):

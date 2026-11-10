@@ -2,10 +2,10 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
-from vecdiff_general.propagation.references import DielectricBEM, MieSphere, SurfaceMesh
-from vecdiff_general.propagation.references.diagnostics import maxwell_residuals
-from vecdiff_general.propagation.references.surface_transport import (
+import vecdiff as o
+from vecdiff.propagation.references import DielectricBEM, MieSphere, SurfaceMesh
+from vecdiff.propagation.references.diagnostics import maxwell_residuals
+from vecdiff.propagation.references.surface_transport import (
     dipole,
     modal_case,
     problem,

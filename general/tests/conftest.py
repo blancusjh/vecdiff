@@ -7,7 +7,7 @@ to the host first; everything else in the tests runs unchanged on the GPU.
 import os
 
 import numpy.testing
-import vecdiff_general as o
+import vecdiff as o
 
 if os.environ.get("VECDIFF_BACKEND", "CPU") == "CUDA":
     o.backend.set_backend("CUDA")
