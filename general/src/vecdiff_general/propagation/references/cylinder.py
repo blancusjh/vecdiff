@@ -118,6 +118,52 @@ def _focused_density(beam, s):
     return np.where(inside[..., None], density, 0)
 
 
+# Angle between the beam and cylinder axes below which they count as aligned.
+_ALIGNED = 1e-14
+# Smallest angle to the axis direction that is resolved: the pupil edge passing
+# closer is not seen, and nodes closer are dropped (< 1e-14 of the solid angle).
+_EDGE_FLOOR = 1e-7
+# n clustered nodes resolve a singular point at the fraction r of the panel's
+# width beyond its end when n sqrt(r) exceeds about 15 (measured, to 1e-12).
+_EDGE_RESOLVED = 20.0
+# Largest width of a graded panel over its distance to the axis.
+_EDGE_GROWTH = 4.0
+
+
+def _polar_cuts(gamma, top, count):
+    """Panels in the polar angle about +a for a cap of half-angle top at gamma.
+
+    count(lo, hi) is the number of nodes a panel between two polar angles
+    would get. Returns the increasing cut angles and, per panel, whether it
+    lies close to an axis direction and is laid out in the polar angle.
+    """
+
+    def from_pole(gamma, count):
+        # Cuts measured from the pole at angle gamma from the cap's centre.
+        eps = abs(gamma - top)
+        inside = gamma < top
+        if eps < _EDGE_FLOOR:
+            return [0.0 if inside else eps], 0
+        cuts = [0.0, eps] if inside else [eps]
+        end = min(gamma + top, np.pi)
+        if end <= eps or count(eps, end) * np.sqrt(eps / (end - eps)) >= _EDGE_RESOLVED:
+            return cuts, 0
+        # Graded panels stay in this pole's hemisphere.
+        end = min(end, np.pi / 2)
+        while True:
+            cuts.append(cuts[-1] * (1 + _EDGE_GROWTH))
+            if cuts[-1] * _EDGE_GROWTH >= end - cuts[-1]:
+                return cuts, len(cuts) - 1
+
+    north, north_near = from_pole(gamma, count)
+    south, south_near = from_pole(
+        np.pi - gamma, lambda lo, hi: count(np.pi - hi, np.pi - lo)
+    )
+    cuts = north + [np.pi - x for x in reversed(south)]
+    middle = len(cuts) - 1 - north_near - south_near
+    return cuts, [True] * north_near + [False] * middle + [True] * south_near
+
+
 def _basis(axis):
     """Right-handed columns (u, v, axis)."""
     seed = np.eye(3)[np.argmin(np.abs(axis))]
@@ -141,7 +187,8 @@ class InfiniteCylinder:
     axial wavenumber and azimuth about the axis; other beams through their
     plane waves. ``reach`` (default the radius) is the axial distance beyond
     the beam's focus over which that quadrature is exact; a PlaneWaveExpansion
-    has no such limit. ``axial_nodes`` overrides the number of axial nodes.
+    has no such limit. ``axial_nodes`` overrides the number of axial nodes,
+    shared between the panels of that quadrature.
     ``evaluate`` takes ``side`` and ``term`` as MieSphere does.
 
     The Debye terms are smooth in the axial wavenumber and converge fast. The
@@ -184,6 +231,8 @@ class InfiniteCylinder:
             raise ValueError("axial_nodes must be a positive integer")
         self._axial_nodes = axial_nodes
         self.axial_limit = np.inf
+        # sin of the polar angle of axial nodes laid out in it, NaN elsewhere.
+        self._sine = None
         if isinstance(incident, PlaneWaveExpansion):
             self.axial, self.coefficients = self._waves(incident)
         elif getattr(incident, "is_plane_wave", False):
@@ -225,11 +274,23 @@ class InfiniteCylinder:
     def _focused(self, beam):
         """Product quadrature in axial wavenumber and azimuth about the axis.
 
-        h = h_mid - (dh / 2) cos t clusters the nodes where the beam's cap
-        touches its extreme h, removing the square-root endpoint of the
-        azimuthal arc length. On each h the arc where the cap is cut by the
-        cone of that h is integrated by Gauss-Legendre, with its ends at the
-        pupil edge.
+        On each h the arc where the beam's cap is cut by the cone of that h is
+        integrated by Gauss-Legendre, with its ends at the pupil edge; where
+        the cone lies wholly in the cap, by the periodic rule. In the polar
+        angle of the cone about the axis the arc's half-width has square-root
+        branch points where the cap touches an extreme angle (it opens from
+        zero) and, when the cap holds the axis direction, where the cone first
+        fits inside it (it closes to pi). The range is cut at the closing
+        angle into panels, and on each h = h_mid - (dh / 2) cos t clusters the
+        nodes at both ends, which removes the branch points there and that of
+        the transverse wavenumber at h = +/-k.
+
+        When the pupil edge passes the axis direction at a small angle eps,
+        on either side, the half-width varies on the scale eps (it has further
+        singular points at polar angles 0 and -eps). The panels then grow
+        geometrically from eps, each no wider than four times its distance to
+        the axis, and are laid out in the polar angle, which resolves
+        directions that h = k cos(angle) cannot tell from the axis.
         """
         k, N = beam.wavenumber, self.order
         u, v, a = self.basis.T
@@ -239,33 +300,93 @@ class InfiniteCylinder:
         spread = float(np.linalg.norm(across))
         centre_azimuth = np.arctan2(across @ v, across @ u)
         top = beam._theta_max()
-        gamma = np.arccos(np.clip(along, -1, 1))
-        low, high = k * np.cos(min(gamma + top, np.pi)), k * np.cos(max(gamma - top, 0))
+        # arccos(along) loses half the digits of a small angle.
+        gamma = np.arctan2(spread, along)
         offset = self.volume.center - beam.frame.origin
         offset_a = float(offset @ a)
         offset_u, offset_v = float(offset @ u), float(offset @ v)
-        kappa_range = abs(np.sqrt(k**2 - low**2) - np.sqrt(k**2 - high**2))
-        if low < 0 < high:
-            kappa_range = max(kappa_range, k - np.sqrt(k**2 - max(low**2, high**2)))
-        excursion = (high - low) * (abs(offset_a) + self.reach) + kappa_range * (
-            np.hypot(offset_u, offset_v) + 2 * self.volume.radius
-        )
-        # excursion is the one-way range of a phase quadratic in h (defocus),
-        # which runs out and back over the interval; in t its rate peaks at
-        # pi / 2 times the mean. The uniform rule excursion / 2 thus becomes
-        # pi / 2 excursion.
-        count = self._axial_nodes or int(
-            np.ceil(np.pi / 2 * excursion + 8 * excursion ** (1 / 3) + 24)
-        )
-        t, w = leggauss(count)
-        t, w = np.pi / 2 * (t + 1), np.pi / 2 * w
-        mid, half = (high + low) / 2, (high - low) / 2
-        h = mid - half * np.cos(t)
-        weight_h = half * np.sin(t) * w
+
+        def half_width(angle):
+            # Of the arc that the cone at this polar angle cuts from the cap.
+            if spread <= _ALIGNED:
+                return np.pi
+            if np.sin(angle) <= 0:
+                return np.pi if np.cos(angle) * along >= np.cos(top) else 0.0
+            c = (np.cos(top) - along * np.cos(angle)) / (np.sin(angle) * spread)
+            return float(np.arccos(np.clip(c, -1, 1)))
+
+        def default_count(lo, hi):
+            low, high = k * np.cos(hi), k * np.cos(lo)
+            kappa_low, kappa_high = k * np.sin(hi), k * np.sin(lo)
+            kappa_range = abs(kappa_low - kappa_high)
+            if low < 0 < high:
+                kappa_range = max(kappa_range, k - min(kappa_low, kappa_high))
+            across = np.hypot(offset_u, offset_v) + 2 * self.volume.radius
+            excursion = (high - low) * (abs(offset_a) + self.reach) + kappa_range * (
+                across
+            )
+            # Where the arc closes over the panel its ends sweep the cone, and
+            # the phase there runs at up to kappa * across per unit of t.
+            sweep = abs(half_width(hi) - half_width(lo)) / np.pi
+            excursion += sweep * max(kappa_low, kappa_high) * across
+            # excursion is the one-way range of a phase quadratic in h
+            # (defocus), which runs out and back over the interval; in t its
+            # rate peaks at pi / 2 times the mean. The uniform rule
+            # excursion / 2 thus becomes pi / 2 excursion.
+            return int(np.ceil(np.pi / 2 * excursion + 8 * excursion ** (1 / 3) + 24))
+
+        # Polar angles, from +a, between which the arc is one analytic piece;
+        # near[i] marks a piece laid out in the polar angle.
+        if spread > _ALIGNED:
+            cuts, near = _polar_cuts(gamma, top, default_count)
+        else:
+            cuts, near = ([0.0, top] if along > 0 else [np.pi - top, np.pi]), [False]
+        counts = [default_count(lo, hi) for lo, hi in zip(cuts[:-1], cuts[1:])]
+        if self._axial_nodes:
+            if self._axial_nodes < len(counts):
+                raise ValueError(
+                    f"axial_nodes must be at least {len(counts)} for this beam"
+                )
+            # Share the requested total between the panels as the default does.
+            share = (
+                np.cumsum(counts) / np.sum(counts) * (self._axial_nodes - len(counts))
+            )
+            counts = 1 + np.diff(np.r_[0, np.round(share).astype(int)])
+        h, kappa_h, weight_h, sine_h = [], [], [], []
+        for lo, hi, polar, panel in zip(cuts[:-1], cuts[1:], near, counts):
+            x, w = leggauss(int(panel))
+            t, w = np.pi / 2 * (x + 1), np.pi / 2 * w
+            if polar:
+                if min(lo, np.pi - hi) == 0:
+                    # Full circles about the axis are analytic in the angle.
+                    angle = (hi + lo) / 2 + (hi - lo) / 2 * x
+                    w = (hi - lo) / np.pi * w
+                else:
+                    angle = (hi + lo) / 2 - (hi - lo) / 2 * np.cos(t)
+                    w = (hi - lo) / 2 * np.sin(t) * w
+                sine = np.sin(angle)
+                # The interface system is singular along the axis; directions
+                # this close to it carry < 1e-14 of the solid angle.
+                keep = sine >= _EDGE_FLOOR
+                sine, angle, w = sine[keep], angle[keep], w[keep]
+                h.append(k * np.cos(angle))
+                kappa_h.append(k * sine)
+                weight_h.append(k * sine * w)
+                sine_h.append(sine)
+            else:
+                low, high = k * np.cos(hi), k * np.cos(lo)
+                mid, half = (high + low) / 2, (high - low) / 2
+                h.append(mid - half * np.cos(t))
+                kappa_h.append(np.sqrt(k**2 - h[-1] ** 2))
+                weight_h.append(half * np.sin(t) * w)
+                sine_h.append(np.full(len(t), np.nan))
+        h, kappa_h = np.concatenate(h), np.concatenate(kappa_h)
+        weight_h, self._sine = np.concatenate(weight_h), np.concatenate(sine_h)
+        count = len(h)
         n = np.arange(-N, N + 1)
         coefficients = np.zeros((2, 2 * N + 1, count), complex)
         for q in range(count):
-            kappa = np.sqrt(k**2 - h[q] ** 2)
+            kappa = kappa_h[q]
             if spread * kappa > 0:
                 c = (np.cos(top) - along * h[q] / k) / (kappa / k * spread)
                 full, empty = c <= -1, c >= 1
@@ -304,10 +425,24 @@ class InfiniteCylinder:
         self.axial_limit = abs(offset_a) + self.reach
         return h, coefficients
 
-    def _response(self, h, incident, term):
+    def _transverse(self, index, nodes):
+        """Transverse wavenumber in a medium of this index at axial nodes."""
+        h = self.axial[nodes]
+        k = self.k0 * index
+        if self._sine is None:
+            return np.sqrt(k**2 - h**2)
+        # Nodes laid out in the polar angle keep their own sine: h = k cos
+        # cannot hold a direction closer to the axis than sqrt(eps).
+        ko = self.k0 * self.exterior.material.n
+        polar = (k**2 - ko**2) + (ko * self._sine[nodes]) ** 2
+        return np.sqrt(np.where(np.isnan(polar), k**2 - h**2, polar))
+
+    def _response(self, h, incident, term, kappa=None):
         """Coefficients of the selected field for axial nodes h.
 
         incident (2, 2N+1, H) are the regular coefficients of (E_z, eta_z).
+        kappa optionally gives the transverse wavenumbers outside and inside
+        where h does not determine them to working accuracy.
         Returns {"interior": (J mantissa (2, 2N+1, H), log scale), "exterior":
         (H1 mantissa, log scale)}, either None when the term has no part there.
         """
@@ -315,7 +450,9 @@ class InfiniteCylinder:
         n = np.arange(-N, N + 1)[:, None]
         no, ni = self.exterior.material.n, self.interior.material.n
         ko, ki = self.k0 * no, self.k0 * ni
-        kappa_o, kappa_i = np.sqrt(ko**2 - h**2), np.sqrt(ki**2 - h**2)
+        if kappa is None:
+            kappa = np.sqrt(ko**2 - h**2), np.sqrt(ki**2 - h**2)
+        kappa_o, kappa_i = kappa
         xo, xi = kappa_o * R, kappa_i * R
         (vo, dvo, so), (lo, Do) = _regular(N, xo), _outgoing(N, xo)
         (vi, dvi, si), (li, Di) = _regular(N, xi), _outgoing(N, xi)
@@ -468,11 +605,18 @@ class InfiniteCylinder:
             block = max(1, _BLOCK // max(1, chunk_size))
             for start in range(0, len(self.axial), chunk_size):
                 stop = min(start + chunk_size, len(self.axial))
-                h = self.axial[start:stop]
-                part = self._response(h, self.coefficients[:, :, start:stop], term)[key]
+                nodes = slice(start, stop)
+                h = self.axial[nodes]
+                no, ni = self.exterior.material.n, self.interior.material.n
+                part = self._response(
+                    h,
+                    self.coefficients[:, :, nodes],
+                    term,
+                    (self._transverse(no, nodes), self._transverse(ni, nodes)),
+                )[key]
                 if part is None:
                     continue
-                kappa = np.sqrt((self.k0 * index) ** 2 - h**2)
+                kappa = self._transverse(index, nodes)
                 for first in range(0, len(urho), block):
                     sel = slice(first, first + block)
                     fields = self._fields(

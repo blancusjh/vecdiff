@@ -14,6 +14,7 @@ from vecdiff_general.propagation.references import (
     LayeredSphere,
     MieSphere,
 )
+from vecdiff_general.propagation.references.cylinder import _basis as _cylinder_basis
 from vecdiff_general.propagation.references.cylinder import _focused_density
 from vecdiff_general.propagation.references.diagnostics import maxwell_residuals
 
@@ -155,6 +156,75 @@ def test_layered_fields_satisfy_maxwell_and_both_interface_conditions():
         layered.evaluate(grid([[0, 0, 1.5]]), side="interior")
 
 
+def _surface_jump(solver, sphere, normal):
+    """Largest jump of tangential E and Z0 H across the sphere, per unit incident E."""
+    surface = grid(host(sphere.center) + sphere.radius * normal)
+    outer = solver.evaluate(surface, side="exterior")
+    inner = solver.evaluate(surface, side="interior")
+    scale = np.abs(solver.incident.evaluate(surface).electric.values).max()
+    electric = np.cross(normal, outer.electric.values - inner.electric.values)
+    magnetic = Z0 * np.cross(normal, outer.magnetic - inner.magnetic)
+    return max(np.abs(electric).max(), np.abs(magnetic).max()) / scale
+
+
+def test_large_sphere_keeps_every_azimuthal_order_of_off_axis_illumination():
+    # Waves at angle delta to the expansion axis need azimuthal orders up to
+    # about (multipole order) sin(delta), far beyond where sin^|m| is small.
+    delta, k = 0.2, 2 * np.pi
+    source = o.fields.PlaneWaveExpansion(
+        [
+            [k * np.sin(delta), 0, k * np.cos(delta)],
+            [-k * np.sin(delta), 0, k * np.cos(delta)],
+        ],
+        [[0, 1, 0], [0, 1, 0]],
+        [0, 0, 0],
+        1.0,
+        AIR,
+    )
+    sphere = o.volumes.SphereVolume([0, 0, 0], 30.0)
+    rng = np.random.default_rng(3)
+    normal = rng.normal(size=(40, 3))
+    normal /= np.linalg.norm(normal, axis=1)[:, None]
+    for solver in (
+        MieSphere(source, sphere, GLASS),
+        LayeredSphere(source, [sphere], [GLASS]),
+    ):
+        assert max(abs(m) for m in solver.coefficients) > solver.order * np.sin(delta)
+        assert _surface_jump(solver, sphere, normal) < 1e-9
+
+
+def test_large_sphere_far_off_the_beam_axis_is_continuous_across_its_surface():
+    beam = o.fields.FocusedBeam(
+        o.fields.profiles.Uniform(),
+        o.fields.polarization.x,
+        focal_length=1e4,
+        max_sine=0.3,
+        wavelength0=1.0,
+        region=AIR,
+    )
+    sphere = o.volumes.SphereVolume([28.0, 0, 0], 30.0)
+    rng = np.random.default_rng(5)
+    # The lit patch: around the direction from the centre to the focus.
+    normal = np.array([-28 / 30, 0, -np.sqrt(1 - (28 / 30) ** 2)]) + 0.25 * rng.normal(
+        size=(40, 3)
+    )
+    normal /= np.linalg.norm(normal, axis=1)[:, None]
+    assert _surface_jump(MieSphere(beam, sphere, GLASS), sphere, normal) < 1e-10
+
+
+def test_azimuthal_order_skip_bound_dominates_the_angular_functions():
+    from vecdiff_general.propagation.references.mie import _harmonic_bound, _harmonics
+
+    for order, sine in ((6, 1.0), (60, 0.3), (235, 0.05), (235, 0.9)):
+        theta = np.linspace(0, np.arcsin(sine), 60)
+        theta = np.concatenate((theta, np.pi - theta))
+        for m in range(2, order + 1, max(1, order // 12)):
+            _, pi, tau = _harmonics(order, m, np.cos(theta), np.sin(theta))
+            largest = max(m * np.abs(pi).max(), np.abs(tau).max())
+            assert largest <= _harmonic_bound(order, m, sine) * (1 + 1e-9)
+    assert _harmonic_bound(235, 2, 0.0) == 0.0
+
+
 def test_tunnelling_core_stays_exact_at_large_size():
     # Air core in glass: orders between k0 R2 and k0 R1 tunnel into the core;
     # its coefficients are ~exp(tau) and must not overflow or lose the field.
@@ -283,6 +353,92 @@ def test_cylinder_index_matched_returns_the_incident_field():
             same.electric.values, expected.electric.values, atol=1e-10 * scale
         )
         assert_allclose(same.magnetic, expected.magnetic, atol=1e-10 * scale / Z0)
+
+
+def _tilted_cylinder(gamma, centre=(1.0, 0.0, 0.5), radius=2.0):
+    """A cylinder whose axis makes the angle gamma with z, and its solver inputs."""
+    axis = [np.sin(gamma), 0, np.cos(gamma)]
+    return o.volumes.CylinderVolume(centre, axis, radius)
+
+
+def _inside_points(cylinder, count=16, seed=1):
+    rng = np.random.default_rng(seed)
+    radius = cylinder.radius
+    u, v, a = _cylinder_basis(host(cylinder.axis)).T
+    rho = rng.uniform(0, 0.99 * radius, count)
+    phi = rng.uniform(0, 2 * np.pi, count)
+    z = rng.uniform(-radius, radius, count)
+    return (
+        host(cylinder.center)
+        + (rho * np.cos(phi))[:, None] * u
+        + (rho * np.sin(phi))[:, None] * v
+        + z[:, None] * a
+    )
+
+
+def _index_matched_error(beam, cylinder):
+    """Largest |cylinder - beam| inside an index-matched cylinder, E and Z0 H."""
+    points = grid(_inside_points(cylinder))
+    same = InfiniteCylinder(beam, cylinder, AIR).evaluate(points, side="interior")
+    expected = beam.evaluate(points)
+    scale = np.abs(expected.electric.values).max()
+    return (
+        max(
+            np.abs(same.electric.values - expected.electric.values).max(),
+            Z0 * np.abs(same.magnetic - expected.magnetic).max(),
+        )
+        / scale
+    )
+
+
+@pytest.mark.parametrize("degrees", [0.05, 10.0, 18.0, 23.0])
+def test_cylinder_axis_inside_the_beam_cone_returns_the_incident_field(degrees):
+    # Half-angle 23.6 deg: cones of constant axial wavenumber about the axis
+    # pass from arcs of the pupil to full circles inside the beam.
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(np.radians(degrees))
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+@pytest.mark.parametrize("beyond", [-1e-2, -1e-3, -1e-4, 1e-4, 1e-3])
+def test_cylinder_axis_near_the_pupil_edge_returns_the_incident_field(beyond):
+    # The arc that a cone about the axis cuts from the pupil then varies on
+    # the scale of the angle between the edge and the axis direction.
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(np.arcsin(0.4) + beyond)
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+def test_cylinder_far_off_a_nearly_parallel_beam_returns_the_incident_field():
+    # The ends of the closing arc sweep the whole cone over a narrow range of
+    # axial wavenumber; their phase is set by the lateral offset.
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(np.radians(0.5), centre=(12.0, 0.0, 0.0))
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+@pytest.mark.parametrize("gamma", [np.radians(10.0), np.arcsin(0.4) - 1e-3])
+def test_cylinder_with_its_axis_inside_the_beam_cone_is_continuous_at_its_surface(
+    gamma,
+):
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(gamma)
+    reference = InfiniteCylinder(beam, cylinder, GLASS)
+    rng = np.random.default_rng(2)
+    u, v, a = reference.basis.T
+    phi = rng.uniform(0, 2 * np.pi, 16)
+    normal = np.cos(phi)[:, None] * u + np.sin(phi)[:, None] * v
+    surface = grid(
+        host(cylinder.center)
+        + cylinder.radius * normal
+        + rng.uniform(-2, 2, 16)[:, None] * a
+    )
+    outer = reference.evaluate(surface, side="exterior")
+    inner = reference.evaluate(surface, side="interior")
+    scale = np.abs(beam.evaluate(surface).electric.values).max()
+    electric = np.cross(normal, outer.electric.values - inner.electric.values)
+    magnetic = Z0 * np.cross(normal, outer.magnetic - inner.magnetic)
+    assert max(np.abs(electric).max(), np.abs(magnetic).max()) < 1e-10 * scale
 
 
 @pytest.mark.parametrize("polarization", ["parallel", "perpendicular"])

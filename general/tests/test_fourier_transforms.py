@@ -65,6 +65,52 @@ def test_fast_hankel_sum_matches_the_direct_sum(sources, targets):
         hankel_sum(c[:, 0], x, t, order=0.5)
 
 
+@pytest.mark.parametrize("reach", [1e-8, 1e-3, 1e-2, 0.3, 3.0, 12.0])
+def test_fast_hankel_sum_keeps_its_tolerance_at_small_arguments_for_every_order(reach):
+    """J_n(t x) ~ (t x / 2)^n / n! there: the error is measured against that size."""
+    generator = np.random.default_rng(5)
+    sources, targets = 700, 320
+    scale = np.sqrt(reach)
+    x = np.r_[scale, generator.uniform(0, scale, sources - 1)]
+    t = np.r_[scale, generator.uniform(0, scale, targets - 1)]
+    orders = np.r_[np.arange(-10, 11), 25, 60, 100]
+    # Positive coefficients: the sum is then as well conditioned as its terms.
+    c = generator.uniform(0.5, 1.5, size=(sources, len(orders))) + 0j
+    assert sources * targets > 200_000  # "auto" takes the fast path
+    automatic = to_numpy(hankel_sum(c, x, t, order=orders))
+    fast = to_numpy(hankel_sum(c, x, t, order=orders, method="fast"))
+    assert_allclose(automatic, fast, rtol=0, atol=0)
+    probe = np.r_[0, generator.choice(targets, 30, replace=False)]
+    expected = np.stack(
+        [jv(n, np.outer(t[probe], x)) @ c[:, i] for i, n in enumerate(orders)], -1
+    )
+    size = np.abs(expected).max(axis=0)
+    resolved = size > 1e-200  # below, the terms themselves underflow
+    assert resolved[:21].all()
+    error = np.linalg.norm(
+        (fast[probe] - expected)[:, resolved] / size[resolved], axis=0
+    )
+    error /= np.linalg.norm(expected[:, resolved] / size[resolved], axis=0)
+    low = (np.abs(orders) <= 10)[resolved]
+    assert error[low].max() < 1e-13
+    # Beyond, SciPy's jv is itself only good to about 1e-13.
+    assert error.max() < 1e-12
+
+
+def test_fast_hankel_sum_at_zero_argument_is_the_plain_sum_for_order_zero():
+    generator = np.random.default_rng(6)
+    c = generator.normal(size=(600, 3)) + 1j * generator.normal(size=(600, 3))
+    x = generator.uniform(0, 2.0, 600)
+    for nodes, frequencies in ((x, np.zeros(400)), (np.zeros(600), x[:400])):
+        for method in ("auto", "fast"):
+            actual = to_numpy(
+                hankel_sum(c, nodes, frequencies, order=[0, 1, -4], method=method)
+            )
+            scale = np.abs(c[:, 0]).sum()
+            assert np.abs(actual[:, 0] - c[:, 0].sum()).max() < 1e-13 * scale
+            assert np.abs(actual[:, 1:]).max() < 1e-13 * scale
+
+
 @pytest.mark.parametrize("order", [0, 1, 3])
 def test_fast_hankel_transform_reproduces_dlmf_pairs(order):
     """DLMF 10.22.51 (Gaussian) and 10.22.67 (Weber's second integral)."""
