@@ -14,6 +14,7 @@ from vecdiff_general.propagation.references import (
     LayeredSphere,
     MieSphere,
 )
+from vecdiff_general.propagation.references.cylinder import _basis as _cylinder_basis
 from vecdiff_general.propagation.references.cylinder import _focused_density
 from vecdiff_general.propagation.references.diagnostics import maxwell_residuals
 
@@ -352,6 +353,92 @@ def test_cylinder_index_matched_returns_the_incident_field():
             same.electric.values, expected.electric.values, atol=1e-10 * scale
         )
         assert_allclose(same.magnetic, expected.magnetic, atol=1e-10 * scale / Z0)
+
+
+def _tilted_cylinder(gamma, centre=(1.0, 0.0, 0.5), radius=2.0):
+    """A cylinder whose axis makes the angle gamma with z, and its solver inputs."""
+    axis = [np.sin(gamma), 0, np.cos(gamma)]
+    return o.volumes.CylinderVolume(centre, axis, radius)
+
+
+def _inside_points(cylinder, count=16, seed=1):
+    rng = np.random.default_rng(seed)
+    radius = cylinder.radius
+    u, v, a = _cylinder_basis(host(cylinder.axis)).T
+    rho = rng.uniform(0, 0.99 * radius, count)
+    phi = rng.uniform(0, 2 * np.pi, count)
+    z = rng.uniform(-radius, radius, count)
+    return (
+        host(cylinder.center)
+        + (rho * np.cos(phi))[:, None] * u
+        + (rho * np.sin(phi))[:, None] * v
+        + z[:, None] * a
+    )
+
+
+def _index_matched_error(beam, cylinder):
+    """Largest |cylinder - beam| inside an index-matched cylinder, E and Z0 H."""
+    points = grid(_inside_points(cylinder))
+    same = InfiniteCylinder(beam, cylinder, AIR).evaluate(points, side="interior")
+    expected = beam.evaluate(points)
+    scale = np.abs(expected.electric.values).max()
+    return (
+        max(
+            np.abs(same.electric.values - expected.electric.values).max(),
+            Z0 * np.abs(same.magnetic - expected.magnetic).max(),
+        )
+        / scale
+    )
+
+
+@pytest.mark.parametrize("degrees", [0.05, 10.0, 18.0, 23.0])
+def test_cylinder_axis_inside_the_beam_cone_returns_the_incident_field(degrees):
+    # Half-angle 23.6 deg: cones of constant axial wavenumber about the axis
+    # pass from arcs of the pupil to full circles inside the beam.
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(np.radians(degrees))
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+@pytest.mark.parametrize("beyond", [-1e-2, -1e-3, -1e-4, 1e-4, 1e-3])
+def test_cylinder_axis_near_the_pupil_edge_returns_the_incident_field(beyond):
+    # The arc that a cone about the axis cuts from the pupil then varies on
+    # the scale of the angle between the edge and the axis direction.
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(np.arcsin(0.4) + beyond)
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+def test_cylinder_far_off_a_nearly_parallel_beam_returns_the_incident_field():
+    # The ends of the closing arc sweep the whole cone over a narrow range of
+    # axial wavenumber; their phase is set by the lateral offset.
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(np.radians(0.5), centre=(12.0, 0.0, 0.0))
+    assert _index_matched_error(beam, cylinder) < 1e-10
+
+
+@pytest.mark.parametrize("gamma", [np.radians(10.0), np.arcsin(0.4) - 1e-3])
+def test_cylinder_with_its_axis_inside_the_beam_cone_is_continuous_at_its_surface(
+    gamma,
+):
+    beam = converging(0.4, [0.0, 0.0, 0.0])
+    cylinder = _tilted_cylinder(gamma)
+    reference = InfiniteCylinder(beam, cylinder, GLASS)
+    rng = np.random.default_rng(2)
+    u, v, a = reference.basis.T
+    phi = rng.uniform(0, 2 * np.pi, 16)
+    normal = np.cos(phi)[:, None] * u + np.sin(phi)[:, None] * v
+    surface = grid(
+        host(cylinder.center)
+        + cylinder.radius * normal
+        + rng.uniform(-2, 2, 16)[:, None] * a
+    )
+    outer = reference.evaluate(surface, side="exterior")
+    inner = reference.evaluate(surface, side="interior")
+    scale = np.abs(beam.evaluate(surface).electric.values).max()
+    electric = np.cross(normal, outer.electric.values - inner.electric.values)
+    magnetic = Z0 * np.cross(normal, outer.magnetic - inner.magnetic)
+    assert max(np.abs(electric).max(), np.abs(magnetic).max()) < 1e-10 * scale
 
 
 @pytest.mark.parametrize("polarization", ["parallel", "perpendicular"])
