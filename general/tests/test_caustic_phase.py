@@ -82,7 +82,7 @@ def line_focus(plane, focus, sine=0.3):
     incident = F.angular_spectrum(
         F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
     )
-    leg = P.EikonalTransport(
+    leg = o.transport.LatticeTransport(
         grid,
         o.system.DielectricInterface(S.Plane(), AIR, DENSE),
         line_carrier(focus),
@@ -103,7 +103,9 @@ def line_focus(plane, focus, sine=0.3):
 def test_tube_collapses_are_counted_along_each_segment_with_their_sign():
     def rays(carrier, plane, index=2.5):
         radii = bd.asarray([[0.5, 0.0], [3.0, 1.0], [-2.0, 4.0]])
-        return P.InterfaceMap(S.Plane(), carrier, 1.0, index, -plane).forward(radii)
+        return o.transport.InterfaceMap(S.Plane(), carrier, 1.0, index, -plane).forward(
+            radii
+        )
 
     # A point focus 53 in front of the interface; its refracted rays diverge
     # from a virtual focus near 2.5 * 53 = 132 in front of it.
@@ -193,7 +195,7 @@ def test_point_focus_inside_the_leg_inverts_the_field():
         F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
     )
     carrier = F.Carrier.converging([0, 0, -focus])
-    leg = P.EikonalTransport(
+    leg = o.transport.LatticeTransport(
         grid, o.system.DielectricInterface(S.Plane(), AIR, DENSE), carrier, 1.0
     )
     carried, report = leg.carry(incident, method="direct")
@@ -241,7 +243,7 @@ def test_leg_that_folds_under_the_field_is_refused():
         F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
     )
     glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
-    leg = P.EikonalTransport(
+    leg = o.transport.LatticeTransport(
         grid,
         o.system.DielectricInterface(S.Plane(), AIR, glass),
         F.Carrier.converging([0, 0, -30.0]),
@@ -253,12 +255,12 @@ def test_leg_that_folds_under_the_field_is_refused():
 
 
 def test_meridian_leg_says_when_the_carrier_focuses_inside_it():
-    from vecdiff.propagation._axisymmetric import AxialTransport
+    from vecdiff.transport.meridian import MeridianTransport
 
     interface = o.system.DielectricInterface(S.Plane(), AIR, DENSE)
 
     with pytest.raises(ValueError, match="focuses inside this leg"):
-        AxialTransport(
+        MeridianTransport(
             interface,
             F.Carrier.converging([0, 0, -53.0]),
             Frame(),

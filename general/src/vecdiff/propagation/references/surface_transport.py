@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from vecdiff._backend import on_cpu
+from vecdiff.alternatives.surface_transfer import SurfaceTransport
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
 from vecdiff.fourier.cartesian import FFT2, frequency_grid
@@ -30,7 +31,6 @@ from vecdiff.media.medium import Z0
 from vecdiff.propagation.references.bem import DielectricBEM
 from vecdiff.propagation.references.mesh import SurfaceMesh
 from vecdiff.propagation.references.mie import MieSphere
-from vecdiff.propagation.surface_transfer import SurfaceTransport
 from vecdiff.sampling import CartesianGrid, PointGrid
 from vecdiff.surfaces import FreeformSurface, SphericalCap
 from vecdiff.volumes import SphereVolume

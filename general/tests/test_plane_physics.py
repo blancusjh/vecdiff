@@ -11,7 +11,7 @@ from vecdiff.fields import (
 from vecdiff.geometry import Frame
 from vecdiff.media import Z0, Dielectric, HomogeneousRegion
 from vecdiff.observables import boundary_residuals
-from vecdiff.propagation import scatter_plane
+from vecdiff.alternatives import scatter_plane
 from vecdiff.sampling import PlaneGrid, PointGrid
 from vecdiff.system import PlanarInterface
 

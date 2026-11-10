@@ -4,7 +4,7 @@ Two realizations of the surface legs. transport="wave" carries the field to
 each surface exactly (SurfaceTransport) and back to a plane spectrum after a
 spectral, local or carrier-directed Fresnel transmission. transport="eikonal"
 replaces those legs by the plane-surface-plane map along a declared carrier
-(EikonalTransport), on a lattice or, for a rotationally symmetric system, on
+(LatticeTransport), on a lattice or, for a rotationally symmetric system, on
 one meridian with Hankel spectra per azimuthal order. Returning branches and
 finite material edges require a separate model.
 """
@@ -13,6 +13,12 @@ import importlib.util
 from dataclasses import dataclass, replace
 
 from vecdiff._backend import bd
+from vecdiff.alternatives.surface_interaction import (
+    CarrierFresnel,
+    LocalFresnel,
+    SpectralFresnel,
+)
+from vecdiff.alternatives.surface_transfer import SurfaceTransport
 from vecdiff.fields import (
     ElectricField,
     TransverseElectricField,
@@ -21,27 +27,19 @@ from vecdiff.fields.angular_spectrum import angular_spectrum
 from vecdiff.fields.beams import _Beam
 from vecdiff.fields.spectrum import PlaneSpectrum
 from vecdiff.geometry.frames import Frame
-from vecdiff.propagation._axisymmetric import (
-    AxialTransport,
-    BeamField,
-    footprint,
-)
 from vecdiff.propagation.coverage import CoverageEvaluator, validate_coverage
-from vecdiff.propagation.eikonal import (
-    EikonalTransport,
-    RefractedRays,
-    check_window,
-)
 from vecdiff.propagation.homogeneous import PlaneTransport
-from vecdiff.propagation.surface_interaction import (
-    CarrierFresnel,
-    LocalFresnel,
-    SpectralFresnel,
-)
-from vecdiff.propagation.surface_transfer import SurfaceTransport
 from vecdiff.propagation.targets import target_grid
 from vecdiff.sampling import CartesianGrid, PolarGrid
 from vecdiff.system import DielectricInterface, OpticalSystem
+from vecdiff.transport.dyadic import check_window
+from vecdiff.transport.lattice import LatticeTransport
+from vecdiff.transport.meridian import (
+    BeamField,
+    MeridianTransport,
+    footprint,
+)
+from vecdiff.transport.rays import RefractedRays
 
 
 @dataclass(frozen=True)
@@ -466,7 +464,7 @@ class PropagationPipeline:
                     family = RefractedRays(last.map, (first.plane.u, first.plane.v))
                 plane = CartesianGrid(lattice.u, lattice.v, Frame(origin, frame.basis))
                 operators.append(
-                    EikonalTransport(
+                    LatticeTransport(
                         plane,
                         interface,
                         family,
@@ -535,7 +533,7 @@ class PropagationPipeline:
             if last is None:
                 family = carrier
             operators.append(
-                AxialTransport(
+                MeridianTransport(
                     interface,
                     family,
                     axis,

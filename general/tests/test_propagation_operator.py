@@ -137,7 +137,7 @@ def test_local_oblique_plane_wave_matches_exact_fresnel(angle_mode):
     )
     spectrum = o.fields.angular_spectrum(source, propagate.interfaces[0].minus)
     interface = propagate.interfaces[0]
-    transport = o.propagation.SurfaceTransport(
+    transport = o.alternatives.SurfaceTransport(
         o.sampling.CartesianGrid(source.grid.u, source.grid.v),
         interface.surface,
         interface.minus,
@@ -145,7 +145,7 @@ def test_local_oblique_plane_wave_matches_exact_fresnel(angle_mode):
     )
     shifted = o.propagation.PlaneTransport().spectrum(spectrum, 1)
     actual = propagate.transmission.transmit(shifted, interface, transport)
-    exact = o.propagation.scatter_plane(
+    exact = o.alternatives.scatter_plane(
         spectrum,
         o.system.PlanarInterface(
             interface.surface.frame, interface.minus, interface.plus
@@ -175,7 +175,7 @@ def test_zero_local_field_and_compatibility_alias():
         source.grid, 1, np.zeros_like(source.values)
     )
     assert_allclose(propagate(zero, z=3, shape=(3, 3)).values, 0)
-    assert o.propagation.DirectionResolvedFresnel is o.propagation.SpectralFresnel
+    assert o.alternatives.DirectionResolvedFresnel is o.alternatives.SpectralFresnel
     with pytest.raises(ValueError, match="transmission"):
         o.propagation.PropagationPipeline(transmission="unknown", transport="wave")
 
@@ -195,7 +195,7 @@ def test_surface_electric_jet_against_analytic_modal_derivatives(ka):
     spectrum = o.fields.angular_spectrum(
         o.fields.TransverseElectricField(grid, 1, values), air
     )
-    transport = o.propagation.SurfaceTransport(
+    transport = o.alternatives.SurfaceTransport(
         grid, o.surfaces.SphericalCap(radius), air, 1
     )
     electric, derivative = transport.electric_jet(spectrum)

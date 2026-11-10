@@ -1,14 +1,18 @@
-"""Vector optics: fields, physical systems, transport, interaction and pipelines.
+"""Vector optics by eikonal-angular-spectrum transport.
 
-Public objects are reached through the namespace of what they are, for
-example ``surfaces.SphericalCap``, ``fields.angular_spectrum`` or
-``propagation.PropagationPipeline``. Nothing is re-exported at this level.
+Public objects are reached through the namespace of what they are:
+``media``, ``geometry`` and ``surfaces`` describe space and matter, ``system``
+the optical system, ``fields`` the light, ``transport`` its transport across
+each surface, ``propagation`` its propagation through the whole system and
+``observables`` what is measured. ``alternatives`` holds other methods.
+Nothing is re-exported at this level.
 ``backend.set_backend("CUDA")`` moves arrays and computation to a GPU.
 Plotting (``visualization``) and independent references
 (``propagation.references``) are imported explicitly when needed.
 """
 
 from vecdiff import (
+    alternatives,
     backend,
     catalog,
     fields,
@@ -21,10 +25,12 @@ from vecdiff import (
     sampling,
     surfaces,
     system,
+    transport,
     volumes,
 )
 
 __all__ = [
+    "alternatives",
     "backend",
     "catalog",
     "fields",
@@ -37,5 +43,6 @@ __all__ = [
     "sampling",
     "surfaces",
     "system",
+    "transport",
     "volumes",
 ]

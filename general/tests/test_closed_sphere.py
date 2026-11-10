@@ -41,7 +41,7 @@ def test_sphere_maps_like_its_cap_where_the_cap_suffices():
     xy = np.random.default_rng(2).uniform(-30, 30, (200, 2))
     for offset in (0.0, 20.0):
         cap, ball = (
-            P.InterfaceMap(
+            o.transport.InterfaceMap(
                 kind(radius, Frame([0, 0, -radius])), carrier, 1.0, 1.5, offset
             )
             for kind in (S.SphericalCap, S.Sphere)
@@ -58,7 +58,9 @@ def test_far_side_rays_enter_the_closed_sphere_with_an_analytic_jacobian():
     radius, focus = 40.0, 60.0
     carrier = F.Carrier.converging([0, 0, focus])
     cap, ball = (
-        P.InterfaceMap(kind(radius, Frame([0, 0, -radius])), carrier, 1.0, 1.5)
+        o.transport.InterfaceMap(
+            kind(radius, Frame([0, 0, -radius])), carrier, 1.0, 1.5
+        )
         for kind in (S.SphericalCap, S.Sphere)
     )
     rho = np.linspace(70.0, 85.0, 12)  # 60 to 80 degrees of incidence, far side

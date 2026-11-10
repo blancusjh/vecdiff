@@ -8,7 +8,7 @@ rho alone. Each azimuthal order m of the incident field is carried
 separately along one meridian. On the output plane E_x + i E_y and
 E_x - i E_y of order m are Hankel transforms of orders m + 1 and m - 1, and
 E_z of order m follows from transversality. The leg is the lattice leg of
-EikonalTransport on the meridian, with the same InterfaceMap and dyadic;
+LatticeTransport on the meridian, with the same InterfaceMap and dyadic;
 only the representation differs, and its cost grows linearly with the
 radius instead of quadratically.
 
@@ -32,6 +32,9 @@ from vecdiff.fourier.polar import hankel_sum
 from vecdiff.geometry.frames import Frame
 from vecdiff.media.medium import Z0
 from vecdiff.sampling import PointGrid, PolarGrid
+from vecdiff.transport.dyadic import carried, ray_weights
+from vecdiff.transport.rays import InterfaceMap, RefractedRays
+from vecdiff.transport.report import TransportReport
 
 # Gauss-Legendre panels on the reference plane: 71 nodes per 15 wavelengths
 # of the transmitted medium, and no wider than 10 lambda0 (index below 1.5):
@@ -204,12 +207,12 @@ def ring_harmonics(spectrum, plane, radii, measure, *, method="auto"):
     }, share
 
 
-class AxialTransport:
+class MeridianTransport:
     """Eikonal leg across one surface of revolution, carried along a meridian.
 
     ``axis`` is the incident field's frame, whose normal is the symmetry
     axis; the reference planes sit ``offset`` from the surface vertex along
-    it. ``window`` weights the carried rays as in EikonalTransport. The fan
+    it. ``window`` weights the carried rays as in LatticeTransport. The fan
     of carried rays ends where the surface stops supporting the carrier,
     where the window closes, or at ``reach`` (a sampled input's inscribed
     radius); the search for that edge starts from ``scale``. A surface that
@@ -232,8 +235,6 @@ class AxialTransport:
         scale=None,
         extent=None,
     ):
-        from vecdiff.propagation.eikonal import InterfaceMap, RefractedRays
-
         surface = interface.surface
         wavelength0 = float(wavelength0)
 
@@ -332,8 +333,6 @@ class AxialTransport:
 
     def _supported(self, radii):
         """Rays the surface supports and the window still weights."""
-        from vecdiff.propagation.eikonal import ray_weights
-
         rays = self._meridian(radii)
         # The meridian carries the rays that met no caustic on this leg: its
         # map is inverted as an increasing function of the radius.
@@ -433,8 +432,6 @@ class AxialTransport:
 
     def _dyadic(self):
         """Rows E'_rho, E'_phi of the carried dyadic acting on (E_rho, E_phi, E_z)."""
-        from vecdiff.propagation.eikonal import carried, ray_weights
-
         rays = self.rays
         # On the meridian the TE axis n x s_i is the azimuthal direction; the
         # dyadic does not depend on its sign.
@@ -458,9 +455,8 @@ class AxialTransport:
         return weight[:, None, None] * bd.stack(columns, axis=-1)[:, :2]
 
     def transmit(self, incident, *, method="auto"):
-        """(HankelField of the transmitted region on the output plane, EikonalReport)."""
+        """(HankelField of the transmitted region on the output plane, TransportReport)."""
         from vecdiff.fields.spectrum import PlaneSpectrum
-        from vecdiff.propagation.eikonal import EikonalReport
 
         if incident.expansion.region != self.interface.minus:
             raise ValueError(
@@ -525,7 +521,7 @@ class AxialTransport:
             bd.asarray(self.weights),
             carried,
         )
-        report = EikonalReport(unsupported, 0, self.residual, tuple(sorted(carried)))
+        report = TransportReport(unsupported, 0, self.residual, tuple(sorted(carried)))
 
         return field, report
 

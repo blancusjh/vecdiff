@@ -13,23 +13,23 @@ import numpy as np
 from scipy.interpolate import BarycentricInterpolator
 
 from vecdiff._backend import bd, divide, to_numpy
-from vecdiff.fields import ElectricField, ElectromagneticField
-from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
-from vecdiff.fourier.nufft import phase_factor
-from vecdiff.media import Z0
-from vecdiff.propagation._directions import (
+from vecdiff.alternatives._directions import (
     direction_from_wavevector,
     reflected_direction,
     transmitted_direction,
 )
-from vecdiff.propagation._fresnel import (
+from vecdiff.alternatives._fresnel import (
     _fresnel_basis,
     apply_fresnel,
     apply_transmission,
     fresnel_reflection_matrix,
     fresnel_transmission_matrix,
 )
-from vecdiff.propagation.surface_transfer import BandPlanCache
+from vecdiff.alternatives.surface_transfer import BandPlanCache
+from vecdiff.fields import ElectricField, ElectromagneticField
+from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
+from vecdiff.fourier.nufft import phase_factor
+from vecdiff.media import Z0
 from vecdiff.sampling.grids import Grid
 from vecdiff.system import PlanarInterface
 

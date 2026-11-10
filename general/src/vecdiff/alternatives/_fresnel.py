@@ -6,7 +6,7 @@ to the forward approximation; it does not solve closed-body shadowing."""
 
 from vecdiff._arrays import positive
 from vecdiff._backend import bd
-from vecdiff.propagation._directions import reflected_direction, unit_direction
+from vecdiff.alternatives._directions import reflected_direction, unit_direction
 
 
 def cosines_from_directions(incident_direction, transmitted_direction, normal):

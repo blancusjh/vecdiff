@@ -5,20 +5,20 @@ from dataclasses import dataclass
 import numpy as np
 
 from vecdiff._backend import cpu_reference, on_cpu
-from vecdiff.comparisons.surface_radiation import SurfaceRadiation
-from vecdiff.fields import ElectricField, ElectromagneticField
-from vecdiff.fields.spectrum import PlaneSpectrum
-from vecdiff.media.medium import Z0
-from vecdiff.propagation._directions import (
+from vecdiff.alternatives._directions import (
     direction_from_wavevector,
     reflected_direction,
     transmitted_direction,
 )
-from vecdiff.propagation._fresnel import (
+from vecdiff.alternatives._fresnel import (
     apply_fresnel,
     fresnel_reflection_matrix,
     fresnel_transmission_matrix,
 )
+from vecdiff.comparisons.surface_radiation import SurfaceRadiation
+from vecdiff.fields import ElectricField, ElectromagneticField
+from vecdiff.fields.spectrum import PlaneSpectrum
+from vecdiff.media.medium import Z0
 
 
 @cpu_reference

@@ -15,6 +15,7 @@ import numpy as np
 from numpy.polynomial.legendre import leggauss
 
 from vecdiff._backend import on_cpu
+from vecdiff.alternatives.surface_transfer import SurfaceTransport
 from vecdiff.comparisons.surface_radiation import SurfaceRadiation
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneWaveExpansion
@@ -31,7 +32,6 @@ from vecdiff.propagation.references.surface_transport import (
     relative_fields,
     scattered,
 )
-from vecdiff.propagation.surface_transfer import SurfaceTransport
 from vecdiff.sampling import CartesianGrid, PointGrid
 from vecdiff.volumes import SphereVolume
 

@@ -5,7 +5,7 @@ import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
 from vecdiff.geometry import Frame
-from vecdiff.propagation._directions import transmitted_direction
+from vecdiff.alternatives._directions import transmitted_direction
 from vecdiff.surfaces import CartesianOval, gots_parameters
 
 bd, host = o.backend.bd, o.backend.to_numpy

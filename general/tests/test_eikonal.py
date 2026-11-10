@@ -69,7 +69,7 @@ def test_surfaces_declare_their_graph_domain_and_hessian():
     with pytest.raises(NotImplementedError, match="Hessian"):
         freeform.hessian(bd.zeros((1, 2)))
     with pytest.raises(NotImplementedError, match="Hessian"):
-        P.InterfaceMap(freeform, F.Carrier.collimated([0, 0, 1]), 1.0, 1.5)
+        o.transport.InterfaceMap(freeform, F.Carrier.collimated([0, 0, 1]), 1.0, 1.5)
 
 
 def finite_difference_jacobian(mapping, xy, step):
@@ -125,7 +125,7 @@ def test_analytic_map_jacobian_matches_finite_differences(
     surface, carrier, indices, offset, half
 ):
     """Appendix A: D Phi from the surface Hessian and the carrier's direction Jacobian."""
-    mapping = P.InterfaceMap(surface, carrier, *indices, offset)
+    mapping = o.transport.InterfaceMap(surface, carrier, *indices, offset)
     xy = rng.uniform(-half, half, (120, 2))
     rays = mapping.forward(xy)
     valid = host(rays.valid)
@@ -143,7 +143,7 @@ def test_aplanatic_sphere_map_is_stigmatic():
     """Rays toward A = 1.5 R refract through B = R / 1.5 with a constant optical path."""
     radius = 100.0
     surface = S.SphericalCap(radius, Frame([0, 0, -radius]))
-    mapping = P.InterfaceMap(
+    mapping = o.transport.InterfaceMap(
         surface, F.Carrier.converging([0, 0, 1.5 * radius]), 1, 1.5
     )
     xy = rng.uniform(-35, 35, (300, 2))
@@ -184,14 +184,14 @@ def test_carried_plane_wave_is_exact_fresnel_transmission(vertex, offset):
     surface = S.Plane(Frame([0, 0, vertex]))
     grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, vertex + offset]))
     incident = plane_wave(grid, kx, ky, [1.0, 0.5j], AIR)
-    leg = P.EikonalTransport(
+    leg = o.transport.LatticeTransport(
         grid,
         o.system.DielectricInterface(surface, AIR, GLASS),
         F.Carrier.collimated(direction),
         1.0,
     )
     carried, _ = leg.carry(incident, method="direct")
-    exact = P.scatter_plane(
+    exact = o.alternatives.scatter_plane(
         incident.expansion, o.system.PlanarInterface(surface.frame, AIR, GLASS)
     ).transmitted.evaluate(carried.grid, method="direct")
     lit = host(leg.lit).reshape(carried.grid.shape)
@@ -215,7 +215,7 @@ def test_index_matched_leg_is_the_identity_on_a_curved_surface():
     incident = F.angular_spectrum(
         F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
     )
-    leg = P.EikonalTransport(
+    leg = o.transport.LatticeTransport(
         grid,
         o.system.DielectricInterface(S.SphericalCap(40.0), AIR, AIR2),
         F.Carrier.converging([0, 0, 80.0]),
@@ -266,16 +266,16 @@ def test_carrier_fresnel_matches_spectral_fresnel_for_a_plane_wave_and_is_invisi
     flat = o.sampling.CartesianGrid(axis, axis)
     surface = S.SphericalCap(30.0)
     interface = o.system.DielectricInterface(surface, AIR, AIR2)
-    transport = P.SurfaceTransport(flat, surface, AIR, 1.0)
+    transport = o.alternatives.SurfaceTransport(flat, surface, AIR, 1.0)
     gaussian = np.exp(-(axis[None] ** 2 + axis[:, None] ** 2) / 4)
     beam = F.angular_spectrum(
         F.TransverseElectricField(flat, 1.0, np.stack((gaussian, 0.3j * gaussian), -1)),
         AIR,
         evanescent="discard",
     )
-    response = P.CarrierFresnel(F.Carrier.converging([0, 0, 50.0])).transmit(
-        beam, interface, transport
-    )
+    response = o.alternatives.CarrierFresnel(
+        F.Carrier.converging([0, 0, 50.0])
+    ).transmit(beam, interface, transport)
     trace = transport.forward(beam).electric.values
     assert_allclose(
         host(response.field.electric.values), host(trace), atol=1e-14 * abs(trace).max()
@@ -332,7 +332,7 @@ def test_output_lattice_holds_the_refracted_image_and_windows_weight_the_rays():
     grid = o.sampling.CartesianGrid(axis, axis, surface.frame)
     interface = o.system.DielectricInterface(surface, AIR, GLASS)
     carrier = F.Carrier.converging([0, 0, 1.5 * radius])
-    leg = P.EikonalTransport(grid, interface, carrier, 1.0)
+    leg = o.transport.LatticeTransport(grid, interface, carrier, 1.0)
     out = leg.output_plane
     assert out.shape[0] > n and out.shape[0] % 2 == 0
     assert_allclose(host(out.u[1] - out.u[0]), 0.5)
@@ -344,18 +344,20 @@ def test_output_lattice_holds_the_refracted_image_and_windows_weight_the_rays():
         F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
     )
     full, _ = leg.carry(incident)
-    half = P.EikonalTransport(
+    half = o.transport.LatticeTransport(
         grid, interface, carrier, 1.0, window=lambda rays: 0.5 + 0 * rays.cos_incident
     )
     assert_allclose(host(half.carry(incident)[0].values), 0.5 * host(full.values))
-    rolled = P.EikonalTransport(grid, interface, carrier, 1.0, window=(10.0, 30.0))
+    rolled = o.transport.LatticeTransport(
+        grid, interface, carrier, 1.0, window=(10.0, 30.0)
+    )
     incidence = np.degrees(np.arccos(host(rolled.rays.cos_incident)))
     weight = host(rolled._window(rolled.rays))
     assert_allclose(weight[incidence <= 10], 1)
     assert_allclose(weight[incidence >= 30], 0, atol=1e-15)
     assert ((weight > 0) & (weight < 1)).any()
     with pytest.raises(ValueError, match="window"):
-        P.EikonalTransport(grid, interface, carrier, 1.0, window=(30.0, 10.0))
+        o.transport.LatticeTransport(grid, interface, carrier, 1.0, window=(30.0, 10.0))
 
 
 def test_streamed_leg_does_not_depend_on_its_blocks():
@@ -371,8 +373,10 @@ def test_streamed_leg_does_not_depend_on_its_blocks():
     incident = F.angular_spectrum(
         F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
     )
-    whole = P.EikonalTransport(grid, interface, carrier, 1.0, window=(50.0, 70.0))
-    blocks = P.EikonalTransport(
+    whole = o.transport.LatticeTransport(
+        grid, interface, carrier, 1.0, window=(50.0, 70.0)
+    )
+    blocks = o.transport.LatticeTransport(
         grid, interface, carrier, 1.0, window=(50.0, 70.0), block_size=512
     )
     assert blocks.output_plane.shape == whole.output_plane.shape
@@ -396,13 +400,13 @@ def test_streamed_leg_does_not_depend_on_its_blocks():
         rtol=1e-12,
     )
     with pytest.raises(ValueError, match="block_size"):
-        P.EikonalTransport(grid, interface, carrier, 1.0, block_size=0)
+        o.transport.LatticeTransport(grid, interface, carrier, 1.0, block_size=0)
 
 
 @pytest.mark.parametrize("method", ["direct", "nufft"])
 def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
     """The lean output sums, by rows, the band-limited modes of the PlaneSpectrum."""
-    from vecdiff.propagation._lattice import lattice_spectrum
+    from vecdiff.transport._lattice_spectrum import lattice_spectrum
 
     if method == "nufft":
         pytest.importorskip("finufft")
@@ -518,7 +522,7 @@ def test_leg_refuses_an_output_lattice_too_coarse_for_the_refracted_field():
         incident = F.angular_spectrum(
             F.TransverseElectricField(plane, 1.0, values), AIR, evanescent="discard"
         )
-        transport = P.EikonalTransport(plane, interface, beam.carrier, 1.0)
+        transport = o.transport.LatticeTransport(plane, interface, beam.carrier, 1.0)
         return transport.carry(incident, method="direct")[1]
 
     with pytest.raises(ValueError, match="steeper than the output lattice can sample"):
@@ -547,7 +551,7 @@ def test_leg_refuses_to_lose_propagating_waves_next_to_the_light_circle():
         incident = F.angular_spectrum(
             F.TransverseElectricField(grid, 1.0, values), GLASS, evanescent="discard"
         )
-        leg = P.EikonalTransport(
+        leg = o.transport.LatticeTransport(
             grid, interface, F.Carrier.collimated([kx, 0, kz]), 1.0
         )
         outgoing, report = leg.transmit(incident, method="direct")

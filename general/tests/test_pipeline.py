@@ -71,11 +71,11 @@ def test_plane_pipeline_matches_exact_modal_transmission(wavelength, angle):
     interface = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
     pipeline = o.propagation.PropagationPipeline(
         [interface],
-        transmission=o.propagation.DirectionResolvedFresnel(nodes=18, cutoff=0),
+        transmission=o.alternatives.DirectionResolvedFresnel(nodes=18, cutoff=0),
         transport="wave",
     )
     result = pipeline.solve(source)
-    exact = o.propagation.scatter_plane(
+    exact = o.alternatives.scatter_plane(
         source, o.system.PlanarInterface(plane.frame, air, glass)
     )
     target = plane.translated(2 * wavelength * plane.frame.normal)

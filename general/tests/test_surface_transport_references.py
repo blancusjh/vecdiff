@@ -80,7 +80,7 @@ def test_backward_wave_exposes_the_difference_between_fit_and_radiation():
     source, _, _ = problem()
     axis = (np.arange(16) - 8) * 0.25
     plane = o.sampling.CartesianGrid(axis, axis)
-    q = o.propagation.SurfaceTransport(plane, o.surfaces.Plane(), source.region, 1)
+    q = o.alternatives.SurfaceTransport(plane, o.surfaces.Plane(), source.region, 1)
     backward = o.fields.PlaneWaveExpansion(
         [[0, 0, -2 * np.pi]], [[1, 0, 0]], [0, 0, 0], 1, source.region
     )
@@ -97,7 +97,7 @@ def test_radiate_rejects_trace_from_a_different_problem(mismatch):
     source, _, _ = problem()
     axis = (np.arange(16) - 8) * 0.25
     plane = o.sampling.CartesianGrid(axis, axis)
-    q = o.propagation.SurfaceTransport(plane, o.surfaces.Plane(), source.region, 1)
+    q = o.alternatives.SurfaceTransport(plane, o.surfaces.Plane(), source.region, 1)
     trace = source.evaluate(q.grid)
     field = o.fields.ElectricField(
         q.grid if mismatch == "wavelength" else plane.translated([0, 0, 1]),

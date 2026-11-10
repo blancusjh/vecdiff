@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff.propagation.eikonal import ray_weights
+from vecdiff.transport import ray_weights
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation
@@ -50,7 +50,9 @@ def test_closed_cylinder_maps_like_its_half_and_on_beyond():
     radius = 40.0
     carrier = F.Carrier.converging([3.0, -2.0, 60.0])
     maps = [
-        P.InterfaceMap(kind(radius, Frame([0, 0, -radius])), carrier, 1.0, 1.5)
+        o.transport.InterfaceMap(
+            kind(radius, Frame([0, 0, -radius])), carrier, 1.0, 1.5
+        )
         for kind in (S.CylindricalCap, S.Cylinder)
     ]
     xy = rng.uniform(-25, 25, (150, 2))
@@ -167,14 +169,14 @@ def test_virtual_conjugate_oval_is_stigmatic_and_its_ovoid_closes_it():
     assert_allclose(host(oval.hessian(xy)), numeric, atol=1e-7)
     carrier = F.Carrier.converging([0, 0, 2.5 * radius])
     for surface in (oval, ovoid):
-        rays = P.InterfaceMap(surface, carrier, 1.0, 1.5).forward(xy)
+        rays = o.transport.InterfaceMap(surface, carrier, 1.0, 1.5).forward(xy)
         assert host(rays.valid).all()
         q = host(rays.surface_point)
         toward = np.array([0, 0, 1.8 * radius]) - q
         toward /= np.linalg.norm(toward, axis=-1, keepdims=True)
         assert_allclose(host(rays.transmitted), toward, atol=1e-11)
     # The ovoid's rays run on past the graph's widest point onto its far side.
-    far = P.InterfaceMap(ovoid, carrier, 1.0, 1.5).forward([[60.0, 0.0]])
+    far = o.transport.InterfaceMap(ovoid, carrier, 1.0, 1.5).forward([[60.0, 0.0]])
     assert host(far.valid).all() and host(far.surface_height)[0] > 1.1 * radius
     # Real conjugates keep their GOTS form and their results.
     real = S.CartesianOval.from_conjugates(1.0, -6.0, 1.5, 4.0)

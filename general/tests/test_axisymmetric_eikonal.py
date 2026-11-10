@@ -5,8 +5,8 @@ import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
 from scipy.integrate import simpson
-from vecdiff.propagation._axisymmetric import AxialTransport, BeamField
-from vecdiff.propagation.eikonal import carried
+from vecdiff.transport.meridian import MeridianTransport, BeamField
+from vecdiff.transport import carried
 from vecdiff.propagation.references import MieSphere
 
 bd, host = o.backend.bd, o.backend.to_numpy
@@ -55,7 +55,7 @@ def test_meridian_leg_is_the_lattice_map_turned_about_the_axis():
     radius = 40.0
     (interface,) = sphere(radius)
     carrier = F.Carrier.converging([0, 0, 60.0])
-    leg = AxialTransport(interface, carrier, Frame(), 1.0, scale=30.0)
+    leg = MeridianTransport(interface, carrier, Frame(), 1.0, scale=30.0)
     nodes = np.linspace(0, len(leg.radius) - 1, 25).astype(int)
     rho, image = leg.preimage[nodes], leg.radius[nodes]
     phi = rng.uniform(0, 2 * np.pi, len(nodes))
@@ -112,7 +112,7 @@ def test_index_matched_meridian_leg_is_the_identity():
         region=AIR,
         frame=Frame([0, 0, 1.5 * radius]),
     )
-    leg = AxialTransport(interface, beam.carrier, beam.frame, 1.0, scale=20.0)
+    leg = MeridianTransport(interface, beam.carrier, beam.frame, 1.0, scale=20.0)
     field, report = leg.transmit(BeamField(beam, chart(beam, radius)))
     # The unsupported amplitude is sqrt(1 - carried / total): roundoff leaves 1e-8.
     assert (

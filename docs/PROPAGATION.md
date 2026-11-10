@@ -255,7 +255,7 @@ A point P of a reference plane in front of a surface follows its carrier ray to 
 - **What it is.** It is the formulation's leading-order model: it does not solve the curved-boundary Maxwell problem, and its error falls as 1/(R/λ0).
 - **Carried plane components.** They are re-expanded in the transmitted medium and continue as an exact angular spectrum to the next surface or the observation points.
 
-`propagation.InterfaceMap` computes Φ, ΔS, g and DΦ; `propagation.RayMap` holds the rays.
+`transport.InterfaceMap` computes Φ, ΔS, g and DΦ; `transport.RayMap` holds the rays.
 - **DΦ is analytic (Appendix A).** It comes from the surface Hessian and the carrier's direction Jacobian; no spherical focus is assumed.
 - **A focus inside the leg.** Where the ray tube has collapsed between the two planes, J has passed through zero and the root in g continues through it as 1/√J → exp(−iπκ/2)/√|J|. κ, `RayMap.caustics`, counts the transverse directions in which the tube collapsed: one at a focal line, two at a point focus. It is counted on each straight segment from the tube's own cross-section, forward on a real segment and backward on a virtual one (a reference plane beyond the surface). This is the continuation the angular spectrum itself produces through a focus; the error of the leg still falls as 1/size, with a larger constant than without a focus.
   - The lattice leg carries such rays. Where the map folds, rays from both sides of a caustic reach the same points: the rays of one caustic index carry the field, the others carry none and are reported, and a leg that would lose more than 1 % of its amplitude that way is refused.
@@ -285,7 +285,7 @@ A point P of a reference plane in front of a surface follows its carrier ray to 
 
 ### The lattice leg
 
-`propagation.EikonalTransport` is one leg on a Cartesian lattice. It is what a sampled field, a beam given `lattice=` and every non-axisymmetric system use.
+`transport.LatticeTransport` is one leg on a Cartesian lattice. It is what a sampled field, a beam given `lattice=` and every non-axisymmetric system use.
 - It fills the output lattice through the inverse map: a forward table, then damped Newton steps with DΦ. The incident field is evaluated exactly at each preimage, never interpolated.
 - The output lattice keeps the input spacing. It grows, up to four times per axis, until it holds the image of every ray the window weights. Refraction toward a closer image spreads P′ beyond the input footprint, and cutting it there diffracted spuriously.
 - It re-expands within sin < 0.995 of the transmitted medium, as the manuscript does. Nearer the light circle E_z = −κ·E/k_z amplifies what the lattice leaves there.
@@ -309,7 +309,7 @@ Eikonal transport crosses any number of refracting surfaces, as the formulation 
 4. a leg along the refracted carrier;
 5. and so on.
 
-After a refraction the carrier is the family of refracted rays (Appendix B), `propagation.eikonal.RefractedRays`.
+After a refraction the carrier is the family of refracted rays (Appendix B), `transport.RefractedRays`.
 - Each ray keeps its label, its point on the first reference plane.
 - Its surface point and refracted direction (Eq. 3.6) continue in a straight line to the next plane, together with their Appendix A derivatives along the labels.
 - Nothing is evaluated off the rays or inverted, so the next map's Jacobian, flux factor and inverse stay analytic, with J = det(dP′/d label) / det(dP/d label).
@@ -369,7 +369,7 @@ How the meridian is sampled:
 
 ### Reports
 
-`solution.interactions` holds one `propagation.EikonalReport` per interface:
+`solution.interactions` holds one `transport.TransportReport` per interface:
 - `unsupported_relative_amplitude`: the incident amplitude on rays the surface does not support (misses, rear or grazing incidence, total reflection, or outside the fan);
 - `dark_samples`: output samples no ray reaches;
 - `newton_residual`: the inverse map's residual;

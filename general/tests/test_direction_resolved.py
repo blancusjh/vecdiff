@@ -4,14 +4,14 @@ import numpy as np
 import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
-from vecdiff.propagation._directions import transmitted_direction
-from vecdiff.propagation._fresnel import (
+from vecdiff.alternatives._directions import transmitted_direction
+from vecdiff.alternatives._fresnel import (
     apply_fresnel,
     apply_transmission,
     fresnel_transmission_matrix,
     polarization_basis,
 )
-from vecdiff.propagation.surface_transfer import BandSynthesis
+from vecdiff.alternatives.surface_transfer import BandSynthesis
 
 bd, host = o.backend.bd, o.backend.to_numpy
 
@@ -52,7 +52,7 @@ def test_band_Q_matches_direct_on_nonspherical_graph(count, workers):
         frame=plane.frame,
     )
     region = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
-    q = o.propagation.SurfaceTransport(plane, surface, region, 1)
+    q = o.alternatives.SurfaceTransport(plane, surface, region, 1)
     support = q.active & (q.ku > 0) & (q.ku < 1.8) & (q.kv > -1) & (q.kv < 0.8)
     ids = np.flatnonzero(support)
     plan = BandSynthesis(q, ids[::-1], workers=workers)
@@ -79,7 +79,7 @@ def test_single_mode_band_has_rank_one_without_losing_sag_phase():
     axis = np.arange(-12, 12) * 0.4
     plane = o.sampling.CartesianGrid(axis, axis)
     surface = o.surfaces.SphericalCap(12, plane.frame)
-    q = o.propagation.SurfaceTransport(
+    q = o.alternatives.SurfaceTransport(
         plane, surface, o.media.HomogeneousRegion("air", o.media.Dielectric(1)), 1
     )
     ids = np.array([q.size // 2 + len(axis) // 2 + 1])
@@ -104,7 +104,7 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
         ),
     )
     boundary = o.system.DielectricInterface(surface, air, glass)
-    q = o.propagation.SurfaceTransport(plane, surface, air, 1)
+    q = o.alternatives.SurfaceTransport(plane, surface, air, 1)
     x, y = plane.points[..., 0], plane.points[..., 1]
     values = np.stack(
         (
@@ -117,7 +117,7 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
         o.fields.TransverseElectricField(plane, 1, values), air, evanescent="discard"
     )
     actual = (
-        o.propagation.DirectionResolvedFresnel().transmit(source, boundary, q).field
+        o.alternatives.DirectionResolvedFresnel().transmit(source, boundary, q).field
     )
     expected = scatter_surface(source, boundary, q.grid).transmitted_trace
     assert_allclose(
@@ -151,7 +151,7 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
     glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
     surface = o.surfaces.EvenAsphere(0.02, conic=-1)
     boundary = o.system.DielectricInterface(surface, air, glass)
-    q = o.propagation.SurfaceTransport(plane, surface, air, 1)
+    q = o.alternatives.SurfaceTransport(plane, surface, air, 1)
     x, y = plane.points[..., 0], plane.points[..., 1]
     values = np.stack(
         (np.exp(2j * np.pi * x / 8), 0.4j * np.exp(-2j * np.pi * y / 8)), axis=-1
@@ -160,7 +160,7 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
         o.fields.TransverseElectricField(plane, 1, values), air, evanescent="discard"
     )
     actual = (
-        o.propagation.DirectionResolvedFresnel(coefficients="unity")
+        o.alternatives.DirectionResolvedFresnel(coefficients="unity")
         .transmit(source, boundary, q)
         .field
     )
@@ -187,4 +187,4 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
 
 def test_direction_resolved_rejects_unknown_coefficient_model():
     with pytest.raises(ValueError, match="coefficients"):
-        o.propagation.DirectionResolvedFresnel(coefficients="scalar")
+        o.alternatives.DirectionResolvedFresnel(coefficients="scalar")

@@ -426,7 +426,7 @@ def test_closed_spheres_meet_the_archived_hard_pupil_shells(geometry, planes, ex
 def archive_fan(umax, start, end):
     """The archive's lattice fan: sin(gamma) rolled off from start to end u_max,
     incidence from 78 to 85 degrees, and transmitted rays with s_t,z > 0.05."""
-    from vecdiff.propagation.eikonal import ray_weights
+    from vecdiff.transport import ray_weights
 
     def window(rays):
         s = host(rays.incident)
@@ -538,7 +538,7 @@ def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do(
     # 80 degree ray, or its 3 R scan limit.
     table = np.linspace(0, 3 * radius, 30001)
     cosine = host(
-        o.propagation.InterfaceMap(ovoid, beam.carrier, 1.0, 1.5)
+        o.transport.InterfaceMap(ovoid, beam.carrier, 1.0, 1.5)
         .forward(np.c_[table, 0 * table])
         .cos_incident
     )

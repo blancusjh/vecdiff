@@ -5,8 +5,8 @@ import pytest
 import vecdiff as o
 from numpy.testing import assert_allclose
 from scipy.integrate import simpson
-from vecdiff.propagation._axisymmetric import AxialTransport, BeamField
-from vecdiff.propagation.eikonal import RefractedRays
+from vecdiff.transport.meridian import MeridianTransport, BeamField
+from vecdiff.transport import RefractedRays
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation
@@ -66,7 +66,7 @@ def test_refracted_family_derivatives_match_complex_steps():
     outer, inner = 40.0, 20.0
     first, second = shells(outer, inner)
     carrier = F.Carrier.converging([0, 0, 1.5 * outer])
-    leg = P.InterfaceMap(first.surface, carrier, 1.0, 1.5)
+    leg = o.transport.InterfaceMap(first.surface, carrier, 1.0, 1.5)
     family = RefractedRays(leg)
     rho = np.linspace(0.5, 25, 30)
     frame = second.surface.frame
@@ -103,8 +103,10 @@ def test_second_map_jacobian_without_symmetry_matches_finite_differences():
     """An asphere then a decentred sphere, a tilted collimated carrier."""
     first = S.EvenAsphere(1 / 60, conic=-0.5, coefficients=(1e-7,))
     second = S.SphericalCap(-45.0, Frame([1.5, -1.0, 12.0]))
-    leg = P.InterfaceMap(first, F.Carrier.collimated([0.05, -0.03, 1.0]), 1.0, 1.6)
-    mapping = P.InterfaceMap(second, RefractedRays(leg), 1.6, 1.2, -2.0)
+    leg = o.transport.InterfaceMap(
+        first, F.Carrier.collimated([0.05, -0.03, 1.0]), 1.0, 1.6
+    )
+    mapping = o.transport.InterfaceMap(second, RefractedRays(leg), 1.6, 1.2, -2.0)
     labels = np.random.default_rng(3).uniform(-10, 10, (80, 2))
     rays = mapping.forward(labels)
     assert host(rays.valid).all()
@@ -128,9 +130,9 @@ def test_index_matched_second_leg_returns_the_single_surface_field():
     )
     source = beam(outer)
     chart = o.sampling.PolarGrid(np.linspace(0, outer, 5), np.arange(4) * np.pi / 2)
-    leg1 = AxialTransport(first, source.carrier, source.frame, 1.0, scale=40.0)
+    leg1 = MeridianTransport(first, source.carrier, source.frame, 1.0, scale=40.0)
     field1, _ = leg1.transmit(BeamField(source, chart))
-    leg2 = AxialTransport(
+    leg2 = MeridianTransport(
         matched, RefractedRays(leg1.map), source.frame, 1.0, scale=leg1.edge
     )
     field2, report = leg2.transmit(field1)

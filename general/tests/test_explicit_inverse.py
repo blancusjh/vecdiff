@@ -22,7 +22,7 @@ def test_explicit_inverse_recovers_a_curved_interface_field_from_both_traces():
     axis = (np.arange(count) - count // 2) * (2 * half / count)
     grid = o.sampling.CartesianGrid(axis, axis)
     glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
-    transport = o.propagation.SurfaceTransport(
+    transport = o.alternatives.SurfaceTransport(
         grid, o.surfaces.SphericalCap(radius), glass, WAVELENGTH
     )
     points = transport.grid.points

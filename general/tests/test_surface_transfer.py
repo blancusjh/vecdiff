@@ -35,11 +35,11 @@ def spectrum(source, grid):
 def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
     monkeypatch, cache_compact
 ):
-    from vecdiff.propagation import surface_transfer as transfer
+    from vecdiff.alternatives import surface_transfer as transfer
 
     region, grid = setup()
     surface = o.surfaces.SphericalCap(30)
-    dense = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    dense = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     budget = dense.rank * dense.size * 16 if cache_compact else 0
     monkeypatch.setattr(transfer, "_PRECOMPUTE_BYTES", budget)
     monkeypatch.setattr(transfer, "_COMPACT_FACTOR_BYTES", budget)
@@ -51,7 +51,7 @@ def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
         return original_jv(order, argument)
 
     monkeypatch.setattr(transfer, "jv", counted_jv)
-    streamed = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    streamed = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     assert streamed._terms is None
     assert (streamed._compact_factors is not None) == cache_compact
     assert not factor_orders  # Unused incident-Q plans do not compute factors.
@@ -93,7 +93,7 @@ def test_Q_matches_direct_modal_sum_and_inverse_on_curved_chart():
         ),
     )
     source = mode(region, grid, 3, 2)
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     trace = Q.forward(spectrum(source, grid))
     assert_allclose(
         trace.electric.values, source.evaluate(Q.grid).electric.values, atol=2e-10
@@ -120,10 +120,10 @@ def test_negative_height_is_not_the_curved_inverse():
             -1,
         )
 
-    Q = o.propagation.SurfaceTransport(
+    Q = o.alternatives.SurfaceTransport(
         grid, o.surfaces.FreeformSurface(h, grad), region, 1.0
     )
-    minus = o.propagation.SurfaceTransport(
+    minus = o.alternatives.SurfaceTransport(
         grid,
         o.surfaces.FreeformSurface(lambda xy: -h(xy), lambda xy: -grad(xy)),
         region,
@@ -148,7 +148,7 @@ def test_constant_height_Q_is_planar_ASM(height):
     surface = o.surfaces.FreeformSurface(
         lambda xy: bd.full(xy.shape[:-1], height), lambda xy: bd.zeros_like(xy)
     )
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     source = mode(region, grid, 3, 2)
     initial = spectrum(source, grid)
     trace = Q.forward(initial)
@@ -168,7 +168,7 @@ def test_constant_height_Q_is_planar_ASM(height):
 
 def test_inverse_nonconvergence_is_reported_as_failure():
     region, grid = setup()
-    Q = o.propagation.SurfaceTransport(grid, o.surfaces.SphericalCap(30), region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, o.surfaces.SphericalCap(30), region, 1.0)
     source = mode(region, grid, 4, 2)
     with pytest.raises(ValueError, match="did not converge"):
         Q.inverse(Q.forward(spectrum(source, grid)), max_iterations=1)
@@ -180,7 +180,7 @@ def test_Q_rejects_a_backward_spectrum():
         grid, 1.0, np.broadcast_to([1, 0], grid.shape + (2,))
     )
     backwards = o.fields.angular_spectrum(field, region, direction=-1)
-    Q = o.propagation.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
     with pytest.raises(ValueError, match="forward propagating"):
         Q.forward(backwards)
 
@@ -200,7 +200,7 @@ def test_physical_trace_metric_and_complex_adjoint_on_steep_chart():
             -1,
         ),
     )
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     rng = np.random.default_rng(420)
     E = bd.asarray(
         rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
@@ -220,7 +220,7 @@ def test_physical_trace_metric_and_complex_adjoint_on_steep_chart():
 
 def test_inverse_reports_incompatible_magnetic_trace_without_fitting_it():
     region, grid = setup()
-    Q = o.propagation.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
     trace = Q.forward(spectrum(mode(region, grid), grid))
     inconsistent = o.fields.ElectromagneticField(trace.electric, 2 * trace.magnetic)
     _, report = Q.inverse(inconsistent)
@@ -245,7 +245,7 @@ def test_joint_inverse_adjoint_and_compatible_multimode_field(curved):
         if curved
         else o.surfaces.Plane()
     )
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1)
     A = Q._inverse_operator()
     rng = np.random.default_rng(442)
     x = rng.normal(size=A.shape[1]) + 1j * rng.normal(size=A.shape[1])
