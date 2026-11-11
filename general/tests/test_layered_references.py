@@ -208,6 +208,77 @@ def test_large_sphere_far_off_the_beam_axis_is_continuous_across_its_surface():
     assert _surface_jump(MieSphere(beam, sphere, GLASS), sphere, normal) < 1e-10
 
 
+@pytest.mark.parametrize(
+    "polarization, profile",
+    [
+        (o.fields.polarization.x, None),
+        (o.fields.polarization.radial, o.fields.profiles.Annulus(0.15, 0.5)),
+    ],
+)
+def test_axial_beam_projects_through_its_harmonics_as_through_the_grid(
+    monkeypatch, polarization, profile
+):
+    """About a centre on the beam axis, harmonics and direction grid agree.
+
+    The beam axis is tilted and the centre lies behind the focus on it; the
+    coefficients are compared projected as whole tables and order by order.
+    """
+    from vecdiff.references import mie
+
+    axis = np.array([0.3, -0.2, 1.0]) / np.linalg.norm([0.3, -0.2, 1.0])
+    u = np.cross([0, 1.0, 0], axis)
+    u /= np.linalg.norm(u)
+    focus = np.array([0.1, 0.2, -0.3])
+    beam = o.fields.FocusedBeam(
+        profile or o.fields.profiles.Uniform(0.5),
+        polarization,
+        focal_length=1.0,
+        max_sine=0.5,
+        wavelength0=1.0,
+        region=AIR,
+        frame=o.geometry.Frame(focus, np.stack((u, np.cross(axis, u), axis), -1)),
+    )
+    centre = focus - 4.5 * axis
+    volumes = spheres(4.0, 2.5, centre=centre)
+
+    def build():
+        return (
+            MieSphere(beam, volumes[0], GLASS),
+            LayeredSphere(beam, volumes, [GLASS, DENSE]),
+        )
+
+    def largest(solver):
+        return max(
+            np.abs(np.concatenate(c)).max() for c in solver.coefficients.values()
+        )
+
+    def no_grid(radius):
+        raise AssertionError("an axial centre needs no direction grid")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(beam, "quadrature", no_grid)
+        axial = build()
+        patch.setattr(mie, "_TABLE", 0)
+        rows = build()
+    monkeypatch.setattr(
+        mie._SphericalExpansion,
+        "_beam_modes",
+        mie._SphericalExpansion._beam_grid_modes,
+    )
+    gridded = build()
+    for solvers in (axial, rows):
+        for solver, reference in zip(solvers, gridded):
+            assert set(solver.coefficients) == set(reference.coefficients)
+            assert_allclose(solver.basis, reference.basis, rtol=0, atol=1e-15)
+            for m, pair in reference.coefficients.items():
+                assert_allclose(
+                    np.concatenate(solver.coefficients[m]),
+                    np.concatenate(pair),
+                    rtol=0,
+                    atol=1e-13 * largest(reference),
+                )
+
+
 def test_azimuthal_order_skip_bound_dominates_the_angular_functions():
     from vecdiff.references.mie import _harmonic_bound, _harmonics
 

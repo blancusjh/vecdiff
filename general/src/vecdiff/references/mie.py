@@ -34,19 +34,20 @@ from vecdiff.volumes import SphereVolume
 
 # Relative size below which an azimuthal order's coefficients count as absent.
 _ROUNDOFF = 64 * np.finfo(float).eps
+# Largest (orders x directions) projection still built as whole tables.
+_TABLE = 2**18
 
 
-def _harmonics(order, m, cosine, sine):
+def _harmonic_rows(order, m, cosine, sine):
     """Pbar, pibar = Pbar / sin and taubar = dPbar/dtheta for n = max(1, m)..order.
 
-    Shape (orders, points) each. pibar follows the Pbar recursion from
-    Pbar_m^m / sin, so no division by sin(theta) occurs at the poles; for
-    m = 0, taubar = -sqrt(n(n+1)) Pbar_n^1.
+    Yields (n, Pbar_n, pibar_n, taubar_n), one order at a time, so a sum over
+    the points can be accumulated without the (orders, points) tables. pibar
+    follows the Pbar recursion from Pbar_m^m / sin, so no division by
+    sin(theta) occurs at the poles; for m = 0, pibar = 0 and
+    taubar = -sqrt(n(n+1)) Pbar_n^1.
     """
     mu = abs(m)
-    first = max(mu, 1)
-    count = order - first + 1
-    P, pi, tau = (np.zeros((count,) + cosine.shape) for _ in range(3))
 
     def sequence(mu):
         # pibar_n^mu for n = mu..order (mu >= 1), or Pbar_n^0 for n = 0..order.
@@ -64,18 +65,24 @@ def _harmonics(order, m, cosine, sine):
             previous, current = current, a * (cosine * current - b * previous)
 
     if mu == 0:
+        zero = np.zeros(cosine.shape)
         for (n, p0, _), (_, p1, _) in zip(
             (item for item in sequence(0) if item[0] >= 1), sequence(1)
         ):
-            P[n - 1] = p0
-            tau[n - 1] = -np.sqrt(n * (n + 1)) * sine * p1
-        return P, pi, tau
+            yield n, p0, zero, -np.sqrt(n * (n + 1)) * sine * p1
+        return
 
     for n, current, previous in sequence(mu):
         c = np.sqrt((2 * n + 1) * (n**2 - mu**2) / (2 * n - 1)) if n > mu else 0.0
-        P[n - first] = sine * current
-        pi[n - first] = current
-        tau[n - first] = n * cosine * current - c * previous
+        yield n, sine * current, current, n * cosine * current - c * previous
+
+
+def _harmonics(order, m, cosine, sine):
+    """The rows of _harmonic_rows as tables, shape (orders, points) each."""
+    count = order - max(abs(m), 1) + 1
+    P, pi, tau = (np.zeros((count,) + cosine.shape) for _ in range(3))
+    for row, (_, p, q, t) in enumerate(_harmonic_rows(order, m, cosine, sine)):
+        P[row], pi[row], tau[row] = p, q, t
     return P, pi, tau
 
 
@@ -150,12 +157,18 @@ class _SphericalExpansion:
             g_theta, g_phi = harmonic(m)
             if not (np.any(g_theta) or np.any(g_phi)):
                 continue
-            P, pi, tau = _harmonics(self.order, m, cosine, sine)
-            first = max(abs(m), 1)
             A = np.zeros(self.order, complex)
             B = np.zeros(self.order, complex)
-            A[first - 1 :] = (-m * pi * g_theta + 1j * tau * g_phi).sum(-1)
-            B[first - 1 :] = (-m * pi * g_phi - 1j * tau * g_theta).sum(-1)
+            if self.order * len(cosine) <= _TABLE:
+                _, pi, tau = _harmonics(self.order, m, cosine, sine)
+                first = max(abs(m), 1)
+                A[first - 1 :] = (-m * pi * g_theta + 1j * tau * g_phi).sum(-1)
+                B[first - 1 :] = (-m * pi * g_phi - 1j * tau * g_theta).sum(-1)
+            else:
+                # Order by order: a beam's polar rule makes the tables large.
+                for n, _, pi, tau in _harmonic_rows(self.order, m, cosine, sine):
+                    A[n - 1] = -m * (pi @ g_theta) + 1j * (tau @ g_phi)
+                    B[n - 1] = -m * (pi @ g_phi) - 1j * (tau @ g_theta)
             coefficients[m] = (scale * A, scale * B)
         peak = max(
             (np.max(np.abs(np.concatenate(c))) for c in coefficients.values()),
@@ -196,6 +209,44 @@ class _SphericalExpansion:
         return basis, cosine, sine, harmonic, range(-self.order, self.order + 1)
 
     def _beam_modes(self, k):
+        """A beam's directions: its harmonics about an axial centre, else the grid.
+
+        About a centre on the beam axis the phase k s.(c - origin) does not
+        depend on the azimuth, and the azimuthal sums are the beam's own
+        harmonics on its polar rule: a few orders, not the full grid of
+        directions that the phase of an off-axis centre needs.
+        """
+        beam = self.incident
+        offset = self.volume.center - beam.frame.origin
+        along = float(offset @ beam.frame.normal)
+        lateral = float(np.linalg.norm(offset - along * beam.frame.normal))
+        if k * lateral <= _ROUNDOFF * (1 + k * abs(along)):
+            return self._beam_axis_modes(k)
+        return self._beam_grid_modes(k)
+
+    def _beam_axis_modes(self, k):
+        """Azimuthal harmonics of a beam about a centre on its axis."""
+        beam = self.incident
+        offset = self.volume.center - beam.frame.origin
+        along = float(offset @ beam.frame.normal)
+        theta, weight, harmonics = beam._harmonics(
+            np.linalg.norm(offset) + self.order / k
+        )
+        phase = 2 * np.pi * weight * np.exp(1j * k * along * np.cos(theta))
+        table = {
+            m: (phase * f_theta, phase * f_phi)
+            for m, (f_theta, f_phi) in harmonics.items()
+            if abs(m) <= self.order
+        }
+        return (
+            np.asarray(beam.frame.basis),
+            np.cos(theta),
+            np.sin(theta),
+            table.__getitem__,
+            sorted(table, key=abs),
+        )
+
+    def _beam_grid_modes(self, k):
         """Product quadrature of a beam: the azimuthal sums are one FFT per polar node."""
         beam = self.incident
         offset = self.volume.center - beam.frame.origin
