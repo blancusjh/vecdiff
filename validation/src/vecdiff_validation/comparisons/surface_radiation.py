@@ -11,14 +11,12 @@ from numpy.polynomial.legendre import leggauss
 from vecdiff._arrays import frozen_array, positive, positive_integer
 from vecdiff._backend import cpu_reference
 from vecdiff.fields import ElectricField, ElectromagneticField
-from vecdiff.fields.spectrum import (
-    HalfSpaceSpectrum,
-    LocalSpectrum,
-    PlaneWaveExpansion,
-)
+from vecdiff.fields.spectrum import PlaneWaveExpansion
 from vecdiff.fourier.nufft import NUFFT
 from vecdiff.media.medium import Z0, HomogeneousRegion
 from vecdiff.sampling.grids import SurfaceGrid
+
+from vecdiff_validation.local_spectra import HalfSpaceSpectrum, LocalSpectrum
 
 
 @cpu_reference

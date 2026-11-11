@@ -8,8 +8,6 @@ treatment resolved by direction (``SpectralFresnel``) or taken locally
 """
 
 from vecdiff.alternatives.surface_interaction import (
-    CarrierFresnel,
-    DirectionResolvedFresnel,
     InterfaceSolution,
     LocalFresnel,
     SpectralFresnel,
@@ -24,8 +22,6 @@ __all__ = [
     "InverseReport",
     "SpectralFresnel",
     "LocalFresnel",
-    "CarrierFresnel",
-    "DirectionResolvedFresnel",
     "InterfaceSolution",
     "scatter_plane",
 ]

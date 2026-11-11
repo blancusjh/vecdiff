@@ -116,9 +116,7 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
     source = o.fields.angular_spectrum(
         o.fields.TransverseElectricField(plane, 1, values), air, evanescent="discard"
     )
-    actual = (
-        o.alternatives.DirectionResolvedFresnel().transmit(source, boundary, q).field
-    )
+    actual = o.alternatives.SpectralFresnel().transmit(source, boundary, q).field
     expected = scatter_surface(source, boundary, q.grid).transmitted_trace
     assert_allclose(
         actual.electric.values, expected.electric.values, atol=2e-12, rtol=2e-12
@@ -160,7 +158,7 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
         o.fields.TransverseElectricField(plane, 1, values), air, evanescent="discard"
     )
     actual = (
-        o.alternatives.DirectionResolvedFresnel(coefficients="unity")
+        o.alternatives.SpectralFresnel(coefficients="unity")
         .transmit(source, boundary, q)
         .field
     )
@@ -187,4 +185,4 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
 
 def test_direction_resolved_rejects_unknown_coefficient_model():
     with pytest.raises(ValueError, match="coefficients"):
-        o.alternatives.DirectionResolvedFresnel(coefficients="scalar")
+        o.alternatives.SpectralFresnel(coefficients="scalar")

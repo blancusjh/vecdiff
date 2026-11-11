@@ -168,13 +168,12 @@ def test_local_detects_counterpropagating_phase_cancellation():
         propagate(o.fields.TransverseElectricField(grid, 1, values))
 
 
-def test_zero_local_field_and_compatibility_alias():
+def test_zero_local_field_is_transmitted_and_an_unknown_treatment_refused():
     source, propagate = problem("local")
     zero = o.fields.TransverseElectricField(
         source.grid, 1, np.zeros_like(source.values)
     )
     assert_allclose(propagate(zero).electric(z=3, shape=(3, 3)).values, 0)
-    assert o.alternatives.DirectionResolvedFresnel is o.alternatives.SpectralFresnel
     with pytest.raises(ValueError, match="transmission"):
         o.alternatives.WavePropagator(transmission="unknown")
 

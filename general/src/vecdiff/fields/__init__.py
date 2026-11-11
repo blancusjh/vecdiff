@@ -11,7 +11,6 @@ from vecdiff.fields.angular_spectrum import angular_spectrum
 from vecdiff.fields.beam_spectrum import BeamSpectrum
 from vecdiff.fields.beams import FocusedBeam, PlaneBeam
 from vecdiff.fields.carrier import Carrier
-from vecdiff.fields.eikonal import EikonalField
 from vecdiff.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
@@ -30,7 +29,6 @@ __all__ = [
     "ElectricField",
     "ElectromagneticField",
     "TransverseElectricField",
-    "EikonalField",
     "Spectrum",
     "PlaneSpectrum",
     "LatticeSpectrum",
