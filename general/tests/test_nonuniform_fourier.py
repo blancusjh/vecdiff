@@ -1,5 +1,8 @@
 """Fourier sums and quadrature checked against definitions and analytic pairs."""
 
+import importlib.util
+import sys
+
 import numpy as np
 import pytest
 from numpy.polynomial.legendre import leggauss
@@ -196,3 +199,52 @@ def test_plane_wave_fields_on_a_tilted_plane_match_the_direct_sum():
         (fast.magnetic, direct.magnetic),
     ):
         assert_allclose(a, b, rtol=0, atol=1e-11 * np.abs(b).max())
+
+
+def test_direct_sum_of_real_coordinates_equals_the_complex_phase():
+    from vecdiff.fourier.nufft import phase_factor
+
+    random = np.random.default_rng(6)
+    x = random.normal(size=(50, 3)) * 4
+    q = random.normal(size=(70, 3)) * 3
+    g = random.normal(size=(50, 2)) + 1j * random.normal(size=(50, 2))
+    for sign in (-1, 1):
+        expected = phase_factor(x.astype(complex), q.astype(complex), sign=sign) @ g
+        actual = NUFFT(g, x, q, sign=sign, method="direct", chunk_size=16)
+        assert_allclose(actual, expected, rtol=0, atol=1e-14 * np.abs(g).sum())
+
+
+def test_automatic_method_is_the_direct_sum_or_the_transform_within_tolerance(
+    monkeypatch,
+):
+    from vecdiff.fourier import nufft
+
+    random = np.random.default_rng(9)
+    g = random.normal(size=(600, 6)) + 1j * random.normal(size=(600, 6))
+    k = random.normal(size=(600, 3))
+    k *= 2 * np.pi / np.linalg.norm(k, axis=1)[:, None]
+    small = random.uniform(-2, 2, size=(300, 3))
+    # Below 2^18 pairs, and for complex wavevectors: the exact direct sum.
+    assert_allclose(
+        NUFFT(g, k, small, method="auto"),
+        NUFFT(g, k, small, method="direct"),
+        rtol=0,
+        atol=0,
+    )
+    damped = k + 0.1j
+    assert nufft._automatic(g, damped, small, 1e-12) is None
+    if importlib.util.find_spec("finufft") is None:
+        return
+    many = random.uniform(-2, 2, size=(4000, 3))
+    assert nufft._automatic(g, k, many, 1e-12) is not None
+    assert_allclose(
+        NUFFT(g, k, many, method="auto"),
+        NUFFT(g, k, many, method="direct"),
+        rtol=0,
+        atol=1e-11 * np.abs(g).sum(),
+    )
+    # A transform grid larger than the direct work it replaces: direct.
+    wide = many * 40
+    assert nufft._automatic(g, k, wide, 1e-12) is None
+    monkeypatch.setitem(sys.modules, "finufft", None)
+    assert nufft._automatic(g, k, many, 1e-12) is None
