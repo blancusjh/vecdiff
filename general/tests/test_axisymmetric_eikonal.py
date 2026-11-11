@@ -7,7 +7,8 @@ from numpy.testing import assert_allclose
 from scipy.integrate import simpson
 from vecdiff.references import MieSphere
 from vecdiff.transport import carried
-from vecdiff.transport.meridian import BeamField, MeridianTransport
+from vecdiff.fields.beam_spectrum import BeamField
+from vecdiff.transport.meridian import MeridianTransport
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation

@@ -14,9 +14,7 @@ import numpy as np
 from vecdiff._backend import bd, to_numpy
 from vecdiff.fields import TransverseElectricField
 from vecdiff.fields.angular_spectrum import angular_spectrum
-from vecdiff.fields.spectrum import PlaneSpectrum
-from vecdiff.sampling import CartesianGrid
-from vecdiff.transport._lattice_spectrum import (
+from vecdiff.fields.lattice_spectrum import (
     READ,
     LatticeSpectrum,
     PlaneReader,
@@ -27,6 +25,8 @@ from vecdiff.transport._lattice_spectrum import (
     plane_blocks,
     row_blocks,
 )
+from vecdiff.fields.spectrum import PlaneSpectrum
+from vecdiff.sampling import CartesianGrid
 from vecdiff.transport.dyadic import check_window, ray_weights
 from vecdiff.transport.rays import InterfaceMap
 from vecdiff.transport.report import TransportReport

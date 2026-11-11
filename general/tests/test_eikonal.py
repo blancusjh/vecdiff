@@ -406,7 +406,7 @@ def test_streamed_leg_does_not_depend_on_its_blocks():
 @pytest.mark.parametrize("method", ["direct", "nufft"])
 def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
     """The lean output sums, by rows, the band-limited modes of the PlaneSpectrum."""
-    from vecdiff.transport._lattice_spectrum import lattice_spectrum
+    from vecdiff.fields.lattice_spectrum import lattice_spectrum
 
     if method == "nufft":
         pytest.importorskip("finufft")

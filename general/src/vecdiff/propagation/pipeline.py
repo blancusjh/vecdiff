@@ -24,6 +24,7 @@ from vecdiff.fields import (
     TransverseElectricField,
 )
 from vecdiff.fields.angular_spectrum import angular_spectrum
+from vecdiff.fields.beam_spectrum import BeamField, footprint
 from vecdiff.fields.beams import _Beam
 from vecdiff.fields.spectrum import PlaneSpectrum
 from vecdiff.geometry.frames import Frame
@@ -34,11 +35,7 @@ from vecdiff.sampling import CartesianGrid, PolarGrid
 from vecdiff.system import DielectricInterface, OpticalSystem
 from vecdiff.transport.dyadic import check_window
 from vecdiff.transport.lattice import LatticeTransport
-from vecdiff.transport.meridian import (
-    BeamField,
-    MeridianTransport,
-    footprint,
-)
+from vecdiff.transport.meridian import MeridianTransport
 from vecdiff.transport.rays import RefractedRays
 
 
