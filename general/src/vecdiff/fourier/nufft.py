@@ -72,6 +72,36 @@ def _threads(threads):
     return threads
 
 
+def _plane(q, x, tolerance):
+    """(centre, axes) of a plane through every target, or None.
+
+    The targets q (n, 3) lie on the plane centre + a axes[:, 0] + b axes[:, 1]
+    when dropping their offsets d from it changes no phase x.q by more than
+    ``tolerance``: |x| |d| <= tolerance, an error within the transform's own.
+    The plane is the least-squares one through the targets, so a tilted plane
+    is found as well as an axis-aligned one.
+    """
+    if len(q) < 3:
+        return None
+    # Pairwise sums along each coordinate: a column sum drifts by n eps.
+    centre = np.ascontiguousarray(q.T).mean(axis=1)
+    offset = q - centre
+    _, vectors = np.linalg.eigh(offset.T @ offset)
+    # The sum of squares tilts the normal by ~ sqrt(n) eps; one least-squares
+    # step on the (small, accurate) depths removes the tilt.
+    planar = offset @ vectors[:, 1:]
+    tilt = np.linalg.lstsq(planar, offset @ vectors[:, 0], rcond=None)[0]
+    normal = vectors[:, 0] - vectors[:, 1:] @ tilt
+    normal /= np.linalg.norm(normal)
+    depth = np.max(np.abs(offset @ normal))
+    reach = np.sqrt(np.max(np.sum(x * x, axis=1)))
+    if reach * depth > tolerance:
+        return None
+    first = vectors[:, 1] - normal * (vectors[:, 1] @ normal)
+    first /= np.linalg.norm(first)
+    return centre, np.stack((first, np.cross(normal, first)), -1)
+
+
 def _fast_sum(g, x, q, sign, tolerance, threads=None):
     if bd.any(x.imag) or bd.any(q.imag):
         raise ValueError("FINUFFT requires real coordinates; use method='direct'")
@@ -90,9 +120,16 @@ def _fast_sum(g, x, q, sign, tolerance, threads=None):
     # FINUFFT runs on the host for either backend; it outpaces the GPU's
     # type-3 transform in double precision on consumer cards.
     dimension = x.shape[1]
-    x, q, g = to_numpy(x), to_numpy(q), to_numpy(g)
-    source_axes = [np.ascontiguousarray(x.real[:, axis]) for axis in range(dimension)]
-    target_axes = [np.ascontiguousarray(q.real[:, axis]) for axis in range(dimension)]
+    x, q, g = to_numpy(x).real, to_numpy(q).real, to_numpy(g)
+    plane = _plane(q, x, tolerance) if dimension == 3 else None
+    if plane is not None:
+        # Coplanar targets: the phase x.(centre + offset) splits into a
+        # per-source factor and an in-plane phase, a 2D type-3 transform.
+        centre, axes = plane
+        g = g * np.exp(sign * 1j * (x @ centre))[:, None]
+        x, q, dimension = x @ axes, (q - centre) @ axes, 2
+    source_axes = [np.ascontiguousarray(x[:, axis]) for axis in range(dimension)]
+    target_axes = [np.ascontiguousarray(q[:, axis]) for axis in range(dimension)]
     transform = getattr(finufft, f"nufft{dimension}d3")
 
     G = transform(
@@ -129,6 +166,8 @@ def NUFFT(
     reverse-sign sum, not a matrix inverse. The direct method supports complex
     coordinates; FINUFFT accelerates real coordinates with a type-3 transform,
     on ``threads`` threads: None reads VECDIFF_NUFFT_THREADS, else all cores (0).
+    Three-dimensional targets on one plane (a field map) take a two-dimensional
+    transform, whose fine grid has no third axis to pad.
     """
     if sign not in (-1, 1):
         raise ValueError("Fourier sign must be -1 or +1")
