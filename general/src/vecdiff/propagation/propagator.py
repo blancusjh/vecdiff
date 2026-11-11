@@ -293,6 +293,18 @@ def describe(index, element):
     )
 
 
+def diffracted(last, element, wavelength0):
+    """How far beyond a stop's edge the next leg carries labels: the width
+    the edge's diffraction spreads to on its plane, 16 wavelengths and four
+    Fresnel widths sqrt(lambda d / n) over the distance d between the planes."""
+    if not isinstance(last.encounter, Stop):
+        return 0.0
+    frame = element.surface.frame
+    n = last.outgoing.material.n
+    distance = abs(float((frame.origin - last.plane.origin) @ last.plane.normal))
+    return 6 * wavelength0 / n + 3 * float(np.sqrt(wavelength0 * distance / n))
+
+
 def optical_system(system):
     """The OpticalSystem of ``system``: one, one element, or a sequence of them."""
     if isinstance(system, OpticalSystem):
@@ -624,8 +636,10 @@ class Propagator:
         last = next((leg for leg in reversed(legs) if leg), None)
         extent = None
         if last is not None:
-            # Labels on the first plane: the fan can only narrow from there.
-            reach, scale = last.edge, last.edge
+            # Labels on the first plane: the fan can only narrow from there,
+            # but beyond a stop's edge it also carries the light the edge
+            # diffracts.
+            reach = scale = last.edge + diffracted(last, element, source.wavelength0)
             family = RefractedRays(last.map)
         else:
             family = carrier
@@ -633,7 +647,9 @@ class Propagator:
             plane = Frame(frame.origin + self.planes[index] * frame.normal, axis.basis)
             if isinstance(source, BeamSpectrum):
                 reach, scale = None, footprint(source.beam, plane)
-                # A surface that carries every ray leaves the fan to the beam.
+                # A surface that carries every ray leaves the fan to the beam;
+                # otherwise it ends where the surface stops carrying rays (a
+                # Stop bounds it where that is too wide).
                 extent = 2 * scale
             elif isinstance(source, HankelSpectrum):
                 reach = scale = source.extent

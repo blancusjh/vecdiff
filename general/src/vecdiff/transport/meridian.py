@@ -284,16 +284,28 @@ class MeridianTransport:
                 "the carrier is not symmetric about the incident field's axis"
             )
 
+    def _orientation(self):
+        """+1 if this plane's v axis is that of the family's first plane, else -1."""
+        first = self.map
+        while first.family is not None:
+            first = first.family.previous
+        v = to_numpy(first.surface.frame.v) @ to_numpy(self.map.surface.frame.v)
+        return 1.0 if v > 0 else -1.0
+
     def _supported(self, radii):
         """Rays the surface supports and the window still weights."""
         rays = self._meridian(radii)
         # The meridian carries the rays that met no caustic on this leg: its
         # map is inverted as an increasing function of the radius.
         start = to_numpy(rays.start_jacobian)
+        # A label circle maps to a circle of this plane: radially outward, and
+        # turning the same way, or the other way where this plane's axes are
+        # those of the first plane reversed.
         valid = (
             to_numpy(rays.valid)
             & (to_numpy(rays.caustics) == 0)
-            & (start[:, 0, 0] * start[:, 1, 1] - start[:, 0, 1] * start[:, 1, 0] > 0)
+            & (start[:, 0, 0] > 0)
+            & (self._orientation() * start[:, 1, 1] > 0)
         )
         supported = valid.copy()
 
@@ -319,6 +331,13 @@ class MeridianTransport:
                         "the carrier focuses inside this leg; the meridian leg "
                         "carries no rays through a focus: pass lattice= to carry "
                         "them on a lattice, or move the reference plane past the focus"
+                    )
+                if bool(axial.valid[0]) and float(axial.start_jacobian[0, 0, 0]) < 0:
+                    raise ValueError(
+                        "the light focuses between the previous leg and this one: "
+                        "its rays reach this plane across the axis, which the "
+                        "meridian does not carry; pass lattice= to carry them on "
+                        "a lattice"
                     )
                 raise ValueError("this surface does not carry the carrier's axial ray")
             if not supported.all():
