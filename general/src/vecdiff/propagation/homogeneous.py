@@ -18,7 +18,7 @@ from vecdiff.media.medium import Z0
 def propagate_spectrum(
     spectrum: PlaneSpectrum, distance: float, *, model="asm", magnetic=True
 ) -> ElectromagneticField:
-    """Propagate an FFT spectrum by a signed normal distance in metres.
+    """Propagate an FFT spectrum by a signed normal distance.
 
     magnetic=False returns only the ElectricField and never forms the
     magnetic modes or their transform (half the memory and work for E alone).

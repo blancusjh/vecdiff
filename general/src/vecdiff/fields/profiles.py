@@ -1,4 +1,4 @@
-"""Scalar transverse amplitudes of beams, functions of plane coordinates in metres.
+"""Scalar transverse amplitudes of beams, functions of plane coordinates.
 
 A profile p(x, y) multiplies a polarization state; it carries no vector
 direction. x and y are the u and v coordinates of a beam's plane (PlaneBeam)
