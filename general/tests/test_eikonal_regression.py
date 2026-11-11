@@ -2,7 +2,7 @@
 
 Run with VECDIFF_SLOW=1. A circular-input beam converges toward A = 1.5 R
 (u_max = 0.4, Appendix C apodization) and enters a sphere n = 1 -> 1.5; the
-eikonal pipeline's field on the 5 lambda0 focal disk at B = R / 1.5 is compared
+eikonal propagator's field on the 5 lambda0 focal disk at B = R / 1.5 is compared
 with the sphere's exact first-entry (Debye p = 1) interior field, and with the
 full field. The lattice leg runs at 30-50 lambda0, the axisymmetric leg at
 1000 lambda0, with the non-aplanatic sphere (A = 2 R, B = 0.8 R) too.
@@ -55,10 +55,10 @@ def first_entry_error(radius, pupil):
     sampled = beam.evaluate(plane, method="nufft").electric.values[..., :2]
     incident = o.fields.TransverseElectricField(plane, 1.0, sampled)
     sphere = o.surfaces.SphericalCap(radius, o.geometry.Frame([0, 0, -radius]))
-    pipeline = o.propagation.PropagationPipeline(
-        (o.system.DielectricInterface(sphere, AIR, GLASS),), transport="eikonal"
+    propagator = o.propagation.Propagator(
+        (o.system.DielectricInterface(sphere, AIR, GLASS),)
     )
-    solution = pipeline.solve(
+    solution = propagator(
         o.fields.angular_spectrum(incident, AIR, evanescent="discard"),
         carrier=beam.carrier,
     )
@@ -68,11 +68,11 @@ def first_entry_error(radius, pupil):
     points = o.sampling.PointGrid(
         np.c_[x[keep], y[keep], np.full(keep.sum(), radius / 1.5)]
     )
-    field = host(solution.evaluate(points, method="nufft").electric.values)
+    field = host(solution.spectrum.evaluate(points, method="nufft").electric.values)
     mie = MieSphere(beam, o.volumes.SphereVolume([0, 0, 0], radius), GLASS)
     exact = host(mie.evaluate(points, term=1, side="interior").electric.values)
     error = 100 * np.linalg.norm(field - exact) / np.linalg.norm(exact)
-    return error, solution.interactions[0]
+    return error, solution.reports[0]
 
 
 @pytest.mark.parametrize(
@@ -193,7 +193,7 @@ def test_axisymmetric_leg_meets_the_manuscript_spheres_at_a_thousand_wavelengths
     """
     radius = 1000.0
     offset = 0.0 if plane == "vertex" else rim_offset(radius, geometry)
-    pipeline = o.propagation.PropagationPipeline(
+    propagator = o.propagation.Propagator(
         (
             o.system.DielectricInterface(
                 o.surfaces.SphericalCap(radius, o.geometry.Frame([0, 0, -radius])),
@@ -201,14 +201,13 @@ def test_axisymmetric_leg_meets_the_manuscript_spheres_at_a_thousand_wavelengths
                 GLASS,
             ),
         ),
-        transport="eikonal",
-        reference_planes=(offset,),
-        reference_fans=(fan,),
+        planes=(offset,),
+        fans=(fan,),
     )
     rho, points, references = mie_focal_line(radius, geometry, pupil)
-    solution = pipeline.solve(manuscript_beam(radius, geometry, pupil))
-    field = host(solution.evaluate(points).electric.values)
-    assert solution.interactions[0].azimuthal_orders == (1,)
+    solution = propagator(manuscript_beam(radius, geometry, pupil))
+    field = host(solution.spectrum.evaluate(points).electric.values)
+    assert solution.reports[0].azimuthal_orders == (1,)
 
     def norm(E):
         return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
@@ -319,18 +318,17 @@ def test_two_surfaces_meet_the_layered_sphere_at_a_thousand_wavelengths(
     else:
         q1, q2, _ = marginal_ray(geometry, umax)
         offsets = ((q1[1] + 1) * radius, (q2[1] + inner) * radius)
-    pipeline = o.propagation.PropagationPipeline(
+    propagator = o.propagation.Propagator(
         (
             o.system.DielectricInterface(caps[0], AIR, shell),
             o.system.DielectricInterface(caps[1], shell, core),
         ),
-        transport="eikonal",
-        reference_planes=offsets,
-        reference_fans=fans,
+        planes=offsets,
+        fans=fans,
     )
-    solution = pipeline.solve(shell_beam(radius, geometry, pupil))
-    field = host(solution.evaluate(points).electric.values)
-    assert [r.azimuthal_orders for r in solution.interactions] == [(1,), (1,)]
+    solution = propagator(shell_beam(radius, geometry, pupil))
+    field = host(solution.spectrum.evaluate(points).electric.values)
+    assert [r.azimuthal_orders for r in solution.reports] == [(1,), (1,)]
 
     def norm(E):
         return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
@@ -355,17 +353,16 @@ def test_closed_sphere_meets_the_archived_non_aplanatic_sphere():
     """Table 1: 4.127 / 4.155; the archive 4.115 / 4.143 (its rays reach 80 degrees)."""
     radius = 1000.0
     rho, points, references = mie_focal_line(radius, "nonaplanatic", "hard")
-    pipeline = o.propagation.PropagationPipeline(
+    propagator = o.propagation.Propagator(
         (
             o.system.DielectricInterface(
                 o.surfaces.Sphere(radius, o.geometry.Frame([0, 0, -radius])), AIR, GLASS
             ),
         ),
-        transport="eikonal",
-        reference_fans=((72.0, 80.0),),
+        fans=((72.0, 80.0),),
     )
-    solution = pipeline.solve(manuscript_beam(radius, "nonaplanatic", "hard"))
-    field = host(solution.evaluate(points).electric.values)
+    solution = propagator(manuscript_beam(radius, "nonaplanatic", "hard"))
+    field = host(solution.spectrum.evaluate(points).electric.values)
 
     def norm(E):
         return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
@@ -404,17 +401,16 @@ def test_closed_spheres_meet_the_archived_hard_pupil_shells(geometry, planes, ex
         fans = (radial_fan(taper, 3 * radius), (34.0, 38.0))
     else:
         fans = ((72.0, 80.0), (72.0, 80.0))
-    pipeline = o.propagation.PropagationPipeline(
+    propagator = o.propagation.Propagator(
         (
             o.system.DielectricInterface(spheres[0], AIR, shell),
             o.system.DielectricInterface(spheres[1], shell, core),
         ),
-        transport="eikonal",
-        reference_planes=offsets,
-        reference_fans=fans,
+        planes=offsets,
+        fans=fans,
     )
-    solution = pipeline.solve(shell_beam(radius, geometry, "hard"))
-    field = host(solution.evaluate(points).electric.values)
+    solution = propagator(shell_beam(radius, geometry, "hard"))
+    field = host(solution.spectrum.evaluate(points).electric.values)
 
     def norm(E):
         return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
@@ -471,10 +467,9 @@ def test_cylinder_meets_the_handoff(radius, count, sampled, expected):
     axis = (np.arange(count) - count // 2) / 3
     plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -radius]))
     surface = o.surfaces.CylindricalCap(radius, o.geometry.Frame([0, 0, -radius]))
-    pipeline = o.propagation.PropagationPipeline(
+    propagator = o.propagation.Propagator(
         (o.system.DielectricInterface(surface, AIR, GLASS),),
-        transport="eikonal",
-        reference_fans=(archive_fan(umax, 1.7, 1.9),),
+        fans=(archive_fan(umax, 1.7, 1.9),),
         lattice=None if sampled else plane,
     )
     carrier = o.fields.Carrier.converging([0, 0, 1.5 * radius])
@@ -498,10 +493,9 @@ def test_cylinder_meets_the_handoff(radius, count, sampled, expected):
             apodization="none",
         )
         source = archive_lattice(beam, radius, count) if sampled else beam
-        solution = pipeline.solve(source, carrier=carrier)
-        field = host(solution.evaluate(points).electric.values)
+        solution = propagator(source, carrier=carrier)
+        field = host(solution.spectrum.evaluate(points).electric.values)
         del solution, source
-        pipeline.last_solution = None
         cylinder = InfiniteCylinder(
             beam, o.volumes.CylinderVolume([0, 0, 0], [0, 1, 0], radius), GLASS
         )
@@ -552,21 +546,18 @@ def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do(
     points = o.sampling.PointGrid(
         np.c_[x[disk], y[disk], np.full(disk.sum(), 0.8 * radius)]
     )
-    meridian = o.propagation.PropagationPipeline(
-        system, transport="eikonal", reference_fans=(radial,)
-    ).solve(beam)
-    reference = host(meridian.evaluate(points).electric.values)
+    meridian = o.propagation.Propagator(system, fans=(radial,))(beam)
+    reference = host(meridian.spectrum.evaluate(points).electric.values)
     axis = (np.arange(count) - count // 2) / 3
     plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -radius]))
-    lattice = o.propagation.PropagationPipeline(
+    lattice = o.propagation.Propagator(
         system,
-        transport="eikonal",
-        reference_fans=(archive_fan(umax, 1.45, 1.6),),
+        fans=(archive_fan(umax, 1.45, 1.6),),
         lattice=None if sampled else plane,
-    ).solve(
+    )(
         archive_lattice(beam, radius, count) if sampled else beam,
         carrier=beam.carrier,
     )
-    field = host(lattice.evaluate(points).electric.values)
+    field = host(lattice.spectrum.evaluate(points).electric.values)
     difference = 100 * np.linalg.norm(field - reference) / np.linalg.norm(reference)
     assert abs(difference - expected) < 5e-3 * expected

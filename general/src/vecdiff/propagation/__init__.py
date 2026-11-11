@@ -1,7 +1,8 @@
-"""General propagation: homogeneous media, and a field through a whole optical system.
+"""Propagation of light: in homogeneous media, and through a whole optical system.
 
-The transport of a field across each surface is in ``vecdiff.transport``;
-the pipeline here composes it with homogeneous propagation between surfaces.
+``Propagator(system)(light)`` is the method: it composes the transport of
+the field across each surface (``vecdiff.transport``) with its propagation
+as plane waves between surfaces, and returns a ``Solution``.
 """
 
 from vecdiff.propagation.coverage import CoverageReport
@@ -14,8 +15,11 @@ from vecdiff.propagation.pipeline import (
     PropagationPipeline,
     PropagationSolution,
 )
+from vecdiff.propagation.propagator import Propagator, Solution
 
 __all__ = [
+    "Propagator",
+    "Solution",
     "CoverageReport",
     "PlaneTransport",
     "propagate",

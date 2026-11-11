@@ -107,14 +107,12 @@ def test_sphere_carries_the_hard_pupils_tail_on_the_meridian():
     edges = {}
     for kind in (S.SphericalCap, S.Sphere):
         surface = kind(radius, Frame([0, 0, -radius]))
-        pipeline = P.PropagationPipeline(
-            (o.system.DielectricInterface(surface, air, glass),),
-            transport="eikonal",
-            reference_fans=((72.0, 80.0),),
+        propagator = P.Propagator(
+            (o.system.DielectricInterface(surface, air, glass),), fans=((72.0, 80.0),)
         )
-        solution = pipeline.solve(beam)
-        edges[kind] = pipeline._operators[0].edge
-        report = solution.interactions[0]
+        solution = propagator(beam)
+        edges[kind] = solution.legs[0].edge
+        report = solution.reports[0]
         assert report.azimuthal_orders == (1,)
     # The cap ends at its equator (input radius 1.66 R); the sphere at 80 degrees.
     assert edges[S.SphericalCap] < 1.67 * radius < 2.1 * radius < edges[S.Sphere]

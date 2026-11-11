@@ -172,14 +172,13 @@ def test_two_surfaces_on_the_lattice_and_the_meridian_agree():
     fields = {}
     for name, kwargs, incident in (
         ("lattice", {}, spectrum),
-        ("meridian", dict(axisymmetric=True), spectrum),
+        ("meridian", dict(realization="meridian"), spectrum),
         ("beam", {}, source),
         ("beam on the lattice", dict(lattice=spectrum.grid), source),
     ):
-        pipeline = P.PropagationPipeline(system, transport="eikonal", **kwargs)
-        solution = pipeline.solve(incident, carrier=source.carrier)
-        fields[name] = host(solution.evaluate(points).electric.values)
-        assert len(solution.interactions) == 2
+        solution = P.Propagator(system, **kwargs)(incident, carrier=source.carrier)
+        fields[name] = host(solution.electric(points).values)
+        assert len(solution.reports) == 2
     scale = np.linalg.norm(fields["beam"])
     assert np.linalg.norm(fields["meridian"] - fields["beam"]) < 1e-6 * scale
     assert np.linalg.norm(fields["lattice"] - fields["meridian"]) < 1e-3 * scale
@@ -198,11 +197,11 @@ def test_aplanatic_pair_meets_the_layered_sphere_at_thirty_wavelengths():
 
     outer = 30.0
     source = beam(outer)
-    pipeline = P.PropagationPipeline(shells(outer, outer / 2), transport="eikonal")
+    solution = P.Propagator(shells(outer, outer / 2))(source)
     rho = np.linspace(0, 5, 81)
     focus = 0.375 * outer
     points = o.sampling.PointGrid(np.c_[rho, 0 * rho, np.full(81, focus)])
-    field = host(pipeline.solve(source).evaluate(points).electric.values)
+    field = host(solution.electric(points).values)
     sphere = LayeredSphere(
         source,
         (
@@ -218,5 +217,5 @@ def test_aplanatic_pair_meets_the_layered_sphere_at_thirty_wavelengths():
 
     error = 100 * np.sqrt(norm(field - exact) / norm(exact))
     assert abs(error - 1.0797) < 2e-3
-    reports = pipeline.last_solution.interactions
+    reports = solution.reports
     assert all(r.azimuthal_orders == (1,) for r in reports)

@@ -464,7 +464,7 @@ def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
         )
 
 
-def test_pipeline_carries_a_beam_on_a_lattice_only_when_asked():
+def test_propagator_carries_a_beam_on_a_lattice_only_when_asked():
     system = (o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),)
     axis = (np.arange(16) - 8) * 0.5
     grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
@@ -478,18 +478,14 @@ def test_pipeline_carries_a_beam_on_a_lattice_only_when_asked():
         frame=Frame([0, 0, 40.0]),
     )
     with pytest.raises(ValueError, match="lattice="):
-        P.PropagationPipeline(system, axisymmetric=False).solve(beam)
+        P.Propagator(system, realization="lattice")(beam)
     with pytest.raises(ValueError, match="meridian"):
-        P.PropagationPipeline(system, axisymmetric=True, lattice=grid)
+        P.Propagator(system, realization="meridian", lattice=grid)
     with pytest.raises(TypeError, match="CartesianGrid"):
-        P.PropagationPipeline(system, lattice=grid.frame)
-    with pytest.raises(ValueError, match="lattice"):
-        P.PropagationPipeline(system, transport="wave", lattice=grid)
+        P.Propagator(system, lattice=grid.frame)
     incident = plane_wave(grid, 0.0, 0.0, [1.0, 0.0], AIR)
     with pytest.raises(ValueError, match="own lattice"):
-        P.PropagationPipeline(system, lattice=grid).solve(
-            incident, carrier=beam.carrier
-        )
+        P.Propagator(system, lattice=grid)(incident, carrier=beam.carrier)
 
 
 def test_leg_refuses_an_output_lattice_too_coarse_for_the_refracted_field():
