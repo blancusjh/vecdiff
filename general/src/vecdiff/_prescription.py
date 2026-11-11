@@ -449,3 +449,20 @@ def summary(system):
         for r in (system.regions[0], system.regions[-1])
     )
     return shorten(f"OpticalSystem({', '.join(names)}; {ends})")
+
+
+def encounter(element):
+    """An element in a few words: 'Refraction at SphericalCap, air -> glass'."""
+    label = kind(element)
+    if label == "Stop":
+        where = "" if element.medium is None else f", in {element.medium.name}"
+        return f"Stop of radius {number(element.radius)}{where}"
+    surface = shape(element.surface)["type"]
+    before, after, behind = _media(element)
+    if label == "Refraction":
+        media = f"{before.name} -> {after.name}"
+    elif label == "Reflection":
+        media = f"in {before.name}, behind {behind.name}"
+    else:
+        media = f"in {before.name}"
+    return f"{label} at {surface}, {media}"

@@ -46,8 +46,9 @@ def test_solution_holds_one_spectrum_per_region_and_one_report_per_refraction():
     assert len(solution.reports) == len(solution.legs) == 1
     assert isinstance(solution.reports[0], o.transport.TransportReport)
     summary = str(solution)
-    assert "surface 1 (SphericalCap, air -> glass)" in summary
-    assert "unsupported" in summary and "orders (-1, 1)" in summary
+    row = next(line for line in summary.splitlines() if line.startswith("1 "))
+    assert "Refraction" in row and "SphericalCap" in row and "air -> glass" in row
+    assert "unsupported %" in summary and "(-1, 1)" in row
 
 
 def test_field_gives_e_and_h_together_and_electric_is_its_electric_part():

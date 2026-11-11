@@ -22,6 +22,7 @@ import numpy as np
 from scipy.special import gammaln
 
 from vecdiff._backend import cpu_reference
+from vecdiff._printing import block, guarded, number, region_text, shorten, vector
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneWaveExpansion
 from vecdiff.media.medium import Z0
@@ -281,6 +282,41 @@ class MieSphere(_SphericalExpansion):
     convergence. The automatic order is a starting estimate, not an accuracy
     certificate.
     """
+
+    @guarded
+    def __repr__(self):
+        """Its sphere, the indices inside and out, size parameter, order, incident."""
+        n_in, n_out = self.interior.material.n, self.exterior.material.n
+        return shorten(
+            f"MieSphere(radius={number(self.volume.radius)}, "
+            f"center={vector(self.volume.center)}, n {number(n_in)} in "
+            f"{number(n_out)}, x={number(self._size())}, order={self.order}, "
+            f"incident={self.incident!r})"
+        )
+
+    def _size(self):
+        return self.k0 * self.exterior.material.n * self.volume.radius
+
+    @guarded
+    def __str__(self):
+        """Its sphere, media, size parameter, truncation and incident field."""
+        n_in, n_out = self.interior.material.n, self.exterior.material.n
+        return block(
+            "MieSphere: exact sphere reference",
+            [
+                ("sphere", repr(self.volume)),
+                ("interior", region_text(self.interior)),
+                ("exterior", region_text(self.exterior)),
+                ("relative index", number(n_in / n_out)),
+                (
+                    "size parameter",
+                    f"x = k0 n_exterior radius = {number(self._size())}",
+                ),
+                ("order", f"{self.order} multipoles"),
+                ("wavelength0", number(self.wavelength0)),
+                ("incident", repr(self.incident)),
+            ],
+        )
 
     def __init__(self, incident, volume, interior, *, order=None):
         if not isinstance(volume, SphereVolume):

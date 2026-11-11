@@ -8,6 +8,7 @@ import numpy as np
 from scipy.special import gammaln
 
 from vecdiff._backend import bd, fft2, host_operator, ifft2, jv, to_numpy
+from vecdiff._printing import call, guarded, number, shape, shorten
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
 from vecdiff.fourier.cartesian import FFT2, frequency_grid
@@ -18,7 +19,7 @@ _PRECOMPUTE_BYTES = 64 * 1024**2
 _COMPACT_FACTOR_BYTES = 512 * 1024**2
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class InverseReport:
     """Relative surface L2 trace errors; these are not full boundary errors.
 
@@ -33,6 +34,18 @@ class InverseReport:
     magnetic_relative_residual: float
     solver: str
 
+    @guarded
+    def __repr__(self):
+        """Its residuals, iterations, condition estimate and solver, compactly."""
+        return call(
+            "InverseReport",
+            relative_residual=number(self.relative_residual, 3),
+            magnetic_relative_residual=number(self.magnetic_relative_residual, 3),
+            iterations=self.iterations,
+            condition_estimate=number(self.condition_estimate, 3),
+            solver=repr(self.solver),
+        )
+
 
 class SurfaceTransport:
     """Angular-spectrum trace Q_{n,Sigma} and reconstruction on a surface chart.
@@ -43,6 +56,15 @@ class SurfaceTransport:
     Only forward propagating modes with sin(theta) <= max_sine are retained.
     The finite FFT cell is periodic: callers must test padding and sampling.
     """
+
+    @guarded
+    def __repr__(self):
+        """Its surface, lattice, region, wavelength and retained modes."""
+        return shorten(
+            f"SurfaceTransport({self.surface!r}, {shape(self.plane.shape)} lattice, "
+            f"in {self.region.name!r}, wavelength0={number(self.wavelength0)}, "
+            f"{self.count} of {self.size} modes retained)"
+        )
 
     def __init__(
         self, plane, surface, region, wavelength0, *, max_sine=0.85, tolerance=1e-10

@@ -122,6 +122,9 @@ def propagate(
 class PlaneTransport:
     """R_xi: exact homogeneous dispersion, on a parallel FFT lattice."""
 
+    def __repr__(self):
+        return "PlaneTransport(exact homogeneous dispersion on an FFT lattice)"
+
     def __call__(self, spectrum, distance):
         return propagate_spectrum(spectrum, distance, model="asm")
 

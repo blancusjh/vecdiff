@@ -15,6 +15,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from vecdiff._backend import bd, to_numpy
+from vecdiff._printing import block, fan, guarded, sequence, shorten
 from vecdiff.fields import (
     BeamSpectrum,
     ElectricField,
@@ -27,6 +28,7 @@ from vecdiff.fields.angular_spectrum import angular_spectrum
 from vecdiff.fields.beam_spectrum import footprint
 from vecdiff.fields.beams import _Beam
 from vecdiff.geometry.frames import Frame
+from vecdiff.propagation import _summary
 from vecdiff.propagation.coverage import CoverageEvaluator, validate_coverage
 from vecdiff.propagation.homogeneous import PlaneTransport
 from vecdiff.propagation.path import orient
@@ -42,7 +44,7 @@ from vecdiff.transport.rays import RefractedRays
 REALIZATIONS = ("auto", "meridian", "lattice")
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class Solution:
     """Light through an optical system: the field of every segment of its path.
 
@@ -267,19 +269,23 @@ class Solution:
         index = max(self.spectra[k].region.material.n for k in reached)
         return (lo[0] - pad, hi[0] + pad, lo[1] - pad, hi[1] + pad), index
 
+    @guarded
+    def __repr__(self):
+        """One line: how many elements, how many carried, what leaves and where."""
+        return _summary.summary(self)
+
+    @guarded
     def __str__(self):
-        lines = [
-            f"Solution through {len(self.elements)} element(s), "
-            f"{len(self.reports)} carried; leaving as "
-            f"{type(self.spectrum).__name__} in {self.spectrum.region.name}"
-        ]
-        carriers = self.carriers or (None,) * len(self.elements)
-        reports = iter(self.reports)
-        for index, (element, leg) in enumerate(zip(self.elements, carriers), 1):
-            if self.carriers is not None and leg is None:
-                continue
-            lines.append(f"  {describe(index, element)}: {next(reports, '')}")
-        return "\n".join(lines)
+        """The table of what each element's leg carried, and what leaves the path."""
+        return _summary.text(self)
+
+    @guarded
+    def _repr_html_(self):
+        return _summary.html(self)
+
+    @guarded
+    def _repr_markdown_(self):
+        return _summary.markdown(self)
 
 
 def surface_name(surface):
@@ -470,6 +476,27 @@ class Propagator:
     @property
     def elements(self):
         return self.system.elements
+
+    @guarded
+    def __repr__(self):
+        """Its system in one line, the realization and any lattice."""
+        lattice = "" if self.lattice is None else f", lattice={self.lattice!r}"
+        return shorten(
+            f"Propagator({self.system!r}, realization={self.realization!r}{lattice})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its system's table, then its reference planes, fans and realization."""
+        fans = [fan(f) for f in self.fans]
+        lines = [
+            ("realization", self.realization),
+            ("lattice", None if self.lattice is None else repr(self.lattice)),
+            ("planes", f"offsets {sequence(self.planes)} from each vertex"),
+            ("fans", "; ".join(f"{i}: {f}" for i, f in enumerate(fans, 1)) or "none"),
+            ("legs prepared", str(len(self._legs))),
+        ]
+        return f"{self.system}\n" + block("Propagator", lines)
 
     def __call__(self, light, carrier=None):
         """The Solution for ``light``, carried along ``carrier``.

@@ -41,6 +41,7 @@ from dataclasses import dataclass, fields
 import numpy as np
 
 from vecdiff._backend import bd, divide, to_numpy
+from vecdiff._printing import block, guarded, number, sequence, shape, shorten
 from vecdiff.surfaces.surface import ImplicitSurface
 
 _EPS = np.finfo(float).eps
@@ -113,7 +114,7 @@ def _collapses(s, a1, a2, b1, b2, leg):
     return bd.where(leg < 0, -count, count)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class RayMap:
     """Plane-surface-plane map quantities of labelled rays, surface-local axes.
 
@@ -152,6 +153,24 @@ class RayMap:
     transmitted_derivative: np.ndarray
     label: np.ndarray
     caustics: np.ndarray
+
+    @guarded
+    def __repr__(self):
+        """How many rays it maps; no array is read."""
+        return f"RayMap({shape(self.valid.shape)} rays)"
+
+    @guarded
+    def __str__(self):
+        """How many rays the chart supports and their caustic indices."""
+        valid = to_numpy(self.valid)
+        caustics = np.unique(to_numpy(self.caustics)[valid]) if valid.any() else ()
+        return block(
+            repr(self),
+            [
+                ("supported", f"{int(valid.sum())} of {valid.size}"),
+                ("caustic indices", sequence(caustics) if len(caustics) else "none"),
+            ],
+        )
 
     def subset(self, mask):
         """The same quantities at the points selected by ``mask``."""
@@ -196,6 +215,15 @@ class InterfaceMap:
         self.branch = branch
         self.basis = surface.frame.basis
         surface.hessian(bd.zeros((1, 2)))  # fail early when no Hessian is declared
+
+    @guarded
+    def __repr__(self):
+        """Its surface, indices, branch, plane offset and the rays it follows."""
+        indices = f"n {number(self.n_incident)} -> {number(self.n_transmitted)}"
+        return shorten(
+            f"InterfaceMap({self.surface!r}, {indices}, {self.branch}, "
+            f"offset={number(self.offset)}, carrier={self.carrier!r})"
+        )
 
     def _global(self, local):
         return self.surface.frame.origin + local @ self.basis.T
@@ -603,6 +631,16 @@ class RefractedRays:
 
     def __init__(self, previous, axes=None):
         self.previous, self.axes = previous, axes
+
+    @guarded
+    def __repr__(self):
+        """The surface that refracted the rays, and the size of their labels."""
+        labels = (
+            ""
+            if self.axes is None
+            else f", labels {len(self.axes[1])} x {len(self.axes[0])}"
+        )
+        return shorten(f"RefractedRays(from {self.previous.surface!r}{labels})")
 
     @property
     def labels(self):

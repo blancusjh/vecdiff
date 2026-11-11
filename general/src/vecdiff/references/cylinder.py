@@ -38,6 +38,7 @@ directly in the J (inside) and J, H1 (outside) bases.
 import numpy as np
 
 from vecdiff._backend import cpu_reference, leggauss
+from vecdiff._printing import block, guarded, number, region_text, shorten, vector
 from vecdiff.fields import ElectricField, ElectromagneticField, FocusedBeam
 from vecdiff.fields.spectrum import PlaneWaveExpansion
 from vecdiff.media.medium import Z0, HomogeneousRegion
@@ -272,6 +273,44 @@ class InfiniteCylinder:
     h, so its axial quadrature converges slowly: refine axial_nodes and
     compare before relying on it. Increase order to verify convergence.
     """
+
+    @guarded
+    def __repr__(self):
+        """Its cylinder, indices, size parameter, order and incident field."""
+        n_in, n_out = self.interior.material.n, self.exterior.material.n
+        return shorten(
+            f"InfiniteCylinder(radius={number(self.volume.radius)}, "
+            f"axis={vector(self.volume.axis)}, n {number(n_in)} in {number(n_out)}, "
+            f"x={number(self._size())}, order={self.order}, incident={self.incident!r})"
+        )
+
+    def _size(self):
+        return self.k0 * self.exterior.material.n * self.volume.radius
+
+    @guarded
+    def __str__(self):
+        """Its cylinder, media, size parameter, truncation, reach and incident field."""
+        n_in, n_out = self.interior.material.n, self.exterior.material.n
+        limit = (
+            "none" if not np.isfinite(self.axial_limit) else number(self.axial_limit)
+        )
+        return block(
+            "InfiniteCylinder: exact cylinder reference",
+            [
+                ("cylinder", repr(self.volume)),
+                ("interior", region_text(self.interior)),
+                ("exterior", region_text(self.exterior)),
+                ("relative index", number(n_in / n_out)),
+                (
+                    "size parameter",
+                    f"x = k0 n_exterior radius = {number(self._size())}",
+                ),
+                ("order", f"azimuthal orders |m| <= {self.order}"),
+                ("axial limit", limit),
+                ("wavelength0", number(self.wavelength0)),
+                ("incident", repr(self.incident)),
+            ],
+        )
 
     def __init__(
         self, incident, volume, interior, *, order=None, reach=None, axial_nodes=None

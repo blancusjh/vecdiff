@@ -11,6 +11,7 @@ import numpy as np
 
 from vecdiff._arrays import frozen_array, positive
 from vecdiff._backend import bd
+from vecdiff._printing import grid_summary, guarded, number
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.media.medium import Z0
 
@@ -31,7 +32,7 @@ def _weights(weights, shape):
     return weights
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class ElectricFieldJet:
     """E, d_i E_j and d_i d_j E_l at physical points, in SI units.
 
@@ -43,6 +44,15 @@ class ElectricFieldJet:
     electric: ElectricField
     gradient: np.ndarray
     hessian: np.ndarray
+
+    @guarded
+    def __repr__(self):
+        """Its field's grid and wavelength; derivatives are not read."""
+        electric = self.electric
+        return (
+            f"ElectricFieldJet(E, grad E, Hessian E on {grid_summary(electric.grid)}, "
+            f"wavelength0={number(electric.wavelength0)})"
+        )
 
     def __post_init__(self):
         shape = self.electric.grid.shape

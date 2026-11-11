@@ -28,7 +28,7 @@ from dataclasses import dataclass, replace
 
 from vecdiff import _prescription
 from vecdiff._backend import bd
-from vecdiff._printing import call, guarded, is_vector, number, vector
+from vecdiff._printing import call, guarded, is_z_plane, number, on_plane, vector
 from vecdiff.geometry.frames import Frame
 from vecdiff.media.medium import Dielectric, HomogeneousRegion
 
@@ -52,6 +52,16 @@ class PlanarInterface:
             raise ValueError(
                 "name the two spatial regions distinctly, even for equal materials"
             )
+
+    @guarded
+    def __repr__(self):
+        """Its plane and the regions on its minus and plus sides."""
+        return call(
+            "PlanarInterface",
+            on_plane(self.frame),
+            minus=named(self.minus),
+            plus=named(self.plus),
+        )
 
 
 def region_of(medium):
@@ -235,11 +245,9 @@ class Stop:
     def __repr__(self):
         """The radius of its hole, where its screen lies and the medium there."""
         frame = self.frame
-        on_axis = is_vector(frame.basis, (1, 0, 0, 0, 1, 0, 0, 0, 1))
-        on_axis = on_axis and is_vector(frame.origin[:2], (0, 0))
         where = (
             dict(z=number(frame.origin[2]))
-            if on_axis
+            if is_z_plane(frame)
             else dict(origin=vector(frame.origin), normal=vector(frame.normal))
         )
         medium = None if self.medium is None else named(self.medium)

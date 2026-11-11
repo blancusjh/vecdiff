@@ -24,6 +24,17 @@ from dataclasses import replace
 import numpy as np
 
 from vecdiff._backend import bd, to_numpy
+from vecdiff._prescription import encounter
+from vecdiff._printing import (
+    block,
+    fan,
+    guarded,
+    number,
+    on_plane,
+    sequence,
+    shorten,
+    travel,
+)
 from vecdiff.fields.beam_spectrum import BeamSpectrum
 from vecdiff.fields.hankel_spectrum import (
     HankelSpectrum,
@@ -208,6 +219,37 @@ class MeridianTransport:
         self.band = (float(heights.min()), float(heights.max()))
         self.boundary = float(max(0.0, heights.max() - self.map.offset))
         self._transfer = self._dyadic()
+
+    @guarded
+    def __repr__(self):
+        """Its encounter, the fan's edge and image, its nodes and wavelength."""
+        return shorten(
+            f"MeridianTransport({encounter(self.encounter)}, fan edge "
+            f"{number(self.edge)} -> image {number(self.image)}, "
+            f"{len(self.radius)} plane nodes, wavelength0={number(self.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """What it carries across, along which meridian, with which fan and aperture."""
+        lines = [
+            ("encounter", encounter(self.encounter)),
+            ("branch", self.branch),
+            (
+                "outgoing",
+                f"{self.outgoing.name!r}, travelling {travel(self.direction)}",
+            ),
+            ("reference plane", on_plane(self.plane)),
+            ("fan edge", f"{number(self.edge)} on the input plane"),
+            ("image radius", f"{number(self.image)} on the output plane"),
+            ("plane nodes", str(len(self.radius))),
+            ("wavelength0", number(self.wavelength0)),
+            ("fan", fan(self.window)),
+            ("aperture", "none" if self.aperture is None else number(self.aperture)),
+            ("Newton residual", number(self.residual, 3)),
+            ("surface band", sequence(self.band)),
+        ]
+        return block("MeridianTransport: an eikonal leg along one meridian", lines)
 
     def footprint(self, count=4096, azimuths=16):
         """Points on the output plane and directions (global) of carried rays,
