@@ -8,10 +8,10 @@ grow there, under- or overflow at orders far beyond the argument.
 
 The regular functions come from Miller's downward recurrence, normalized by
 the exact zeroth or first order; the Hankel functions from the upward
-recurrence of their ratios, which is the dominant direction. The imaginary
-part of a Hankel logarithmic derivative is the Wronskian divided by |f|²,
-1 / |xi|² or 2 / (pi x |H|²): taken from there it keeps its relative accuracy
-where it is far smaller than the real part.
+recurrence of their values, the dominant direction, rescaled by exact powers
+of two. The imaginary part of a Hankel logarithmic derivative is the
+Wronskian divided by |f|², 1 / |xi|² or 2 / (pi x |H|²): taken from there it
+keeps its relative accuracy where it is far smaller than the real part.
 """
 
 import numpy as np
@@ -20,6 +20,9 @@ from scipy.special import hankel1, j0, j1
 # Rescaling threshold of the downward recurrence; one step grows by < 1e100.
 _HUGE = 1e200
 _LOG_HUGE = np.log(_HUGE)
+# Rescaling threshold of the upward recurrence, a power of two.
+_BINARY_HUGE = 2.0**500
+_LOG2 = np.log(2.0)
 
 
 def _step(spherical):
@@ -83,32 +86,73 @@ def regular(count, x, spherical=True):
     return value / size, derivative / size, scale + np.log(size)
 
 
+def _hankel(count, x, spherical):
+    """f_n = value_n 2^exponent_n, n = 0..count, by the upward recurrence.
+
+    Upward is the dominant direction for the Hankel functions: each step adds
+    a roundoff of order eps relative to the function, so the values keep a
+    relative accuracy of a few times sqrt(n) eps, with their phase in the
+    mantissa. A pair is rescaled by a power of two, exactly, once a value
+    exceeds 2^500 (beyond n = x, where f_n grows), so the mantissas are
+    bitwise those of the unscaled recurrence and nothing overflows while one
+    step grows by less than 2^500 (2 count / x < 1e150).
+    """
+    step = _step(spherical)
+    value = np.empty((count + 1,) + x.shape, complex)
+    exponent = np.zeros((count + 1,) + x.shape)
+    if spherical:
+        value[0] = -1j * np.exp(1j * x)
+        current = value[0] * (1 / x - 1j)
+    else:
+        value[0] = hankel1(0, x)
+        current = hankel1(1, x)
+    previous, level = value[0], np.zeros(x.shape)
+    for n in range(1, count + 1):
+        if n > 1:
+            previous, current = current, step(n - 1, x) * current - previous
+        size = np.maximum(np.abs(current.real), np.abs(current.imag))
+        large = size > _BINARY_HUGE
+        if np.any(large):
+            shift = np.where(large, np.frexp(size)[1], 0)
+            factor = np.exp2(-shift)
+            previous, current = previous * factor, current * factor
+            level = level + shift
+        value[n], exponent[n] = current, level
+    return value, exponent
+
+
 def outgoing(count, x, spherical=True):
     """log xi_n(x) (spherical) or log H1_n(x) (cylindrical), n = 0..count.
 
-    Returns the complex logarithm (continuous in n) and the logarithmic
-    derivative f'_n / f_n, shape (count + 1,) + x.shape.
+    Returns the complex logarithm, imaginary part in (-pi, pi], and the
+    logarithmic derivative f'_n / f_n, shape (count + 1,) + x.shape.
+
+    The logarithm is taken of the mantissa of the upward recurrence of the
+    values (_hankel), plus its binary exponent times log 2. A logarithm
+    continuous in n, a sum of log ratios, carries a phase of order x and so
+    an absolute roundoff of order eps x in every term (4e-11 at x = 9400);
+    here the phase is reduced to (-pi, pi] and the error of the logarithm is
+    the relative error of the value, a few times 1e-14 to x = 3e4, plus eps
+    |Re log| from the exponent where the function is far beyond the float
+    range.
     """
     x = np.asarray(x, float)
     if np.any(x <= 0) or not np.all(np.isfinite(x)):
         raise ValueError("Bessel arguments must be finite and positive")
-    step = _step(spherical)
-    log = np.empty((count + 1,) + x.shape, complex)
+    value, exponent = _hankel(count, x, spherical)
+    log = np.log(value) + _LOG2 * exponent
     derivative = np.empty_like(log)
+    # f'_n / f_n = f_{n-1} / f_n - n / x (f'_0 / f_0 = i, -H1_1 / H1_0).
     if spherical:
-        log[0] = -0.5j * np.pi + 1j * x
-        ratio = 1 / x - 1j
         derivative[0] = 1j
+    elif count:
+        derivative[0] = -value[1] / value[0] * np.exp2(exponent[1])
     else:
-        h0, h1 = hankel1(0, x), hankel1(1, x)
-        log[0] = np.log(h0)
-        ratio = h1 / h0
-        derivative[0] = -ratio
-    for n in range(1, count + 1):
-        if n > 1:
-            ratio = step(n - 1, x) - 1 / ratio
-        log[n] = log[n - 1] + np.log(ratio)
-        derivative[n] = 1 / ratio - n / x
+        derivative[0] = -hankel1(1, x) / value[0]
+    n = np.arange(1, count + 1).reshape((-1,) + (1,) * x.ndim)
+    derivative[1:] = (
+        value[:-1] / value[1:] * np.exp2(exponent[:-1] - exponent[1:]) - n / x
+    )
     wronskian = 1.0 if spherical else 2 / (np.pi * x)
     derivative = derivative.real + 1j * wronskian * np.exp(-2 * log.real)
     return log, derivative
@@ -117,22 +161,20 @@ def outgoing(count, x, spherical=True):
 def outgoing_values(count, x):
     """xi_n(x) and xi_n'(x), n = 0..count, by the upward recurrence of values.
 
-    Shape (count + 1,) + x.shape. Upward is the dominant direction, so each
-    value keeps a relative accuracy of about 1e-14 up to x ~ 1e4 (a few
-    times better than ``outgoing``, whose logarithm sums the roundoff of
-    every ratio); beyond n = x the values grow without rescaling and
-    overflow to infinity where xi_n exceeds the float range.
+    Shape (count + 1,) + x.shape. Each value keeps a relative accuracy of
+    about 1e-14 up to x ~ 1e4 (the mantissas of ``outgoing``); beyond n = x
+    the values overflow to infinity where xi_n exceeds the float range.
     """
     x = np.asarray(x, float)
     if np.any(x <= 0) or not np.all(np.isfinite(x)):
         raise ValueError("Bessel arguments must be finite and positive")
-    value = np.empty((count + 1,) + x.shape, complex)
-    value[0] = -1j * np.exp(1j * x)
-    if count:
-        value[1] = value[0] * (1 / x - 1j)
+    mantissa, exponent = _hankel(count, x, True)
+    exponent = exponent.astype(int)
+    value = np.empty_like(mantissa)
     with np.errstate(over="ignore", invalid="ignore"):
-        for n in range(1, count):
-            value[n + 1] = ((2 * n + 1) / x) * value[n] - value[n - 1]
+        # Per component, so a part within the float range stays finite.
+        value.real = np.ldexp(mantissa.real, exponent)
+        value.imag = np.ldexp(mantissa.imag, exponent)
         derivative = np.empty_like(value)
         derivative[0] = np.exp(1j * x)
         n = np.arange(1, count + 1).reshape((-1,) + (1,) * x.ndim)

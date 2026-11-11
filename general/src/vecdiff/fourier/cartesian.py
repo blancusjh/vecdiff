@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from vecdiff._backend import bd, fft2, ifft2
+from vecdiff._backend import bd, fft2, ifft2, is_device_array
 
 
 def FFT2(g: np.ndarray) -> np.ndarray:
@@ -18,11 +18,7 @@ def FFT2(g: np.ndarray) -> np.ndarray:
     if g.ndim < 2 or 0 in g.shape[:2] or not bd.isfinite(g).all():
         raise ValueError("FFT input must be finite with two nonempty spatial axes")
 
-    g_ = bd.fft.ifftshift(g, axes=(0, 1))
-    G_ = fft2(g_, axes=(0, 1))
-    G = bd.fft.fftshift(G_, axes=(0, 1))
-
-    return G
+    return _centered(g)
 
 
 def IFFT2(G: np.ndarray) -> np.ndarray:
@@ -36,11 +32,63 @@ def IFFT2(G: np.ndarray) -> np.ndarray:
     if G.ndim < 2 or 0 in G.shape[:2] or not bd.isfinite(G).all():
         raise ValueError("FFT input must be finite with two nonempty spatial axes")
 
-    G_ = bd.fft.ifftshift(G, axes=(0, 1))
-    g_ = ifft2(G_, axes=(0, 1))
-    g = bd.fft.fftshift(g_, axes=(0, 1))
+    return _centered(G, inverse=True)
 
-    return g
+
+def _alternate(source, scale, out):
+    """out = scale (-1)^(i + j) source over the leading axes (i, j).
+
+    out may be source. On the host the rows of a contiguous complex array are
+    multiplied as real rows, one contiguous pass per row parity.
+    """
+    ny, nx = source.shape[:2]
+    sign = bd.ones(nx)
+    sign[1::2] = -1
+    if (
+        not is_device_array(source)
+        and source.flags.c_contiguous
+        and out.flags.c_contiguous
+    ):
+        real = source.real.dtype
+        rows, into = source.view(real).reshape(ny, -1), out.view(real).reshape(ny, -1)
+        row = bd.repeat(scale * sign, rows.shape[1] // nx)
+        bd.multiply(rows[0::2], row, out=into[0::2])
+        bd.multiply(rows[1::2], -row, out=into[1::2])
+        return out
+    column = bd.ones(ny)
+    column[1::2] = -1
+    pattern = (scale * column[:, None] * sign[None, :]).reshape(
+        (ny, nx) + (1,) * (source.ndim - 2)
+    )
+    return bd.multiply(source, pattern, out=out)
+
+
+def _centered(g, *, inverse=False, scale=1.0, overwrite=False):
+    """scale times the centered (inverse) 2D FFT of g on axes (0, 1), unchecked.
+
+    For even sizes the shifts are exact sign modulations: with
+    S = (-1)^(i + j), fftshift(fft2(ifftshift(g))) = (-1)^((ny + nx) / 2)
+    S fft2(S g), and the same for ifft2. So the transform runs in place on
+    one modulated copy, and scale costs nothing; overwrite lets it consume g
+    when g is complex. Odd sizes take the shifts.
+    """
+    transform = ifft2 if inverse else fft2
+    ny, nx = g.shape[:2]
+
+    if ny % 2 or nx % 2:
+        shifted = bd.fft.ifftshift(g, axes=(0, 1))
+        G = bd.fft.fftshift(
+            transform(shifted, axes=(0, 1), overwrite_x=True), axes=(0, 1)
+        )
+        return G if scale == 1 else G * scale
+
+    if not bd.iscomplexobj(g):
+        g, overwrite = g.astype(complex), True
+
+    work = g if overwrite else bd.empty(g.shape, g.dtype)
+    work = transform(_alternate(g, 1.0, work), axes=(0, 1), overwrite_x=True)
+
+    return _alternate(work, (-1) ** ((ny + nx) // 2) * scale, work)
 
 
 def _coordinate_axes(coordinates):
@@ -80,6 +128,14 @@ def frequency_grid(grid) -> tuple[np.ndarray, np.ndarray]:
     with indexing="xy". Both axes must be uniformly spaced and increasing.
     Use 2*pi*fx and 2*pi*fy when angular frequencies are required.
     """
+    fx, fy = _frequency_axes(grid)
+    fx, fy = bd.meshgrid(fx, fy, indexing="xy")
+
+    return fx, fy
+
+
+def _frequency_axes(grid):
+    """The centered (fx, fy) axes of frequency_grid, one-dimensional."""
     x, y = _coordinate_axes(grid)
     dx = float(x[1] - x[0])
     dy = float(y[1] - y[0])
@@ -87,7 +143,6 @@ def frequency_grid(grid) -> tuple[np.ndarray, np.ndarray]:
 
     fx = bd.fft.fftshift(bd.fft.fftfreq(nx, d=dx))
     fy = bd.fft.fftshift(bd.fft.fftfreq(ny, d=dy))
-    fx, fy = bd.meshgrid(fx, fy, indexing="xy")
 
     return fx, fy
 
