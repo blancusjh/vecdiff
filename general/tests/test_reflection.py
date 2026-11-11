@@ -626,7 +626,6 @@ def external_reflection(radius):
     """A Gaussian beam of waist R / 5 on a glass sphere, reflected back to a plane
     R / 4 in front of it, against the sphere's Debye term 0 there."""
     from vecdiff.references import MieSphere
-    from vecdiff.transport.meridian import BeamField
 
     plane = Frame([0, 0, -radius / 4])
     beam = F.PlaneBeam(
@@ -646,7 +645,7 @@ def external_reflection(radius):
         1.0,
         branch="reflected",
     )
-    carried, report = leg.carry(BeamField(beam, grid))
+    carried, report = leg.carry(F.BeamSpectrum(beam, grid))
     points, got = sampled(leg, carried)
     sphere = o.volumes.SphereVolume([0, 0, radius], radius)
     exact = host(
@@ -695,7 +694,6 @@ def internal_reflection(radius):
     """
     from vecdiff.references import MieSphere
     from vecdiff.transport import RefractedRays
-    from vecdiff.transport.meridian import BeamField
 
     sine = 0.25
     beam = F.FocusedBeam(
@@ -720,7 +718,7 @@ def internal_reflection(radius):
         beam.carrier,
         1.0,
     )
-    inside, first = front.transmit(BeamField(beam, grid))
+    inside, first = front.transmit(F.BeamSpectrum(beam, grid))
     count = int(2 * 0.35 * radius / 0.3) // 2 * 2
     axis = (np.arange(count) - count // 2) * 0.3
     back = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, 0.95 * radius]))
@@ -759,7 +757,7 @@ def test_internal_reflection_in_a_sphere_tends_to_debye_term_two_as_it_grows():
 
 
 def meridian_reflection(radius):
-    from vecdiff.transport.meridian import BeamField, MeridianTransport
+    from vecdiff.transport.meridian import MeridianTransport
 
     plane = Frame([0, 0, -radius / 4])
     beam = F.PlaneBeam(
@@ -785,7 +783,7 @@ def meridian_reflection(radius):
     chart = o.sampling.PolarGrid(
         np.linspace(0, radius, 5), np.arange(4) * np.pi / 2, plane
     )
-    field, report = leg.transmit(BeamField(beam, chart))
+    field, report = leg.transmit(F.BeamSpectrum(beam, chart))
     return field, report, (beam, interface, window)
 
 
@@ -801,7 +799,7 @@ def ring_points(radius, depth, rings=40, azimuths=4):
 
 
 def test_meridian_reflection_of_a_sphere_tends_to_debye_term_zero_as_it_grows():
-    """E (with E_z) and H of the HankelField that travels back, against term 0.
+    """E (with E_z) and H of the HankelSpectrum that travels back, against term 0.
 
     Measured on the bright rings: 29, 14, 7.2, 3.6 % (R = 10, 20, 40, 80).
     """
@@ -828,10 +826,8 @@ def test_meridian_reflection_of_a_sphere_tends_to_debye_term_zero_as_it_grows():
 
 
 def test_lattice_and_meridian_reflections_are_one_field_travelling_back():
-    """The lattice leg's LatticeSpectrum and the meridian's HankelField agree on
+    """The lattice leg's LatticeSpectrum and the meridian's HankelSpectrum agree on
     the plane and 3 lambda behind it, toward the source (2.5e-5 here)."""
-    from vecdiff.transport.meridian import BeamField
-
     radius = 12.0
     field, _, (beam, interface, window) = meridian_reflection(radius)
     count = int(2 * 0.62 * radius / 0.3) // 2 * 2
@@ -840,7 +836,7 @@ def test_lattice_and_meridian_reflections_are_one_field_travelling_back():
     leg = o.transport.LatticeTransport(
         grid, interface, beam.carrier, 1.0, window=window, branch="reflected"
     )
-    spectrum, report = leg.reflect(BeamField(beam, grid))
+    spectrum, report = leg.reflect(F.BeamSpectrum(beam, grid))
     assert spectrum.direction == -1 and spectrum.region == AIR
     assert report.band_removed_relative_amplitude < 1e-4
     for depth in (-radius / 4, -radius / 4 - 3.0):

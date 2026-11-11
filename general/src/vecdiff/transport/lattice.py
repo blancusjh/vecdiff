@@ -16,9 +16,7 @@ import numpy as np
 from vecdiff._backend import bd, to_numpy
 from vecdiff.fields import TransverseElectricField
 from vecdiff.fields.angular_spectrum import angular_spectrum
-from vecdiff.fields.spectrum import PlaneSpectrum
-from vecdiff.sampling import CartesianGrid
-from vecdiff.transport._lattice_spectrum import (
+from vecdiff.fields.lattice_spectrum import (
     READ,
     LatticeSpectrum,
     PlaneReader,
@@ -29,6 +27,8 @@ from vecdiff.transport._lattice_spectrum import (
     plane_blocks,
     row_blocks,
 )
+from vecdiff.fields.spectrum import PlaneSpectrum
+from vecdiff.sampling import CartesianGrid
 from vecdiff.transport.dyadic import BRANCHES, check_window, fresnel, ray_weights
 from vecdiff.transport.rays import InterfaceMap
 from vecdiff.transport.report import TransportReport
@@ -348,7 +348,7 @@ class LatticeTransport:
         amplitude that way is refused. So is a leg whose output lattice
         cannot sample more than _SAMPLING_TOLERANCE of what it carries.
         """
-        if spectrum.expansion.region != self.interface.minus:
+        if spectrum.region != self.interface.minus:
             raise ValueError(
                 "incident spectrum must live in the interface's incident medium"
             )

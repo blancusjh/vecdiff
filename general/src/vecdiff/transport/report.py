@@ -28,3 +28,15 @@ class TransportReport:
     folded_relative_amplitude: float = 0.0
     undersampled_relative_amplitude: float = 0.0
     band_removed_relative_amplitude: float = 0.0
+
+    def __str__(self):
+        """What was not carried, in one line: relative amplitudes and counts."""
+        orders = f", orders {self.azimuthal_orders}" if self.azimuthal_orders else ""
+        return (
+            f"unsupported {self.unsupported_relative_amplitude:.1e}, "
+            f"folded {self.folded_relative_amplitude:.1e}, "
+            f"undersampled {self.undersampled_relative_amplitude:.1e}, "
+            f"band removed {self.band_removed_relative_amplitude:.1e}, "
+            f"dark samples {self.dark_samples}, caustics {self.caustics}, "
+            f"Newton residual {self.newton_residual:.1e}{orders}"
+        )

@@ -7,7 +7,7 @@ from numpy.testing import assert_allclose
 from scipy.integrate import simpson
 from vecdiff.references import MieSphere
 from vecdiff.transport import carried
-from vecdiff.transport.meridian import BeamField, MeridianTransport
+from vecdiff.transport.meridian import MeridianTransport
 
 bd, host = o.backend.bd, o.backend.to_numpy
 F, S, P = o.fields, o.surfaces, o.propagation
@@ -113,7 +113,7 @@ def test_index_matched_meridian_leg_is_the_identity():
         frame=Frame([0, 0, 1.5 * radius]),
     )
     leg = MeridianTransport(interface, beam.carrier, beam.frame, 1.0, scale=20.0)
-    field, report = leg.transmit(BeamField(beam, chart(beam, radius)))
+    field, report = leg.transmit(F.BeamSpectrum(beam, chart(beam, radius)))
     # The unsupported amplitude is sqrt(1 - carried / total): roundoff leaves 1e-8.
     assert (
         report.azimuthal_orders == (1,) and report.unsupported_relative_amplitude < 1e-7
@@ -167,13 +167,12 @@ def test_meridian_leg_matches_the_lattice_leg_on_the_same_input():
     fields = {}
     for name, kwargs, source in (
         ("lattice", {}, spectrum),
-        ("meridian", dict(axisymmetric=True), spectrum),
+        ("meridian", dict(realization="meridian"), spectrum),
         ("beam", {}, beam),
     ):
-        pipeline = P.PropagationPipeline(sphere(radius), transport="eikonal", **kwargs)
-        solution = pipeline.solve(source, carrier=beam.carrier)
-        fields[name] = host(solution.evaluate(points).electric.values)
-        orders = solution.interactions[0].azimuthal_orders
+        solution = P.Propagator(sphere(radius), **kwargs)(source, carrier=beam.carrier)
+        fields[name] = host(solution.electric(points).values)
+        orders = solution.reports[0].azimuthal_orders
         # Rings through the square lattice also meet its faint orders 1 + 4j.
         assert orders == () if name == "lattice" else 1 in orders
         assert name != "beam" or orders == (1,)
@@ -186,15 +185,15 @@ def mie_error(radius, pupil):
     beam = converging(radius, pupil)
     rho = np.linspace(0, 5, 81)
     points = o.sampling.PointGrid(np.c_[rho, 0 * rho, np.full(rho.size, radius / 1.5)])
-    pipeline = P.PropagationPipeline(sphere(radius), transport="eikonal")
-    field = host(pipeline.solve(beam).evaluate(points).electric.values)
+    solution = P.Propagator(sphere(radius))(beam)
+    field = host(solution.electric(points).values)
     mie = MieSphere(beam, o.volumes.SphereVolume([0, 0, 0], radius), GLASS)
     exact = host(mie.evaluate(points, term=1, side="interior").electric.values)
 
     def norm(E):
         return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
 
-    return 100 * np.sqrt(norm(field - exact) / norm(exact)), pipeline.last_solution
+    return 100 * np.sqrt(norm(field - exact) / norm(exact)), solution
 
 
 @pytest.mark.parametrize("pupil, expected", [("smooth", 0.31022), ("hard", 10.3243)])
@@ -206,7 +205,7 @@ def test_beam_through_the_aplanatic_sphere_meets_the_archived_method(pupil, expe
     """
     error, solution = mie_error(30.0, pupil)
     assert abs(error - expected) < 2e-4 * expected
-    assert solution.interactions[0].azimuthal_orders == (1,)
+    assert solution.reports[0].azimuthal_orders == (1,)
 
 
 def test_linear_input_is_the_mean_of_the_circular_ones_and_radial_is_order_zero():
@@ -219,10 +218,9 @@ def test_linear_input_is_the_mean_of_the_circular_ones_and_radial_is_order_zero(
         ("-", F.polarization.cartesian(1, -1j)),
         ("radial", F.polarization.radial),
     ):
-        pipeline = P.PropagationPipeline(sphere(radius), transport="eikonal")
-        solution = pipeline.solve(converging(radius, "gaussian", state))
-        values[name] = host(solution.evaluate(points).electric.values)
-        values[name, "orders"] = solution.interactions[0].azimuthal_orders
+        solution = P.Propagator(sphere(radius))(converging(radius, "gaussian", state))
+        values[name] = host(solution.electric(points).values)
+        values[name, "orders"] = solution.reports[0].azimuthal_orders
     assert values["x", "orders"] == (-1, 1) and values["radial", "orders"] == (0,)
     mean = (values["+"] + values["-"]) / 2
     assert_allclose(values["x"], mean, atol=1e-12 * abs(mean).max())
@@ -233,12 +231,12 @@ def test_linear_input_is_the_mean_of_the_circular_ones_and_radial_is_order_zero(
 def test_transmitted_field_obeys_maxwell_in_the_glass():
     """Z0 H = curl E / (i k0) and div E = 0 by central differences."""
     radius = 15.0
-    pipeline = P.PropagationPipeline(sphere(radius), transport="eikonal")
-    solution = pipeline.solve(converging(radius, "gaussian", F.polarization.x))
+    propagator = P.Propagator(sphere(radius))
+    solution = propagator(converging(radius, "gaussian", F.polarization.x))
     centre = np.array([[0.7, -0.4, radius / 1.5 + 0.3]])
     h, steps = 2e-3, (-2, -1, 1, 2)
     shifts = [centre + s * h * np.eye(3)[i] for i in range(3) for s in steps]
-    sampled = solution.evaluate(o.sampling.PointGrid(np.concatenate([centre] + shifts)))
+    sampled = solution.field(o.sampling.PointGrid(np.concatenate([centre] + shifts)))
     E, H = host(sampled.electric.values), host(sampled.magnetic)
     # Fourth-order differences dE/dx_i.
     d = [
@@ -251,65 +249,48 @@ def test_transmitted_field_obeys_maxwell_in_the_glass():
     assert abs(d[0][0] + d[1][1] + d[2][2]) < 1e-6 * 2 * np.pi * abs(E[0]).max()
 
 
-def test_pipeline_chooses_and_guards_the_meridian_leg():
+def test_propagator_chooses_and_guards_the_meridian_leg():
     radius = 10.0
     beam = converging(radius, "gaussian")
     system = sphere(radius)
-    pipeline = P.PropagationPipeline(system, transport="eikonal")
+    propagator = P.Propagator(system)
     target = focal_points(radius, 1.0, 3)
-    field = pipeline(beam, target)
-    assert field.valid.all() and pipeline.last_solution.interactions[
-        0
-    ].azimuthal_orders == (1,)
-    leg = pipeline._operators[0]
-    again = pipeline(beam, focal_points(radius, 0.5, 3))
-    assert pipeline._operators[0] is leg and again.valid.all()
+    solution = propagator(beam)
+    field = solution.electric(target)
+    assert field.valid.all() and solution.reports[0].azimuthal_orders == (1,)
+    leg = solution.legs[0]
+    again = propagator(beam)
+    assert again.legs[0] is leg
+    assert again.electric(focal_points(radius, 0.5, 3)).valid.all()
     # An index-matched plane behind the sphere is bookkeeping: the same field.
     glass = o.media.HomogeneousRegion("glass, second region", o.media.Dielectric(1.5))
     behind = o.system.DielectricInterface(S.Plane(Frame([0, 0, 2.0])), GLASS, glass)
-    longer = P.PropagationPipeline(system + (behind,), transport="eikonal")
-    assert_allclose(host(longer(beam, target).values), host(field.values), atol=1e-14)
+    longer = P.Propagator(system + (behind,))(beam)
+    assert_allclose(
+        host(longer.electric(target).values), host(field.values), atol=1e-14
+    )
     with pytest.raises(ValueError, match="CartesianGrid"):
-        P.PropagationPipeline(system, transport="eikonal", axisymmetric=False).solve(
-            beam
-        )
-    with pytest.raises(TypeError, match="eikonal"):
-        P.PropagationPipeline(system, transport="wave").solve(beam)
-    with pytest.raises(ValueError, match="axisymmetric"):
-        P.PropagationPipeline(system, axisymmetric=True, transport="wave")
-    with pytest.raises(ValueError, match="one reference fan"):
-        P.PropagationPipeline(
-            system, transport="eikonal", reference_fans=((0, 50), None)
-        )
+        P.Propagator(system, realization="lattice")(beam)
+    with pytest.raises(TypeError, match="Propagator"):
+        o.alternatives.WavePropagator(system)(beam)
+    with pytest.raises(ValueError, match="realization must be"):
+        P.Propagator(system, realization=True)
+    with pytest.raises(ValueError, match="one fan per surface"):
+        P.Propagator(system, fans=((0, 50), None))
     with pytest.raises(ValueError, match="incidence"):
-        P.PropagationPipeline(system, transport="eikonal", reference_fans=((50, 20),))
+        P.Propagator(system, fans=((50, 20),))
     cap = system[0].surface
     freeform = S.FreeformSurface(cap.height, cap.gradient, cap.frame, cap.hessian)
     with pytest.raises(ValueError, match="surface of revolution"):
-        P.PropagationPipeline(
-            (o.system.DielectricInterface(freeform, AIR, GLASS),), transport="eikonal"
-        ).solve(beam)
+        P.Propagator((o.system.DielectricInterface(freeform, AIR, GLASS),))(beam)
     shifted = S.SphericalCap(radius, Frame([0.5, 0, -radius]))
     with pytest.raises(ValueError, match="centred"):
-        P.PropagationPipeline(
-            (o.system.DielectricInterface(shifted, AIR, GLASS),), transport="eikonal"
-        ).solve(beam)
+        P.Propagator((o.system.DielectricInterface(shifted, AIR, GLASS),))(beam)
     with pytest.raises(ValueError, match="carrier is not symmetric"):
-        pipeline.solve(beam, carrier=F.Carrier.converging([1.0, 0, 15.0]))
+        propagator(beam, carrier=F.Carrier.converging([1.0, 0, 15.0]))
     # A window closes the fan before the cap's equator.
-    windowed = P.PropagationPipeline(
-        system, transport="eikonal", reference_fans=((20, 30),)
-    )
-    windowed.solve(beam)
-    edge = np.degrees(
-        np.arccos(
-            host(
-                windowed._operators[0]
-                ._meridian([windowed._operators[0].edge])
-                .cos_incident
-            )
-        )
-    )
+    windowed = P.Propagator(system, fans=((20, 30),))(beam).legs[0]
+    edge = np.degrees(np.arccos(host(windowed._meridian([windowed.edge]).cos_incident)))
     assert_allclose(edge, 30, atol=1e-6)
 
 
@@ -348,8 +329,7 @@ def test_zoned_pupils_cross_the_sphere_as_their_sum_of_disks(zoned, disks, bound
             frame=Frame([0, 0, 1.5 * radius]),
             apodization="none",
         )
-        pipeline = P.PropagationPipeline(sphere(radius), transport="eikonal")
-        return host(pipeline.solve(beam).evaluate(points).electric.values)
+        return host(P.Propagator(sphere(radius))(beam).electric(points).values)
 
     expected = sum(c * through(F.profiles.Uniform(r)) for r, c in disks.items())
     assert_allclose(through(zoned), expected, atol=bound * abs(expected).max())
@@ -358,14 +338,16 @@ def test_zoned_pupils_cross_the_sphere_as_their_sum_of_disks(zoned, disks, bound
 def test_meridian_result_refuses_options_no_spectrum_has():
     """A misspelt or retired option is an error on every path, not ignored."""
     beam = converging(8.0)
-    solution = P.PropagationPipeline(sphere(8.0), transport="eikonal").solve(beam)
+    solution = P.Propagator(sphere(8.0))(beam)
     points = o.sampling.PointGrid(np.array([[0.0, 0.0, 8.0 / 1.5]]))
 
-    solution.evaluate(points, method="direct", tolerance=1e-10, threads=1)
+    solution.field(points, method="direct", tolerance=1e-10, threads=1)
     with pytest.raises(TypeError, match="backend"):
-        solution.evaluate(points, backend="direct")
+        solution.field(points, backend="direct")
     with pytest.raises(ValueError, match="method must be"):
-        solution.evaluate(points, method="fast")
+        solution.field(points, method="fast")
+    with pytest.raises(TypeError, match="backend"):
+        solution.spectrum.evaluate(points, backend="direct")
 
 
 @pytest.mark.parametrize("waist, bound", [(6.0, 4e-4), (20.0, 4e-5)])
@@ -384,13 +366,11 @@ def test_collimated_beam_crosses_a_flat_face_as_its_plane_waves_do(waist, bound)
         region=AIR,
         frame=Frame(start),
     )
-    pipeline = P.PropagationPipeline(
-        (o.system.DielectricInterface(S.Plane(), AIR, GLASS),)
-    )
+    propagator = P.Propagator((o.system.DielectricInterface(S.Plane(), AIR, GLASS),))
     rho = np.linspace(0, 1.5 * waist, 31)
     where = np.c_[rho, 0.3 * rho, np.full(rho.size, 12.0)]
-    solution = pipeline.solve(beam)
-    field = host(solution.evaluate(o.sampling.PointGrid(where)).electric.values)
+    solution = propagator(beam)
+    field = host(solution.electric(o.sampling.PointGrid(where)).values)
 
     waves = beam.plane_waves(float(np.linalg.norm(where - start, axis=-1).max()) + 2)
     k, a = host(waves.wavevectors).real, host(waves.amplitudes)
@@ -413,4 +393,4 @@ def test_collimated_beam_crosses_a_flat_face_as_its_plane_waves_do(waist, bound)
     )
 
     assert np.linalg.norm(field - exact) < bound * np.linalg.norm(exact)
-    assert solution.interactions[0].unsupported_relative_amplitude < 1e-6
+    assert solution.reports[0].unsupported_relative_amplitude < 1e-6

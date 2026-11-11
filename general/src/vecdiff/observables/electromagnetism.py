@@ -11,6 +11,27 @@ def poynting(field: ElectromagneticField):
     return 0.5 * bd.real(bd.cross(field.electric.values, field.magnetic.conj()))
 
 
+def irradiance(field: ElectromagneticField, normal=None):
+    """Time-averaged power per unit area through a surface, in W/m²: S . n.
+
+    This is what a detector on that surface measures, and what "intensity"
+    means for a beam; |E|² (ElectricField.norm2) is not, at high NA or off
+    normal incidence. ``normal`` is a unit vector (3,) or one per point; by
+    default the normals of the field's grid (a plane or a surface grid).
+    """
+    if normal is None:
+        if not hasattr(field.grid, "normals"):
+            raise ValueError(
+                "irradiance needs the surface's normal: pass normal=, or "
+                "evaluate on a plane or surface grid"
+            )
+        normal = field.grid.normals
+    normal = bd.asarray(normal, dtype=float)
+    if not bd.allclose(bd.linalg.norm(normal, axis=-1), 1, rtol=0, atol=1e-12):
+        raise ValueError("normal must be a unit vector")
+    return bd.sum(poynting(field) * normal, axis=-1)
+
+
 def power(field: ElectromagneticField):
     """Signed power in watts through the field grid's oriented area measure."""
 

@@ -88,7 +88,7 @@ comparisons with Mie qualify the native solvers on their tested cases. A small
 algebraic residual alone does not establish a converged physical reference.
 
 [The archived synthetic study](../general/notebooks/archive/06_synthetic_reference_validation.ipynb)
-compares the complete public `PropagationPipeline` against Mie and fixed-mesh
+compares the complete public wave transport (then `PropagationPipeline`, now `alternatives.WavePropagator`) against Mie and fixed-mesh
 BEM for a sphere, then against BEM alone for plano-convex, biconvex, meniscus,
 even-asphere, Cartesian-oval, astigmatic-freeform and two-freeform-face bodies.
 Each method uses the same incident phase/amplitude, common observation plane

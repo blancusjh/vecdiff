@@ -1,4 +1,9 @@
-"""Electric-field propagation through a system onto placed target surfaces."""
+"""Wave transport of a sampled field without a carrier, onto placed targets.
+
+alternatives.WavePropagator is the check on the method (propagation.Propagator):
+it carries the field exactly to the surface and back, with a local or a
+direction-resolved Fresnel treatment between.
+"""
 
 import numpy as np
 import vecdiff as optics
@@ -23,16 +28,16 @@ def main():
         ]
     )
     for treatment in ("local", "spectral"):
-        propagate = optics.propagation.PropagationPipeline(
-            system, transmission=treatment, transport="wave"
+        solution = optics.alternatives.WavePropagator(system, transmission=treatment)(
+            incident
         )
-        field = propagate(incident, z=20 * wavelength)
-        print(f"{treatment}: peak |E|² = {field.norm2().max():.6g} V²/m²")
-        # An explicit placed surface uses the same operator and cached solve.
+        field = solution.field(z=20 * wavelength)
+        print(f"{treatment}: peak irradiance {field.irradiance().max():.6g} W/m²")
+        # Another target is read from the same Solution, with no new transport.
         target = optics.surfaces.Plane.y(0).sample(
             u=axis, v=np.linspace(10, 30, 41) * wavelength
         )
-        meridian = propagate(incident, target)
+        meridian = solution.electric(target)
         print(f"Meridional samples: {meridian.grid.shape}")
 
 

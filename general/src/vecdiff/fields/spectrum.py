@@ -1,9 +1,18 @@
-"""Modal field representations with explicit spatial validity and material context."""
+"""Plane-wave representations of the field of one homogeneous region.
+
+``Spectrum`` is what every one of them is: the field of a region, held as
+plane waves referred to a plane. ``PlaneSpectrum`` holds them on an FFT
+lattice; ``fields.LatticeSpectrum``, ``fields.HankelSpectrum`` and
+``fields.BeamSpectrum`` are the other forms the propagation produces.
+``PlaneWaveExpansion`` is a set of modes with a phase origin and no plane.
+"""
 
 from __future__ import annotations
 
+import importlib.util
 import math
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -16,6 +25,90 @@ from vecdiff.fields.electromagnetic_field import (
 from vecdiff.fourier.cartesian import frequency_grid
 from vecdiff.media.medium import Z0, HomogeneousRegion
 from vecdiff.sampling.grids import PlaneGrid
+
+
+def summation(method="auto", tolerance=None, chunk_size=None, threads=None):
+    """Options of a plane-wave sum, with "auto" resolved and defaults filled.
+
+    method "nufft" runs FINUFFT type-3 transforms to ``tolerance``; "direct"
+    forms the exponentials in blocks of ``chunk_size`` modes; "auto" is
+    "nufft" when FINUFFT is installed. ``threads`` are FINUFFT's (None:
+    VECDIFF_NUFFT_THREADS, else all cores).
+    """
+    if method == "auto":
+        method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+    if method not in ("nufft", "direct"):
+        raise ValueError("method must be 'auto', 'nufft' or 'direct'")
+    if threads is not None and (isinstance(threads, bool) or int(threads) < 0):
+        raise ValueError("threads must be None or a nonnegative integer")
+    return dict(
+        method=method,
+        tolerance=1e-12 if tolerance is None else float(tolerance),
+        chunk_size=256 if chunk_size is None else chunk_size,
+        threads=threads,
+    )
+
+
+class Spectrum(ABC):
+    """The field of one homogeneous region, held as plane waves referred to a plane.
+
+    The field fills ``region`` and solves its Maxwell equations; the plane is
+    where the representation was formed, ``grid`` its chart there (an FFT
+    lattice, a lattice of carried samples or a polar quadrature), and
+    ``plane`` that chart's Frame. E and H are given on any grid of points.
+    Every Spectrum sums with the same options: ``method`` ("auto", "nufft"
+    or "direct"), ``tolerance`` and ``chunk_size`` (None: the precision and
+    block size the representation's sums default to) and ``threads``
+    (FINUFFT threads; None: VECDIFF_NUFFT_THREADS, else all cores).
+
+    ``direction`` is the way its plane waves travel along the plane's
+    normal: +1 forward, -1 back (a reflection). Its attributes ``region`` (a
+    HomogeneousRegion), ``wavelength0`` (the vacuum wavelength) and ``grid``
+    are set by each kind.
+    """
+
+    direction = 1
+
+    @property
+    def plane(self):
+        """The Frame of the plane the spectrum is referred to."""
+        return self.grid.frame
+
+    @abstractmethod
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        """E and H (an ElectromagneticField, SI units) at the points of ``grid``."""
+
+    def electric(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        """E (an ElectricField) at the points of ``grid``."""
+        return self.evaluate(
+            grid,
+            method=method,
+            tolerance=tolerance,
+            chunk_size=chunk_size,
+            threads=threads,
+        ).electric
+
+    def propagate(self, distance, *, magnetic=True):
+        """The field on the chart moved ``distance`` along the plane's normal.
+
+        The distance is signed along the normal whichever way the waves
+        travel: a backward spectrum is propagated toward its source by a
+        positive one. An ElectromagneticField, or the ElectricField alone when ``magnetic``
+        is False.
+        """
+        distance = float(distance)
+        if not math.isfinite(distance):
+            raise ValueError("distance must be finite")
+        grid = self.grid.translated(distance * self.plane.normal)
+        return self.evaluate(grid) if magnetic else self.electric(grid)
+
+    @abstractmethod
+    def relabeled(self, region):
+        """The same field, attributed to another region of the same material."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -127,7 +220,7 @@ class PlaneWaveExpansion:
 
 
 @dataclass(frozen=True, eq=False)
-class PlaneSpectrum:
+class PlaneSpectrum(Spectrum):
     """FFT lattice plus its homogeneous modal solution.
 
     Created by angular_spectrum(). The FFT origin is the central physical grid
@@ -176,69 +269,51 @@ class PlaneSpectrum:
                 "transverse wavevectors must match the centered FFT lattice and ordering"
             )
 
-    def evaluate(self, grid, **kwargs):
-        return self.expansion.evaluate(grid, **kwargs)
+    @property
+    def region(self):
+        return self.expansion.region
 
-    def propagate(self, distance, *, model="asm", magnetic=True):
-        """Propagate through the homogeneous region; magnetic=False returns E alone."""
+    @property
+    def wavelength0(self):
+        return self.expansion.wavelength0
+
+    @property
+    def direction(self):
+        """+1 if every mode travels along the lattice's normal, -1 if every one back."""
+        normal = (self.expansion.wavevectors.real @ self.grid.frame.normal)[
+            bd.any(self.expansion.amplitudes != 0, axis=-1)
+        ]
+        if bd.all(normal >= 0):
+            return 1
+        if bd.all(normal < 0):
+            return -1
+        raise ValueError("the spectrum holds waves travelling both ways")
+
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        options = summation(method, tolerance, chunk_size, threads)
+        return self.expansion.evaluate(grid, **options)
+
+    def electric(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        options = summation(method, tolerance, chunk_size, threads)
+        return self.expansion.electric(grid, **options)
+
+    def propagate(self, distance, *, magnetic=True, model="asm"):
+        """The field on the lattice moved ``distance`` along its normal, by FFT.
+
+        model "asm" is exact; "fresnel" takes the paraxial phase.
+        """
         from vecdiff.propagation.homogeneous import propagate_spectrum
 
         return propagate_spectrum(self, distance, model=model, magnetic=magnetic)
 
-
-@dataclass(frozen=True)
-class LocalSpectrum:
-    """Bounds compare with the same discrete surface-current Green integral.
-
-    They exclude source quadrature, boundary-model error and roundoff. Electric
-    and magnetic absolute vector-error bounds are V/m and A/m respectively.
-    """
-
-    expansion: PlaneWaveExpansion
-    radius: float
-    electric_error_bound: float
-    magnetic_error_bound: float
-
-    def __post_init__(self):
-        for value in (
-            self.radius,
-            self.electric_error_bound,
-            self.magnetic_error_bound,
-        ):
-            if not bd.isfinite(value) or value < 0:
-                raise ValueError(
-                    "radius and absolute error bounds must be finite and nonnegative"
-                )
-
-    @property
-    def center(self):
-        return self.expansion.origin
-
-    def evaluate(self, grid, **kwargs):
-        distance = bd.linalg.norm(grid.points - self.center, axis=-1)
-        tolerance = 32 * np.finfo(float).eps * max(1.0, bd.max(bd.abs(self.center)))
-
-        if bd.any(distance > self.radius + tolerance):
-            raise ValueError("observation leaves the local spectrum's validity ball")
-
-        return self.expansion.evaluate(grid, **kwargs)
-
-    def electric(self, grid, **kwargs):
-        return self.evaluate(grid, **kwargs).electric
-
-
-@dataclass(frozen=True)
-class HalfSpaceSpectrum:
-    """Propagating Weyl quadrature valid beyond the source z envelope."""
-
-    expansion: PlaneWaveExpansion
-    boundary_z: float
-    direction: int
-
-    def evaluate(self, grid, **kwargs):
-        if bd.any(self.direction * (grid.points[..., 2] - self.boundary_z) < 0):
-            raise ValueError(
-                "Weyl representation is valid only beyond the source z envelope"
-            )
-
-        return self.expansion.evaluate(grid, **kwargs)
+    def relabeled(self, region):
+        return PlaneSpectrum(
+            self.grid,
+            replace(self.expansion, region=region),
+            self.roundoff_removed_rms,
+            self.evanescent_removed_rms,
+        )

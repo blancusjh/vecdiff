@@ -110,13 +110,12 @@ def cylinder_error(radius, pupil, sampled=True):
             F.TransverseElectricField(plane, 1.0, values), AIR, evanescent="discard"
         )
     surface = S.CylindricalCap(radius, Frame([0, 0, -radius]))
-    pipeline = P.PropagationPipeline(
+    propagator = P.Propagator(
         (o.system.DielectricInterface(surface, AIR, GLASS),),
-        transport="eikonal",
-        reference_fans=(fan,),
+        fans=(fan,),
         lattice=None if sampled else plane,
     )
-    solution = pipeline.solve(incident, carrier=beam.carrier)
+    solution = propagator(incident, carrier=beam.carrier)
     assert isinstance(solution.spectrum, F.PlaneSpectrum) == sampled
     xs = np.linspace(-3.5, 3.5, 140)
     x, y = np.meshgrid(xs, xs, indexing="ij")
@@ -124,7 +123,7 @@ def cylinder_error(radius, pupil, sampled=True):
     points = o.sampling.PointGrid(
         np.c_[x[disk], y[disk], np.full(disk.sum(), radius / 1.5)]
     )
-    field = host(solution.evaluate(points).electric.values)
+    field = host(solution.electric(points).values)
     cylinder = InfiniteCylinder(
         beam, o.volumes.CylinderVolume([0, 0, 0], [0, 1, 0], radius), GLASS
     )
@@ -223,10 +222,10 @@ def test_oval_on_the_lattice_agrees_with_its_meridian():
         return weight * (host(rays.transmitted)[:, 2] > 0.05)
 
     fields = []
-    for kwargs in ({}, dict(axisymmetric=True)):
-        pipeline = P.PropagationPipeline(
-            system, transport="eikonal", reference_fans=(fan,), **kwargs
-        )
-        solution = pipeline.solve(incident, carrier=beam.carrier)
-        fields.append(host(solution.evaluate(points).electric.values))
+    for kwargs in ({}, dict(realization="meridian")):
+        propagator = P.Propagator(system, fans=(fan,), **kwargs)
+        solution = propagator(incident, carrier=beam.carrier)
+        # The light leaving the oval; its chart reaches past the oval's branch,
+        # where the coverage of a target could not place the surface.
+        fields.append(host(solution.spectrum.electric(points).values))
     assert np.linalg.norm(fields[0] - fields[1]) < 3e-3 * np.linalg.norm(fields[1])

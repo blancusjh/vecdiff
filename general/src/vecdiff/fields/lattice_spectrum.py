@@ -15,7 +15,8 @@ import numpy as np
 import scipy.fft
 
 from vecdiff._backend import bd, get_backend, to_numpy
-from vecdiff.fields import ElectricField, ElectromagneticField
+from vecdiff.fields.electromagnetic_field import ElectricField, ElectromagneticField
+from vecdiff.fields.spectrum import Spectrum, summation
 from vecdiff.fourier.nufft import NUFFT
 from vecdiff.media.medium import Z0
 
@@ -149,7 +150,7 @@ def fft2_rows(values, block):
     return values
 
 
-class LatticeSpectrum:
+class LatticeSpectrum(Spectrum):
     """Propagating plane waves of a lattice, held as two transverse coefficients each.
 
     E(r) = sum c[j, i] exp(i k[j, i] . (r - corner)) over the uncentred FFT
@@ -192,10 +193,6 @@ class LatticeSpectrum:
         du, dv = (float(step) for step in grid.spacing)
         self._kx = 2 * np.pi * np.fft.fftfreq(len(grid.u), du)
         self._ky = 2 * np.pi * np.fft.fftfreq(len(grid.v), dv)
-
-    @property
-    def expansion(self):
-        return self
 
     @property
     def wavenumber(self):
@@ -241,11 +238,7 @@ class LatticeSpectrum:
                 amplitudes = bd.concatenate((amplitudes, field), axis=-1)
             yield wavevectors.astype(complex), amplitudes, self.origin
 
-    def _sum(self, grid, magnetic, method, **kwargs):
-        if method == "auto":
-            import importlib.util
-
-            method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+    def _sum(self, grid, magnetic, options):
         points = bd.asarray(grid.points, float).reshape(-1, 3)
         basis = self.grid.frame.basis
         local = (points - self.origin) @ basis
@@ -260,8 +253,7 @@ class LatticeSpectrum:
                 plane,
                 basis[:, :2],
                 components=6 if magnetic else 3,
-                method=method,
-                **kwargs,
+                **options,
             )
             values = reader(local[:, :2])
         else:
@@ -273,20 +265,23 @@ class LatticeSpectrum:
                         wavevectors,
                         points - origin,
                         sign=1,
-                        method=method,
-                        **kwargs,
+                        **options,
                     )
         return values.reshape(grid.shape + (values.shape[-1],))
 
-    def electric(self, grid, *, method="auto", **kwargs):
-        """E on any grid; keyword arguments select the Fourier summation method."""
-        return ElectricField(
-            grid, self.wavelength0, self._sum(grid, False, method, **kwargs)
-        )
+    def electric(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        """E on any grid."""
+        options = summation(method, tolerance, chunk_size, threads)
+        return ElectricField(grid, self.wavelength0, self._sum(grid, False, options))
 
-    def evaluate(self, grid, *, method="auto", **kwargs):
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
         """SI E and H on any grid."""
-        values = self._sum(grid, True, method, **kwargs)
+        options = summation(method, tolerance, chunk_size, threads)
+        values = self._sum(grid, True, options)
         electric = ElectricField(grid, self.wavelength0, values[..., :3])
         return ElectromagneticField(electric, values[..., 3:])
 
