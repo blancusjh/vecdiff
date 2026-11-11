@@ -38,7 +38,8 @@ def main():
     print(f"carried in {perf_counter() - start:.1f} s")
 
     # The focus: the brightest point of the axis behind the lens.
-    z = np.linspace(48e-3, 56e-3, 41)
+    # The depth of focus is 0.1 mm here: scan the axis in steps well below it.
+    z = np.linspace(51e-3, 54e-3, 121)
     axis = vd.sampling.PointGrid(np.c_[0 * z, 0 * z, z])
     on_axis = solution.field(axis)
     focus = float(z[np.argmax(vd.observables.irradiance(on_axis, [0, 0, 1]))])
