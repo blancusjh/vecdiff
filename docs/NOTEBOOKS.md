@@ -8,12 +8,12 @@ package; none loads retired solvers from Git history.
 |---|---|
 | [01 · Planar dielectric optics](../general/notebooks/01_planar_dielectric_optics.ipynb) | Exact planar Fresnel scattering, Brewster angle, TIR and polarization. |
 | [02 · Diffraction by apertures](../general/notebooks/02_diffraction_by_apertures.ipynb) | Homogeneous ASM for prescribed slit and circular-screen fields, with a window check. |
-| [03 · Refraction and focusing by a lens](../general/notebooks/03_refraction_and_focusing_by_a_lens.ipynb) | Spherical versus Cartesian-oval exit faces through `PropagationPipeline`: meridional/focal fields, polarization and animation. Sampling/refinement checks are outside the presentation notebook. |
+| [03 · Refraction and focusing by a lens](../general/notebooks/03_refraction_and_focusing_by_a_lens.ipynb) | Spherical versus Cartesian-oval exit faces through wave transport (`alternatives.WavePropagator`): meridional/focal fields, polarization and animation. Sampling/refinement checks are outside the presentation notebook. |
 | [04 · Compensating Fresnel transmission](../general/notebooks/04_compensating_fresnel_transmission.ipynb) | The retained ray-tube/Debye diopter study: Fresnel compensation, equal incident power, Airy comparison and quadrature checks. |
-| [05 · High-NA lithography through the propagation pipeline](../general/notebooks/05_single_lens_lithography.ipynb) | Dense-mask imaging at NA ≈ 1.10 through `PropagationPipeline`. Transverse-intensity unity reference (`ts=tp=1`) versus total electric intensity with Fresnel transmission, plus polarization-prepared illumination. Plain intensity images and profiles lead the comparison; separate polarization edge views and a longitudinal section retain physical scales. Includes occupied NA, throughput, registered gap depths and timings. |
+| [05 · High-NA lithography by wave transport](../general/notebooks/05_single_lens_lithography.ipynb) | Dense-mask imaging at NA ≈ 1.10 through `alternatives.WavePropagator`. Transverse-intensity unity reference (`ts=tp=1`) versus total electric intensity with Fresnel transmission, plus polarization-prepared illumination. Plain intensity images and profiles lead the comparison; separate polarization edge views and a longitudinal section retain physical scales. Includes occupied NA, throughput, registered gap depths and timings. |
 | [06 · Thorlabs AL1225](../general/notebooks/06_full_wave_reference_validation.ipynb) | Catalog prescription and newly measured spectral pipeline fields for scaled AL1225 models at R/λ = 3, 10, 30, 100. Fields use `hot`, followed by complete timings and independent-reference availability. Full-size propagation remains pending. |
 | [07 · Macroscopic interface operators](../general/notebooks/07_macroscopic_interface_operators.ipynb) | Local and spectral propagation on the same R/λ=100 sphere, with electric fields first, then Debye/full-Mie differences and complete operator timings. |
-| [08 · Eikonal–angular-spectrum transport](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) | The manuscript's method, the pipeline's default, on the aplanatic sphere (R = 100λ, with the 1/R error law from 20 to 250λ), two aplanatic surfaces in sequence (NA 1.6) and a cylinder's line focus (R = 30λ, lattice leg). Component intensities, phase, signed E_z, polarization ellipses and error maps against `MieSphere`, `LayeredSphere` and `InfiniteCylinder` (first entry). |
+| [08 · Eikonal–angular-spectrum transport](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) | The manuscript's method, `propagation.Propagator`, on the aplanatic sphere (R = 100λ, with the 1/R error law from 20 to 250λ), two aplanatic surfaces in sequence (NA 1.6) and a cylinder's line focus (R = 30λ, lattice leg). Component intensities, phase, signed E_z, polarization ellipses and error maps against `MieSphere`, `LayeredSphere` and `InfiniteCylinder` (first entry). |
 
 ## Run
 
@@ -49,11 +49,13 @@ The previous sphere and seven synthetic-body comparisons, including the
 arbitrary two-freeform-face case, are preserved with their original outputs in
 [the archive](../general/notebooks/archive/06_synthetic_reference_validation.ipynb).
 
-A short non-notebook example is available as
-[`general/examples/propagation_pipeline.py`](../general/examples/propagation_pipeline.py):
+Two short non-notebook examples: the method on a plano-convex lens,
+[`general/examples/plano_convex_lens.py`](../general/examples/plano_convex_lens.py),
+and wave transport, [`general/examples/wave_transport.py`](../general/examples/wave_transport.py):
 
 ```sh
-.venv/bin/python general/examples/propagation_pipeline.py
+.venv/bin/python general/examples/plano_convex_lens.py
+.venv/bin/python general/examples/wave_transport.py
 ```
 
 ## Models and migration

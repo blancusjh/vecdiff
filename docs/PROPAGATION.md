@@ -7,7 +7,9 @@ the package top level re-exports nothing.
 |---|---|---|
 | `transport/` | `InterfaceMap`, `LatticeTransport`, `MeridianTransport`, `TransportReport` | Carry a field across a surface along its carrier's rays |
 | `propagation/homogeneous.py` | `propagate`, `PlaneTransport` | Evolution in a homogeneous medium |
-| `propagation/pipeline.py` | `PropagationPipeline` | Compose transport and propagation through a system |
+| `propagation/propagator.py` | `Propagator`, `Solution` | The method: light through a system, E and H on any target |
+| `fields/` | `Spectrum` and its kinds | The field of one region, as plane waves referred to a plane |
+| `alternatives/wave_propagator.py` | `WavePropagator` | Wave transport through a system, the same `Solution`, for checks |
 | `alternatives/surface_transfer.py` | `SurfaceTransport` | Evaluate and reconstruct fields on a graph surface |
 | `alternatives/surface_interaction.py` | `scatter_plane`, `SpectralFresnel`, `LocalFresnel` | Reflection and transmission at fixed boundaries |
 | `references/` | `MieSphere`, `LayeredSphere`, `InfiniteCylinder` | Independently check physical and numerical accuracy |
@@ -44,7 +46,7 @@ There are two distinct reconstruction operations:
   spectrum and an `InverseReport`, including the magnetic mismatch.
 - `radiate(trace)` reconstructs outgoing modes from both tangential E and H by
   surface equivalence. Finite chart coverage, quadrature and spectral truncation
-  determine its error. This is the reconstruction used by the pipeline.
+  determine its error. This is the reconstruction `WavePropagator` uses.
 
 Neither operation is obtained by replacing the sag with its negative. The
 least-squares inverse is also different from the adjoint used in radiation.
@@ -85,71 +87,83 @@ transmitted directions are retained by the local symbol under TIR. The
 back-facing continuation is part of the forward approximation; shadowing and
 returning branches are not solved.
 
-## Propagation operator
+## The propagator and its solution
 
-The operator takes an incident electric field, an optical system, and a target.
-The system owns geometry and media, optionally the incident field. It does not
-own observations. Geometry and sampling use the existing surface/grid classes.
-
-The default transport is `transport="eikonal"` ([below](#eikonal-transport)):
-vecdiff is meant for macroscopic systems. It needs the incident field's
-carrier, passed as `carrier=` or brought by a beam from `fields`; without one
-the pipeline raises and asks for it. `transport="wave"` keeps the exact
-transport to and from each surface with spectral (its default), local, carrier
-or another Fresnel transmission, and is the transport of fields without a
-carrier. Combinations that do not belong together (eikonal transport with a
-spectral or local Fresnel treatment, reference planes or fans with wave
-transport) raise at construction.
+`propagation.Propagator(system)` is the method ([eikonal transport](#eikonal-transport)).
+Called with the light it returns a `Solution`; the system owns geometry and
+media (optionally the incident field), the call owns the light, and the
+Solution answers every observation.
 
 ```python
-from vecdiff import propagation, surfaces
+import vecdiff as vd
 
-propagate = propagation.PropagationPipeline(
-    system, transport="wave", transmission="local", coverage="complete"
-)  # transmission can also be "spectral"; coverage can be "reduced"
-focal = propagate(incident_field, z=f)
-meridian = propagate(incident_field, y=0, window=(-a, a, z0, z1), side="plus")
-detector = surfaces.Plane.z(f).sample(u=x_coordinates, v=y_coordinates)
-focal = propagate(incident_field, detector)
+propagator = vd.propagation.Propagator(system)  # planes=, fans=, realization=, lattice=
+solution = propagator(beam)                     # or (sampled_field, carrier=c)
+print(solution)                                 # one line per refracting surface
+focus = solution.field(z=f, window=(-a, a, -a, a))     # E and H together
+meridian = solution.electric(y=0, window=(-a, a, z0, z1), side="plus")
+S = vd.observables.poynting(focus)
+I = focus.irradiance()                          # S . n on the target plane, W/m²
 ```
 
-The return value is the existing `ElectricField` (`.Ex`, `.Ey`, `.Ez`, `.grid`).
-Its read-only `.valid` mask identifies computed samples. Uncomputed samples
-are NaN, not zero field; they cannot be used as incident FFT data.
-`TransverseElectricField` input needs no H or eikonal argument. The first
-interface supplies its incident medium; for an empty system specify
-`OpticalSystem(incident_region=air)`. A system may hold `incident_field`, allowing
-`propagate(z=f)` or `propagate(target)`. `PlaneSpectrum` input remains accepted.
-`Plane.x(b)`, `Plane.y(a)` and `Plane.z(f)` are global coordinate planes, with
-charts (y,z), (x,z), and (x,y). Other `GraphSurface` objects retain their placed
-frames and can be sampled with `.sample(u=..., v=...)`. Sampled `PointGrid`,
-`CartesianGrid` and `SurfaceGrid` targets are accepted directly. E components
-remain global Cartesian components, irrespective of target orientation.
+- **Light.** A beam from `fields` (`PlaneBeam`, `FocusedBeam`) brings its own
+  carrier. A sampled field (`ElectricField`, `TransverseElectricField`) or a
+  `fields.Spectrum` takes `carrier=` (a `fields.Carrier`) at the call; without
+  one the propagator raises and names `alternatives.WavePropagator`, the
+  transport of fields without a carrier. A carrier is needed only when a
+  surface refracts. The first interface supplies the incident region; for an
+  empty system give `OpticalSystem(incident_region=air)`. A system may hold
+  `incident_field`, so `propagator()` takes it.
+- **Options.** `planes` and `fans` (one per surface, [below](#reference-planes-and-fans)),
+  `realization` ("auto", "meridian", "lattice", [below](#rotationally-symmetric-systems-one-meridian))
+  and `lattice` (a `CartesianGrid` a beam is carried on). Nothing else is
+  accepted; an unknown keyword raises.
+- **Solution.** `spectra` holds one `fields.Spectrum` per region, the
+  incident light first; `spectrum` is the last. `reports` holds one
+  `transport.TransportReport` per refracting surface ([reports](#reports)), and
+  `legs` the prepared legs. `field(target, ...)` returns an
+  `ElectromagneticField`, `electric(target, ...)` E alone (no magnetic modes
+  are formed), and `coverage(target, ...)` the target's grid, the region of
+  each point, the computed points and the sampling used.
+- **Caching.** A call carries the light across every surface. Its legs depend
+  on the geometry, the carrier and the incident lattice or beam, not on the
+  field: the propagator keeps them, and a call with the same ones reuses them.
+  It keeps no previous Solution.
 
-A call prepares only interfaces needed to reach its target regions. Repeated
-calls with the same immutable source object reuse source completion, operators,
-and intermediate spectra; `clear_cache()` explicitly discards these. Targets
-crossing interfaces select the forward spectrum of each material region.
-Boundary samples require `side="minus"` or `side="plus"`; these are reconstructed
-one-sided fields, not the raw Fresnel trace. This is the existing forward
-propagating-band model: neither missing reflected paths nor evanescent near
-fields are supplied by evaluating nearer a surface.
+Targets are `z=f`, `y=a`, `x=b` (global coordinate planes, with charts (y,z),
+(x,z) and (x,y)), any placed `GraphSurface` (sampled with `.sample(u=..., v=...)`
+or automatically), or a sampled `PointGrid`, `CartesianGrid` or `SurfaceGrid`.
+E and H stay global Cartesian components. Each point takes the spectrum of
+its region between the surfaces; boundary samples need `side="minus"` or
+`side="plus"`, one-sided reconstructed fields, not the raw Fresnel trace.
+Uncomputed samples are NaN in E and H and marked by `.valid`; they cannot be
+used as incident FFT data. This is the forward propagating-band model:
+neither reflected paths nor evanescent near fields are supplied by
+evaluating nearer a surface.
+
+Every Spectrum has `region`, `wavelength0`, `grid` (its chart) and `plane`
+(that chart's Frame), `direction` (+1 forward along the normal, -1 back),
+`evaluate(grid)` for E and H, `electric(grid)`, `propagate(distance)` (the
+field on its chart moved along the normal) and `relabeled(region)`. The kinds
+are `PlaneSpectrum` (an FFT lattice), `LatticeSpectrum` (a lattice leg's
+output), `HankelSpectrum` (a meridian leg's output) and `BeamSpectrum` (a beam
+referred to a chart). Every sum, on a Spectrum or a Solution, takes the same
+options: `method` ("auto", "nufft", "direct"), `tolerance`, `chunk_size` and
+`threads`; anything else raises.
 
 ### Optional spatial coverage
 
-`coverage="reduced"` is the default. It excludes the height bands occupied by
+`field(..., coverage="reduced")` is the default. It excludes the height bands occupied by
 curved interfaces over the sampled source chart, retaining regions on either
 side of their enclosing planes. `coverage="complete"` evaluates all target
 points using the forward spectrum of their graph-defined material region.
 There is no interpolation across the excluded bands. Equal-index bookkeeping
 interfaces do not create gaps. Planar interfaces have zero-width height bands;
 both modes agree there, with the chosen one-sided boundary convention.
-
-Coverage is independent of `transmission="local"` or `"spectral"`. Changing
-`propagate.coverage` reuses the same cached source and interface results.
-`propagate.last_coverage` reports the mode, computed mask, region indices and
-`extended` mask (points evaluated beyond reduced coverage). The separate
-`propagation/coverage.py` module owns classification, masks and modal evaluation.
+`solution.coverage(target, coverage=...)` reports the mode, computed mask,
+region indices and `extended` mask (points evaluated beyond reduced
+coverage). The `propagation/coverage.py` module owns classification, masks
+and modal evaluation.
 
 **Complete means spatial coverage of the chosen forward model.** In the curved
 height bands this is an extension of its retained propagating modes; it does
@@ -160,15 +174,9 @@ Finite rims and stops are still rejected in both modes. In a continued-face
 lens model, points outside the nominal rim follow the continued graphs; they
 are not silently relabeled as the exterior of a finite lens.
 
-`last_solution` exposes reusable spectra and interface reports. Its
-`field(target, ...)` returns E; the existing `solve(source)` and
-`solution.evaluate(grid)` APIs remain available for explicitly requested E/H
-beyond the final surface envelope. `last_sampling` records target bounds,
-spacing and shape. Electric-only observation does not compute magnetic modes.
-
 ### Automatic target sampling
 
-`z=f`, `y=a`, `x=b`, and unsampled placed surfaces default to `sampling="auto"`.
+`z=f`, `y=a`, `x=b`, and unsampled placed surfaces are sampled automatically.
 The default window is the projection of the finite input chart and optical path,
 including one input-chart width beyond the last surface for longitudinal views.
 It is a documented geometrical window, not an energy enclosure or focus search.
@@ -181,12 +189,19 @@ stretch; highly varying curvature needs explicit sampling and convergence
 checks. `shape=(Nv, Nu)` or a sampled surface overrides automatic resolution.
 Automatic requests above two million points ask for an explicit window or
 shape rather than silently coarsening. Sampling choices are not physical
-accuracy estimates.
+accuracy estimates; `solution.coverage(target).sampling` records them.
 
-### Local and spectral treatments
+### Wave transport: local and spectral treatments
+
+`alternatives.WavePropagator(system, transmission="spectral" | "local",
+max_sine=0.85, transport_tolerance=1e-10)` is the other method, kept for
+checks: it carries a sampled field or a `PlaneSpectrum` exactly to and from
+each surface (`SurfaceTransport`) with a Fresnel treatment between, needs no
+carrier, and returns the same `Solution` (its `reports` are the treatment's,
+its `legs` the incident and transmitted surface transports). A beam is
+refused: sample it on a `CartesianGrid`.
 
 `SpectralFresnel` retains the existing angular-spectrum algorithm.
-`DirectionResolvedFresnel` is a compatibility alias for exactly the same class.
 Advanced settings can still be supplied as a treatment object, for example
 `transmission=SpectralFresnel(nodes=18, coefficients="unity")`.
 
@@ -215,34 +230,14 @@ cutoff 1e-7, further restricted to Q's declared band. Omitted modal L2 is report
 Both branches operate within the current forward propagating-band model.
 
 Charts remain ordered, nonintersecting graphs with the input frame orientation
-and transverse origin. Finite edges and stops are rejected. The pipeline does
-not include returning branches or a finite-body rim solver. See the
-[runnable example](../general/examples/propagation_pipeline.py) and
+and transverse origin. Finite edges and stops are rejected. Wave transport
+does not include returning branches or a finite-body rim solver. See the
+[runnable example](../general/examples/wave_transport.py) and
 [validation records](VALIDATION.md).
-
-### Carrier-directed transmission
-
-`transport="wave", transmission="carrier"` keeps the exact surface transport but takes the
-local incident direction from the field's declared carrier (a
-`fields.Carrier`, for example `beam.carrier`), passed with the field:
-
-    pipeline = PropagationPipeline(system, transport="wave", transmission="carrier")
-    field = pipeline(incident, z=focus, carrier=beam.carrier)
-
-Each surface sample is transmitted by the continued dyadic of the
-eikonal–angular-spectrum formulation,
-
-    E_t = t_s E_s s + t_p E_p p_t + t_p E_par s_t,
-
-where E_par is the part of the field along the carrier. Keeping that part
-makes an index-matched interface exactly invisible. Nothing is inferred from
-the field, so the operation is linear for a fixed carrier. Samples whose
-carrier meets the surface from behind, grazes it or is totally reflected
-carry no field; their share is reported.
 
 ## Eikonal transport
 
-`PropagationPipeline(system)` carries fields with the eikonal–angular-spectrum method of the manuscript *Vectorial field transport through general curved interfaces*. This is the default, `transport="eikonal"`: vecdiff is meant for macroscopic systems. Between surfaces the field travels as an exact angular spectrum. Across each surface it is carried along its **carrier**, the ray family it declares. The method computes the **first entry**: the wave transmitted through every surface without reflection. [Notebook 08](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it on three geometries against their exact references.
+`propagation.Propagator(system)` carries fields with the eikonal–angular-spectrum method of the manuscript *Vectorial field transport through general curved interfaces*: vecdiff is meant for macroscopic systems. Between surfaces the field travels as an exact angular spectrum. Across each surface it is carried along its **carrier**, the ray family it declares. The method computes the **first entry**: the wave transmitted through every surface without reflection. [Notebook 08](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it on three geometries against their exact references.
 
 ### The method in brief
 
@@ -263,22 +258,20 @@ A point P of a reference plane in front of a surface follows its carrier ray to 
   - The meridian leg carries only rays that met no caustic and says so; a beam focused in front of its first surface needs `lattice=`.
 - **Intersection.** Each ray–surface intersection starts from the height under P, then the osculating sphere at the vertex, then a march along the ray, and finishes with Newton's method. A ray that Newton loses from behind a surface (from a rim-depth plane) is retried from the osculating sphere.
 
-### Wave or eikonal transport, and carriers
+### Carriers
 
-- **`transport="eikonal"` (default).** It needs the incident field's carrier.
-  - A beam from `fields` (`FocusedBeam`, `PlaneBeam`) can be the incident field itself, and brings `beam.carrier`. It is carried on one meridian, or on a lattice with `lattice=grid`.
+- The method needs the incident field's carrier, and transmits with the carrier dyadic.
+  - A beam from `fields` (`FocusedBeam`, `PlaneBeam`) can be the light itself, and brings `beam.carrier`. It is carried on one meridian, or on a lattice with `lattice=grid`.
   - A sampled field or spectrum takes `carrier=` at the call: a `fields.Carrier` (`Carrier.converging(focus)`, `diverging`, `collimated`, or a general optical path with gradient and Hessian).
-  - Without a carrier the pipeline raises and names `carrier=` and `transport="wave"`.
-  - Transmission is the carrier dyadic (`transmission=None` or `"carrier"`).
-- **`transport="wave"`.** It carries the field exactly to and from each surface (`SurfaceTransport`) and takes `transmission="spectral"` (its default), `"local"`, `"carrier"` or another Fresnel treatment ([above](#surface-interaction)). It is the transport of fields without a carrier. `transmission="carrier"` keeps the exact surface transport but takes the local direction from the carrier ([Carrier-directed transmission](#carrier-directed-transmission)).
-- **Inadmissible pairs raise at construction:** eikonal transport with a spectral or local Fresnel treatment, and reference planes, fans or `axisymmetric` with wave transport.
+  - Without a carrier the propagator raises and names `carrier=` and `alternatives.WavePropagator`.
+- **Wave transport** ([above](#wave-transport-local-and-spectral-treatments)) is a separate class with its own options; none of them is accepted by `Propagator`.
 
 ### Reference planes and fans
 
-- **`reference_planes=(offset, ...)`**, one per surface, places each plane along the axis from its surface vertex (default: the vertex planes).
+- **`planes=(offset, ...)`**, one per surface, places each plane along the axis from its surface vertex (default: the vertex planes).
   - A plane at the depth where the marginal ray meets the surface shortens the legs.
   - That lowers a hard pupil's error: for the aplanatic sphere at 1000 λ0, 0.1418 % (vertex plane) against 0.01524 % (rim plane).
-- **`reference_fans=(fan, ...)`**, one per surface, weights the carried rays:
+- **`fans=(fan, ...)`**, one per surface, weights the carried rays:
   - None carries every supported ray;
   - `(start, end)` rolls them off between those incidence angles, in degrees;
   - a callable receives the `RayMap` (its `label` is the ray's point on the first plane, so a fan can roll off along the input radius).
@@ -295,7 +288,7 @@ A point P of a reference plane in front of a surface follows its carrier ray to 
   - It keeps only the preimages, the lit and supported masks and the carried field, in host memory. Before, whole-lattice ray maps took about 1.2 kB a point.
   - Blocks change nothing but roundoff.
   - The incident field is read on the reference plane by two-dimensional sums, its plane waves' normal phase folded into their amplitudes.
-- **A beam on a lattice.** `PropagationPipeline(system, lattice=grid)` carries a beam on the lattice leg, `grid` (a `CartesianGrid`) setting its spacing and extent.
+- **A beam on a lattice.** `Propagator(system, lattice=grid)` carries a beam on the lattice leg, `grid` (a `CartesianGrid`) setting its spacing and extent.
   - The beam is read exactly at the preimages, so no sampled copy of the input lattice is held.
   - The result is a `LatticeSpectrum`: two transverse coefficients per mode in host memory, in place of a `PlaneSpectrum`'s wavevector and three amplitudes. Its modes are formed and summed one block of rows at a time, by a 2D type-3 transform when the targets lie on one plane.
   - A sampled field still gives a `PlaneSpectrum`.
@@ -321,7 +314,6 @@ How the two legs chain, and the bookkeeping:
 - **The meridian leg** reads the previous leg's Hankel field. Its intermediate spectrum resolves the depth and radius of the next plane, so the handoff's κ-aliasing rule holds by construction.
 - **Each interface reports its own unsupported amplitude:** the incident field outside the rays that survive it. No amplitude threshold decides a ray.
 - **Fans:** a later fan stays within the labels the first leg carried.
-- **Wave transport:** carrier transmission still crosses one refracting surface.
 
 ### Surfaces
 
@@ -344,7 +336,7 @@ Eikonal transport needs a surface's Hessian, and every built-in surface declares
   - `InterfaceMap` traces them with the same Appendix A formulas.
   - Regions, charts, targets and coverage keep the graph, so a closed surface works wherever its cap does: on the lattice, on the meridian and in sequences.
   - Where the cap suffices, both map the same.
-  - The archive's sphere fans reach 80°: `reference_fans=((72, 80),)`.
+  - The archive's sphere fans reach 80°: `fans=((72, 80),)`.
 
 ### Rotationally symmetric systems: one meridian
 
@@ -354,10 +346,10 @@ If every refracting surface is a surface of revolution about the beam's axis (co
 - **Hankel spectra.** E_x ± i E_y of order m leave as Hankel spectra of orders m ± 1, and E_z follows from transversality.
 - **Cost.** Circular, linear, radial and azimuthal states are one or two orders. The cost grows linearly with the aperture instead of quadratically: the manuscript's aplanatic sphere at 1000 λ0 takes 1.1–1.4 s (the archived prototype: 64 s).
 
-`axisymmetric=` chooses the realization:
-- **None (default):** the meridian for beams without a lattice, the lattice otherwise.
-- **True:** the meridian for either. A sampled field is read on rings about its grid's centre; its weakest orders are dropped while together they stay below 1e-5 (counted as unsupported); a field with more than 1e-2 of non-axisymmetric content is refused.
-- **False:** the lattice; a beam then needs `lattice=` (see [the lattice leg](#the-lattice-leg)).
+`realization=` chooses how the legs are carried:
+- **"auto" (default):** the meridian for beams without a lattice (and for a `HankelSpectrum`), the lattice otherwise.
+- **"meridian":** the meridian for either. A sampled field is read on rings about its grid's centre; its weakest orders are dropped while together they stay below 1e-5 (counted as unsupported); a field with more than 1e-2 of non-axisymmetric content is refused.
+- **"lattice":** the lattice; a beam then needs `lattice=` (see [the lattice leg](#the-lattice-leg)).
 - **No symmetry:** a beam in a system without the symmetry (a cylinder, a decentred surface, an asymmetric carrier) and without a lattice is refused, with the reason.
 
 How the meridian is sampled:
@@ -370,11 +362,11 @@ How the meridian is sampled:
 
 ### Reflection legs
 
-A leg can carry the reflected wave instead of the transmitted one: `LatticeTransport(..., branch="reflected")` or `branch="mirror"`, and the same for `MeridianTransport`. The pipeline does not use them yet.
+A leg can carry the reflected wave instead of the transmitted one: `LatticeTransport(..., branch="reflected")` or `branch="mirror"`, and the same for `MeridianTransport`. The propagator does not compose them yet.
 - **Map.** s_r = s − 2 c_i n, back to the same geometric plane in the incident medium, with ΔS = n_i (ℓ_i + ℓ_r) and signed legs. `InterfaceMap(..., branch="reflected")` gives it, with ds_r = ds − 2 (dc_i n + c_i dn) from the same Appendix A quantities.
 - **Flux.** g = √(s_iz / (|s_rz| J)) e^{−iπκ/2}. The power R I c_i dσ leaves the surface at c_r = c_i and I |s_z| dA is constant along each segment, so |r|² is the dyadic's and the area ratio g's. J is measured in the plane's own axes on both sides: a plane mirror at normal incidence has J = +1. The mirror reverses the tube's handedness about its direction and the sign of s_z together, so J still changes sign once per collapsed direction, and κ is counted on both segments as for refraction.
 - **Dyadic.** r_s E_s s + r_p E_p p_r + r_p E_∥ s_r with p_r = s × s_r, r_s = (n_i c_i − n_t c_t)/(n_i c_i + n_t c_t), r_p = (n_t c_i − n_i c_t)/(n_t c_i + n_i c_t): tangential E and H are continuous with the transmitted wave. Beyond the critical angle c_t = i|c_t| and |r| = 1. `"mirror"` is the ideal mirror, r_s = −1, r_p = 1. Real indices only.
-- **Output.** `reflect()` re-expands in the incident medium, travelling back (k_z < 0 in the surface frame); `LatticeSpectrum` and the meridian's `HankelField` carry that sign. Every report and refusal uses the outgoing medium.
+- **Output.** `reflect()` re-expands in the incident medium, travelling back (k_z < 0 in the surface frame); `LatticeSpectrum` and the meridian's `HankelSpectrum` carry that sign (`Spectrum.direction`). Every report and refusal uses the outgoing medium.
 - **Checks** (`general/tests/test_reflection.py`): plane waves against each wave's boundary-value problem, to 1e-13 (R + T = 1, total reflection, ideal mirror); focused beams against their plane-wave sums, with a focal line (κ = 1) and a point focus (κ = 2) on the way back; a glass sphere against Debye term 0 outside and, with a refraction first, term 2 inside. The errors fall as 1/size:
 
 | Case | 10 λ | 20 λ | 40 λ | 80 λ |
@@ -385,7 +377,7 @@ A leg can carry the reflected wave instead of the transmitted one: `LatticeTrans
 
 ### Reports
 
-`solution.interactions` holds one `transport.TransportReport` per interface:
+`solution.reports` holds one `transport.TransportReport` per refracting surface, and `print(solution)` gives one line for each:
 - `unsupported_relative_amplitude`: the incident amplitude on rays the surface does not support (misses, rear or grazing incidence, total reflection, or outside the fan);
 - `dark_samples`: output samples no ray reaches;
 - `newton_residual`: the inverse map's residual;

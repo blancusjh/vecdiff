@@ -25,7 +25,7 @@ Figures from the executed [notebooks](docs/NOTEBOOKS.md), all computed with the 
 </p>
 
 **Lens focusing (notebook 03).** A plane–convex glass lens (n = 1.5, exit radius 120λ, λ = 532 nm)
-through `PropagationPipeline` with spectral Fresnel transmission. Focal-plane transverse intensity and
+through wave transport (`alternatives.WavePropagator`) with spectral Fresnel transmission. Focal-plane transverse intensity and
 polarization: the spherical exit face (left) blurs the focus by spherical aberration; the Cartesian-oval
 exit face (right) gives a sharp Airy pattern with dark rings.
 
@@ -65,12 +65,12 @@ the transverse polarization.
   <img src="docs/assets/al1225_scaled_models.png" alt="Thorlabs AL1225 scaled models: meridional and focal intensity" width="700">
 </p>
 
-**Thorlabs AL1225 (notebook 06).** Spectral pipeline fields of the catalog asphere, geometrically
+**Thorlabs AL1225 (notebook 06).** Spectral wave-transport fields of the catalog asphere, geometrically
 scaled to R/λ = 3, 10, 30 and 100: meridional and focal-plane |E|².
 
 ## Eikonal–angular-spectrum transport
 
-vecdiff carries vector fields through macroscopic curved interfaces with the eikonal–angular-spectrum method of the manuscript. This is `PropagationPipeline`'s default, `transport="eikonal"`.
+vecdiff carries vector fields through macroscopic curved interfaces with the eikonal–angular-spectrum method of the manuscript. `propagation.Propagator(system)(light)` is that method; it returns a `Solution` whose `field(...)` gives E and H on any target.
 
 - **Across each surface** the field follows its carrier by the plane–surface–plane map, with the flux factor and the continued Fresnel dyadic, and analytic Jacobians (Appendix A).
 - **Between surfaces** it is an exact angular spectrum.
@@ -79,7 +79,7 @@ vecdiff carries vector fields through macroscopic curved interfaces with the eik
 - **Rotationally symmetric systems** run on one meridian with a fast Hankel sum. The manuscript's aplanatic sphere at 1000 λ0 takes about a second and reproduces the archived method to seven digits (0.1417746 %).
 - **Exact references** for checking: `MieSphere`, `LayeredSphere` and `InfiniteCylinder`, each with its Debye terms.
 
-The [propagation guide](docs/PROPAGATION.md#eikonal-transport) describes the method, its options and the regression against the handoff's table. [Notebook 08](general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it in use. `transport="wave"` keeps the exact surface transport for fields without a carrier.
+The [propagation guide](docs/PROPAGATION.md#eikonal-transport) describes the method, its options and the regression against the handoff's table. [Notebook 08](general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it in use, and [the plano-convex example](general/examples/plano_convex_lens.py) is the shortest complete script. `alternatives.WavePropagator` keeps the exact surface transport for fields without a carrier, as a check.
 
 ## Documentation
 
@@ -128,7 +128,11 @@ vecdiff/
     surfaces/       surface shapes and normals
     sampling/       grids and integration measures
     media/          material properties and spatial assignment
-    fields/         field samples, beams, spectra and carriers
+    fields/         light: beams, sampled fields, carriers, and the Spectrum of a region
+        spectrum.py             Spectrum (the interface), PlaneSpectrum (FFT lattice)
+        lattice_spectrum.py     LatticeSpectrum, the output of a lattice leg
+        hankel_spectrum.py      HankelSpectrum, the output of a meridian leg
+        beam_spectrum.py        BeamSpectrum, a beam charted on a plane
     backend.py      CPU (NumPy) or CUDA GPU (CuPy) arrays
     system.py       surface/media adjacency and optical prescriptions
     fourier/        numerical transforms
@@ -140,20 +144,21 @@ vecdiff/
         report.py               what a leg could not carry
     propagation/    general propagation
         homogeneous.py          propagation in a homogeneous medium (ASM/Fresnel)
-        pipeline.py             a field through a whole optical system
+        propagator.py           the method: Propagator(system)(light) -> Solution
+        coverage.py, targets.py which region holds each point of a target, and sampling
     observables/    energy, power, momentum, spin, forces, polarization, detectors
     references/     exact solutions to check against: Mie, layered sphere, cylinder
-    alternatives/   other methods: wave transport onto a surface, Fresnel treatments
+    alternatives/   other methods: WavePropagator (wave transport), its Fresnel treatments
     visualization/  plots and animations
 ```
 
 Angular-spectrum **construction** belongs to `fields/`; evolution in a
 homogeneous medium belongs to `propagation/homogeneous.py`. Surface geometry
 and adjacent materials are specified independently of the interaction model.
-A pipeline can contain zero, one or several optical boundaries.
+A system can contain zero, one or several optical boundaries.
 
 Public objects are used through these namespaces, for example
-`surfaces.SphericalCap` or `propagation.PropagationPipeline`; the package top
+`surfaces.SphericalCap` or `propagation.Propagator`; the package top
 level re-exports nothing.
 
 Independent full-wave solvers (boundary elements, finite elements, the method
@@ -223,15 +228,16 @@ propagated = spectrum.propagate(10 * wavelength, model="asm")
 power_in_watts = propagated.power()
 ```
 
-An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `PropagationPipeline(system)` accepts an existing incident field and a target (`z=f`, `y=a`, `x=b`, or a placed surface), returning an `ElectricField`. Its default, `transport="eikonal"`, is meant for macroscopic systems: it carries the field along its declared carrier (`carrier=`, or a beam from `fields`, which brings its own) with the plane–surface–plane map of the eikonal–angular-spectrum formulation (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)). `PropagationPipeline(system, transport="wave", transmission="local" | "spectral" | "carrier")` keeps the exact surface transport, for fields without a carrier; see the [pipeline example](general/examples/propagation_pipeline.py).
+An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `propagation.Propagator(system)(light, carrier=None)` takes a beam from `fields` (which brings its own carrier), a sampled field or a `fields.Spectrum`, and returns a `Solution`: one spectrum per region (`solution.spectra`), one `TransportReport` per refracting surface (`solution.reports`, printed by `print(solution)`), and `solution.field(target)` with E and H on a target (`z=f`, `y=a`, `x=b`, a placed surface or a grid). It carries the field along its carrier with the plane–surface–plane map of the eikonal–angular-spectrum formulation (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)). `alternatives.WavePropagator(system, transmission="local" | "spectral")` keeps the exact surface transport, for fields without a carrier, and returns the same `Solution`; see the [wave-transport example](general/examples/wave_transport.py).
 
 ## Qualification and limits
 
 Read [validation](docs/VALIDATION.md) for the reference checks and measured
-errors. The curved-surface pipeline is a forward approximation. Its current
+errors. The propagation through curved surfaces is a forward approximation. Its current
 transport uses a finite, periodic FFT chart and a declared propagating angular
-band. Finite material edges, stops and returning branches are outside this
-pipeline's supported model. Exact planar scattering and complete reference
+band. Finite material edges, stops and returning branches are outside the
+propagators' supported model (the legs can reflect; the propagators do not
+yet compose reflections). Exact planar scattering and complete reference
 transfer have different, explicitly documented spectral coverage.
 
 ## License
