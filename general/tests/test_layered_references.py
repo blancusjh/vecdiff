@@ -813,9 +813,14 @@ def test_sphere_debye_coefficients_keep_relative_accuracy_beyond_the_size():
     actual = sphere_debye_coefficients(
         2000.0, 1.5, 1.0, np.array([1990, 2030, 2060, 2090])
     )
+    # T21, R11, T12 are Hankel only (3e-12 with the summed-ratio logarithm,
+    # 8e-15 now); term 0 and Mie also carry the regular function (2e-13).
+    rtol = {"zero": 1e-13, "mie": 5e-13}
     for polarization, values in EXACT.items():
         for key, expected in values.items():
-            assert_allclose(actual[polarization][key], expected, rtol=2e-11)
+            assert_allclose(
+                actual[polarization][key], expected, rtol=rtol.get(key, 3e-14)
+            )
 
 
 @pytest.mark.parametrize("x", [0.01, 2.5, 60.0, 1500.0])
