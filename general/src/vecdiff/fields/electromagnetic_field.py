@@ -51,6 +51,25 @@ class ElectricField:
             self, "wavelength0", positive(self.wavelength0, "vacuum wavelength")
         )
 
+    @classmethod
+    def _computed(cls, grid, wavelength0, values):
+        """Every sample computed by the library: values are kept, not copied.
+
+        The caller owns values (grid.shape + (3,) complex) and a validated
+        wavelength; only finiteness is checked, as the constructor would.
+        """
+        if not bd.isfinite(values).all():
+            raise ValueError("computed electric samples must be finite")
+        if not is_device_array(values):
+            values.setflags(write=False)
+        field = object.__new__(cls)
+        object.__setattr__(field, "grid", grid)
+        object.__setattr__(field, "wavelength0", wavelength0)
+        object.__setattr__(field, "values", values)
+        valid = frozen_array(bd.ones(grid.shape, dtype=bool), dtype=bool)
+        object.__setattr__(field, "valid", valid)
+        return field
+
     @property
     def Ex(self):
         return self.values[..., 0]
@@ -127,6 +146,23 @@ class ElectromagneticField:
             magnetic.setflags(write=False)
         object.__setattr__(self, "magnetic", magnetic)
 
+    @classmethod
+    def _computed(cls, electric, magnetic):
+        """E from ElectricField._computed and H, or a function forming H.
+
+        A function is called once, when H is first read, so a caller that
+        reads only E never forms it; until then it holds what the function
+        refers to. H is checked to be finite as the constructor would.
+        """
+        if callable(magnetic):
+            field = object.__new__(_DeferredMagneticField)
+            object.__setattr__(field, "_form_magnetic", magnetic)
+        else:
+            field = object.__new__(cls)
+            object.__setattr__(field, "magnetic", _computed_magnetic(magnetic))
+        object.__setattr__(field, "electric", electric)
+        return field
+
     @property
     def grid(self):
         return self.electric.grid
@@ -153,3 +189,29 @@ class ElectromagneticField:
         from vecdiff.observables.electromagnetism import power
 
         return power(self)
+
+
+def _computed_magnetic(values):
+    if not bd.isfinite(values).all():
+        raise ValueError("computed magnetic samples must be finite")
+    if not is_device_array(values):
+        values.setflags(write=False)
+    return values
+
+
+class _DeferredMagneticField(ElectromagneticField):
+    """ElectromagneticField whose H is formed when it is first read."""
+
+    def __getattr__(self, name):
+        if name != "magnetic":
+            raise AttributeError(name)
+        state = object.__getattribute__(self, "__dict__")
+        if "_form_magnetic" not in state:
+            raise AttributeError(name)
+        magnetic = _computed_magnetic(state["_form_magnetic"]())
+        object.__setattr__(self, "magnetic", magnetic)
+        del state["_form_magnetic"]
+        return magnetic
+
+    def __reduce__(self):
+        return ElectromagneticField, (self.electric, self.magnetic)

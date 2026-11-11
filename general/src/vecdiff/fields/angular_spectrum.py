@@ -8,13 +8,17 @@ import math
 
 import numpy as np
 
-from vecdiff._backend import bd, divide
+from vecdiff._backend import bd
 from vecdiff.fields.electromagnetic_field import (
     ElectricField,
     TransverseElectricField,
 )
-from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
-from vecdiff.fourier.cartesian import FFT2, frequency_grid
+from vecdiff.fields.spectrum import (
+    PlaneSpectrum,
+    PlaneWaveExpansion,
+    _check_transverse,
+)
+from vecdiff.fourier.cartesian import _centered, _frequency_axes
 from vecdiff.media.medium import HomogeneousRegion
 from vecdiff.sampling.grids import PlaneGrid
 
@@ -72,14 +76,16 @@ def angular_spectrum(
         raise ValueError("coefficient_rtol must lie in [0, 1)")
 
     # The mathematical transform takes arrays and lattice parameters only.
+    # Frequencies stay one-dimensional axes, broadcast over (v, u).
     grid = field.grid
-    fx, fy = frequency_grid(grid.coordinates)
-    frequency_u = 2 * bd.pi * fx
-    frequency_v = 2 * bd.pi * fy
+    fx, fy = _frequency_axes(grid.coordinates)
+    frequency_u = (2 * bd.pi * fx)[None, :]
+    frequency_v = (2 * bd.pi * fy)[:, None]
 
     # The modal sum uses Fourier-series amplitudes, so divide the DFT by N.
+    # The field constructors guarantee finite values.
     sample_count = math.prod(grid.shape)
-    coefficients = FFT2(field.values) / sample_count
+    coefficients = _centered(field.values, scale=1 / sample_count)
 
     # The optical dispersion and chosen branch determine the normal frequency.
     wavenumber = 2 * bd.pi * region.material.n / field.wavelength0
@@ -88,10 +94,16 @@ def angular_spectrum(
         (wavenumber**2 - transverse_squared).astype(complex)
     )
 
-    magnitude = bd.linalg.norm(coefficients, axis=-1)
+    # |c|² per mode, one component at a time (no (modes, 3) temporaries).
+    power = sum(
+        coefficients[..., j].real ** 2 + coefficients[..., j].imag ** 2
+        for j in range(coefficients.shape[-1])
+    )
+    magnitude = bd.sqrt(power)
     roundoff = magnitude < coefficient_rtol * bd.max(magnitude)
-    roundoff_removed = float(bd.linalg.norm(coefficients[roundoff]))
-    coefficients[roundoff] = 0
+    del magnitude
+    roundoff_removed = float(bd.sqrt(bd.sum(power[roundoff])))
+    removed = roundoff
 
     evanescent_removed = 0.0
 
@@ -100,42 +112,82 @@ def angular_spectrum(
         # transverse completion; it leaves with the decaying modes.
         grazing = _on_light_circle(transverse_squared, wavenumber)
         discarded = (transverse_squared > wavenumber**2) | grazing
-        evanescent_removed = float(bd.linalg.norm(coefficients[discarded]))
-        coefficients[discarded] = 0
+        evanescent_removed = float(bd.sqrt(bd.sum(power[discarded & ~roundoff])))
+        removed = roundoff | discarded
+
+    kept = ~removed
+    bd.multiply(coefficients, kept[..., None], out=coefficients)
+    # A kept mode whose |c|² is a normal float is nonzero; the others are
+    # looked at below (none unless |c| leaves (1e-145, 1e145)).
+    ordinary = (power > 1e-290) & (power < 1e290)
 
     # Complete only explicitly transverse inputs, in the plane's local basis.
     if isinstance(field, TransverseElectricField):
-        occupied = bd.any(coefficients != 0, axis=-1)
         grazing = _on_light_circle(transverse_squared, wavenumber)
+        candidates = grazing & ~removed
 
-        if bd.any(grazing & occupied):
+        if bd.any(candidates) and bd.any(coefficients[candidates] != 0):
             raise ValueError(
                 "populated grazing modes require a full vector polarization basis"
             )
 
-        transverse_dot = (
-            frequency_u * coefficients[..., 0] + frequency_v * coefficients[..., 1]
-        )
-        longitudinal = divide(-transverse_dot, normal_wavenumber, ~grazing)
+        # Ez = -(k_u E_u + k_v E_v) / k_normal off the light circle, else 0;
+        # then the global components, local (u, v, normal) times the basis
+        # transposed. In place, one component at a time.
+        cu, cv = coefficients[..., 0], coefficients[..., 1]
+        scratch = bd.empty(grid.shape, complex)
+        longitudinal = bd.multiply(frequency_u, cu)
+        longitudinal += bd.multiply(frequency_v, cv, out=scratch)
+        longitudinal /= bd.where(grazing, 1, -normal_wavenumber)
+        longitudinal[grazing] = 0
 
-        local_coefficients = bd.concatenate(
-            (coefficients, longitudinal[..., None]), axis=-1
-        )
-        coefficients = local_coefficients @ grid.frame.basis.T
+        basis = grid.frame.basis
+        coefficients = bd.empty(grid.shape + (3,), complex)
+        for i in range(3):
+            component = bd.multiply(cu, basis[i, 0], out=coefficients[..., i])
+            component += bd.multiply(cv, basis[i, 1], out=scratch)
+            component += bd.multiply(longitudinal, basis[i, 2], out=scratch)
+        del cu, cv, longitudinal, scratch
 
     # Cartesian modes retain the original physical phase origin.
-    wavevectors = (
-        frequency_u[..., None] * grid.frame.u
-        + frequency_v[..., None] * grid.frame.v
-        + normal_wavenumber[..., None] * grid.frame.normal
-    )
+    frame = grid.frame
+    wavevectors = bd.empty(grid.shape + (3,), complex)
+    for i in range(3):
+        component = bd.multiply(
+            normal_wavenumber, frame.normal[i], out=wavevectors[..., i]
+        )
+        component += frequency_u * frame.u[i] + frequency_v * frame.v[i]
+    del normal_wavenumber
 
-    expansion = PlaneWaveExpansion(
+    # Every piece is validated above or by construction: the lattice is the
+    # grid's, the amplitudes transverse (completed, or checked here for a
+    # complete input), and the origin the grid's centre.
+    unusual = kept & ~ordinary
+    occupied = kept & ordinary
+    if bd.any(unusual):
+        occupied[unusual] = bd.any(coefficients[unusual] != 0, axis=-1)
+    if isinstance(field, ElectricField):
+        # PlaneWaveExpansion's test, |k . a| <= 1e-10 |k| |a|, with |k|²
+        # from the lattice and |a|² from |c|²; the unusual modes take its
+        # underflow-safe form.
+        k, c = wavevectors, coefficients
+        error = bd.abs(
+            k[..., 0] * c[..., 0] + k[..., 1] * c[..., 1] + k[..., 2] * c[..., 2]
+        )
+        size = transverse_squared + bd.abs(wavenumber**2 - transverse_squared)
+        size = bd.sqrt(size * bd.where(ordinary, power, 0))
+        if bd.any((error > 1e-10 * size) & ~unusual):
+            raise ValueError("electric modal amplitudes are not transverse")
+        _check_transverse(k[unusual], c[unusual])
+    del transverse_squared, power
+
+    expansion = PlaneWaveExpansion._trusted(
         wavevectors.reshape(-1, 3),
         coefficients.reshape(-1, 3),
-        grid.points[grid.shape[0] // 2, grid.shape[1] // 2],
+        grid.center,
         field.wavelength0,
         region,
+        occupied=occupied.reshape(-1),
     )
 
-    return PlaneSpectrum(grid, expansion, roundoff_removed, evanescent_removed)
+    return PlaneSpectrum._trusted(grid, expansion, roundoff_removed, evanescent_removed)

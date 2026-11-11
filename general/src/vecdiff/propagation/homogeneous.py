@@ -9,9 +9,10 @@ from vecdiff.fields import (
     TransverseElectricField,
 )
 from vecdiff.fields.angular_spectrum import angular_spectrum
-from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
-from vecdiff.fourier.cartesian import IFFT2
+from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion, _occupied
+from vecdiff.fourier.cartesian import _centered
 from vecdiff.fourier.nufft import phase_factor
+from vecdiff.media.medium import Z0
 
 
 def propagate_spectrum(
@@ -36,7 +37,7 @@ def propagate_spectrum(
         raise ValueError("model must be 'asm' or 'fresnel'")
 
     expansion = spectrum.expansion
-    occupied = bd.any(expansion.amplitudes != 0, axis=-1)
+    occupied = _occupied(expansion)
     phase = bd.zeros(len(occupied), dtype=complex)
     displacement = distance * spectrum.grid.frame.normal
 
@@ -61,21 +62,40 @@ def propagate_spectrum(
     grid = spectrum.grid.translated(displacement)
     shape = grid.shape + (3,)
 
-    electric_modes = expansion.amplitudes * phase[:, None]
-
     # IFFT2 divides by N; modal amplitudes already carry that normalization.
+    # The modes are finite (validated) and so is each phase factor; the
+    # fields are checked once, as computed samples.
     sample_count = math.prod(grid.shape)
-    electric = sample_count * IFFT2(electric_modes.reshape(shape))
-    electric = ElectricField(grid, expansion.wavelength0, electric)
+    electric_modes = expansion.amplitudes * phase[:, None]
+    electric = _centered(
+        electric_modes.reshape(shape), inverse=True, scale=sample_count, overwrite=True
+    )
+    del electric_modes
+    electric = ElectricField._computed(grid, expansion.wavelength0, electric)
 
     if not magnetic:
         return electric
 
-    magnetic_modes = expansion.magnetic_amplitudes * phase[:, None]
+    def form_magnetic():
+        # cross(k, a) phase, one component at a time in place; 1 / (k0 Z0)
+        # rides on the transform's scale.
+        k, a = expansion.wavevectors, expansion.amplitudes
+        modes = bd.empty_like(a)
+        scratch = bd.empty(len(a), complex)
+        for i, (p, q) in enumerate(((1, 2), (2, 0), (0, 1))):
+            component = bd.multiply(k[:, p], a[:, q], out=modes[:, i])
+            component -= bd.multiply(k[:, q], a[:, p], out=scratch)
+            component *= phase
+        del scratch
+        k0 = 2 * bd.pi / expansion.wavelength0
+        return _centered(
+            modes.reshape(shape),
+            inverse=True,
+            scale=sample_count / (k0 * Z0),
+            overwrite=True,
+        )
 
-    return ElectromagneticField(
-        electric, sample_count * IFFT2(magnetic_modes.reshape(shape))
-    )
+    return ElectromagneticField._computed(electric, form_magnetic)
 
 
 def propagate(
@@ -120,13 +140,16 @@ class PlaneTransport:
             old.amplitudes[occupied]
             * phase_factor(old.wavevectors[occupied], displacement[None, :])[0, :, None]
         )
-        return PlaneSpectrum(
+        # The lattice and its modes are the spectrum's, translated with its
+        # grid; a phase keeps each amplitude transverse, so only finiteness
+        # needs a check.
+        if not bd.isfinite(amplitudes).all():
+            raise ValueError("arrays must contain finite values")
+        return PlaneSpectrum._trusted(
             grid,
-            PlaneWaveExpansion(
-                old.wavevectors,
-                amplitudes,
-                grid.points[grid.shape[0] // 2, grid.shape[1] // 2],
-                old.wavelength0,
-                old.region,
+            PlaneWaveExpansion._trusted(
+                old.wavevectors, amplitudes, grid.center, old.wavelength0, old.region
             ),
+            0.0,
+            0.0,
         )

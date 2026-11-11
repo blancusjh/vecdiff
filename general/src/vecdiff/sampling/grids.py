@@ -123,6 +123,17 @@ class CartesianGrid:
         )
 
     @property
+    def center(self):
+        """points[ny // 2, nx // 2], the FFT reference, without forming points."""
+        ny, nx = self.shape
+
+        return (
+            self.frame.origin
+            + self.u[nx // 2] * self.frame.u
+            + self.v[ny // 2] * self.frame.v
+        )
+
+    @property
     def normals(self):
         return bd.broadcast_to(self.frame.normal, self.shape + (3,))
 

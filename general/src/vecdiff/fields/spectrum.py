@@ -17,7 +17,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from vecdiff._arrays import frozen_array, positive
-from vecdiff._backend import bd
+from vecdiff._backend import bd, is_device_array
 from vecdiff.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
@@ -47,6 +47,37 @@ def summation(method="auto", tolerance=None, chunk_size=None, threads=None):
         chunk_size=256 if chunk_size is None else chunk_size,
         threads=threads,
     )
+
+
+def _check_transverse(wavevectors, amplitudes):
+    """Reject modes whose k . a exceeds 1e-10 |k| |a|, arrays (..., 3)."""
+
+    # |k| |a| by hypot: the sum of squares underflows for |a| < 1e-154,
+    # where a valid but faint mode would otherwise be rejected.
+    def norm(vectors):
+        size = bd.abs(vectors[..., 0])
+        for axis in (1, 2):
+            size = bd.hypot(size, bd.abs(vectors[..., axis]))
+        return size
+
+    # One component at a time: no (modes, 3) temporary.
+    k, a = wavevectors, amplitudes
+    transverse_error = bd.abs(
+        k[..., 0] * a[..., 0] + k[..., 1] * a[..., 1] + k[..., 2] * a[..., 2]
+    )
+    transverse_scale = norm(k) * norm(a)
+
+    if bd.any(transverse_error > 1e-10 * transverse_scale):
+        raise ValueError("electric modal amplitudes are not transverse")
+
+
+def _occupied(expansion):
+    """Mask of the modes with a nonzero amplitude, formed once per expansion."""
+    occupied = expansion.__dict__.get("_occupied_modes")
+    if occupied is None:
+        occupied = bd.any(expansion.amplitudes != 0, axis=-1)
+        object.__setattr__(expansion, "_occupied_modes", occupied)
+    return occupied
 
 
 class Spectrum(ABC):
@@ -148,19 +179,7 @@ class PlaneWaveExpansion:
         if bd.any(bd.abs(dispersion) > 1e-10 * scale):
             raise ValueError("wavevectors violate the region's dispersion relation")
 
-        # |k| |a| by hypot: the sum of squares underflows for |a| < 1e-154,
-        # where a valid but faint mode would otherwise be rejected.
-        def norm(vectors):
-            size = bd.abs(vectors[..., 0])
-            for axis in (1, 2):
-                size = bd.hypot(size, bd.abs(vectors[..., axis]))
-            return size
-
-        transverse_error = bd.abs(bd.sum(k * amplitudes, axis=-1))
-        transverse_scale = norm(k) * norm(amplitudes)
-
-        if bd.any(transverse_error > 1e-10 * transverse_scale):
-            raise ValueError("electric modal amplitudes are not transverse")
+        _check_transverse(k, amplitudes)
 
         for name, value in (
             ("wavevectors", k),
@@ -170,6 +189,33 @@ class PlaneWaveExpansion:
             object.__setattr__(self, name, value)
 
         object.__setattr__(self, "wavelength0", wavelength)
+
+    @classmethod
+    def _trusted(
+        cls, wavevectors, amplitudes, origin, wavelength0, region, *, occupied=None
+    ):
+        """An expansion the library built from validated pieces, taken as given.
+
+        The caller guarantees what __post_init__ checks: finite (modes, 3)
+        complex arrays it owns, the region's dispersion, transverse
+        amplitudes, a float wavelength and a HomogeneousRegion. The arrays
+        are made read-only, not copied. ``occupied``, if known, is the mask
+        of nonzero amplitudes (see _occupied).
+        """
+        expansion = object.__new__(cls)
+        if occupied is not None:
+            object.__setattr__(expansion, "_occupied_modes", occupied)
+        for name, value in (
+            ("wavevectors", wavevectors),
+            ("amplitudes", amplitudes),
+            ("origin", origin),
+        ):
+            if not is_device_array(value):
+                value.setflags(write=False)
+            object.__setattr__(expansion, name, value)
+        object.__setattr__(expansion, "wavelength0", wavelength0)
+        object.__setattr__(expansion, "region", region)
+        return expansion
 
     @property
     def magnetic_amplitudes(self):
@@ -244,8 +290,7 @@ class PlaneSpectrum(Spectrum):
             raise ValueError("FFT spectrum must contain one mode per grid cell")
 
         # IFFT2 references the central physical point, not an arbitrary origin.
-        ny, nx = self.grid.shape
-        center = self.grid.points[ny // 2, nx // 2]
+        center = self.grid.center
 
         if not bd.array_equal(self.expansion.origin, center):
             raise ValueError(
@@ -269,6 +314,24 @@ class PlaneSpectrum(Spectrum):
                 "transverse wavevectors must match the centered FFT lattice and ordering"
             )
 
+    @classmethod
+    def _trusted(cls, grid, expansion, roundoff_removed_rms, evanescent_removed_rms):
+        """A spectrum the library built on its own lattice, taken as given.
+
+        The caller guarantees what __post_init__ checks: one mode per cell,
+        the phase origin at grid.center and the centered FFT lattice of the
+        grid in (v, u) order.
+        """
+        spectrum = object.__new__(cls)
+        for name, value in (
+            ("grid", grid),
+            ("expansion", expansion),
+            ("roundoff_removed_rms", roundoff_removed_rms),
+            ("evanescent_removed_rms", evanescent_removed_rms),
+        ):
+            object.__setattr__(spectrum, name, value)
+        return spectrum
+
     @property
     def region(self):
         return self.expansion.region
@@ -281,7 +344,7 @@ class PlaneSpectrum(Spectrum):
     def direction(self):
         """+1 if every mode travels along the lattice's normal, -1 if every one back."""
         normal = (self.expansion.wavevectors.real @ self.grid.frame.normal)[
-            bd.any(self.expansion.amplitudes != 0, axis=-1)
+            _occupied(self.expansion)
         ]
         if bd.all(normal >= 0):
             return 1
