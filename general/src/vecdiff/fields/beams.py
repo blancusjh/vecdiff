@@ -18,6 +18,16 @@ import numpy as np
 
 from vecdiff._arrays import positive
 from vecdiff._backend import bd, jv, leggauss, to_numpy
+from vecdiff._printing import (
+    axes,
+    block,
+    guarded,
+    name_of,
+    number,
+    placement,
+    sequence,
+    shorten,
+)
 from vecdiff.fields.carrier import Carrier
 from vecdiff.fields.polarization import Jones
 from vecdiff.fields.profiles import Uniform
@@ -30,6 +40,8 @@ _ROUNDOFF = 64 * np.finfo(float).eps
 
 
 class _Beam:
+    _origin = "origin"
+
     def __init__(self, profile, polarization, frame, wavelength0, region, edges):
         if not callable(profile):
             raise TypeError("profile must be a callable p(x, y) from fields.profiles")
@@ -55,6 +67,52 @@ class _Beam:
         self.wavelength0 = positive(wavelength0, "vacuum wavelength")
         self.region = region
         self.wavenumber = 2 * bd.pi * region.material.n / self.wavelength0
+
+    def _profile_name(self):
+        """The profile's own print, or the name of a plain callable."""
+        profile = self.profile
+        return repr(profile) if hasattr(profile, "_arguments") else name_of(profile)
+
+    def _medium(self):
+        """The region by name, with its material when named otherwise."""
+        region, material = self.region, self.region.material
+        n = number(material.n)
+        if region.name == material.name:
+            return f"{region.name!r} (n={n})"
+        return f"{region.name!r} ({material.name}, n={n})"
+
+    def _arguments(self):
+        """The kind-specific printed parameters, between polarization and place."""
+        return []
+
+    @guarded
+    def __repr__(self):
+        """Profile, polarization, kind-specific parameters, wavelength, medium, place."""
+        parts = [self._profile_name(), self.polarization.describe()]
+        parts += self._arguments()
+        parts += [f"wavelength0={number(self.wavelength0)}", f"in {self._medium()}"]
+        parts += [f"{k}={v}" for k, v in placement(self.frame, self._origin)]
+        return shorten(f"{type(self).__name__}({', '.join(parts)})")
+
+    def _common(self):
+        """The (name, value) lines every beam prints."""
+        n = self.region.material.n
+        state = self.polarization
+        basis = "(u, v)" if state.basis == "cartesian" else "(radial, azimuthal)"
+        return [
+            ("profile", self._profile_name()),
+            (
+                "polarization",
+                f"{state.describe()}, {sequence(state.components)} on {basis}",
+            ),
+            (
+                "wavelength0",
+                f"{number(self.wavelength0)} (vacuum; {number(self.wavelength0 / n)} in the medium)",
+            ),
+            ("medium", self._medium()),
+            ("wavenumber", f"k = 2 pi n / wavelength0 = {number(self.wavenumber)}"),
+            ("edges", sequence(self.edges) if self.edges else "none"),
+        ]
 
     def _transverse(self, x, y):
         """Prescribed (u, v) field components at frame coordinates x, y."""
@@ -268,6 +326,28 @@ class PlaneBeam(_Beam):
 
         self.support = support
 
+    @guarded
+    def __str__(self):
+        """Its profile, polarization, wavelength, medium, support and directions."""
+        bandwidth = getattr(self.profile, "bandwidth", None)
+        if self.is_plane_wave:
+            directions = "one plane wave along the normal"
+        elif bandwidth is None:
+            directions = "all propagating directions (no bandwidth declared)"
+        else:
+            sine = min(1.0, bandwidth / float(self.wavenumber))
+            directions = (
+                f"sin(theta) <= {number(sine)}, beyond which the profile's "
+                "spectrum is below roundoff"
+            )
+        support = "unbounded" if self.support is None else number(self.support)
+        lines = self._common() + [
+            ("support", f"{support} (radius beyond which the profile vanishes)"),
+            ("directions", directions),
+        ]
+        title = "PlaneBeam: transverse E prescribed on the plane of its frame"
+        return block(title, lines + [("frame", _frame(self.frame))])
+
     @property
     def carrier(self):
         return Carrier.collimated(self.frame.normal, self.frame.origin)
@@ -431,6 +511,41 @@ class FocusedBeam(_Beam):
 
         self.max_sine, self.apodization = max_sine, apodization
 
+    _origin = "focus"
+
+    def _arguments(self):
+        return [
+            f"focal_length={number(self.focal_length)}",
+            f"max_sine={number(self.max_sine)}",
+        ]
+
+    @guarded
+    def __str__(self):
+        """Its pupil, polarization, focusing geometry and aperture, with the NA."""
+        n = self.region.material.n
+        lines = self._common() + [
+            ("focal length", number(self.focal_length)),
+            ("max_sine", f"sin(theta_max) = {number(self.max_sine)}"),
+            ("numerical aperture", f"n sin(theta_max) = {number(n * self.max_sine)}"),
+            (
+                "pupil radius",
+                f"f max_sine = {number(self.focal_length * self.max_sine)}",
+            ),
+        ]
+        support = getattr(self.profile, "support", None)
+        sine = float(np.sin(self._theta_max()))
+        if support is not None and sine < self.max_sine:
+            lines.append(
+                (
+                    "directions used",
+                    f"sin(theta) <= {number(sine)}: the profile's support "
+                    f"{number(support)} ends inside the pupil",
+                )
+            )
+        lines.append(("apodization", self.apodization))
+        title = "FocusedBeam: an ideal lens's focus of the pupil field"
+        return block(title, lines + [("focus frame", _frame(self.frame))])
+
     @property
     def focus(self):
         return self.frame.origin
@@ -474,3 +589,8 @@ class FocusedBeam(_Beam):
         return (scale * meridional)[..., None] * theta_hat + (scale * azimuthal)[
             ..., None
         ] * phi_hat
+
+
+def _frame(frame):
+    """A frame's origin and axes on consecutive lines."""
+    return "\n".join(f"{name:<6} {value}" for name, value in axes(frame))

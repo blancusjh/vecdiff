@@ -18,6 +18,17 @@ import numpy as np
 
 from vecdiff._arrays import frozen_array, positive
 from vecdiff._backend import bd, is_device_array
+from vecdiff._printing import (
+    axes,
+    block,
+    count,
+    guarded,
+    number,
+    on_plane,
+    shape,
+    shorten,
+    vector,
+)
 from vecdiff.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
@@ -105,6 +116,47 @@ class Spectrum(ABC):
         """The Frame of the plane the spectrum is referred to."""
         return self.grid.frame
 
+    def _size(self):
+        """How many plane waves, orders or nodes it holds, in a few words."""
+        return f"chart {shape(self.grid.shape)}"
+
+    def _details(self):
+        """Further (name, value) lines of the multi-line print."""
+        return []
+
+    def _travel(self):
+        """The way its waves travel along the plane's normal, in words."""
+        return "forward (+normal)" if self.direction == 1 else "backward (-normal)"
+
+    @guarded
+    def __repr__(self):
+        """Its size, plane, region, direction and wavelength, read without summing."""
+        return shorten(
+            f"{type(self).__name__}({self._size()}, {on_plane(self.plane)}, "
+            f"in {self.region.name!r}, {self._travel()}, "
+            f"wavelength0={number(self.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its region, plane, direction of travel, chart and size."""
+        material = self.region.material
+        lines = [
+            (
+                "region",
+                f"{self.region.name!r} ({material.name}, n={number(material.n)})",
+            ),
+            ("wavelength0", number(self.wavelength0)),
+            ("travels", self._travel()),
+            ("holds", self._size()),
+            ("chart", repr(self.grid)),
+            *self._details(),
+        ]
+        lines += [(f"plane {name}", value) for name, value in axes(self.plane)]
+        return block(
+            f"{type(self).__name__}: the field of one region as plane waves", lines
+        )
+
     @abstractmethod
     def evaluate(
         self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
@@ -142,7 +194,7 @@ class Spectrum(ABC):
         """The same field, attributed to another region of the same material."""
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class PlaneWaveExpansion:
     """Discrete modal amplitudes, including any quadrature weights.
 
@@ -217,6 +269,35 @@ class PlaneWaveExpansion:
         object.__setattr__(expansion, "region", region)
         return expansion
 
+    @guarded
+    def __repr__(self):
+        """Its number of modes, phase origin, wavelength and region."""
+        return shorten(
+            f"PlaneWaveExpansion({count(len(self.wavevectors), 'mode')}, "
+            f"origin={vector(self.origin)}, wavelength0={number(self.wavelength0)}, "
+            f"in {self.region.name!r})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its modes, how many propagate and are occupied, and its region."""
+        k = self.wavevectors
+        propagating = int(bd.sum(bd.all(bd.abs(k.imag) == 0, axis=-1)))
+        occupied = int(bd.sum(_occupied(self)))
+        material = self.region.material
+        return block(
+            "PlaneWaveExpansion: E(r) = sum a_j exp(i k_j . (r - origin))",
+            [
+                ("modes", f"{len(k)} ({propagating} propagating, {occupied} nonzero)"),
+                ("origin", vector(self.origin)),
+                ("wavelength0", number(self.wavelength0)),
+                (
+                    "region",
+                    f"{self.region.name!r} ({material.name}, n={number(material.n)})",
+                ),
+            ],
+        )
+
     @property
     def magnetic_amplitudes(self):
         k0 = 2 * bd.pi / self.wavelength0
@@ -265,7 +346,7 @@ class PlaneWaveExpansion:
         return ElectricField(grid, self.wavelength0, values)
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, repr=False)
 class PlaneSpectrum(Spectrum):
     """FFT lattice plus its homogeneous modal solution.
 
@@ -335,6 +416,29 @@ class PlaneSpectrum(Spectrum):
     @property
     def region(self):
         return self.expansion.region
+
+    def _size(self):
+        return f"{shape(self.grid.shape)} FFT modes"
+
+    def _travel(self):
+        try:
+            return super()._travel()
+        except ValueError:
+            return "both ways"
+
+    def _details(self):
+        return [
+            ("roundoff removed", f"rms {number(self.roundoff_removed_rms)}"),
+            ("evanescent removed", f"rms {number(self.evanescent_removed_rms)}"),
+        ]
+
+    @guarded
+    def __repr__(self):
+        """As every Spectrum's, without the direction, which reads every mode."""
+        return shorten(
+            f"PlaneSpectrum({self._size()}, {on_plane(self.plane)}, "
+            f"in {self.region.name!r}, wavelength0={number(self.wavelength0)})"
+        )
 
     @property
     def wavelength0(self):

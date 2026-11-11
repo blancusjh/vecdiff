@@ -7,6 +7,17 @@ import numpy as np
 
 from vecdiff._arrays import frozen_array
 from vecdiff._backend import bd
+from vecdiff._printing import (
+    axes,
+    block,
+    guarded,
+    number,
+    on_plane,
+    shape,
+    shorten,
+    span,
+    vector,
+)
 from vecdiff.geometry.frames import Frame
 
 
@@ -36,6 +47,27 @@ class PointGrid:
     @property
     def shape(self):
         return self.points.shape[:-1]
+
+    @guarded
+    def __repr__(self):
+        """Its number of points and their array shape; one point is shown."""
+        size = int(np.prod(self.shape))
+        if size == 1:
+            return (
+                f"PointGrid(1 point at {vector(bd.reshape(self.points, (-1, 3))[0])})"
+            )
+        return f"PointGrid({size} points, shape {tuple(self.shape)})"
+
+    @guarded
+    def __str__(self):
+        """Its size and the box that holds its points."""
+        return block(repr(self), _box(self.points))
+
+
+def _box(points):
+    """The corners of the box that holds the points, as (name, value) pairs."""
+    flat = bd.reshape(points, (-1, 3))
+    return [("lowest", vector(flat.min(axis=0))), ("highest", vector(flat.max(axis=0)))]
 
 
 @dataclass(frozen=True, eq=False)
@@ -70,6 +102,16 @@ class SurfaceGrid:
     @property
     def shape(self):
         return self.points.shape[:-1]
+
+    @guarded
+    def __repr__(self):
+        return f"SurfaceGrid({shape(self.shape)} points with normals and area weights)"
+
+    @guarded
+    def __str__(self):
+        """Its size, the box of its points and its total area."""
+        area = ("area", number(bd.sum(self.weights)))
+        return block(repr(self), _box(self.points) + [area])
 
 
 @dataclass(frozen=True, eq=False)
@@ -150,6 +192,33 @@ class CartesianGrid:
 
     def translated(self, displacement):
         return CartesianGrid(self.u, self.v, self.frame.translated(displacement))
+
+    @guarded
+    def __repr__(self):
+        """Its shape (v, u), the span of each axis and its plane."""
+        (u0, u1), (v0, v1) = span(self.u), span(self.v)
+        return shorten(
+            f"CartesianGrid({shape(self.shape)}, u in [{u0}, {u1}], "
+            f"v in [{v0}, {v1}], {on_plane(self.frame)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its axes, their spacing and its plane's frame."""
+        du, dv = self.spacing
+        return block(
+            f"CartesianGrid: {shape(self.shape)} samples, array order (v, u)",
+            [
+                ("u values", _axis(self.u, du)),
+                ("v values", _axis(self.v, dv)),
+                *axes(self.frame),
+            ],
+        )
+
+
+def _axis(values, step):
+    first, last = span(values)
+    return f"{len(values)} from {first} to {last}, step {number(step)}"
 
 
 @dataclass(frozen=True, eq=False)
@@ -241,6 +310,29 @@ class PolarGrid:
         radial_area = self.radius * self.dr_weights * (2 * bd.pi / len(self.azimuth))
 
         return bd.broadcast_to(radial_area[:, None], self.shape)
+
+    @guarded
+    def __repr__(self):
+        """Its shape (radius, azimuth), the radial span and its plane."""
+        r0, r1 = span(self.radius)
+        return shorten(
+            f"PolarGrid({len(self.radius)} radii in [{r0}, {r1}] x "
+            f"{len(self.azimuth)} azimuths, {on_plane(self.frame)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its radii, azimuths and its plane's frame."""
+        r0, r1 = span(self.radius)
+        a0 = number(self.azimuth[0])
+        return block(
+            f"PolarGrid: {shape(self.shape)} samples, array order (radius, azimuth)",
+            [
+                ("radii", f"{len(self.radius)} from {r0} to {r1}"),
+                ("azimuths", f"{len(self.azimuth)} uniform from {a0} rad"),
+                *axes(self.frame),
+            ],
+        )
 
     def translated(self, displacement):
         return PolarGrid(

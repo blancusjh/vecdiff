@@ -35,6 +35,12 @@ class BeamSpectrum(Spectrum):
     def relabeled(self, region):
         return BeamSpectrum(self.beam, self.grid, region)
 
+    def _size(self):
+        return f"{type(self.beam).__name__} on a {type(self.grid).__name__} chart"
+
+    def _details(self):
+        return [("beam", repr(self.beam))]
+
     def evaluate(
         self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
     ):

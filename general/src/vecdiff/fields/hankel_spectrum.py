@@ -3,6 +3,7 @@
 import numpy as np
 
 from vecdiff._backend import bd, to_numpy
+from vecdiff._printing import number
 from vecdiff.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
@@ -91,6 +92,21 @@ class HankelSpectrum(Spectrum):
         self.extent = float(bd.max(radius))
         self.grid = PolarGrid(radius, azimuths(harmonics), frame, weights)
         self._cache = None
+
+    def _size(self):
+        orders = sorted(self.carried)
+        listed = ", ".join(str(m) for m in orders[:8]) + (
+            ", ..." if len(orders) > 8 else ""
+        )
+        return (
+            f"harmonics m = ({listed}), {len(self.grid.radius)} radial nodes "
+            f"to r={number(self.extent)}"
+        )
+
+    def _details(self):
+        return [
+            ("orders", "m carries azimuthal orders m + 1 and m - 1 of E_x +- i E_y")
+        ]
 
     def relabeled(self, region):
         clone = HankelSpectrum(

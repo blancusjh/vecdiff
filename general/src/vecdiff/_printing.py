@@ -93,6 +93,17 @@ def vector(array, digits=DIGITS):
     return "(" + ", ".join(number(x, digits) for x in items) + ")"
 
 
+def sequence(items, limit=6):
+    """A sequence of numbers as a tuple, its first and last ones when long:
+    (1, 2, 3, ..., 9, 10; 10 values)."""
+    items = list(items)
+    if len(items) <= limit:
+        return "(" + ", ".join(number(x) for x in items) + ")"
+    head = [number(x) for x in items[: limit // 2]]
+    tail = [number(x) for x in items[-(limit // 2) :]]
+    return f"({', '.join(head)}, ..., {', '.join(tail)}; {len(items)} values)"
+
+
 def is_vector(array, expected, tolerance=SNAP):
     """Whether a 3-vector equals ``expected`` to roundoff."""
     items = values(array)
@@ -104,6 +115,11 @@ def is_vector(array, expected, tolerance=SNAP):
 def span(axis):
     """The first and last values of a 1D axis, read without forming more."""
     return number(axis[0]), number(axis[-1])
+
+
+def count(n, word):
+    """``n word`` with the plural where n is not one: 1 mode, 3 modes."""
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
 def shape(dims):
@@ -254,6 +270,60 @@ def placement(frame, origin="vertex", normal=False):
     if not is_vector(frame.u, U):
         pairs.append(("u", vector(frame.u)))
     return pairs
+
+
+def is_z_plane(frame):
+    """Whether a frame is the global axes moved along z."""
+    return (
+        is_vector(frame.normal, Z)
+        and is_vector(frame.u, U)
+        and is_vector(frame.origin[:2], (0, 0))
+    )
+
+
+def on_plane(frame):
+    """Where a chart's plane lies: ``plane z=0.05`` for a global z plane, else
+    its origin and normal (and u where it is not the global x)."""
+    if is_z_plane(frame):
+        return f"plane z={number(frame.origin[2])}"
+    return ", ".join(f"{k}={v}" for k, v in placement(frame, "origin", normal=True))
+
+
+def axes(frame):
+    """A frame's origin and axes, as (name, value) pairs."""
+    pairs = [("origin", vector(frame.origin))]
+    return pairs + [(n, vector(getattr(frame, n))) for n in ("u", "v", "normal")]
+
+
+def grid_summary(grid):
+    """A grid in a few words: its kind, shape and plane, without its points."""
+    frame = getattr(grid, "frame", None)
+    where = "" if frame is None else f", {on_plane(frame)}"
+    size = shape(grid.shape)
+    if len(grid.shape) == 1:
+        size = f"of {count(int(grid.shape[0]), 'point')}"
+    return f"{type(grid).__name__} {size}{where}"
+
+
+def travel(direction):
+    """The way waves travel along a plane's normal, in words."""
+    return "forward (+normal)" if direction == 1 else "backward (-normal)"
+
+
+def fan(window):
+    """A fan of carried rays in words: every ray, a roll-off, or a weighting callable."""
+    if window is None:
+        return "every supported ray"
+    if callable(window):
+        return f"weights from {name_of(window)}"
+    start, end = window
+    return f"rolled off from {number(start)} to {number(end)} deg"
+
+
+def region_text(region):
+    """A region by name, with its material's name and index."""
+    material = region.material
+    return f"{region.name!r} ({material.name}, n={number(material.n)})"
 
 
 def described(name, pairs):

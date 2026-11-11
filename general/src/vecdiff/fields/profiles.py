@@ -14,6 +14,7 @@ import numpy as np
 
 from vecdiff._arrays import positive
 from vecdiff._backend import bd
+from vecdiff._printing import block, guarded, name_of, number, sequence, shorten
 
 # exp(-ROUNDOFF_EXPONENT) is below double-precision roundoff relative to 1.
 ROUNDOFF_EXPONENT = -np.log(np.finfo(float).eps / 2)
@@ -21,6 +22,34 @@ ROUNDOFF_EXPONENT = -np.log(np.finfo(float).eps / 2)
 
 class _Profile:
     """Products with other profiles and with plain callables p(x, y)."""
+
+    def _arguments(self):
+        """The printed arguments that define the profile."""
+        return []
+
+    @guarded
+    def __repr__(self):
+        """Its kind and defining parameters: Gaussian(waist=0.002)."""
+        return shorten(f"{type(self).__name__}({', '.join(self._arguments())})")
+
+    @guarded
+    def __str__(self):
+        """Its parameters with the support, bandwidth and edges quadratures use."""
+        support, bandwidth = self.support, self.bandwidth
+        edges = tuple(getattr(self, "edges", ()))
+        return block(
+            repr(self),
+            [
+                ("support", "unbounded" if support is None else number(support)),
+                (
+                    "bandwidth",
+                    "not declared"
+                    if bandwidth is None
+                    else f"{number(bandwidth)} (transverse wavenumber)",
+                ),
+                ("edges", sequence(edges) if edges else "none"),
+            ],
+        )
 
     def __mul__(self, other):
         if not callable(other):
@@ -41,7 +70,7 @@ def _radii(x, y):
     return bd.hypot(x, y)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Uniform(_Profile):
     """Unit amplitude on the closed disk of ``radius``; unbounded if radius is None."""
 
@@ -50,6 +79,9 @@ class Uniform(_Profile):
     def __post_init__(self):
         if self.radius is not None:
             object.__setattr__(self, "radius", positive(self.radius, "profile radius"))
+
+    def _arguments(self):
+        return ["unbounded" if self.radius is None else f"radius={number(self.radius)}"]
 
     def __call__(self, x, y):
         rho = _radii(x, y)
@@ -75,7 +107,7 @@ class Uniform(_Profile):
         return () if self.radius is None else (self.radius,)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Annulus(_Profile):
     """Unit amplitude on the closed ring ``inner`` <= rho <= ``outer``."""
 
@@ -91,6 +123,9 @@ class Annulus(_Profile):
 
         object.__setattr__(self, "inner", inner)
         object.__setattr__(self, "outer", outer)
+
+    def _arguments(self):
+        return [f"inner={number(self.inner)}", f"outer={number(self.outer)}"]
 
     def __call__(self, x, y):
         rho = _radii(x, y)
@@ -110,7 +145,7 @@ class Annulus(_Profile):
         return (self.inner, self.outer)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Zones(_Profile):
     """Constant values on concentric zones: stops, apertures and phase plates.
 
@@ -142,6 +177,9 @@ class Zones(_Profile):
         object.__setattr__(self, "edges", edges)
         object.__setattr__(self, "values", tuple(values.tolist()))
 
+    def _arguments(self):
+        return [f"edges={sequence(self.edges)}", f"values={sequence(self.values)}"]
+
     def __call__(self, x, y):
         zone = bd.searchsorted(bd.asarray(self.edges, float), _radii(x, y))
 
@@ -159,7 +197,7 @@ class Zones(_Profile):
         return None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Product(_Profile):
     """Pointwise product of profiles; also written ``a * b``.
 
@@ -181,6 +219,11 @@ class Product(_Profile):
             flat.extend(factor.factors if isinstance(factor, Product) else [factor])
 
         object.__setattr__(self, "factors", tuple(flat))
+
+    def _arguments(self):
+        return [
+            repr(f) if isinstance(f, _Profile) else name_of(f) for f in self.factors
+        ]
 
     def __call__(self, x, y):
         result = self.factors[0](x, y)
@@ -211,7 +254,7 @@ class Product(_Profile):
         return tuple(sorted(e for e in edges if support is None or e <= support))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Gaussian(_Profile):
     """exp(-(x² + y²) / waist²): ``waist`` is the 1/e field radius."""
 
@@ -219,6 +262,9 @@ class Gaussian(_Profile):
 
     def __post_init__(self):
         object.__setattr__(self, "waist", positive(self.waist, "Gaussian waist"))
+
+    def _arguments(self):
+        return [f"waist={number(self.waist)}"]
 
     def __call__(self, x, y):
         x, y = bd.broadcast_arrays(bd.asarray(x, float), bd.asarray(y, float))

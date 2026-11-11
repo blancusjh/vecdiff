@@ -14,9 +14,10 @@ import numpy as np
 
 from vecdiff._arrays import frozen_array
 from vecdiff._backend import bd
+from vecdiff._printing import call, guarded, name_of, vector
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Carrier:
     """path(points), gradient(points) and hessian(points) for points of shape (..., 3)."""
 
@@ -80,6 +81,31 @@ class Carrier:
             lambda r: bd.broadcast_to(direction, bd.shape(r)).copy(),
             lambda r: bd.zeros(bd.shape(r)[:-1] + (3, 3)),
         )
+
+    def family(self):
+        """Which family built the carrier and its defining vectors.
+
+        ("converging", {"point": ...}) for Carrier.converging, likewise
+        "diverging" and "collimated" (direction, origin); ("custom", {})
+        for one built from its own functions.
+        """
+        qualname = getattr(self.path, "__qualname__", "")
+        for kind in ("converging", "diverging", "collimated"):
+            if qualname.startswith(f"Carrier.{kind}.<locals>"):
+                cells = self.path.__closure__ or ()
+                names = self.path.__code__.co_freevars
+                return kind, {n: c.cell_contents for n, c in zip(names, cells)}
+        return "custom", {}
+
+    @guarded
+    def __repr__(self):
+        """The family of rays and the point or direction that defines it."""
+        kind, vectors = self.family()
+        if kind == "custom":
+            return call("Carrier", path=name_of(self.path))
+        order = ("point", "direction", "origin")
+        pairs = {n: vector(vectors[n]) for n in order if n in vectors}
+        return call(f"Carrier.{kind}", **pairs)
 
     def directions(self, points):
         """Unit ray directions; raises where the carrier is singular or not unit."""
