@@ -40,10 +40,7 @@ def lens_case(
     back = SphericalCap(-curvature, Frame([0, 0, thickness]))
     volume = VolumeBetweenSurfaces(front, back, radius)
     system = OpticalSystem(
-        (
-            Refraction(front, source.region, interior),
-            Refraction(back, interior, source.region),
-        ),
-        (radius, radius),
+        Refraction(front, source.region, interior, edge=radius),
+        Refraction(back, interior, source.region, edge=radius),
     )
     return source, interior, volume, system
