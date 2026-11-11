@@ -1,7 +1,9 @@
 # Fourier transforms and coordinate-aware grids
 
-This document describes the general library. The dedicated stigmatic Fourier
-implementation remains unchanged during this refinement.
+This document describes the numerical infrastructure of the general library:
+`vecdiff.fourier` (transforms) and `vecdiff.sampling` (grids). The method uses
+them; they import no optical fields, materials or propagation. Blocks marked
+as fragments below show signatures on arrays the reader supplies.
 
 A sample array's shape does not identify its coordinates. Its Grid declares a
 sampling chart and maps each index to a physical position, including translation
@@ -24,6 +26,7 @@ introducing polar sampling does not silently resample data or change that solver
 
 ## Direct centered transforms
 
+<!-- fragment -->
 ```python
 from vecdiff.fourier import FFT2, IFFT2, frequency_grid
 
@@ -139,6 +142,7 @@ Cartesian and polar calculations at common frequency coordinates.
 
 ## Direct polar operations
 
+<!-- fragment -->
 ```python
 from vecdiff.fourier.polar import FT2, IFT2, HT, IHT
 
@@ -194,6 +198,7 @@ Angular harmonic truncation and cylindrical synthesis remain available.
 
 ## Nonuniform operations
 
+<!-- fragment -->
 ```python
 from vecdiff.fourier import NUFFT
 
@@ -218,6 +223,7 @@ cores.
 
 For continuous integral quadrature, use explicit measures:
 
+<!-- fragment -->
 ```python
 from vecdiff import fourier
 
@@ -256,4 +262,6 @@ polar transforms, Hankel integrals and angular harmonics; `fourier/nufft.py`
 contains nonuniform sums and weighted integral transforms. `fourier/__init__.py` exposes the common interface.
 There is no separate Hankel module. `FFT2`/`IFFT2` and the coordinate-aware
 `transform`/`inverse` share one implementation, with their normalizations stated
-explicitly. Optical modal construction remains in `propagation/`.
+explicitly. Optical modal construction (`angular_spectrum`, the plane-wave
+expansions and spectra) is in `fields/`; homogeneous propagation of a
+spectrum in `propagation/homogeneous.py`.
