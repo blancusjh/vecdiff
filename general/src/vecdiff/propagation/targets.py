@@ -88,8 +88,11 @@ def target_grid(
         )
     automatic_shape = shape is None
     if shape is None:
+        # |n|: the phase index n' and the decay kappa of an absorbing medium.
         max_index = index or max(
-            [source.region.material.n] + [e.outgoing.material.n for e in elements]
+            abs(n)
+            for n in [source.region.material.n]
+            + [e.outgoing.material.n for e in elements]
         )
         step = 0.4 * source.wavelength0 / max_index
         # A curved chart stretches physical distance; bound using a pilot grid.

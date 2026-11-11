@@ -147,7 +147,9 @@ class PlaneWaveExpansion:
     """Discrete modal amplitudes, including any quadrature weights.
 
     E(r) = sum amplitudes[j] exp(i k[j] dot (r-origin)). The region owns
-    the material context. Complex k obeys a bilinear dispersion relation.
+    the material context. Complex k obeys a bilinear dispersion relation,
+    k . k = (n k0)², with a complex n in an absorbing region; amplitudes are
+    transverse bilinearly (k . a = 0) and H = k x E / (k0 Z0).
     """
 
     wavevectors: np.ndarray
@@ -174,7 +176,7 @@ class PlaneWaveExpansion:
 
         wavenumber = 2 * bd.pi * self.region.material.n / wavelength
         dispersion = bd.sum(k * k, axis=-1) - wavenumber**2
-        scale = bd.maximum(bd.sum(bd.abs(k) ** 2, axis=-1), wavenumber**2)
+        scale = bd.maximum(bd.sum(bd.abs(k) ** 2, axis=-1), abs(wavenumber) ** 2)
 
         if bd.any(bd.abs(dispersion) > 1e-10 * scale):
             raise ValueError("wavevectors violate the region's dispersion relation")

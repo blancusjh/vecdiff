@@ -27,10 +27,11 @@ def _on_light_circle(transverse_squared, wavenumber):
     """Modes on the light circle to roundoff in k² - kappa².
 
     k_z = sqrt(k² - kappa²) of a lattice mode exactly on the circle is about
-    1e-8 k, not zero, so the test is on its square.
+    1e-8 k, not zero, so the test is on its square. In an absorbing medium
+    (complex k) no mode is on it: Im k² > 0.
     """
     return bd.abs(wavenumber**2 - transverse_squared) <= 64 * np.finfo(float).eps * (
-        wavenumber**2
+        abs(wavenumber) ** 2
     )
 
 
@@ -49,7 +50,9 @@ def angular_spectrum(
     determine k_normal and, when needed, the longitudinal electric component.
 
     'discard' removes modes outside the propagating disk and on its rim;
-    'retain' keeps the decaying branch. Coefficients below coefficient_rtol times the largest mode
+    'retain' keeps the decaying branch. In an absorbing region (complex
+    index) every mode decays, k_z = sqrt(n² k0² - kappa²) with Im k_z > 0,
+    and there is no disk: only 'retain' is taken. Coefficients below coefficient_rtol times the largest mode
     are zeroed before completion. Set this threshold to zero for strict
     retention. Both removed RMS amplitudes are reported in V/m.
     """
@@ -71,6 +74,15 @@ def angular_spectrum(
 
     if evanescent not in ("retain", "discard"):
         raise ValueError("evanescent must be 'retain' or 'discard'")
+
+    if evanescent == "discard" and region.material.absorbing:
+        from vecdiff.media.absorption import AbsorbingMediumError, describe
+
+        raise AbsorbingMediumError(
+            f"in an absorbing medium, {describe(region)}, every plane wave decays "
+            "(Im k_z > 0) and there is no propagating disk to keep: use "
+            "evanescent='retain'"
+        )
 
     if not bd.isfinite(coefficient_rtol) or not 0 <= coefficient_rtol < 1:
         raise ValueError("coefficient_rtol must lie in [0, 1)")
