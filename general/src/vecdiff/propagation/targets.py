@@ -51,10 +51,12 @@ def target_grid(
     else:
         width = max(len(plane.u) * plane.spacing[0], len(plane.v) * plane.spacing[1])
         xy = bd.stack(bd.meshgrid(plane.u, plane.v), axis=-1)
-    policy = "explicit window"
+    policy, index = "explicit window", None
     if window is None and footprint is not None:
-        window = footprint(target)
-        policy = "footprint of the rays that reach the target"
+        found = footprint(target)
+        if found is not None:
+            window, index = found
+            policy = "footprint of the rays that reach the target"
     if window is None:
         policy = "projected input chart and path"
         # Project a finite source/path box onto the requested chart. Include
@@ -86,7 +88,7 @@ def target_grid(
         )
     automatic_shape = shape is None
     if shape is None:
-        max_index = max(
+        max_index = index or max(
             [source.region.material.n] + [e.outgoing.material.n for e in elements]
         )
         step = 0.4 * source.wavelength0 / max_index

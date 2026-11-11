@@ -205,11 +205,13 @@ class Solution:
     def _footprint(self, target):
         """The window of a target surface that the light's rays reach, or None.
 
-        The rays of the segments that reach the target's origin are carried
+        The rays of the segments that reach the target's origin, where their
+        light is at least a hundredth of its brightest intensity, are carried
         straight to its plane; their extent is padded by four diffraction
         widths lambda / (n NA) of their cone, and at least 25 wavelengths.
-        The incident light has no rays of its own: None, as for a target no
-        segment reaches.
+        Returns that window and the largest index of those segments, which
+        sets the sampling. The incident light has no rays of its own: None
+        where only it, or no segment, reaches the target.
         """
         if not isinstance(target, GraphSurface):
             return None
@@ -220,8 +222,10 @@ class Solution:
             ).segments
         except ValueError:
             return None
-        reached = np.flatnonzero(to_numpy(members)[:, 0])
-        if not len(reached) or reached[0] == 0:
+        # The incident light has no rays of its own; the segments that carried
+        # light set the window.
+        reached = np.flatnonzero(to_numpy(members)[1:, 0]) + 1
+        if not len(reached):
             return None
         frame = target.frame
         normal, axes = to_numpy(frame.normal), to_numpy(frame.basis)[:, :2]
@@ -232,6 +236,15 @@ class Solution:
             if leg is None:
                 return None
             points, directions = (to_numpy(a) for a in leg.footprint())
+            # The rays that carry light: a hundredth of the brightest intensity.
+            light = to_numpy(
+                bd.linalg.norm(
+                    self.spectra[index].electric(PointGrid(bd.asarray(points))).values,
+                    axis=-1,
+                )
+            )
+            lit = light >= 0.1 * light.max()
+            points, directions = points[lit], directions[lit]
             along = directions @ normal
             keep = np.abs(along) > 1e-3
             if not keep.any():
@@ -251,7 +264,8 @@ class Solution:
         lo, hi = uv.min(axis=0), uv.max(axis=0)
         width = float(np.max(hi - lo))
         pad = min(pad, max(0.25 * width, 25 * step))
-        return (lo[0] - pad, hi[0] + pad, lo[1] - pad, hi[1] + pad)
+        index = max(self.spectra[k].region.material.n for k in reached)
+        return (lo[0] - pad, hi[0] + pad, lo[1] - pad, hi[1] + pad), index
 
     def __str__(self):
         lines = [

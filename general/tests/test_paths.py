@@ -561,3 +561,33 @@ def power_deficit(scale):
     incident = beam.evaluate(S.Plane.z(-60.0 * scale).sample(u=side, v=side))
     focal = solution.spectrum.evaluate(S.Plane.z(focus[2]).sample(u=side, v=side))
     return 1 - flux(focal) / flux(incident)
+
+
+def test_a_focal_plane_is_sampled_where_the_rays_arrive_without_a_window():
+    """A paraboloid's focal plane: the window is the focused light's footprint,
+    padded by its diffraction, not the incident chart."""
+    focal_length = 200.0
+    paraboloid = S.EvenAsphere(-1 / (2 * focal_length), conic=-1.0)
+    system = Y.OpticalSystem(
+        Y.Stop(60.0, z=-10.0), Y.Reflection(paraboloid, o.media.air)
+    )
+    beam = F.PlaneBeam(
+        F.profiles.Gaussian(20.0),
+        F.polarization.x,
+        wavelength0=1.0,
+        region=o.media.air,
+        frame=Frame([0, 0, -20.0]),
+    )
+    solution = P.Propagator(system)(beam)
+    report = solution.coverage(z=-focal_length)
+    assert report.sampling["bounds_policy"].startswith("footprint")
+    half = report.sampling["window"][1]
+    # The focal spot, f lambda / (pi w) = 3.2 lambda, well inside; the beam's
+    # 20 lambda waist would not be.
+    assert 10.0 < half < 40.0
+    # The incident light and the reflected light both reach it.
+    assert report.segments[0].all() and report.segments[2].all()
+    reflected = solution.spectrum.evaluate(report.grid)
+    intensity = -host(reflected.irradiance())
+    peak = np.unravel_index(np.argmax(intensity), intensity.shape)
+    assert np.hypot(*(host(report.grid.points)[peak][:2])) < 0.5

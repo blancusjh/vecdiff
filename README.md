@@ -134,7 +134,7 @@ vecdiff/
         hankel_spectrum.py      HankelSpectrum, the output of a meridian leg
         beam_spectrum.py        BeamSpectrum, a beam charted on a plane
     backend.py      CPU (NumPy) or CUDA GPU (CuPy) arrays
-    system.py       surface/media adjacency and optical prescriptions
+    system.py       the path of encounters: Refraction, Reflection, Stop
     fourier/        numerical transforms
     transport/      the method: a field across a surface along its carrier's rays
         rays.py                 plane-surface-plane ray map, its Jacobian and caustic index
@@ -228,16 +228,16 @@ propagated = spectrum.propagate(10 * wavelength, model="asm")
 power_in_watts = propagated.power()
 ```
 
-An interface normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `propagation.Propagator(system)(light, carrier=None)` takes a beam from `fields` (which brings its own carrier), a sampled field or a `fields.Spectrum`, and returns a `Solution`: one spectrum per region (`solution.spectra`), one `TransportReport` per refracting surface (`solution.reports`, printed by `print(solution)`), and `solution.field(target)` with E and H on a target (`z=f`, `y=a`, `x=b`, a placed surface or a grid). It carries the field along its carrier with the plane–surface–plane map of the eikonal–angular-spectrum formulation (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)). `alternatives.WavePropagator(system, transmission="local" | "spectral")` keeps the exact surface transport, for fields without a carrier, and returns the same `Solution`; see the [wave-transport example](general/examples/wave_transport.py).
+A `PlanarInterface` normal points from its `minus` region into its `plus` region. `scatter_plane` retains reflected and transmitted expansions, including evanescent transmission under TIR. `propagation.Propagator(system)(light, carrier=None)` takes a beam from `fields` (which brings its own carrier), a sampled field or a `fields.Spectrum`, and returns a `Solution`: one spectrum per segment of the system's path (`solution.spectra`), one `TransportReport` per carried encounter (`solution.reports`, printed by `print(solution)`), and `solution.field(target)` with E and H on a target (`z=f`, `y=a`, `x=b`, a placed surface or a grid). It carries the field along its carrier with the plane–surface–plane map of the eikonal–angular-spectrum formulation (see [eikonal transport](docs/PROPAGATION.md#eikonal-transport)). `alternatives.WavePropagator(system, transmission="local" | "spectral")` keeps the exact surface transport, for fields without a carrier, and returns the same `Solution`; see the [wave-transport example](general/examples/wave_transport.py).
 
 ## Qualification and limits
 
 Read [validation](docs/VALIDATION.md) for the reference checks and measured
 errors. The propagation through curved surfaces is a forward approximation. Its current
 transport uses a finite, periodic FFT chart and a declared propagating angular
-band. Finite material edges, stops and returning branches are outside the
-propagators' supported model (the legs can reflect; the propagators do not
-yet compose reflections). Exact planar scattering and complete reference
+band. A system is one path: stops, face edges, mirrors and Fresnel
+reflections (ghosts, internal reflections) are carried along it; another
+reflection is another path, built from the same surfaces. Exact planar scattering and complete reference
 transfer have different, explicitly documented spectral coverage.
 
 ## License
