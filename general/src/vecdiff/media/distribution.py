@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from vecdiff._backend import bd
+from vecdiff._printing import block, guarded, shorten
 from vecdiff.media.medium import Dielectric
 
 
@@ -19,6 +20,13 @@ class MaterialRegion:
         if not isinstance(self.material, Dielectric):
             raise TypeError("a material region needs dielectric constitutive data")
 
+    @guarded
+    def __repr__(self):
+        """Its name, its volume and its material."""
+        return shorten(
+            f"MaterialRegion({self.name!r}, {self.geometry!r}, {self.material!r})"
+        )
+
 
 @dataclass(frozen=True)
 class MaterialDistribution:
@@ -30,6 +38,22 @@ class MaterialDistribution:
             raise TypeError("background must be a dielectric material")
 
         object.__setattr__(self, "regions", tuple(self.regions))
+
+    @guarded
+    def __repr__(self):
+        """Its background and the names of its regions."""
+        names = ", ".join(repr(region.name) for region in self.regions)
+        return shorten(f"MaterialDistribution({self.background!r}, regions=[{names}])")
+
+    @guarded
+    def __str__(self):
+        """The background and each region, its volume and material."""
+        rows = [("background", repr(self.background))]
+        rows += [
+            (region.name, f"{region.material!r} in {region.geometry!r}")
+            for region in self.regions
+        ]
+        return block("MaterialDistribution", rows)
 
     def refractive_index(self, points):
         """Piecewise n(r); overlapping bodies require an explicit topology."""

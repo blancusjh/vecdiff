@@ -29,7 +29,7 @@ def guarded(method):
         try:
             return method(self, *args, **kwargs)
         except Exception as error:  # noqa: BLE001 - printing must not raise
-            if method.__name__ == "_repr_html_":
+            if method.__name__.startswith("_repr_"):
                 return None
             return f"<{type(self).__name__} (unprintable: {type(error).__name__})>"
 
@@ -238,3 +238,24 @@ def markdown_table(headers, rows, aligns=None):
     lines.append("|" + "|".join("---:" if a in "nr" else ":---" for a in aligns) + "|")
     lines += ["| " + " | ".join(escape(c) for c in row) + " |" for row in rows]
     return "\n".join(lines)
+
+
+# --- Placement ------------------------------------------------------------
+
+Z, U = (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)
+
+
+def placement(frame, origin="vertex", normal=False):
+    """(name, value) pairs placing a frame: its origin, then its normal (always
+    with ``normal``) and u axis only where they differ from the global z and x."""
+    pairs = [(origin, vector(frame.origin))]
+    if normal or not is_vector(frame.normal, Z):
+        pairs.append(("normal", vector(frame.normal)))
+    if not is_vector(frame.u, U):
+        pairs.append(("u", vector(frame.u)))
+    return pairs
+
+
+def described(name, pairs):
+    """``name(key=value, ...)`` from (key, value) pairs."""
+    return call(name, **dict(pairs))

@@ -5,11 +5,12 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from vecdiff._backend import bd, divide
+from vecdiff._printing import number, vector
 from vecdiff.geometry.frames import Frame
 from vecdiff.surfaces.surface import GraphSurface
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class EvenAsphere(GraphSurface):
     curvature: float
     conic: float = 0.0
@@ -23,6 +24,32 @@ class EvenAsphere(GraphSurface):
             raise ValueError("asphere design coefficients must be finite")
 
         object.__setattr__(self, "coefficients", coefficients)
+
+    def _terms(self):
+        """The aspheric coefficients by name: A4, A6, ..."""
+        return [(f"A{2 * j}", number(a)) for j, a in enumerate(self.coefficients, 2)]
+
+    def _parameters(self):
+        count = len(self.coefficients)
+        if count <= 6:
+            coefficients = vector(self.coefficients) if count else None
+        else:
+            coefficients = f"<A4..A{2 * count + 2}, {count} terms>"
+        conic = number(self.conic) if self.conic else None
+        return [
+            ("curvature", number(self.curvature)),
+            ("conic", conic),
+            ("coefficients", coefficients),
+        ]
+
+    def _details(self):
+        radius = number(1 / self.curvature) if self.curvature else "plane (inf)"
+        return [
+            ("curvature", number(self.curvature)),
+            ("radius", radius),
+            ("conic", number(self.conic)),
+            *self._terms(),
+        ]
 
     def domain(self, xy):
         radius = bd.linalg.norm(bd.asarray(xy, dtype=float), axis=-1)

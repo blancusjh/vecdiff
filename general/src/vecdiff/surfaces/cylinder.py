@@ -3,11 +3,12 @@
 from dataclasses import dataclass, field
 
 from vecdiff._backend import bd, divide
+from vecdiff._printing import number, vector
 from vecdiff.geometry.frames import Frame
 from vecdiff.surfaces.surface import GraphSurface, ImplicitSurface
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class CylindricalCap(GraphSurface):
     """z = R - sqrt(R² - x²): the front half of a circular cylinder along the frame's v.
 
@@ -21,6 +22,9 @@ class CylindricalCap(GraphSurface):
     def __post_init__(self):
         if not bd.isfinite(self.radius) or self.radius == 0:
             raise ValueError("signed curvature radius must be finite and nonzero")
+
+    def _parameters(self):
+        return [("radius", number(self.radius)), ("axis", vector(self.frame.v))]
 
     def domain(self, xy):
         return bd.asarray(xy, dtype=float)[..., 0] ** 2 < self.radius**2
@@ -56,7 +60,7 @@ class CylindricalCap(GraphSurface):
         return type(self)(-self.radius, self.frame.reversed())
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Cylinder(CylindricalCap, ImplicitSurface):
     """The closed circular cylinder whose front half is the CylindricalCap.
 

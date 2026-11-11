@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from vecdiff._backend import bd, divide
+from vecdiff._printing import name_of, number
 from vecdiff.geometry.frames import Frame
 from vecdiff.surfaces.surface import GraphSurface, ImplicitSurface
 
@@ -22,7 +23,7 @@ def _radial_hessian(xy, slope, curvature):
     return curvature[..., None, None] * radial + bending[..., None, None] * tangential
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class AxisymmetricSurface(GraphSurface):
     """z = sag(r); slope h'(r) and optional curvature h''(r) functions alongside."""
 
@@ -30,6 +31,9 @@ class AxisymmetricSurface(GraphSurface):
     slope_function: Callable
     frame: Frame = field(default_factory=Frame)
     curvature_function: Callable | None = None
+
+    def _parameters(self):
+        return [("sag", name_of(self.sag_function))]
 
     def sag(self, radius):
         return bd.asarray(self.sag_function(bd.asarray(radius)), dtype=float)
@@ -73,7 +77,7 @@ class AxisymmetricSurface(GraphSurface):
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class SphericalCap(GraphSurface):
     radius: float
     frame: Frame = field(default_factory=Frame)
@@ -81,6 +85,9 @@ class SphericalCap(GraphSurface):
     def __post_init__(self):
         if not bd.isfinite(self.radius) or self.radius == 0:
             raise ValueError("signed curvature radius must be finite and nonzero")
+
+    def _parameters(self):
+        return [("radius", number(self.radius))]
 
     def domain(self, xy):
         return bd.sum(bd.asarray(xy, dtype=float) ** 2, axis=-1) < self.radius**2
@@ -116,7 +123,7 @@ class SphericalCap(GraphSurface):
         return type(self)(-self.radius, self.frame.reversed())
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Sphere(SphericalCap, ImplicitSurface):
     """The closed sphere whose front cap is the SphericalCap of the same radius.
 

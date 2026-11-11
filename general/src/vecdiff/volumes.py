@@ -6,6 +6,7 @@ import numpy as np
 
 from vecdiff._arrays import frozen_array, positive
 from vecdiff._backend import bd
+from vecdiff._printing import call, guarded, number, vector
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,12 @@ class SphereVolume:
 
     def contains(self, points):
         return bd.linalg.norm(bd.asarray(points) - self.center, axis=-1) <= self.radius
+
+    @guarded
+    def __repr__(self):
+        return call(
+            "SphereVolume", center=vector(self.center), radius=number(self.radius)
+        )
 
 
 @dataclass(frozen=True)
@@ -56,6 +63,15 @@ class CylinderVolume:
         transverse = offset - along[..., None] * self.axis
 
         return bd.linalg.norm(transverse, axis=-1) <= self.radius
+
+    @guarded
+    def __repr__(self):
+        return call(
+            "CylinderVolume",
+            center=vector(self.center),
+            axis=vector(self.axis),
+            radius=number(self.radius),
+        )
 
 
 @dataclass(frozen=True)
@@ -113,3 +129,12 @@ class VolumeBetweenSurfaces:
             )
 
         return result
+
+    @guarded
+    def __repr__(self):
+        return call(
+            "VolumeBetweenSurfaces",
+            front=repr(self.front),
+            back=repr(self.back),
+            rim_radius=number(self.rim_radius),
+        )
