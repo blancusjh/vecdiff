@@ -12,7 +12,7 @@ from vecdiff._backend import bd
 class Frame:
     """Right-handed orthonormal frame; basis columns are u, v, normal.
 
-    Coordinates and translations are in metres. Vector components elsewhere
+    Coordinates and translations are lengths, in the unit of the wavelength used with them. Vector components elsewhere
     in the public API are global Cartesian components unless stated otherwise.
     """
 

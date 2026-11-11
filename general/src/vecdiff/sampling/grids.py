@@ -21,7 +21,7 @@ class Grid(Protocol):
 
 @dataclass(frozen=True, eq=False)
 class PointGrid:
-    """Arbitrary Cartesian positions in metres; no implied quadrature."""
+    """Arbitrary Cartesian positions; no implied quadrature."""
 
     points: np.ndarray
 
