@@ -747,6 +747,44 @@ def test_sphere_debye_coefficients_keep_relative_accuracy_beyond_the_size():
             assert_allclose(actual[polarization][key], expected, rtol=2e-11)
 
 
+@pytest.mark.parametrize("x", [0.01, 2.5, 60.0, 1500.0])
+def test_riccati_tables_match_mpmath_below_and_beyond_the_argument(x):
+    """z_l and D_l = (x z_l)'/x of the sphere references against 30-digit mpmath.
+
+    Orders reach x + 6 x^(1/3) + 12, as the automatic Mie order does. Below
+    l = x the regular function has zeros and is measured against the Hankel
+    modulus; beyond, against itself.
+    """
+    mpmath = pytest.importorskip("mpmath")
+    from vecdiff.references.debye import _riccati
+
+    top = max(int(np.ceil(x + 6 * x ** (1 / 3) + 12)), 20)
+    j, Dj = _riccati("j", top, np.array([x]))
+    h, Dh = _riccati("h1", top, np.array([x]))
+
+    def spherical(order):
+        # (j_order(x), h1_order(x)), 30 digits.
+        with mpmath.workdps(30):
+            c = mpmath.sqrt(mpmath.pi / (2 * mpmath.mpf(x)))
+            jn = c * mpmath.besselj(order + 0.5, x, maxprec=20000)
+            yn = c * mpmath.bessely(order + 0.5, x, maxprec=20000)
+            return complex(jn), complex(jn + 1j * yn)
+
+    for n in np.unique(np.linspace(1, top, 9).astype(int)):
+        (jn, hn), (jm, hm) = spherical(n), spherical(n - 1)
+        exact = jn, jm - n / x * jn, hn, hm - n / x * hn
+        actual = j[n - 1, 0], Dj[n - 1, 0], h[n - 1, 0], Dh[n - 1, 0]
+        below = n <= x
+        scale = (
+            abs(hn) if below else abs(jn),
+            abs(exact[3]) if below else abs(exact[1]),
+            abs(hn),
+            abs(exact[3]),
+        )
+        for value, expected, size in zip(actual, exact, scale):
+            assert abs(value - expected) <= 5e-13 * size
+
+
 def test_references_sum_the_incident_field_by_the_chosen_method():
     pytest.importorskip("finufft")
     beam = converging(0.5, [0.2, 0.0, 3.0])

@@ -19,7 +19,7 @@ m-independent factors per n: Lorenz–Mie, or one Debye term.
 """
 
 import numpy as np
-from scipy.special import gammaln, spherical_jn, spherical_yn
+from scipy.special import gammaln
 
 from vecdiff._backend import cpu_reference
 from vecdiff.fields import ElectricField, ElectromagneticField
@@ -34,15 +34,6 @@ from vecdiff.volumes import SphereVolume
 
 # Relative size below which an azimuthal order's coefficients count as absent.
 _ROUNDOFF = 64 * np.finfo(float).eps
-
-
-def _radial(order, argument, outgoing=False):
-    z = spherical_jn(order, argument)
-    dz = spherical_jn(order, argument, derivative=True)
-    if outgoing:
-        z = z + 1j * spherical_yn(order, argument)
-        dz = dz + 1j * spherical_yn(order, argument, derivative=True)
-    return z, dz + z / argument
 
 
 def _harmonics(order, m, cosine, sine):
@@ -257,10 +248,9 @@ class MieSphere(_SphericalExpansion):
         if not isinstance(order, (int, np.integer)) or order < 1:
             raise ValueError("multipole order must be a positive integer")
         self.order = order
-        ell = np.arange(1, order + 1)
-        j, dj = _radial(ell, x)
-        h, dh = _radial(ell, x, True)
-        v, dv = _radial(ell, x * ni / ne)
+        j, dj = _riccati("j", order, x)
+        h, dh = _riccati("h1", order, x)
+        v, dv = _riccati("j", order, x * ni / ne)
         self.a = (ni * dj * v - ne * j * dv) / (ni * dh * v - ne * h * dv)
         self.b = (ni * j * dv - ne * dj * v) / (ni * h * dv - ne * dh * v)
         # Use both boundary equations to avoid division at Bessel zeros.
@@ -333,8 +323,7 @@ class MieSphere(_SphericalExpansion):
         # At the centre only n = 1 survives and its angular limit is regular.
         x = self.k0 * index * np.maximum(radius, 1e-12 * self.volume.radius)
         count = self.order
-        n = np.arange(1, count + 1)
-        z, D = _riccati(kind, n[:, None], x[None])
+        z, D = _riccati(kind, count, x)
         tA, tB = tA[:count, None], tB[:count, None]
         return _spherical_sum(
             self.coefficients,
