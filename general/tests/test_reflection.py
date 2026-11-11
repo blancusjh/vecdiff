@@ -322,3 +322,283 @@ def test_ideal_mirror_cancels_the_tangential_field_and_reflects_all_power():
     assert abs(result["R"] - 1) < 1e-13
     behind = plane_wave_on_a_plane(1.0, 1.5, (0, 0), (1, 0.2j), -2.0, "mirror")
     assert behind["lit"] == 1 and behind["carried"] < 1e-14
+
+
+def line_carrier(x0, z0):
+    """Rays that converge on the line x = x0, z = z0, parallel to y."""
+
+    def toward(r):
+        r = bd.asarray(r, float)
+        d = bd.zeros(r.shape)
+        d[..., 0], d[..., 2] = x0 - r[..., 0], z0 - r[..., 2]
+        return d
+
+    def gradient(r):
+        d = toward(r)
+        return d / bd.linalg.norm(d, axis=-1, keepdims=True)
+
+    def hessian(r):
+        d = toward(r)
+        length = bd.linalg.norm(d, axis=-1)
+        s = d / length[..., None]
+        projector = bd.eye(3) - s[..., :, None] * s[..., None, :]
+        projector[..., 1, 1] -= 1.0
+        return -projector / length[..., None, None]
+
+    return F.Carrier(lambda r: -bd.linalg.norm(toward(r), axis=-1), gradient, hessian)
+
+
+def cylindrical_beam(
+    size, focus, branch, n_i=1.0, n_t=1.5, te=True, sine=0.3, tilt=0, step=None
+):
+    """Relative error of a reflected cylindrical beam against its plane-wave sum.
+
+    The boundary is z = 0 and the reference plane z = -40 size; the incident
+    beam converges on the line (x_f, focus * 40 size), behind the boundary,
+    so its reflection converges on its mirror image: on the way back to the
+    plane when focus < 1. Each plane wave of the beam is reflected by the
+    coefficients that the boundary-value test above confirmed.
+    """
+    plane = 40.0 * size
+    z_f = focus * plane
+    x_f = np.tan(tilt) * (z_f + plane)
+    step = 0.4 / n_i if step is None else step
+    half = 1.6 * np.tan(np.arcsin(sine)) * (z_f + plane) + 20 + 2 * np.tan(tilt) * plane
+    count = int(2 * half / step) // 2 * 2
+    x = (np.arange(count) - count // 2) * step
+    y = (np.arange(8) - 4) * step
+    k = 2 * np.pi * np.fft.fftfreq(count, step)
+    offset = k / (2 * np.pi) - n_i * np.sin(tilt)
+    amplitude = np.exp(-((offset / (0.5 * sine * n_i)) ** 2)) * (
+        abs(offset) < sine * n_i
+    )
+    kz = np.sqrt(np.maximum((2 * np.pi * n_i) ** 2 - k**2, 0.0))
+    amplitude = amplitude * np.exp(-1j * (k * x_f + kz * (plane + z_f)))
+    c_i = kz / (2 * np.pi * n_i)
+    if branch == "mirror":
+        r_s, r_p = -np.ones_like(c_i), np.ones_like(c_i)
+    else:
+        c_t = np.sqrt((1 - (n_i / n_t) ** 2 * (1 - c_i**2)).astype(complex))
+        r_s = (n_i * c_i - n_t * c_t) / (n_i * c_i + n_t * c_t)
+        r_p = (n_t * c_i - n_i * c_t) / (n_t * c_i + n_i * c_t)
+    # E_y of a TE wave; E_x of a TM wave, whose p_r has E_x = -c_i where p_i has c_i.
+    reflected = (r_s if te else -r_p) * amplitude * np.exp(2j * kz * plane)
+    values = np.zeros((len(y), count, 2), complex)
+    values[..., 1 if te else 0] = amplitude @ np.exp(1j * np.outer(k, x))
+    first = o.media.HomogeneousRegion("first", o.media.Dielectric(n_i))
+    second = o.media.HomogeneousRegion("second", o.media.Dielectric(n_t))
+    grid = o.sampling.CartesianGrid(x, y, Frame([0, 0, -plane]))
+    incident = F.angular_spectrum(
+        F.TransverseElectricField(grid, 1.0, values), first, evanescent="discard"
+    )
+    leg = o.transport.LatticeTransport(
+        grid,
+        o.system.DielectricInterface(S.Plane(), first, second),
+        line_carrier(x_f, z_f),
+        1.0,
+        branch=branch,
+        seed_stride=2,
+    )
+    carried, report = leg.carry(incident, method="direct")
+    row = host(carried.values)[len(y) // 2, :, 1 if te else 0]
+    exact = reflected @ np.exp(1j * np.outer(k, host(carried.grid.u)))
+    bright = host(leg.lit).reshape(carried.grid.shape)[len(y) // 2] & (
+        abs(exact) > 0.2 * abs(exact).max()
+    )
+    error = np.linalg.norm(row[bright] - exact[bright]) / np.linalg.norm(exact[bright])
+    return error, report
+
+
+BEAMS = {
+    "mirror": dict(focus=2.0, branch="mirror"),
+    "air to glass, TM": dict(focus=2.0, branch="reflected", te=False),
+    "air to glass, TE, focal line on the way back": dict(
+        focus=0.5, branch="reflected", te=True
+    ),
+    "glass to air, TE, total reflection at 55 deg": dict(
+        focus=2.0, branch="reflected", n_i=1.5, n_t=1.0, sine=0.12, tilt=0.96
+    ),
+    "glass to air, TM, total reflection at 55 deg": dict(
+        focus=2.0, branch="reflected", n_i=1.5, n_t=1.0, sine=0.12, tilt=0.96, te=False
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(BEAMS))
+def test_reflected_beam_tends_to_its_plane_wave_sum_as_the_system_grows(name):
+    """The leg's error is the leading order's: it halves when the system doubles.
+
+    Measured (sizes 1, 2, 4): 9.4, 4.8, 2.4 % for the mirror; 36, 19, 9.5 %
+    with the focal line (kappa = 1; with exp(+i pi / 2) the error would tend
+    to 2); 10, 5.0, 2.5 % under total reflection, where r turns with the
+    angle (Goos-Haenchen) and |r| = 1.
+    """
+    errors, reports = zip(
+        *(cylindrical_beam(size, **BEAMS[name]) for size in (1, 2, 4))
+    )
+    focal = "focal line" in name
+    assert all(r.caustics == (1 if focal else 0) for r in reports)
+    assert all(r.folded_relative_amplitude == 0 for r in reports)
+    assert errors[1] < 0.6 * errors[0] and errors[2] < 0.6 * errors[1]
+    assert errors[2] < (0.12 if focal else 0.03)
+
+
+def test_reflected_point_focus_on_the_way_back_inverts_the_field():
+    """A concave wavefront on a plane mirror: its focus lies between the mirror
+    and the plane, kappa = 2, and the carried field tends to the exact one
+    (not to minus it) as the system grows."""
+    errors, factors = [], []
+    for size in (0.5, 1.0, 2.0):
+        plane, focus, sine = 93.0 * size, 53.0 * size, 0.3
+        step = 0.4
+        half = np.tan(np.arcsin(sine)) * (plane + focus) * 1.25 + 15
+        count = int(2 * half / step) // 2 * 2
+        axis = (np.arange(count) - count // 2) * step
+        k = 2 * np.pi * np.fft.fftfreq(count, step)
+        kx, ky = np.meshgrid(k, k)
+        kappa = np.hypot(kx, ky)
+        amplitude = np.exp(-((kappa / (np.pi * sine)) ** 2)) * (
+            kappa < 2 * np.pi * sine
+        )
+        keep = amplitude > 1e-9
+        kx, ky, amplitude = kx[keep], ky[keep], amplitude[keep]
+        kz = np.sqrt((2 * np.pi) ** 2 - kx**2 - ky**2)
+        spectrum = np.zeros((count, count), complex)
+        spectrum[keep] = (
+            amplitude
+            * np.exp(-1j * kz * (plane + focus))
+            * np.exp(1j * axis[0] * (kx + ky))
+        )
+        values = np.zeros((count, count, 2), complex)
+        values[..., 0] = np.fft.ifft2(spectrum) * count**2
+        grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -plane]))
+        incident = F.angular_spectrum(
+            F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
+        )
+        leg = o.transport.LatticeTransport(
+            grid,
+            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            F.Carrier.converging([0, 0, focus]),
+            1.0,
+            branch="mirror",
+        )
+        carried, report = leg.carry(incident)
+        assert report.caustics == 2 and report.folded_relative_amplitude == 0
+        # Exact: each plane wave's image, tangential E reversed, back on the plane.
+        e = np.stack((amplitude, 0 * amplitude, -kx * amplitude / kz), -1)
+        image = np.stack((-e[:, 0], -e[:, 1], -(kx * e[:, 0] + ky * e[:, 1]) / kz), -1)
+        image = image * np.exp(1j * kz * (plane - focus))[:, None]
+        out = carried.grid
+        u, v = host(out.u), host(out.v)
+        field = host(carried.values)
+        strength = abs(field).sum(-1) * host(leg.lit).reshape(out.shape)
+        bright = np.argwhere(strength > 0.2 * strength.max())
+        chosen = bright[np.random.default_rng(0).choice(len(bright), 60, replace=False)]
+        exact = np.stack(
+            [np.exp(1j * (u[j] * kx + v[i] * ky)) @ image[:, :2] for i, j in chosen]
+        )
+        got = field[chosen[:, 0], chosen[:, 1]]
+        errors.append(np.linalg.norm(got - exact) / np.linalg.norm(exact))
+        factors.append(np.vdot(exact, got) / np.vdot(exact, exact))
+
+    # Measured: 58, 29, 16 %; factors 0.87 - 0.47i, 0.96 - 0.22i, 0.99 - 0.13i.
+    assert errors[1] < 0.6 * errors[0] and errors[2] < 0.6 * errors[1]
+    assert errors[2] < 0.2 and factors[2].real > 0.95
+
+
+def gaussian_on(axis, width, z, region=AIR):
+    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, z]))
+    x, y = np.meshgrid(axis, axis)
+    values = np.zeros(grid.shape + (2,), complex)
+    values[..., 0] = np.exp(-(x**2 + y**2) / width**2)
+    return grid, F.angular_spectrum(
+        F.TransverseElectricField(grid, 1.0, values), region, evanescent="discard"
+    )
+
+
+def test_reflected_leg_reports_the_rays_that_do_not_come_back():
+    """On a convex mirror of radius R the rays beyond R / sqrt(2) leave forward."""
+    radius = 10.0
+    axis = (np.arange(100) - 50) * 0.3
+    grid, incident = gaussian_on(axis, 8.0, -1.0)
+    leg = o.transport.LatticeTransport(
+        grid,
+        o.system.DielectricInterface(S.SphericalCap(radius), AIR, GLASS),
+        F.Carrier.collimated([0, 0, 1]),
+        1.0,
+        branch="reflected",
+    )
+    _, report = leg.carry(incident)
+    x, y = np.meshgrid(axis, axis)
+    beyond = np.hypot(x, y) > radius / np.sqrt(2)
+    assert not (leg.support.reshape(grid.shape) & beyond).any()
+    power = (abs(host(incident.propagate(0.0).electric.values)) ** 2).sum(-1)
+    share = np.sqrt(power[beyond].sum() / power.sum())
+    assert share > 0.4 and report.unsupported_relative_amplitude >= share
+
+
+def test_reflected_leg_refuses_a_fold_beyond_the_marginal_focus():
+    """Spherical aberration of a concave mirror: rays that crossed the axis and
+    rays that have not yet reach the same points of a plane between the
+    marginal and the paraxial focus."""
+    axis = (np.arange(100) - 50) * 0.4
+    grid, incident = gaussian_on(axis, 15.0, -29.0)
+    leg = o.transport.LatticeTransport(
+        grid,
+        o.system.DielectricInterface(S.SphericalCap(-60.0), AIR, GLASS),
+        F.Carrier.collimated([0, 0, 1]),
+        1.0,
+        branch="mirror",
+    )
+    with pytest.raises(ValueError, match=r"indices \[0, 2\]\): the ray map folds"):
+        leg.carry(incident)
+
+
+def test_reflected_leg_samples_and_bands_in_the_incident_medium():
+    # Total reflection in glass at 55 deg needs 0.27 lambda0 on the lattice.
+    with pytest.raises(ValueError, match=r"reflected rays reach.*index 1.5"):
+        cylindrical_beam(
+            1, 2.0, "reflected", n_i=1.5, n_t=1.0, sine=0.12, tilt=0.96, step=0.4
+        )
+    count, step = 1000, 0.25
+    x = (np.arange(count) - count // 2) * step
+    y = (np.arange(8) - 4) * step
+    grid = o.sampling.CartesianGrid(x, y, Frame())
+    frequencies = 2 * np.pi * np.fft.fftfreq(count, step)
+
+    def reflected(mode):
+        kx = frequencies[mode]
+        values = np.zeros((len(y), count, 2), complex)
+        values[..., 1] = np.exp(1j * kx * x)[None]
+        incident = F.angular_spectrum(
+            F.TransverseElectricField(grid, 1.0, values), AIR, evanescent="discard"
+        )
+        leg = o.transport.LatticeTransport(
+            grid,
+            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            F.Carrier.collimated([kx, 0, np.sqrt((2 * np.pi) ** 2 - kx**2)]),
+            1.0,
+            branch="mirror",
+        )
+        return leg.reflect(incident, method="direct")
+
+    outgoing, report = reflected(248)
+    assert report.band_removed_relative_amplitude < 1e-12
+    assert_allclose(abs(host(outgoing.propagate(0.0).electric.values)[..., 1]), 1)
+    with pytest.raises(ValueError, match="grazing the reference plane"):
+        reflected(249)
+    with pytest.raises(ValueError, match="use transmit"):
+        o.transport.LatticeTransport(
+            grid,
+            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            F.Carrier.collimated([0, 0, 1]),
+            1.0,
+        ).reflect(None)
+    with pytest.raises(ValueError, match="branch"):
+        o.transport.LatticeTransport(
+            grid,
+            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            F.Carrier.collimated([0, 0, 1]),
+            1.0,
+            branch="back",
+        )
