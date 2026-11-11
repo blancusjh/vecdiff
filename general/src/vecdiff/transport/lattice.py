@@ -3,7 +3,9 @@
 The output lattice is filled through the inverse of the ray map, so the
 incident field is evaluated exactly at the preimages and never interpolated.
 The carried plane components are re-expanded in the transmitted medium, which
-restores the longitudinal component spectrally.
+restores the longitudinal component spectrally. A reflected leg carries the
+reflected rays back to the same plane and re-expands them in the incident
+medium, travelling back.
 """
 
 import math
@@ -27,7 +29,7 @@ from vecdiff.fields.lattice_spectrum import (
 )
 from vecdiff.fields.spectrum import PlaneSpectrum
 from vecdiff.sampling import CartesianGrid
-from vecdiff.transport.dyadic import check_window, ray_weights
+from vecdiff.transport.dyadic import BRANCHES, check_window, fresnel, ray_weights
 from vecdiff.transport.rays import InterfaceMap
 from vecdiff.transport.report import TransportReport
 
@@ -62,6 +64,14 @@ class LatticeTransport:
     supported masks and the carried field are kept, in host memory. A beam
     is read exactly at the preimages, and its leg returns a LatticeSpectrum,
     which holds lattices a PlaneSpectrum cannot.
+
+    ``branch`` is the wave carried: "transmitted" into the interface's plus
+    region, "reflected" by the boundary's Fresnel coefficients back into
+    its minus region (ghosts, internal reflections, total internal
+    reflection), or "mirror", an ideal mirror (tangential E vanishes; the
+    plus region is not used). A reflected leg's output lattice lies on the
+    same plane, and its spectrum travels back, toward -z of the surface
+    frame. Every report and refusal applies in the outgoing medium.
     """
 
     def __init__(
@@ -75,6 +85,7 @@ class LatticeTransport:
         max_growth=4,
         seed_stride=None,
         block_size=None,
+        branch="transmitted",
     ):
         if not isinstance(plane, CartesianGrid):
             raise TypeError("eikonal transport needs a CartesianGrid reference plane")
@@ -100,6 +111,13 @@ class LatticeTransport:
         ):
             raise ValueError("block_size must be a positive integer")
 
+        if branch not in BRANCHES:
+            raise ValueError(f"branch must be one of {BRANCHES}")
+        self.branch = branch
+        reflected = branch != "transmitted"
+        # The region and the normal direction the outgoing wave travels in.
+        self.outgoing = interface.minus if reflected else interface.plus
+        self.direction = -1 if reflected else 1
         self.window = check_window(window)
         self.plane, self.interface, self.carrier = plane, interface, carrier
         self.wavelength0 = float(wavelength0)
@@ -110,6 +128,7 @@ class LatticeTransport:
             interface.minus.material.n,
             interface.plus.material.n,
             float(shift[2]),
+            branch="reflected" if reflected else "transmitted",
         )
         family = self.map.family
         # A carrier's rays are labelled on this plane; refracted ones on the first.
@@ -293,7 +312,7 @@ class LatticeTransport:
         """Per ray, the matrix from incident E (local axes) to the carried u, v components.
 
         g exp(i k0 Delta S) times the window and t_s s s + t_p p_t p_i + t_p s_t s_i
-        (Eq. 4.3), of shape (n, 2, 3).
+        (Eq. 4.3), of shape (n, 2, 3); for a reflection r_s, r_p, s_r and p_r.
         """
         s = bd.cross(r.normal, r.incident)
         size = bd.linalg.norm(s, axis=-1, keepdims=True)
@@ -307,9 +326,7 @@ class LatticeTransport:
         s = s / bd.linalg.norm(s, axis=-1, keepdims=True)
         n_i, n_t = self.map.n_incident, self.map.n_transmitted
         p_i, p_t = bd.cross(s, r.incident), bd.cross(s, r.transmitted)
-        c_i, c_t = r.cos_incident, r.cos_transmitted
-        t_s = 2 * n_i * c_i / (n_i * c_i + n_t * c_t)
-        t_p = 2 * n_i * c_i / (n_t * c_i + n_i * c_t)
+        t_s, t_p = fresnel(r, n_i, n_t, self.branch)
         k0 = 2 * bd.pi / self.wavelength0
         factor = self._window(r) * r.flux * bd.exp(1j * k0 * r.path)
         dyadic = (
@@ -349,7 +366,8 @@ class LatticeTransport:
         # The carried field turns at n_t k0 s_t across the output plane, and
         # its lattice holds half a wave per sample at most.
         out = self.output_plane
-        nyquist = self.wavelength0 / (2 * self.map.n_transmitted)
+        n_out = self.outgoing.material.n
+        nyquist = self.wavelength0 / (2 * n_out)
         steps = bd.asarray([float(out.u[1] - out.u[0]), float(out.v[1] - out.v[0])])
 
         def geometry(index):
@@ -376,12 +394,12 @@ class LatticeTransport:
         total = max(float(power.sum()), 1e-300)
         undersampled = float(np.sqrt(power[coarse[lit]].sum() / total))
         if undersampled > _SAMPLING_TOLERANCE:
-            sine = self.wavelength0 / (2 * self.map.n_transmitted * float(steps.max()))
+            sine = self.wavelength0 / (2 * n_out * float(steps.max()))
             raise ValueError(
                 f"{undersampled:.1e} of the carried amplitude leaves the surface "
-                "steeper than the output lattice can sample: refracted rays reach "
-                f"sin(theta) > {sine:.2f} in the transmitted medium (index "
-                f"{self.map.n_transmitted:g}), where the lattice spacing must stay "
+                f"steeper than the output lattice can sample: {self.branch} rays "
+                f"reach sin(theta) > {sine:.2f} in the outgoing medium (index "
+                f"{n_out:g}), where the lattice spacing must stay "
                 "below wavelength0 / (2 n sin(theta)). Refine the lattice"
             )
         found = {"caustics": 0, "folded": 0.0, "undersampled": undersampled}
@@ -457,7 +475,8 @@ class LatticeTransport:
                 f"{band_removed:.1e} of the carried amplitude leaves the surface "
                 f"within {100 * (1 - _SPECTRAL_CUTOFF):.1f} % of grazing the "
                 "reference plane (sin(theta) > "
-                f"{_SPECTRAL_CUTOFF} in the transmitted medium). The lattice leg "
+                f"{_SPECTRAL_CUTOFF} in the outgoing medium, index "
+                f"{self.outgoing.material.n:g}). The lattice leg "
                 "does not re-expand those plane waves, whose normal component is "
                 "unbounded on a lattice; they would be lost"
             )
@@ -475,11 +494,23 @@ class LatticeTransport:
         """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off."""
         return ray_weights(self.window, rays)
 
-    def transmit(self, spectrum, *, method="auto", **kwargs):
-        """(Spectrum in the transmitted medium on the plane, TransportReport).
+    def reflect(self, spectrum, *, method="auto", **kwargs):
+        """(Spectrum travelling back in the incident medium on the plane, TransportReport).
 
-        The carried components are re-expanded within the transverse band
-        sin < _SPECTRAL_CUTOFF of the transmitted medium, as the manuscript
+        The re-expansion of transmit() for a reflected or mirror leg.
+        """
+        if self.branch == "transmitted":
+            raise ValueError("this leg carries the transmitted wave; use transmit")
+
+        return self.transmit(spectrum, method=method, **kwargs)
+
+    def transmit(self, spectrum, *, method="auto", **kwargs):
+        """(Spectrum of the outgoing medium on the plane, TransportReport).
+
+        The outgoing medium is the transmitted one; for a reflected leg it
+        is the incident medium, and the spectrum travels back (k_z < 0 in
+        the surface frame). The carried components are re-expanded within
+        the transverse band sin < _SPECTRAL_CUTOFF of that medium, as the manuscript
         does: nearer the light circle E_z = -kappa . E / k_z amplifies what the
         lattice leaves there (the edge of the carried support, for a hard
         pupil) a hundredfold and more. A sampled incident field (a
@@ -487,7 +518,7 @@ class LatticeTransport:
         gives a LatticeSpectrum, transformed in place.
         """
         values, found = self._carried(spectrum, method, **kwargs)
-        plus = self.interface.plus
+        plus = self.outgoing
         # Modal norm of the carried field: sum |c|² over the lattice's modes.
         total = max(float(np.sqrt(np.sum(np.abs(values) ** 2) / len(values))), 1e-300)
 
@@ -499,6 +530,7 @@ class LatticeTransport:
                 values,
                 cutoff=_SPECTRAL_CUTOFF,
                 block=self.block_size,
+                direction=self.direction,
             )
             report = self._report(
                 spectrum, method, found, outgoing.band_removed_rms / total, **kwargs
@@ -510,7 +542,9 @@ class LatticeTransport:
             self.wavelength0,
             bd.asarray(values.reshape(self.output_plane.shape + (2,))),
         )
-        outgoing = angular_spectrum(field, plus, evanescent="discard")
+        outgoing = angular_spectrum(
+            field, plus, direction=self.direction, evanescent="discard"
+        )
         k = 2 * bd.pi * plus.material.n / self.wavelength0
         transverse = (
             outgoing.expansion.wavevectors.real @ outgoing.grid.frame.basis[:, :2]

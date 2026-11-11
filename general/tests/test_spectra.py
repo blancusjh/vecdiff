@@ -136,3 +136,22 @@ def test_every_spectrum_takes_the_same_summation_options_and_no_others(kind):
         spectrum.electric(POINTS, backend="direct")
     with pytest.raises(ValueError, match="method must be"):
         spectrum.evaluate(POINTS, method="fast")
+
+
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_the_spectra_of_forward_light_travel_along_their_normal(kind):
+    assert KINDS[kind]().direction == 1
+
+
+def test_a_backward_plane_spectrum_says_so_and_propagates_along_the_normal():
+    grid, values = gaussian_lattice()
+    field = F.TransverseElectricField(grid, 1.0, values)
+    back = F.angular_spectrum(field, GLASS, direction=-1, evanescent="discard")
+    assert back.direction == -1
+    moved = grid.translated(-1.5 * grid.frame.normal)
+    expected = back.evaluate(moved, method="direct")
+    actual = back.propagate(-1.5)
+    scale = abs(host(expected.electric.values)).max()
+    assert_allclose(
+        host(actual.electric.values), host(expected.electric.values), atol=1e-10 * scale
+    )

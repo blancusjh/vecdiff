@@ -32,7 +32,7 @@ from vecdiff.fields.hankel_spectrum import (
 )
 from vecdiff.geometry.frames import Frame
 from vecdiff.sampling import PointGrid
-from vecdiff.transport.dyadic import carried, ray_weights
+from vecdiff.transport.dyadic import BRANCHES, carried, ray_weights
 from vecdiff.transport.rays import InterfaceMap, RefractedRays
 from vecdiff.transport.report import TransportReport
 
@@ -111,7 +111,9 @@ class MeridianTransport:
     carries every ray, such as a plane under a collimated beam, leaves the
     edge to ``extent``, the radius where the incident field ends. The output plane
     is sampled by Gauss-Legendre panels on [0, Phi(edge)], and each node's
-    preimage is found by Newton steps with the analytic D Phi.
+    preimage is found by Newton steps with the analytic D Phi. ``branch`` is
+    that of LatticeTransport: a reflected leg's HankelSpectrum lies on the same
+    plane, in the incident medium, travelling back.
     """
 
     def __init__(
@@ -126,7 +128,10 @@ class MeridianTransport:
         reach=None,
         scale=None,
         extent=None,
+        branch="transmitted",
     ):
+        if branch not in BRANCHES:
+            raise ValueError(f"branch must be one of {BRANCHES}")
         surface = interface.surface
         wavelength0 = float(wavelength0)
 
@@ -143,13 +148,17 @@ class MeridianTransport:
         # surface takes the axis frame's axes, so all meridians coincide.
         surface = replace(surface, frame=Frame(surface.frame.origin, axis.basis))
         self.interface, self.carrier, self.wavelength0 = interface, carrier, wavelength0
-        self.window = window
+        self.window, self.branch = window, branch
+        reflected = branch != "transmitted"
+        self.outgoing = interface.minus if reflected else interface.plus
+        self.direction = -1 if reflected else 1
         self.map = InterfaceMap(
             surface,
             carrier,
             interface.minus.material.n,
             interface.plus.material.n,
             offset,
+            branch="reflected" if reflected else "transmitted",
         )
         self.plane = Frame(
             surface.frame.origin + float(offset) * axis.normal, axis.basis
@@ -161,7 +170,7 @@ class MeridianTransport:
             self._check_carrier(scale)
         self.edge = self._fan(reach, scale, extent)
         self.image = float(to_numpy(self._meridian(np.array([self.edge])).output)[0, 0])
-        panel = _PLANE_PANEL * wavelength0 / max(interface.plus.material.n, 1.5)
+        panel = _PLANE_PANEL * wavelength0 / max(self.outgoing.material.n, 1.5)
         if self.image / panel * _PLANE_NODES > _MAX_PLANE_NODES:
             raise ValueError(
                 f"the carried fan's image reaches {self.image / wavelength0:.3g} "
@@ -340,6 +349,7 @@ class MeridianTransport:
                 s,
                 self.map.n_incident,
                 self.map.n_transmitted,
+                self.branch,
             )
             for unit in bd.eye(3)
         ]
@@ -347,7 +357,11 @@ class MeridianTransport:
         return weight[:, None, None] * bd.stack(columns, axis=-1)[:, :2]
 
     def transmit(self, incident, *, method="auto"):
-        """(HankelSpectrum of the transmitted region on the output plane, TransportReport)."""
+        """(HankelSpectrum of the outgoing region on the output plane, TransportReport).
+
+        The outgoing region is the transmitted one, or for a reflected leg
+        the incident one, the field travelling back.
+        """
         from vecdiff.fields.spectrum import PlaneSpectrum
 
         if incident.region != self.interface.minus:
@@ -407,11 +421,12 @@ class MeridianTransport:
 
         field = HankelSpectrum(
             self.plane,
-            self.interface.plus,
+            self.outgoing,
             self.wavelength0,
             bd.asarray(self.radius),
             bd.asarray(self.weights),
             carried,
+            self.direction,
         )
         report = TransportReport(unsupported, 0, self.residual, tuple(sorted(carried)))
 

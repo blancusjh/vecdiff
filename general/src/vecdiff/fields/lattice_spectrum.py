@@ -157,8 +157,10 @@ class LatticeSpectrum(Spectrum):
     lattice of ``grid`` (rows along v, columns along u), with ``corner`` its
     point [0, 0]. ``coefficients`` (ny, nx, 2) are the u and v components on
     the grid's axes, a host array; the normal component -kappa . c / k_z
-    completes each mode in ``region``. Modes are formed and summed one
-    block of rows at a time on the active backend.
+    completes each mode in ``region``. ``direction`` is the sign of k_z
+    along the grid's normal: -1 for a wave travelling back, as a reflection.
+    Modes are formed and summed one block of rows at a time on the active
+    backend.
     """
 
     def __init__(
@@ -172,7 +174,11 @@ class LatticeSpectrum(Spectrum):
         roundoff_removed_rms=0.0,
         evanescent_removed_rms=0.0,
         band_removed_rms=0.0,
+        direction=1,
     ):
+        if direction not in (-1, 1):
+            raise ValueError("direction must be +1 or -1")
+        self.direction = direction
         self.grid, self.region = grid, region
         self.wavelength0 = float(wavelength0)
         self.coefficients = coefficients
@@ -202,6 +208,7 @@ class LatticeSpectrum(Spectrum):
             roundoff_removed_rms=self.roundoff_removed_rms,
             evanescent_removed_rms=self.evanescent_removed_rms,
             band_removed_rms=self.band_removed_rms,
+            direction=self.direction,
         )
 
     def blocks(self, magnetic=False):
@@ -219,7 +226,7 @@ class LatticeSpectrum(Spectrum):
             kxs = bd.tile(kx, rows.stop - rows.start)
             occupied = bd.any(c != 0, axis=-1)
             c, kxs, ky = c[occupied], kxs[occupied], ky[occupied]
-            kz = bd.sqrt(k**2 - kxs**2 - ky**2)
+            kz = self.direction * bd.sqrt(k**2 - kxs**2 - ky**2)
             local = bd.stack(
                 (c[:, 0], c[:, 1], -(kxs * c[:, 0] + ky * c[:, 1]) / kz), -1
             )
@@ -279,13 +286,16 @@ class LatticeSpectrum(Spectrum):
         return ElectromagneticField(electric, values[..., 3:])
 
 
-def lattice_spectrum(grid, region, wavelength0, values, *, cutoff, block=BLOCK):
+def lattice_spectrum(
+    grid, region, wavelength0, values, *, cutoff, block=BLOCK, direction=1
+):
     """LatticeSpectrum of carried u, v components ``values`` (host, grid.shape + (2,)).
 
     Transformed in place, like angular_spectrum with evanescent='discard':
     modes below roundoff of the largest are zeroed, then those on or beyond
     the light circle, and finally those beyond ``cutoff`` of it. The
     propagating modes the cutoff removes are counted in ``band_removed_rms``.
+    ``direction`` is the sign of k_z along the grid's normal.
     """
     ny, nx = grid.shape
     values = fft2_rows(values.reshape(ny, nx, 2), block)
@@ -322,4 +332,5 @@ def lattice_spectrum(grid, region, wavelength0, values, *, cutoff, block=BLOCK):
         roundoff_removed_rms=np.sqrt(roundoff),
         evanescent_removed_rms=np.sqrt(evanescent),
         band_removed_rms=np.sqrt(band),
+        direction=direction,
     )

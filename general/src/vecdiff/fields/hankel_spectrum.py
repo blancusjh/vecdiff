@@ -75,12 +75,16 @@ class HankelSpectrum(Spectrum):
     its u axis. The plane-wave spectrum is formed on first evaluation for the
     depth and radius asked, and reused for any request it resolves. Its
     chart is the polar grid of that quadrature, on azimuths that resolve
-    every order it holds. The sums are Hankel sums: ``tolerance`` and
+    every order it holds. ``direction`` is the sign of k_z along the normal:
+    -1 travels back, as a reflection. The sums are Hankel sums: ``tolerance`` and
     ``chunk_size`` are theirs (None: 1e-13 and 1024), and their transforms
     run on one thread each, whatever ``threads`` says.
     """
 
-    def __init__(self, frame, region, wavelength0, radius, weights, harmonics):
+    def __init__(
+        self, frame, region, wavelength0, radius, weights, harmonics, direction=1
+    ):
+        self.direction = direction
         self.frame, self.region, self.wavelength0 = frame, region, float(wavelength0)
         self.radius, self.weights, self.carried = radius, weights, harmonics
         self.wavenumber = 2 * np.pi * region.material.n / self.wavelength0
@@ -96,6 +100,7 @@ class HankelSpectrum(Spectrum):
             self.radius,
             self.weights,
             self.carried,
+            self.direction,
         )
         clone._cache = self._cache
 
@@ -148,10 +153,10 @@ class HankelSpectrum(Spectrum):
         k = self.wavenumber
         sine, cosine = bd.sin(theta)[:, None], bd.cos(theta)[:, None]
         flat, steep = k**2 * sine * cosine * w[:, None], k**2 * sine**2 * w[:, None]
-        phase = bd.exp(1j * k * cosine * depth)
+        phase = bd.exp(1j * self.direction * k * cosine * depth)
         orders = list(self.carried)
         columns = [flat * phase * plus, flat * phase * minus]
-        columns.append(0.5j * steep * phase * (plus - minus))
+        columns.append(0.5j * self.direction * steep * phase * (plus - minus))
         bessel = [m + 1 for m in orders] + [m - 1 for m in orders] + orders
         S = hankel_sum(bd.concatenate(columns, -1), kappa, radii, order=bessel)
         count = len(orders)
@@ -189,16 +194,17 @@ class HankelSpectrum(Spectrum):
 
         for p, z in enumerate(planes):
             rows = np.flatnonzero(index == p)
-            phase = bd.exp(1j * k * cosine * z)
+            kz = self.direction * k * cosine
+            phase = bd.exp(1j * kz * z)
             e_plus, e_minus = flat * phase * plus, flat * phase * minus
-            e_z = 0.5j * steep * phase * (plus - minus)
+            e_z = 0.5j * self.direction * steep * phase * (plus - minus)
             columns = [e_plus, e_minus, e_z]
             if magnetic:
                 # Z0 H = k x E / k0 for each plane wave, order by order.
                 along = k * sine * e_z
                 columns += [
-                    (1j * k * cosine * e_plus + along) / k0,
-                    (-1j * k * cosine * e_minus + along) / k0,
+                    (1j * kz * e_plus + along) / k0,
+                    (-1j * kz * e_minus + along) / k0,
                     -k * sine * (e_plus + e_minus) / (2 * k0),
                 ]
             S = to_numpy(

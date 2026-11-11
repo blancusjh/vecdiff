@@ -19,6 +19,13 @@ inverse map, so the incident field is evaluated exactly at the preimages and
 never interpolated. The transmitted plane components are re-expanded in the
 transmitted medium, which restores the longitudinal component spectrally.
 
+The reflected branch is the same map with the law of reflection,
+s_r = s - 2 c_i n, back to the same geometric plane in the incident medium:
+Delta S = n_i (l_i + l_r) and g = sqrt(s_iz / (|s_rz| J)) (c_r = c_i), where
+power conservation along the ray tube, R I_i c_i d sigma = I_r c_i d sigma
+at the surface and I |s_z| dA constant along each segment, leaves |r|^2 to the
+dyadic and the area ratio to g.
+
 Rays that miss the surface, meet it from behind, are totally reflected or
 leave backward carry no field; the incident power they hold is reported, not
 hidden. Where the map folds, rays from both sides of a caustic reach the same points
@@ -159,9 +166,24 @@ class InterfaceMap:
     of propagation). ``carrier`` is a fields.Carrier, whose rays are labelled
     by their surface-local points on this plane (..., 2), or a RefractedRays
     family from the previous surface, labelled on its first plane.
+    ``branch`` "reflected" follows the reflected rays back to the plane in
+    the incident medium instead of the refracted ones into the next: the
+    RayMap's ``transmitted`` and ``cos_transmitted`` then hold s_r and
+    c_r = c_i, its rays head back (s_rz < 0), and n_transmitted is not used.
     """
 
-    def __init__(self, surface, carrier, n_incident, n_transmitted, offset=0.0):
+    def __init__(
+        self,
+        surface,
+        carrier,
+        n_incident,
+        n_transmitted,
+        offset=0.0,
+        *,
+        branch="transmitted",
+    ):
+        if branch not in ("transmitted", "reflected"):
+            raise ValueError("branch must be 'transmitted' or 'reflected'")
         if not isinstance(carrier, RefractedRays) and not all(
             callable(getattr(carrier, name, None))
             for name in ("directions", "jacobians")
@@ -171,6 +193,7 @@ class InterfaceMap:
         self.surface, self.carrier = surface, carrier
         self.n_incident, self.n_transmitted = float(n_incident), float(n_transmitted)
         self.offset = float(offset)
+        self.branch = branch
         self.basis = surface.frame.basis
         surface.hessian(bd.zeros((1, 2)))  # fail early when no Hessian is declared
 
@@ -341,17 +364,25 @@ class InterfaceMap:
         size = bd.linalg.norm(grad_f, axis=-1)
         normal = grad_f / size[:, None]
         c_i = bd.sum(s * normal, axis=-1)
-        tangent = eta * (s - c_i[:, None] * normal)
-        radicand = 1 - bd.sum(tangent**2, axis=-1)
-        c_t = bd.sqrt(bd.where(radicand > 0, radicand, bd.nan))
-        s_t = tangent + c_t[:, None] * normal
+        reflected = self.branch == "reflected"
+        if reflected:
+            # s_r = s - 2 c_i n heads back to the plane, in the incident medium;
+            # its cosine against -n is c_i itself.
+            c_t, n_t = c_i, n_i
+            s_t = s - 2 * c_i[:, None] * normal
+            heading = s_t[:, 2] < -1e-12
+        else:
+            tangent = eta * (s - c_i[:, None] * normal)
+            radicand = 1 - bd.sum(tangent**2, axis=-1)
+            c_t = bd.sqrt(bd.where(radicand > 0, radicand, bd.nan))
+            s_t = tangent + c_t[:, None] * normal
+            heading = (radicand > 1e-24) & (s_t[:, 2] > 1e-12)
         valid = (
             bd.isfinite(leg_i)
             & bd.isfinite(size)
             & (s[:, 2] > 0)
             & (c_i > 1e-12)
-            & (radicand > 1e-24)
-            & (s_t[:, 2] > 1e-12)
+            & heading
         )
         leg_t = (self.offset - q[:, 2]) / s_t[:, 2]
         out = q + leg_t[:, None] * s_t
@@ -369,12 +400,17 @@ class InterfaceMap:
         dc_i = bd.sum(ds_a * normal[:, None], axis=-1) + bd.sum(
             s[:, None] * dn, axis=-1
         )
-        dc_t = eta**2 * (c_i / c_t)[:, None] * dc_i
-        ds_t = (
-            eta * ds_a
-            + (c_t - eta * c_i)[:, None, None] * dn
-            + (dc_t - eta * dc_i)[..., None] * normal[:, None]
-        )
+        if reflected:
+            ds_t = ds_a - 2 * (
+                dc_i[..., None] * normal[:, None] + c_i[:, None, None] * dn
+            )
+        else:
+            dc_t = eta**2 * (c_i / c_t)[:, None] * dc_i
+            ds_t = (
+                eta * ds_a
+                + (c_t - eta * c_i)[:, None, None] * dn
+                + (dc_t - eta * dc_i)[..., None] * normal[:, None]
+            )
         moved = dq + leg_t[:, None, None] * ds_t
         dp_out = moved - s_t[:, None] * (moved[..., 2] / s_t[:, 2:3])[..., None]
         jacobian = bd.swapaxes(dp_out[..., :2], 1, 2)
@@ -382,7 +418,12 @@ class InterfaceMap:
             jacobian[:, 0, 0] * jacobian[:, 1, 1]
             - jacobian[:, 0, 1] * jacobian[:, 1, 0]
         )
-        # Area ratio between the planes: per label, output over input.
+        # Area ratio between the planes: per label, output over input. Both
+        # are measured in the plane's own (x, y) axes, so a plane mirror at
+        # normal incidence has ratio +1: the mirror reverses the ray tube's
+        # handedness about its direction (s_r . n = -c_i) and the output
+        # direction's s_z, together, and the sign of the ratio still changes
+        # only where the tube collapses.
         det_in = dp[:, 0, 0] * dp[:, 1, 1] - dp[:, 0, 1] * dp[:, 1, 0]
         ratio = divide(det, det_in, det_in != 0)
         # Where the tube collapsed on the way the ratio changed sign, and the

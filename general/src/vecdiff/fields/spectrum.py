@@ -61,9 +61,13 @@ class Spectrum(ABC):
     block size the representation's sums default to) and ``threads``
     (FINUFFT threads; None: VECDIFF_NUFFT_THREADS, else all cores).
 
-    Its attributes ``region`` (a HomogeneousRegion), ``wavelength0`` (the
-    vacuum wavelength) and ``grid`` are set by each kind.
+    ``direction`` is the way its plane waves travel along the plane's
+    normal: +1 forward, -1 back (a reflection). Its attributes ``region`` (a
+    HomogeneousRegion), ``wavelength0`` (the vacuum wavelength) and ``grid``
+    are set by each kind.
     """
+
+    direction = 1
 
     @property
     def plane(self):
@@ -91,7 +95,9 @@ class Spectrum(ABC):
     def propagate(self, distance, *, magnetic=True):
         """The field on the chart moved ``distance`` along the plane's normal.
 
-        An ElectromagneticField, or the ElectricField alone when ``magnetic``
+        The distance is signed along the normal whichever way the waves
+        travel: a backward spectrum is propagated toward its source by a
+        positive one. An ElectromagneticField, or the ElectricField alone when ``magnetic``
         is False.
         """
         distance = float(distance)
@@ -269,6 +275,18 @@ class PlaneSpectrum(Spectrum):
     @property
     def wavelength0(self):
         return self.expansion.wavelength0
+
+    @property
+    def direction(self):
+        """+1 if every mode travels along the lattice's normal, -1 if every one back."""
+        normal = (self.expansion.wavevectors.real @ self.grid.frame.normal)[
+            bd.any(self.expansion.amplitudes != 0, axis=-1)
+        ]
+        if bd.all(normal >= 0):
+            return 1
+        if bd.all(normal < 0):
+            return -1
+        raise ValueError("the spectrum holds waves travelling both ways")
 
     def evaluate(
         self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
