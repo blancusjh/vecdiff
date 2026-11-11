@@ -1,9 +1,10 @@
-"""Public observables operations for the independent general library."""
+"""What is measured on a field: energy flow, polarization, momentum, images."""
 
 from vecdiff.observables.diagnostics import boundary_residuals
 from vecdiff.observables.electromagnetism import (
     coherent_sum,
     energy_density,
+    irradiance,
     power,
     poynting,
 )
@@ -18,12 +19,25 @@ from vecdiff.observables.momentum import (
     spin_momentum,
     torque,
 )
+from vecdiff.observables.polarization import (
+    ellipse_parameters,
+    ensemble_stokes,
+    jones_components,
+    stokes,
+    stokes_components,
+)
 
 __all__ = [
     "coherent_sum",
     "energy_density",
     "power",
     "poynting",
+    "irradiance",
+    "stokes",
+    "stokes_components",
+    "ensemble_stokes",
+    "ellipse_parameters",
+    "jones_components",
     "spin_density",
     "helicity_density",
     "canonical_momentum",

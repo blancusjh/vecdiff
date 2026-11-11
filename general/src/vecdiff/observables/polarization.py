@@ -4,7 +4,11 @@ from vecdiff._backend import bd, divide
 
 
 def jones_components(field, basis=None):
-    """Project global Cartesian E onto two orthonormal real basis columns."""
+    """Project global Cartesian E onto two orthonormal real basis columns.
+
+    ``field`` is an ElectricField or an ElectromagneticField (its E).
+    """
+    field = getattr(field, "electric", field)
     basis = bd.eye(3)[:, :2] if basis is None else bd.asarray(basis, dtype=float)
 
     if basis.shape != (3, 2) or not bd.allclose(
@@ -20,6 +24,7 @@ def jones_components(field, basis=None):
 def stokes(field, basis=None):
     """Return S0,S1,S2,S3 in electric-amplitude-squared units.
 
+    ``field`` is an ElectricField or an ElectromagneticField (its E).
     S3 = 2 Im(E1* E2). For exp(-i omega t), positive S3 means rotation from
     basis axis 1 toward axis 2 as time increases. A high-NA field's projection
     does not describe its entire three-dimensional polarization.

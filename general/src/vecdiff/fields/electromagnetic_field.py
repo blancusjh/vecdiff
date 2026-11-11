@@ -64,6 +64,10 @@ class ElectricField:
         return self.values[..., 2]
 
     def norm2(self):
+        """|E|² in V²/m²: the electric energy density's shape, not the intensity.
+
+        The power a detector receives is ElectromagneticField.irradiance().
+        """
         return bd.sum(bd.abs(self.values) ** 2, axis=-1)
 
 
@@ -137,6 +141,12 @@ class ElectromagneticField:
         from vecdiff.observables.electromagnetism import poynting
 
         return poynting(self)
+
+    def irradiance(self, normal=None):
+        """Time-averaged power per unit area through the grid's surface, in W/m²."""
+        from vecdiff.observables.electromagnetism import irradiance
+
+        return irradiance(self, normal)
 
     def power(self):
         """Signed time-averaged power in watts through the oriented grid."""

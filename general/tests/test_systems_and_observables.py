@@ -5,8 +5,7 @@ import pytest
 import vecdiff as optics
 from numpy.testing import assert_allclose
 from vecdiff.io import load_system, save_system
-from vecdiff.observables import detector_image, energy_density
-from vecdiff.observables.polarization import stokes
+from vecdiff.observables import detector_image, energy_density, irradiance, stokes
 
 WAVELENGTH = 532e-9
 
@@ -119,6 +118,24 @@ def test_energy_polarization_and_coherent_detector_interference():
     incoherent = detector_image([field, field], [1, -1], coherent=False)
     assert_allclose(coherent, 0, atol=1e-30)
     assert_allclose(incoherent, 2 * field.poynting()[..., 2])
+
+
+def test_irradiance_is_the_poynting_flux_through_the_detector_not_the_squared_field():
+    """A plane wave at 30 degrees in glass: I = cos(30) n |E|^2 / (2 Z0) on z = const."""
+    glass = optics.media.HomogeneousRegion("glass", optics.media.Dielectric(1.5))
+    s = np.array([np.sin(np.pi / 6), 0, np.cos(np.pi / 6)])
+    amplitude = np.array([np.cos(np.pi / 6), 0.4j, -np.sin(np.pi / 6)])
+    grid = optics.sampling.PlaneGrid(
+        np.linspace(-1e-6, 1e-6, 4), np.linspace(-1e-6, 1e-6, 3)
+    )
+    field = plane_wave(glass, direction=s, amplitude=amplitude).evaluate(grid)
+    squared = field.electric.norm2()
+    Z0 = optics.media.medium.Z0
+    assert_allclose(field.irradiance(), np.cos(np.pi / 6) * 1.5 * squared / (2 * Z0))
+    assert_allclose(irradiance(field, s), 1.5 * squared / (2 * Z0))
+    assert_allclose(stokes(field), stokes(field.electric))
+    with pytest.raises(ValueError, match="normal"):
+        irradiance(field, [0, 0, 2.0])
 
 
 def test_sequential_plane_assembly_preserves_single_pass_phase():
