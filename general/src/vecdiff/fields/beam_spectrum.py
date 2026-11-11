@@ -1,8 +1,9 @@
-"""A beam charted on a plane across its axis."""
+"""A beam as a Spectrum: the beam's field, referred to a chart on a plane."""
 
 import numpy as np
 
 from vecdiff._backend import bd
+from vecdiff.fields.spectrum import Spectrum, summation
 from vecdiff.fourier.polar import hankel_sum
 
 
@@ -14,12 +15,13 @@ def footprint(beam, plane):
     return float(beam._extent() + depth * slope + 10 * beam.wavelength0)
 
 
-class BeamField:
-    """A beam as the first stage of an axisymmetric solution.
+class BeamSpectrum(Spectrum):
+    """A beam, the exact field of its region, referred to a chart on a plane.
 
-    ``grid`` is a polar chart of the beam's footprint on the first reference
-    plane; it stands in for the lattice of a sampled input where targets and
-    coverage are resolved.
+    ``grid`` is the chart: a polar chart of the beam's footprint on the first
+    reference plane of a meridian leg, or the lattice a lattice leg reads the
+    beam on. It stands in for the lattice of a sampled input where targets
+    and coverage are resolved; the beam itself is summed exactly anywhere.
     """
 
     def __init__(self, beam, chart, region=None):
@@ -30,18 +32,14 @@ class BeamField:
         # One carrier object, so prepared legs are reused across calls.
         self.carrier = beam.carrier
 
-    @property
-    def expansion(self):
-        return self
-
     def relabeled(self, region):
-        return BeamField(self.beam, self.grid, region)
+        return BeamSpectrum(self.beam, self.grid, region)
 
-    def evaluate(self, grid, **kwargs):
-        return self.beam.evaluate(grid, **kwargs)
-
-    def electric(self, grid, **kwargs):
-        return self.beam.evaluate(grid, **kwargs).electric
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        options = summation(method, tolerance, chunk_size, threads)
+        return self.beam.evaluate(grid, **options)
 
     def harmonics(self, plane, radii):
         """{m: (E_rho, E_phi, E_z)} at radii on a plane across the axis, and |E|² on it.

@@ -7,7 +7,6 @@ from numpy.testing import assert_allclose
 from scipy.integrate import simpson
 from vecdiff.references import MieSphere
 from vecdiff.transport import carried
-from vecdiff.fields.beam_spectrum import BeamField
 from vecdiff.transport.meridian import MeridianTransport
 
 bd, host = o.backend.bd, o.backend.to_numpy
@@ -114,7 +113,7 @@ def test_index_matched_meridian_leg_is_the_identity():
         frame=Frame([0, 0, 1.5 * radius]),
     )
     leg = MeridianTransport(interface, beam.carrier, beam.frame, 1.0, scale=20.0)
-    field, report = leg.transmit(BeamField(beam, chart(beam, radius)))
+    field, report = leg.transmit(F.BeamSpectrum(beam, chart(beam, radius)))
     # The unsupported amplitude is sqrt(1 - carried / total): roundoff leaves 1e-8.
     assert (
         report.azimuthal_orders == (1,) and report.unsupported_relative_amplitude < 1e-7

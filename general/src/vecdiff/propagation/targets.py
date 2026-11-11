@@ -79,10 +79,9 @@ def target_grid(
     automatic_shape = shape is None
     if shape is None:
         max_index = max(
-            [source.expansion.region.material.n]
-            + [i.plus.material.n for i in interfaces]
+            [source.region.material.n] + [i.plus.material.n for i in interfaces]
         )
-        step = 0.4 * source.expansion.wavelength0 / max_index
+        step = 0.4 * source.wavelength0 / max_index
         # A curved chart stretches physical distance; bound using a pilot grid.
         u, v = bd.meshgrid(
             bd.linspace(bounds[0], bounds[1], 17), bd.linspace(bounds[2], bounds[3], 17)

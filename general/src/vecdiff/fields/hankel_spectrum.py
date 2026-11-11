@@ -7,6 +7,7 @@ from vecdiff.fields.electromagnetic_field import (
     ElectricField,
     ElectromagneticField,
 )
+from vecdiff.fields.spectrum import Spectrum
 from vecdiff.fourier.polar import hankel_sum
 from vecdiff.media.medium import Z0
 from vecdiff.sampling import PolarGrid
@@ -40,14 +41,43 @@ def check_coaxial(frame, axis, wavelength, what):
         raise ValueError(f"{what} is not centred on the incident field's axis")
 
 
-class HankelField:
+def azimuths(orders):
+    """Uniform azimuths that resolve E_x +- i E_y of the given azimuthal orders."""
+    top = max((abs(m) + 1 for m in orders), default=1)
+
+    return 2 * bd.pi * bd.arange(4 * (top + 1)) / (4 * (top + 1))
+
+
+def hankel_options(method, tolerance, chunk_size, threads):
+    """The Spectrum summation options as options of hankel_sum.
+
+    "nufft" is the fast Hankel sum where it pays ("auto" of hankel_sum).
+    """
+    if method not in ("auto", "nufft", "direct"):
+        raise ValueError("method must be 'auto', 'nufft' or 'direct'")
+    if threads is not None and (isinstance(threads, bool) or int(threads) < 0):
+        raise ValueError("threads must be None or a nonnegative integer")
+    options = dict(method="direct" if method == "direct" else "auto")
+    if tolerance is not None:
+        options["tolerance"] = float(tolerance)
+    if chunk_size is not None:
+        options["chunk_size"] = chunk_size
+
+    return options
+
+
+class HankelSpectrum(Spectrum):
     """Field of a homogeneous region from transverse components on a plane, by azimuthal order.
 
     ``harmonics`` maps m to (E_x + i E_y, E_x - i E_y) on the radial
     quadrature (radius, weights) of the plane through ``frame``: orders
     m + 1 and m - 1 of the azimuth about the frame's normal, measured from
     its u axis. The plane-wave spectrum is formed on first evaluation for the
-    depth and radius asked, and reused for any request it resolves.
+    depth and radius asked, and reused for any request it resolves. Its
+    chart is the polar grid of that quadrature, on azimuths that resolve
+    every order it holds. The sums are Hankel sums: ``tolerance`` and
+    ``chunk_size`` are theirs (None: 1e-13 and 1024), and their transforms
+    run on one thread each, whatever ``threads`` says.
     """
 
     def __init__(self, frame, region, wavelength0, radius, weights, harmonics):
@@ -55,19 +85,11 @@ class HankelField:
         self.radius, self.weights, self.carried = radius, weights, harmonics
         self.wavenumber = 2 * np.pi * region.material.n / self.wavelength0
         self.extent = float(bd.max(radius))
-        self.grid = PolarGrid(radius, 2 * bd.pi * bd.arange(4) / 4, frame, weights)
+        self.grid = PolarGrid(radius, azimuths(harmonics), frame, weights)
         self._cache = None
 
-    @property
-    def expansion(self):
-        return self
-
-    @property
-    def axis(self):
-        return self.frame
-
     def relabeled(self, region):
-        clone = HankelField(
+        clone = HankelSpectrum(
             self.frame,
             region,
             self.wavelength0,
@@ -146,7 +168,7 @@ class HankelField:
 
         return result, float(power)
 
-    def _sums(self, points, magnetic, method):
+    def _sums(self, points, magnetic, options):
         """Cartesian E (and Z0 H) at points, one plane of constant depth at a time."""
         local = to_numpy((bd.asarray(points) - self.frame.origin) @ self.frame.basis)
         radius = np.hypot(local[:, 0], local[:, 1])
@@ -164,9 +186,6 @@ class HankelField:
         fields = 2 if magnetic else 1
         values = np.zeros((fields, len(radius), 3), complex)
         planes, index = np.unique(depth, return_inverse=True)
-        if method not in ("auto", "nufft", "direct"):
-            raise ValueError("method must be 'auto', 'nufft' or 'direct'")
-        summation = "direct" if method == "direct" else "auto"
 
         for p, z in enumerate(planes):
             rows = np.flatnonzero(index == p)
@@ -188,7 +207,7 @@ class HankelField:
                     kappa,
                     bd.asarray(radius[rows]),
                     order=bessel * fields,
-                    method=summation,
+                    **options,
                 )
             ).reshape(len(rows), fields, 3, len(orders))
             turn = np.exp(1j * np.outer(azimuth[rows], orders))[:, None]
@@ -205,17 +224,18 @@ class HankelField:
     def electric(
         self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
     ):
-        """E on any grid. The options are those of every spectrum; the Hankel
-        sums use ``method`` ("auto", "nufft" or "direct") and their own tolerance."""
-        values = self._sums(bd.asarray(grid.points).reshape(-1, 3), False, method)[0]
+        """E on any grid."""
+        options = hankel_options(method, tolerance, chunk_size, threads)
+        values = self._sums(bd.asarray(grid.points).reshape(-1, 3), False, options)[0]
 
         return ElectricField(grid, self.wavelength0, values.reshape(grid.shape + (3,)))
 
     def evaluate(
         self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
     ):
-        """SI E and H; method "direct" sums the Hankel integrals densely."""
-        E, H = self._sums(bd.asarray(grid.points).reshape(-1, 3), True, method)
+        """SI E and H on any grid; method "direct" sums the Hankel integrals densely."""
+        options = hankel_options(method, tolerance, chunk_size, threads)
+        E, H = self._sums(bd.asarray(grid.points).reshape(-1, 3), True, options)
 
         return ElectromagneticField(
             ElectricField(grid, self.wavelength0, E.reshape(grid.shape + (3,))),

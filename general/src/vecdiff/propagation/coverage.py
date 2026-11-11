@@ -74,7 +74,7 @@ class CoverageEvaluator:
 
     def classify(self, grid, interfaces, source, *, mode, side=None):
         validate_coverage(mode)
-        wavelength = source.expansion.wavelength0
+        wavelength = source.wavelength0
         regions = region_indices(grid, interfaces, wavelength, side)
         reduced = bd.ones(grid.shape, dtype=bool)
         for i, interface in enumerate(interfaces):
@@ -114,11 +114,9 @@ class CoverageEvaluator:
             mask = report.computed & (report.regions == index)
             values[mask] = (
                 spectra[index]
-                .expansion.electric(
-                    PointGrid(grid.points[mask]), method=method, **kwargs
-                )
+                .electric(PointGrid(grid.points[mask]), method=method, **kwargs)
                 .values
             )
         return ElectricField(
-            grid, spectra[0].expansion.wavelength0, values, valid=report.computed
+            grid, spectra[0].wavelength0, values, valid=report.computed
         )

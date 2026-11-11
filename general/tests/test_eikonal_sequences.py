@@ -6,7 +6,6 @@ import vecdiff as o
 from numpy.testing import assert_allclose
 from scipy.integrate import simpson
 from vecdiff.transport import RefractedRays
-from vecdiff.fields.beam_spectrum import BeamField
 from vecdiff.transport.meridian import MeridianTransport
 
 bd, host = o.backend.bd, o.backend.to_numpy
@@ -132,7 +131,7 @@ def test_index_matched_second_leg_returns_the_single_surface_field():
     source = beam(outer)
     chart = o.sampling.PolarGrid(np.linspace(0, outer, 5), np.arange(4) * np.pi / 2)
     leg1 = MeridianTransport(first, source.carrier, source.frame, 1.0, scale=40.0)
-    field1, _ = leg1.transmit(BeamField(source, chart))
+    field1, _ = leg1.transmit(F.BeamSpectrum(source, chart))
     leg2 = MeridianTransport(
         matched, RefractedRays(leg1.map), source.frame, 1.0, scale=leg1.edge
     )

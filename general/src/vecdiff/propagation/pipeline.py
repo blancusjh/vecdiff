@@ -10,7 +10,7 @@ finite material edges require a separate model.
 """
 
 import importlib.util
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from vecdiff._backend import bd
 from vecdiff.alternatives.surface_interaction import (
@@ -24,7 +24,7 @@ from vecdiff.fields import (
     TransverseElectricField,
 )
 from vecdiff.fields.angular_spectrum import angular_spectrum
-from vecdiff.fields.beam_spectrum import BeamField, footprint
+from vecdiff.fields.beam_spectrum import BeamSpectrum, footprint
 from vecdiff.fields.beams import _Beam
 from vecdiff.fields.spectrum import PlaneSpectrum
 from vecdiff.geometry.frames import Frame
@@ -98,7 +98,7 @@ class PropagationSolution:
         displacement = grid.points - plane.frame.origin
         if self.observation_boundary is not None and bd.any(
             displacement @ plane.frame.normal
-            < self.observation_boundary - 1e-12 * self.spectrum.expansion.wavelength0
+            < self.observation_boundary - 1e-12 * self.spectrum.wavelength0
         ):
             raise ValueError("observation must be beyond the final surface envelope")
         if (
@@ -112,7 +112,7 @@ class PropagationSolution:
             delta = grid.frame.origin - plane.frame.origin
             if (
                 bd.linalg.norm(delta @ plane.frame.basis[:, :2])
-                <= 1e-12 * self.spectrum.expansion.wavelength0
+                <= 1e-12 * self.spectrum.wavelength0
             ):
                 return self.spectrum.propagate(float(delta @ plane.frame.normal))
         if method == "auto":
@@ -319,15 +319,12 @@ class PropagationPipeline:
             source = angular_spectrum(
                 source, self.incident_region, evanescent="discard"
             )
-        if not isinstance(source, (PlaneSpectrum, BeamField)):
+        if not isinstance(source, (PlaneSpectrum, BeamSpectrum)):
             raise TypeError(
                 "incident field must be an ElectricField, TransverseElectricField, "
                 "PlaneSpectrum, or a beam for eikonal transport"
             )
-        if (
-            self.incident_region is not None
-            and source.expansion.region != self.incident_region
-        ):
+        if self.incident_region is not None and source.region != self.incident_region:
             raise ValueError("source medium differs from the system's incident medium")
         self._input, self._source = original, source
         return source
@@ -340,7 +337,7 @@ class PropagationPipeline:
                 "sample it on a CartesianGrid for wave transport"
             )
         if self.lattice is not None:
-            return BeamField(beam, self.lattice)
+            return BeamSpectrum(beam, self.lattice)
         if self.axisymmetric is False:
             raise ValueError(
                 "axisymmetric=False carries a beam on a lattice: pass lattice= "
@@ -358,7 +355,7 @@ class PropagationPipeline:
             2 * bd.pi * bd.arange(8) / 8,
             plane,
         )
-        return BeamField(beam, chart)
+        return BeamSpectrum(beam, chart)
 
     def __call__(
         self,
@@ -414,7 +411,7 @@ class PropagationPipeline:
         )
 
     def _prepare(self, source, through, carrier, axial):
-        grid, wavelength = source.grid, source.expansion.wavelength0
+        grid, wavelength = source.grid, source.wavelength0
         if axial:
             self._prepare_axial(source, through, carrier)
             return
@@ -495,8 +492,8 @@ class PropagationPipeline:
 
     def _prepare_axial(self, source, through, carrier):
         """Meridian legs about the incident field's axis, one per refracting surface."""
-        wavelength = source.expansion.wavelength0
-        beam = isinstance(source, BeamField)
+        wavelength = source.wavelength0
+        beam = isinstance(source, BeamSpectrum)
         if beam:
             axis, identity = source.axis, ("beam", id(source.beam))
         else:
@@ -550,15 +547,15 @@ class PropagationPipeline:
         through = len(self.interfaces) if through is None else through
         if not isinstance(through, int) or not 0 <= through <= len(self.interfaces):
             raise ValueError("through must index a region in the optical system")
-        if self.interfaces and source.expansion.region != self.interfaces[0].minus:
+        if self.interfaces and source.region != self.interfaces[0].minus:
             raise ValueError(
                 "source medium differs from the first interface incident medium"
             )
-        if carrier is None and isinstance(source, BeamField):
+        if carrier is None and isinstance(source, BeamSpectrum):
             carrier = source.carrier
         on_lattice = isinstance(source.grid, CartesianGrid)
         axial = self.transport == "eikonal" and (
-            (isinstance(source, BeamField) and not on_lattice)
+            (isinstance(source, BeamSpectrum) and not on_lattice)
             or self.axisymmetric is True
         )
         if self.treatment in ("eikonal", "carrier"):
@@ -596,14 +593,7 @@ class PropagationPipeline:
         ):
             if axial:
                 if operator is None:
-                    current = (
-                        PlaneSpectrum(
-                            current.grid,
-                            replace(current.expansion, region=interface.plus),
-                        )
-                        if isinstance(current, PlaneSpectrum)
-                        else current.relabeled(interface.plus)
-                    )
+                    current = current.relabeled(interface.plus)
                     response = None
                 else:
                     if isinstance(current, PlaneSpectrum):
@@ -618,13 +608,7 @@ class PropagationPipeline:
                 continue
             if operator is None:
                 # An index-matched surface between eikonal legs: the identity.
-                current = (
-                    PlaneSpectrum(
-                        current.grid, replace(current.expansion, region=interface.plus)
-                    )
-                    if isinstance(current, PlaneSpectrum)
-                    else current.relabeled(interface.plus)
-                )
+                current = current.relabeled(interface.plus)
                 self._stages.append(current)
                 self._responses.append(None)
                 continue
@@ -639,9 +623,7 @@ class PropagationPipeline:
             if interface.minus.material.n == interface.plus.material.n:
                 # Equal-index transport is an identity, without a spectral cut
                 # or finite-chart reconstruction of an already known solution.
-                current = PlaneSpectrum(
-                    current.grid, replace(current.expansion, region=interface.plus)
-                )
+                current = current.relabeled(interface.plus)
                 self._stages.append(current)
                 self._responses.append(None)
                 continue

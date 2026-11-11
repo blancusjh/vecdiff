@@ -331,7 +331,7 @@ class LatticeTransport:
         amplitude that way is refused. So is a leg whose output lattice
         cannot sample more than _SAMPLING_TOLERANCE of what it carries.
         """
-        if spectrum.expansion.region != self.interface.minus:
+        if spectrum.region != self.interface.minus:
             raise ValueError(
                 "incident spectrum must live in the interface's incident medium"
             )

@@ -24,9 +24,9 @@ from dataclasses import replace
 import numpy as np
 
 from vecdiff._backend import bd, to_numpy
-from vecdiff.fields.beam_spectrum import BeamField
+from vecdiff.fields.beam_spectrum import BeamSpectrum
 from vecdiff.fields.hankel_spectrum import (
-    HankelField,
+    HankelSpectrum,
     check_coaxial,
     composite_legendre,
 )
@@ -347,10 +347,10 @@ class MeridianTransport:
         return weight[:, None, None] * bd.stack(columns, axis=-1)[:, :2]
 
     def transmit(self, incident, *, method="auto"):
-        """(HankelField of the transmitted region on the output plane, TransportReport)."""
+        """(HankelSpectrum of the transmitted region on the output plane, TransportReport)."""
         from vecdiff.fields.spectrum import PlaneSpectrum
 
-        if incident.expansion.region != self.interface.minus:
+        if incident.region != self.interface.minus:
             raise ValueError(
                 "incident field must live in the interface's incident medium"
             )
@@ -366,7 +366,7 @@ class MeridianTransport:
             / rays.jacobian[:, 0, 0]
         )
 
-        if isinstance(incident, (BeamField, HankelField)):
+        if isinstance(incident, (BeamSpectrum, HankelSpectrum)):
             harmonics, power = incident.harmonics(self.plane, radii)
         elif isinstance(incident, PlaneSpectrum):
             harmonics, share = ring_harmonics(
@@ -405,7 +405,7 @@ class MeridianTransport:
             )
             carried[m] = (radial + 1j * azimuthal, radial - 1j * azimuthal)
 
-        field = HankelField(
+        field = HankelSpectrum(
             self.plane,
             self.interface.plus,
             self.wavelength0,

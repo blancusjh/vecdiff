@@ -433,7 +433,7 @@ def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
         ),
     )
     lean = lattice_spectrum(grid, GLASS, 1.0, values.copy(), cutoff=0.995, block=100)
-    assert lean.relabeled(AIR).region == AIR and lean.expansion is lean
+    assert lean.relabeled(AIR).region == AIR and isinstance(lean, F.Spectrum)
     depth = 2.0 * host(grid.frame.normal)
     flat = (
         host(grid.frame.origin)
