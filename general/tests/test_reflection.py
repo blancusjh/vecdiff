@@ -756,3 +756,98 @@ def test_internal_reflection_in_a_sphere_tends_to_debye_term_two_as_it_grows():
     assert shares[1] < 0.7 * shares[0] and shares[2] < 0.7 * shares[1]
     assert errors[1] < 0.6 * errors[0] and errors[2] < 0.6 * errors[1]
     assert errors[2] < 0.12
+
+
+def meridian_reflection(radius):
+    from vecdiff.transport.meridian import BeamField, MeridianTransport
+
+    plane = Frame([0, 0, -radius / 4])
+    beam = F.PlaneBeam(
+        F.profiles.Gaussian(radius / 5),
+        F.polarization.x,
+        wavelength0=1.0,
+        region=AIR,
+        frame=plane,
+    )
+    interface = o.system.DielectricInterface(S.SphericalCap(radius), AIR, GLASS)
+    # The fan ends before the rays leave the sphere parallel to the plane.
+    window = (30.0, 40.0)
+    leg = MeridianTransport(
+        interface,
+        beam.carrier,
+        beam.frame,
+        1.0,
+        offset=-radius / 4,
+        window=window,
+        branch="reflected",
+        scale=radius / 2,
+    )
+    chart = o.sampling.PolarGrid(
+        np.linspace(0, radius, 5), np.arange(4) * np.pi / 2, plane
+    )
+    field, report = leg.transmit(BeamField(beam, chart))
+    return field, report, (beam, interface, window)
+
+
+def ring_points(radius, depth, rings=40, azimuths=4):
+    r, phi = np.meshgrid(
+        np.linspace(0, radius, rings), 2 * np.pi * np.arange(azimuths) / azimuths
+    )
+    return o.sampling.PointGrid(
+        np.c_[
+            (r * np.cos(phi)).ravel(), (r * np.sin(phi)).ravel(), np.full(r.size, depth)
+        ]
+    )
+
+
+def test_meridian_reflection_of_a_sphere_tends_to_debye_term_zero_as_it_grows():
+    """E (with E_z) and H of the HankelField that travels back, against term 0.
+
+    Measured on the bright rings: 29, 14, 7.2, 3.6 % (R = 10, 20, 40, 80).
+    """
+    from vecdiff.references import MieSphere
+
+    errors = []
+    for radius in (10.0, 20.0, 40.0, 80.0):
+        field, report, (beam, _, _) = meridian_reflection(radius)
+        assert report.azimuthal_orders == (-1, 1) and field.region == AIR
+        points = ring_points(0.9 * radius, -radius / 4, 60, 6)
+        got = field.evaluate(points)
+        exact = MieSphere(beam, o.volumes.SphereVolume([0, 0, radius], radius), GLASS)
+        exact = exact.evaluate(points, term=0, side="exterior")
+        E, H = host(exact.electric.values), host(exact.magnetic)
+        bright = np.linalg.norm(E, axis=-1) > 0.2 * np.linalg.norm(E, axis=-1).max()
+
+        def misfit(a, b):
+            return np.linalg.norm(a[bright] - b[bright]) / np.linalg.norm(b[bright])
+
+        errors.append(misfit(host(got.electric.values), E))
+        assert abs(misfit(host(got.magnetic), H) - errors[-1]) < 0.1 * errors[-1]
+    assert all(b < 0.6 * a for a, b in zip(errors, errors[1:]))
+    assert errors[-1] < 0.05
+
+
+def test_lattice_and_meridian_reflections_are_one_field_travelling_back():
+    """The lattice leg's LatticeSpectrum and the meridian's HankelField agree on
+    the plane and 3 lambda behind it, toward the source (2.5e-5 here)."""
+    from vecdiff.transport.meridian import BeamField
+
+    radius = 12.0
+    field, _, (beam, interface, window) = meridian_reflection(radius)
+    count = int(2 * 0.62 * radius / 0.3) // 2 * 2
+    axis = (np.arange(count) - count // 2) * 0.3
+    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -radius / 4]))
+    leg = o.transport.LatticeTransport(
+        grid, interface, beam.carrier, 1.0, window=window, branch="reflected"
+    )
+    spectrum, report = leg.reflect(BeamField(beam, grid))
+    assert spectrum.direction == -1 and spectrum.region == AIR
+    assert report.band_removed_relative_amplitude < 1e-4
+    for depth in (-radius / 4, -radius / 4 - 3.0):
+        points = ring_points(0.8 * radius, depth)
+        a, b = field.evaluate(points), spectrum.evaluate(points)
+        for x, y in (
+            (a.electric.values, b.electric.values),
+            (a.magnetic, b.magnetic),
+        ):
+            assert np.linalg.norm(host(x) - host(y)) < 1e-4 * np.linalg.norm(host(x))

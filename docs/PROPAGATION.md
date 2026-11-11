@@ -368,6 +368,21 @@ How the meridian is sampled:
   - Where tx < 2 z0, the kernel is interpolated at Chebyshev nodes (kernel compression).
   - It agrees with direct sums to 1e-12–1e-15.
 
+### Reflection legs
+
+A leg can carry the reflected wave instead of the transmitted one: `LatticeTransport(..., branch="reflected")` or `branch="mirror"`, and the same for `MeridianTransport`. The pipeline does not use them yet.
+- **Map.** s_r = s − 2 c_i n, back to the same geometric plane in the incident medium, with ΔS = n_i (ℓ_i + ℓ_r) and signed legs. `InterfaceMap(..., branch="reflected")` gives it, with ds_r = ds − 2 (dc_i n + c_i dn) from the same Appendix A quantities.
+- **Flux.** g = √(s_iz / (|s_rz| J)) e^{−iπκ/2}. The power R I c_i dσ leaves the surface at c_r = c_i and I |s_z| dA is constant along each segment, so |r|² is the dyadic's and the area ratio g's. J is measured in the plane's own axes on both sides: a plane mirror at normal incidence has J = +1. The mirror reverses the tube's handedness about its direction and the sign of s_z together, so J still changes sign once per collapsed direction, and κ is counted on both segments as for refraction.
+- **Dyadic.** r_s E_s s + r_p E_p p_r + r_p E_∥ s_r with p_r = s × s_r, r_s = (n_i c_i − n_t c_t)/(n_i c_i + n_t c_t), r_p = (n_t c_i − n_i c_t)/(n_t c_i + n_i c_t): tangential E and H are continuous with the transmitted wave. Beyond the critical angle c_t = i|c_t| and |r| = 1. `"mirror"` is the ideal mirror, r_s = −1, r_p = 1. Real indices only.
+- **Output.** `reflect()` re-expands in the incident medium, travelling back (k_z < 0 in the surface frame); `LatticeSpectrum` and the meridian's `HankelField` carry that sign. Every report and refusal uses the outgoing medium.
+- **Checks** (`general/tests/test_reflection.py`): plane waves against each wave's boundary-value problem, to 1e-13 (R + T = 1, total reflection, ideal mirror); focused beams against their plane-wave sums, with a focal line (κ = 1) and a point focus (κ = 2) on the way back; a glass sphere against Debye term 0 outside and, with a refraction first, term 2 inside. The errors fall as 1/size:
+
+| Case | 10 λ | 20 λ | 40 λ | 80 λ |
+|---|---|---|---|---|
+| Sphere, external reflection, lattice leg (term 0) | 25 % | 13 % | 6.1 % | 3.2 % |
+| Same, meridian leg | 29 % | 14 % | 7.2 % | 3.6 % |
+| Sphere, refraction and one internal reflection (term 2) | 36 % | 19 % | 9.7 % | 4.8 % |
+
 ### Reports
 
 `solution.interactions` holds one `transport.TransportReport` per interface:
