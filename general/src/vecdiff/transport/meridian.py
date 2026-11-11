@@ -32,7 +32,7 @@ from vecdiff.fourier.polar import hankel_sum
 from vecdiff.geometry.frames import Frame
 from vecdiff.media.medium import Z0
 from vecdiff.sampling import PointGrid, PolarGrid
-from vecdiff.transport.dyadic import carried, ray_weights
+from vecdiff.transport.dyadic import BRANCHES, carried, ray_weights
 from vecdiff.transport.rays import InterfaceMap, RefractedRays
 from vecdiff.transport.report import TransportReport
 
@@ -219,7 +219,9 @@ class MeridianTransport:
     carries every ray, such as a plane under a collimated beam, leaves the
     edge to ``extent``, the radius where the incident field ends. The output plane
     is sampled by Gauss-Legendre panels on [0, Phi(edge)], and each node's
-    preimage is found by Newton steps with the analytic D Phi.
+    preimage is found by Newton steps with the analytic D Phi. ``branch`` is
+    that of LatticeTransport: a reflected leg's HankelField lies on the same
+    plane, in the incident medium, travelling back.
     """
 
     def __init__(
@@ -234,7 +236,10 @@ class MeridianTransport:
         reach=None,
         scale=None,
         extent=None,
+        branch="transmitted",
     ):
+        if branch not in BRANCHES:
+            raise ValueError(f"branch must be one of {BRANCHES}")
         surface = interface.surface
         wavelength0 = float(wavelength0)
 
@@ -251,13 +256,17 @@ class MeridianTransport:
         # surface takes the axis frame's axes, so all meridians coincide.
         surface = replace(surface, frame=Frame(surface.frame.origin, axis.basis))
         self.interface, self.carrier, self.wavelength0 = interface, carrier, wavelength0
-        self.window = window
+        self.window, self.branch = window, branch
+        reflected = branch != "transmitted"
+        self.outgoing = interface.minus if reflected else interface.plus
+        self.direction = -1 if reflected else 1
         self.map = InterfaceMap(
             surface,
             carrier,
             interface.minus.material.n,
             interface.plus.material.n,
             offset,
+            branch="reflected" if reflected else "transmitted",
         )
         self.plane = Frame(
             surface.frame.origin + float(offset) * axis.normal, axis.basis
@@ -269,7 +278,7 @@ class MeridianTransport:
             self._check_carrier(scale)
         self.edge = self._fan(reach, scale, extent)
         self.image = float(to_numpy(self._meridian(np.array([self.edge])).output)[0, 0])
-        panel = _PLANE_PANEL * wavelength0 / max(interface.plus.material.n, 1.5)
+        panel = _PLANE_PANEL * wavelength0 / max(self.outgoing.material.n, 1.5)
         if self.image / panel * _PLANE_NODES > _MAX_PLANE_NODES:
             raise ValueError(
                 f"the carried fan's image reaches {self.image / wavelength0:.3g} "
@@ -448,6 +457,7 @@ class MeridianTransport:
                 s,
                 self.map.n_incident,
                 self.map.n_transmitted,
+                self.branch,
             )
             for unit in bd.eye(3)
         ]
@@ -455,7 +465,11 @@ class MeridianTransport:
         return weight[:, None, None] * bd.stack(columns, axis=-1)[:, :2]
 
     def transmit(self, incident, *, method="auto"):
-        """(HankelField of the transmitted region on the output plane, TransportReport)."""
+        """(HankelField of the outgoing region on the output plane, TransportReport).
+
+        The outgoing region is the transmitted one, or for a reflected leg
+        the incident one, the field travelling back.
+        """
         from vecdiff.fields.spectrum import PlaneSpectrum
 
         if incident.expansion.region != self.interface.minus:
@@ -515,11 +529,12 @@ class MeridianTransport:
 
         field = HankelField(
             self.plane,
-            self.interface.plus,
+            self.outgoing,
             self.wavelength0,
             bd.asarray(self.radius),
             bd.asarray(self.weights),
             carried,
+            self.direction,
         )
         report = TransportReport(unsupported, 0, self.residual, tuple(sorted(carried)))
 
@@ -534,9 +549,13 @@ class HankelField:
     m + 1 and m - 1 of the azimuth about the frame's normal, measured from
     its u axis. The plane-wave spectrum is formed on first evaluation for the
     depth and radius asked, and reused for any request it resolves.
+    ``direction`` is the sign of k_z along the normal: -1 travels back.
     """
 
-    def __init__(self, frame, region, wavelength0, radius, weights, harmonics):
+    def __init__(
+        self, frame, region, wavelength0, radius, weights, harmonics, direction=1
+    ):
+        self.direction = direction
         self.frame, self.region, self.wavelength0 = frame, region, float(wavelength0)
         self.radius, self.weights, self.carried = radius, weights, harmonics
         self.wavenumber = 2 * np.pi * region.material.n / self.wavelength0
@@ -560,6 +579,7 @@ class HankelField:
             self.radius,
             self.weights,
             self.carried,
+            self.direction,
         )
         clone._cache = self._cache
 
@@ -612,10 +632,10 @@ class HankelField:
         k = self.wavenumber
         sine, cosine = bd.sin(theta)[:, None], bd.cos(theta)[:, None]
         flat, steep = k**2 * sine * cosine * w[:, None], k**2 * sine**2 * w[:, None]
-        phase = bd.exp(1j * k * cosine * depth)
+        phase = bd.exp(1j * self.direction * k * cosine * depth)
         orders = list(self.carried)
         columns = [flat * phase * plus, flat * phase * minus]
-        columns.append(0.5j * steep * phase * (plus - minus))
+        columns.append(0.5j * self.direction * steep * phase * (plus - minus))
         bessel = [m + 1 for m in orders] + [m - 1 for m in orders] + orders
         S = hankel_sum(bd.concatenate(columns, -1), kappa, radii, order=bessel)
         count = len(orders)
@@ -656,16 +676,17 @@ class HankelField:
 
         for p, z in enumerate(planes):
             rows = np.flatnonzero(index == p)
-            phase = bd.exp(1j * k * cosine * z)
+            kz = self.direction * k * cosine
+            phase = bd.exp(1j * kz * z)
             e_plus, e_minus = flat * phase * plus, flat * phase * minus
-            e_z = 0.5j * steep * phase * (plus - minus)
+            e_z = 0.5j * self.direction * steep * phase * (plus - minus)
             columns = [e_plus, e_minus, e_z]
             if magnetic:
                 # Z0 H = k x E / k0 for each plane wave, order by order.
                 along = k * sine * e_z
                 columns += [
-                    (1j * k * cosine * e_plus + along) / k0,
-                    (-1j * k * cosine * e_minus + along) / k0,
+                    (1j * kz * e_plus + along) / k0,
+                    (-1j * kz * e_minus + along) / k0,
                     -k * sine * (e_plus + e_minus) / (2 * k0),
                 ]
             S = to_numpy(
