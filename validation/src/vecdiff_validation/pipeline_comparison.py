@@ -1,4 +1,4 @@
-"""Fixed closed-body references versus the complete continued-face pipeline.
+"""Fixed closed-body references versus wave transport on continued faces.
 
 The numerical models and observation domain are explicit. This is a comparison
 of forward open-face propagation and full-wave closed-body scattering, not a
@@ -27,10 +27,28 @@ def relative(actual, reference):
 
 
 @on_cpu
-def timed_field(solution, points, **kwargs):
+def timed_field(model, points, **kwargs):
+    """E and H of a reference, or of the light leaving a Solution, at points."""
     start = perf_counter()
-    field = solution.evaluate(optics.sampling.PointGrid(points), **kwargs)
+    if isinstance(model, optics.propagation.Solution):
+        model = model.spectrum
+    field = model.evaluate(optics.sampling.PointGrid(points), **kwargs)
     return field, perf_counter() - start
+
+
+def transmitted_traces(path, solution):
+    """The transmitted E and H on each surface, as the wave transport formed them."""
+    traces = []
+    for index, interface in enumerate(path.interfaces):
+        incident = solution.legs[index][0]
+        spectrum = solution.spectra[index]
+        distance = float(
+            (incident.plane.frame.origin - spectrum.plane.origin)
+            @ spectrum.plane.normal
+        )
+        spectrum = optics.propagation.PlaneTransport().spectrum(spectrum, distance)
+        traces.append(path.transmission.transmit(spectrum, interface, incident).field)
+    return traces
 
 
 @on_cpu
@@ -288,11 +306,10 @@ def compare_closed_body(
             optics.system.DielectricInterface(faces[0], source.region, interior),
             optics.system.DielectricInterface(faces[1], interior, source.region),
         ]
-        path = optics.propagation.PropagationPipeline(
+        path = optics.alternatives.WavePropagator(
             optics.system.OpticalSystem(interfaces),
-            coverage=coverage,
             max_sine=0.95,
-            transmission=optics.propagation.SpectralFresnel(
+            transmission=optics.alternatives.SpectralFresnel(
                 nodes=pipeline_nodes,
                 angular_limit=0.65,
                 cutoff=1e-7,
@@ -300,17 +317,16 @@ def compare_closed_body(
                 threads=pipeline_threads,
                 cache_bytes=128 * 1024**2,
             ),
-            transport="wave",
         )
         preparation = perf_counter() - start
         start = perf_counter()
-        solution = path.solve(incident)
+        solution = path(incident)
         solve = perf_counter() - start
         # Reconstruct the intermediate spectrum from the already computed first
         # interface response, without repeating transmission or inferring a ray.
         start = perf_counter()
         transports = [
-            optics.propagation.SurfaceTransport(
+            optics.alternatives.SurfaceTransport(
                 optics.sampling.CartesianGrid(axis, axis, face.frame),
                 face,
                 region,
@@ -321,7 +337,7 @@ def compare_closed_body(
                 faces if compare_traces else (), (interior, source.region)
             )
         ]
-        intermediate = solution.stages[1]
+        intermediate = solution.spectra[1]
         reconstructed = (
             [
                 transports[0].forward(intermediate),
@@ -330,13 +346,14 @@ def compare_closed_body(
             if compare_traces
             else []
         )
+        traces = transmitted_traces(path, solution) if compare_traces else []
         trace_setup = perf_counter() - start
-        front_points, back_points = [
-            response.field.grid.points for response in solution.interactions
-        ]
+        front_points, back_points = [leg[0].grid.points for leg in solution.legs]
         return dict(
             solution=solution,
             path=path,
+            coverage=coverage,
+            traces=traces,
             incident=incident,
             intermediate=intermediate,
             faces=faces,
@@ -359,39 +376,27 @@ def compare_closed_body(
 
     def pipeline_meridian(candidate, body, valid):
         start = perf_counter()
-        if candidate["path"].coverage == "complete":
-            from vecdiff.fourier.nufft import NUFFT
-
-            path = candidate["path"]
-            electric = path(
-                candidate["incident"],
-                optics.sampling.PointGrid(meridian),
-                side="plus",
-                method="nufft",
-            )
-            report = path.last_coverage
-            # E was evaluated through the public operator. H is requested only
-            # for this explicit E/H benchmark, using exactly the same regions.
-            magnetic = np.empty_like(electric.values)
-            for index in np.unique(report.regions):
-                mask = report.regions == index
-                modes = path.last_solution.stages[index].expansion
-                magnetic[mask] = NUFFT(
-                    modes.magnetic_amplitudes,
-                    modes.wavevectors,
-                    meridian[mask] - modes.origin,
-                    method="nufft",
-                )
+        if candidate["coverage"] == "complete":
+            solution = candidate["solution"]
+            where = dict(side="plus", coverage="complete")
+            target = optics.sampling.PointGrid(meridian)
+            both = solution.field(target, method="nufft", **where)
+            report = solution.coverage(target, **where)
             candidate["extended_points"] = int(report.extended.sum())
             field = optics.fields.ElectromagneticField(
                 optics.fields.ElectricField(
                     optics.sampling.PointGrid(meridian[report.computed]),
                     wavelength,
-                    electric.values[report.computed],
+                    both.electric.values[report.computed],
                 ),
-                magnetic[report.computed],
+                both.magnetic[report.computed],
             )
-            return field, report.computed, electric.values, perf_counter() - start
+            return (
+                field,
+                report.computed,
+                both.electric.values,
+                perf_counter() - start,
+            )
         front_min, front_max, back_min, back_max = candidate["envelope"]
         inside = body.contains(meridian)
         masks = [
@@ -408,7 +413,7 @@ def compare_closed_body(
                 field, _ = timed_field(
                     model,
                     meridian[mask],
-                    **({"backend": "nufft"} if model is not source else {}),
+                    **({"method": "nufft"} if model is not source else {}),
                 )
                 electric[mask], magnetic[mask] = field.electric.values, field.magnetic
         coverage = np.logical_or.reduce(masks)
@@ -451,10 +456,10 @@ def compare_closed_body(
         start = perf_counter()
         rows = []
         reference_seconds = {name: 0.0 for name in references}
-        for which, (face, response, reconstructed) in enumerate(
+        for which, (face, trace, reconstructed) in enumerate(
             zip(
                 candidate["faces"],
-                candidate["solution"].interactions,
+                candidate["traces"],
                 candidate["reconstructed"],
             )
         ):
@@ -475,7 +480,7 @@ def compare_closed_body(
             points = face.points(xy)
             normals = face.normals(xy)
             samples = []
-            for field in (response.field, reconstructed):
+            for field in (trace, reconstructed):
                 values = [
                     (
                         RegularGridInterpolator(
@@ -619,7 +624,7 @@ def compare_closed_body(
         axial[focus_reference], axial_times[focus_reference] = timed_field(
             references.get(focus_reference, candidate["solution"]),
             scan_points,
-            **({"backend": "nufft"} if focus_reference == "Pipeline" else {}),
+            **({"method": "nufft"} if focus_reference == "Pipeline" else {}),
         )
         peak = int(np.argmax(axial[focus_reference].electric.norm2()))
         focus_z = scan_z[peak]
@@ -735,11 +740,11 @@ def compare_closed_body(
                 * coverage.sum()
                 / (
                     coverage.size
-                    if candidate["path"].coverage == "complete"
+                    if candidate["coverage"] == "complete"
                     else valid.sum()
                 )
             ),
-            coverage_mode=candidate["path"].coverage,
+            coverage_mode=candidate["coverage"],
             extended_points=candidate.get("extended_points", 0),
             radius_over_wavelength=radius / wavelength,
             count=count,

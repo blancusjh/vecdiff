@@ -1,4 +1,4 @@
-"""Public pipeline contracts and independently evaluated modal limits."""
+"""Public propagation contracts and independently evaluated modal limits."""
 
 import subprocess
 import sys
@@ -38,7 +38,7 @@ def test_core_import_does_not_load_research_or_reference_solvers():
         [
             sys.executable,
             "-c",
-            "import sys; import vecdiff as o; assert not any(n.startswith(('vecdiff.research','vecdiff.references')) for n in sys.modules); assert not any(hasattr(o,n) for n in ['propagate_interfaces','propagate_high_frequency','propagate_layers','LayerStack','HighFrequencySolution']); assert hasattr(o.propagation,'PropagationPipeline')",
+            "import sys; import vecdiff as o; assert not any(n.startswith(('vecdiff.research','vecdiff.references')) for n in sys.modules); assert not any(hasattr(o,n) for n in ['propagate_interfaces','propagate_high_frequency','propagate_layers','LayerStack','HighFrequencySolution']); assert hasattr(o.propagation,'Propagator')",
         ],
         check=True,
     )
@@ -50,53 +50,51 @@ def test_top_level_exposes_only_namespaces():
     assert all(isinstance(getattr(o, name), types.ModuleType) for name in public)
 
 
-def test_empty_pipeline_is_homogeneous_transport():
+def test_empty_system_is_homogeneous_propagation():
     plane, air, glass, source = setup()
-    result = o.propagation.PropagationPipeline(transport="wave").solve(source)
+    result = o.propagation.Propagator()(source)
     target = plane.translated(3 * plane.frame.normal)
     expected = source.evaluate(target)
-    actual = result.evaluate(target)
-    assert result.spectrum is source
-    assert result.interactions == ()
+    actual = result.field(target)
+    assert result.spectrum is source and result.spectra == (source,)
+    assert result.reports == ()
     assert_allclose(actual.electric.values, expected.electric.values, atol=2e-13)
     assert_allclose(actual.magnetic, expected.magnetic, atol=2e-15)
 
 
 @pytest.mark.parametrize("wavelength", [1.0, 532e-9])
 @pytest.mark.parametrize("angle", [0.0, 0.43])
-def test_plane_pipeline_matches_exact_modal_transmission(wavelength, angle):
+def test_wave_transport_through_a_plane_matches_exact_modal_transmission(
+    wavelength, angle
+):
     c, s = np.cos(angle), np.sin(angle)
     basis = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
     plane, air, glass, source = setup(basis, wavelength)
     interface = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
-    pipeline = o.propagation.PropagationPipeline(
-        [interface],
-        transmission=o.alternatives.DirectionResolvedFresnel(nodes=18, cutoff=0),
-        transport="wave",
+    propagator = o.alternatives.WavePropagator(
+        [interface], transmission=o.alternatives.SpectralFresnel(nodes=18, cutoff=0)
     )
-    result = pipeline.solve(source)
+    result = propagator(source)
     exact = o.alternatives.scatter_plane(
         source, o.system.PlanarInterface(plane.frame, air, glass)
     )
     target = plane.translated(2 * wavelength * plane.frame.normal)
     expected = exact.transmitted.evaluate(target)
-    actual = result.evaluate(target)
+    actual = result.field(target)
     assert_allclose(
         actual.electric.values, expected.electric.values, atol=2e-11, rtol=2e-11
     )
     assert_allclose(actual.magnetic, expected.magnetic, atol=2e-13, rtol=2e-11)
-    first = pipeline._operators
-    pipeline.solve(source)
-    assert pipeline._operators is first
+    assert propagator(source).legs is result.legs
 
 
 def test_transparent_curved_interface_does_not_filter_or_reconstruct():
     plane, air, glass, source = setup()
     other = o.media.HomogeneousRegion("other_air", o.media.Dielectric(1))
     surface = o.surfaces.SphericalCap(30, plane.frame)
-    result = o.propagation.PropagationPipeline(
-        [o.system.DielectricInterface(surface, air, other)], transport="wave"
-    ).solve(source)
+    result = o.alternatives.WavePropagator(
+        [o.system.DielectricInterface(surface, air, other)]
+    )(source)
     assert_allclose(
         result.spectrum.expansion.amplitudes,
         source.expansion.amplitudes,
@@ -109,15 +107,14 @@ def test_transparent_curved_interface_does_not_filter_or_reconstruct():
 def test_zero_field_and_single_normal_mode_have_well_defined_angular_plans():
     plane, air, glass, _ = setup()
     boundary = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
-    pipeline = o.propagation.PropagationPipeline([boundary], transport="wave")
+    propagator = o.alternatives.WavePropagator([boundary])
     for value in [0.0, 1.0]:
         a = np.zeros(plane.shape + (2,), complex)
         a[..., 0] = value
         source = o.fields.angular_spectrum(
             o.fields.TransverseElectricField(plane, 1, a), air, evanescent="discard"
         )
-        result = pipeline.solve(source)
-        actual = result.evaluate(plane)
+        actual = propagator(source).field(plane, side="plus")
         expected = np.zeros(plane.shape + (3,), complex)
         expected[..., 0] = 0.8 * value
         assert_allclose(actual.electric.values, expected, atol=2e-13)
@@ -126,15 +123,14 @@ def test_zero_field_and_single_normal_mode_have_well_defined_angular_plans():
 def test_explicit_scope_and_material_validation():
     plane, air, glass, source = setup()
     interface = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
-    with pytest.raises(ValueError, match="edges and stops"):
-        o.propagation.PropagationPipeline(
-            o.system.OpticalSystem([interface], stops=[2]), transport="wave"
-        )
+    for method in (o.propagation.Propagator, o.alternatives.WavePropagator):
+        with pytest.raises(ValueError, match="edges and stops"):
+            method(o.system.OpticalSystem([interface], stops=[2]))
     wrong = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), glass, air)
-    with pytest.raises(ValueError, match="source medium"):
-        o.propagation.PropagationPipeline([wrong], transport="wave").solve(source)
+    with pytest.raises(ValueError, match="incident region"):
+        o.alternatives.WavePropagator([wrong])(source)
     tilted = o.system.DielectricInterface(
         o.surfaces.Plane(o.geometry.Frame([0, 0, 0])), air, glass
     )
     with pytest.raises(ValueError, match="transverse origin"):
-        o.propagation.PropagationPipeline([tilted], transport="wave").solve(source)
+        o.alternatives.WavePropagator([tilted])(source)

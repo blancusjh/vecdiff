@@ -71,7 +71,7 @@ class OpticalSystem:
     Each stop is an opaque pupil at that surface: a circular hole of the given
     radius in an opaque screen lying on the surface's chart (the surface inside
     its edge, flat at rim height beyond). None means no pupil there.
-    These describe the prescription; PropagationPipeline currently rejects
+    These describe the prescription; propagation.Propagator currently rejects
     finite edges and stops because it does not implement their scattering.
     """
 

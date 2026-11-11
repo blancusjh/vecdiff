@@ -241,7 +241,8 @@ def test_index_matched_leg_is_the_identity_on_a_curved_surface():
     assert report.unsupported_relative_amplitude == 0 and report.dark_samples == 0
 
 
-def test_carrier_fresnel_matches_spectral_fresnel_for_a_plane_wave_and_is_invisible():
+def test_carried_plane_wave_matches_spectral_fresnel_at_a_plane():
+    """Along its own direction the carrier dyadic is the plane wave's Fresnel law."""
     n, step = 32, 0.4
     axis = (np.arange(n) - n // 2) * step
     frequency = 2 * np.pi * np.fft.fftfreq(n, step)
@@ -252,76 +253,30 @@ def test_carrier_fresnel_matches_spectral_fresnel_for_a_plane_wave_and_is_invisi
     system = (o.system.DielectricInterface(S.Plane(), AIR, GLASS),)
     target = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, 2.0]))
     carrier = F.Carrier.collimated(direction)
-    spectral = P.PropagationPipeline(system, transport="wave")(incident, target)
-    carried = P.PropagationPipeline(system, transmission="carrier", transport="wave")(
-        incident, target, carrier=carrier
-    )
+    spectral = o.alternatives.WavePropagator(system)(incident).electric(target)
+    carried = P.Propagator(system)(incident, carrier=carrier).electric(target)
     assert_allclose(
         host(carried.values),
         host(spectral.values),
         atol=1e-10 * abs(host(spectral.values)).max(),
     )
-    # Index-matched: the transmitted trace is the incident trace, E_par included.
-    axis = (np.arange(64) - 32) * 0.4
-    flat = o.sampling.CartesianGrid(axis, axis)
-    surface = S.SphericalCap(30.0)
-    interface = o.system.DielectricInterface(surface, AIR, AIR2)
-    transport = o.alternatives.SurfaceTransport(flat, surface, AIR, 1.0)
-    gaussian = np.exp(-(axis[None] ** 2 + axis[:, None] ** 2) / 4)
-    beam = F.angular_spectrum(
-        F.TransverseElectricField(flat, 1.0, np.stack((gaussian, 0.3j * gaussian), -1)),
-        AIR,
-        evanescent="discard",
-    )
-    response = o.alternatives.CarrierFresnel(
-        F.Carrier.converging([0, 0, 50.0])
-    ).transmit(beam, interface, transport)
-    trace = transport.forward(beam).electric.values
-    assert_allclose(
-        host(response.field.electric.values), host(trace), atol=1e-14 * abs(trace).max()
-    )
 
 
-def test_pipeline_checks_the_eikonal_options():
+def test_propagator_checks_its_options_and_says_where_wave_transport_went():
     system = (o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),)
-    with pytest.raises(ValueError, match="transport"):
-        P.PropagationPipeline(system, transport="ray")
-    with pytest.raises(ValueError, match="carrier"):
-        P.PropagationPipeline(system, transport="eikonal", transmission="spectral")
-    with pytest.raises(ValueError, match="reference_planes"):
-        P.PropagationPipeline(system, reference_planes=(0.0,), transport="wave")
     with pytest.raises(ValueError, match="one reference-plane offset"):
-        P.PropagationPipeline(system, transport="eikonal", reference_planes=(0, 1))
-    axis = (np.arange(16) - 8) * 0.5
-    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
-    incident = plane_wave(grid, 0.0, 0.0, [1.0, 0.0], AIR)
-    with pytest.raises(ValueError, match="carrier="):
-        P.PropagationPipeline(system, transport="eikonal").solve(incident)
-    two = system + (
-        o.system.DielectricInterface(
-            S.SphericalCap(-20.0, Frame([0, 0, 5.0])), GLASS, AIR
-        ),
-    )
-    with pytest.raises(ValueError, match="one refracting surface"):
-        P.PropagationPipeline(two, transmission="carrier", transport="wave").solve(
-            incident, carrier=F.Carrier.collimated([0, 0, 1])
-        )
-
-
-def test_eikonal_transport_is_the_default_and_says_how_to_get_the_wave_one():
-    system = (o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),)
-    default = P.PropagationPipeline(system)
-    assert default.transport == "eikonal" and default.treatment == "eikonal"
-    axis = (np.arange(16) - 8) * 0.5
-    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
-    incident = plane_wave(grid, 0.0, 0.0, [1.0, 0.0], AIR)
-    with pytest.raises(ValueError, match="carrier=.*transport='wave'"):
-        default.solve(incident)
+        P.Propagator(system, planes=(0, 1))
     for treatment in ("spectral", "local"):
-        with pytest.raises(ValueError, match="transport='wave'"):
-            P.PropagationPipeline(system, transmission=treatment)
-    wave = P.PropagationPipeline(system, transport="wave")
-    assert wave.transport == "wave" and wave.treatment == "spectral"
+        with pytest.raises(TypeError, match="transmission"):
+            P.Propagator(system, transmission=treatment)
+    axis = (np.arange(16) - 8) * 0.5
+    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
+    incident = plane_wave(grid, 0.0, 0.0, [1.0, 0.0], AIR)
+    with pytest.raises(ValueError, match="carrier=.*alternatives.WavePropagator"):
+        P.Propagator(system)(incident)
+    wave = o.alternatives.WavePropagator(system)
+    assert isinstance(wave.transmission, o.alternatives.SpectralFresnel)
+    assert len(wave(incident).reports) == 1
 
 
 def test_output_lattice_holds_the_refracted_image_and_windows_weight_the_rays():

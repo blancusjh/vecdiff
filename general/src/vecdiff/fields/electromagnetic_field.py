@@ -98,7 +98,10 @@ class TransverseElectricField:
 
 @dataclass(frozen=True, eq=False)
 class ElectromagneticField:
-    """Consistent E and H evaluated on the same grid. H is in A/m, not Z0 H."""
+    """Consistent E and H evaluated on the same grid. H is in A/m, not Z0 H.
+
+    The samples E marks invalid are uncomputed for H too, and NaN.
+    """
 
     electric: ElectricField
     magnetic: np.ndarray
@@ -107,16 +110,27 @@ class ElectromagneticField:
         if not isinstance(self.electric, ElectricField):
             raise TypeError("electric must be an ElectricField")
 
-        magnetic = frozen_array(self.magnetic, dtype=complex)
+        magnetic = bd.array(self.magnetic, dtype=complex, copy=True)
 
         if magnetic.shape != self.electric.values.shape:
             raise ValueError("magnetic and electric values must have equal shapes")
 
+        valid = self.electric.valid
+        if not bd.isfinite(magnetic[valid]).all():
+            raise ValueError("computed magnetic samples must be finite")
+        magnetic[~valid] = bd.nan + 1j * bd.nan
+        if not is_device_array(magnetic):
+            magnetic.setflags(write=False)
         object.__setattr__(self, "magnetic", magnetic)
 
     @property
     def grid(self):
         return self.electric.grid
+
+    @property
+    def valid(self):
+        """The computed samples."""
+        return self.electric.valid
 
     def poynting(self):
         """Time-averaged energy-flow density in W/m²."""

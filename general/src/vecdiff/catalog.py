@@ -31,8 +31,8 @@ def thorlabs_al1225(*, wavelength0=780e-9, scale=1.0):
     scale != 1 is a scaled model, not the manufactured part. Wavelength is
     in metres and selects lossless N-BK7's index via SCHOTT's Sellmeier law.
     Air is assigned n=1. Coatings, absorption and manufacturing errors are
-    not included. The prescription contains finite edges; the current
-    forward PropagationPipeline rejects them rather than silently removing
+    not included. The prescription contains finite edges; the propagation
+    (propagation.Propagator) rejects them rather than silently removing
     them. A continued-face approximation must be constructed explicitly.
     """
     if not np.isfinite(scale) or scale <= 0:

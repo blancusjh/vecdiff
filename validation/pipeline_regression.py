@@ -1,4 +1,4 @@
-"""Public pipeline versus the saved direction-resolved Fresnel focal benchmark.
+"""Wave transport versus the saved direction-resolved Fresnel focal benchmark.
 
 This uses only the installed core, NumPy and SciPy. No notebooks, historical Git
 code or reference solvers enter the candidate calculation. Comparisons occur
@@ -27,7 +27,7 @@ def run(count=280):
     source = o.fields.angular_spectrum(
         o.fields.TransverseElectricField(grid, 1, values), air, evanescent="discard"
     )
-    path = o.propagation.PropagationPipeline(
+    path = o.alternatives.WavePropagator(
         [
             o.system.DielectricInterface(
                 o.surfaces.SphericalCap(100, o.geometry.Frame([0, 0, -100])), air, glass
@@ -35,10 +35,9 @@ def run(count=280):
             o.system.DielectricInterface(
                 o.surfaces.SphericalCap(-100, o.geometry.Frame([0, 0, 100])), glass, air
             ),
-        ],
-        transport="wave",
+        ]
     )
-    solution = path.solve(source)
+    solution = path(source)
     solve_seconds = perf_counter() - started
     data = root / "validation/reference_data"
     with (
@@ -46,7 +45,7 @@ def run(count=280):
         np.load(data / "focal_spectral_N280_a18_c1e-07_t3.npz") as previous,
     ):
         started = perf_counter()
-        field = solution.evaluate(
+        field = solution.field(
             o.sampling.PointGrid(reference["plane"]), method="nufft", tolerance=1e-12
         )
         evaluation_seconds = perf_counter() - started
@@ -66,11 +65,11 @@ def run(count=280):
             relative_H_p1=relative(field.magnetic, reference["exact_plane_p1_H"]),
             interfaces=[
                 dict(
-                    retained_modes=x.report.retained_modes,
-                    omitted_modal_l2=x.report.omitted_modal_l2,
-                    transport_ranks=x.report.transport_ranks,
+                    retained_modes=x.retained_modes,
+                    omitted_modal_l2=x.omitted_modal_l2,
+                    transport_ranks=x.transport_ranks,
                 )
-                for x in solution.interactions
+                for x in solution.reports
             ],
         )
     assert result["relative_E_saved"] < 1e-10, result

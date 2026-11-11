@@ -11,10 +11,6 @@ from vecdiff.propagation.homogeneous import (
     propagate,
     propagate_spectrum,
 )
-from vecdiff.propagation.pipeline import (
-    PropagationPipeline,
-    PropagationSolution,
-)
 from vecdiff.propagation.propagator import Propagator, Solution
 
 __all__ = [
@@ -24,6 +20,4 @@ __all__ = [
     "PlaneTransport",
     "propagate",
     "propagate_spectrum",
-    "PropagationPipeline",
-    "PropagationSolution",
 ]

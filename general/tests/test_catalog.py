@@ -22,7 +22,7 @@ def test_al1225_dimensions_dispersion_and_paraxial_focus():
     assert front.surface.height(np.array([0.00625, 0])) < 0.004
     # Preserve the finite prescription; it must not silently become open faces.
     with pytest.raises(ValueError, match="finite material edges"):
-        optics.propagation.PropagationPipeline(system, transport="wave")
+        optics.propagation.Propagator(system)
 
 
 def test_al1225_sag_sign_units_gradient_and_scaling():

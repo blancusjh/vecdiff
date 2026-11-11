@@ -46,13 +46,12 @@ def run():
         return float(np.linalg.norm(a - b) / np.linalg.norm(b))
 
     for method in ("local", "spectral"):
-        propagator = o.propagation.PropagationPipeline(
-            system, transmission=method, transport="wave"
-        )
+        propagator = o.alternatives.WavePropagator(system, transmission=method)
         tick = perf_counter()
-        field = propagator(incident, target, tolerance=1e-12)
+        solution = propagator(incident)
+        field = solution.electric(target, tolerance=1e-12)
         seconds = perf_counter() - tick
-        complete = propagator.last_solution.evaluate(target, tolerance=1e-12)
+        complete = solution.field(target, tolerance=1e-12)
         assert relative(field.values, complete.electric.values) < 1e-10
         row = dict(
             method=method,
@@ -66,7 +65,7 @@ def run():
             complex_E_Mie_relative=relative(
                 field.values, reference["exact_plane_total"]
             ),
-            interfaces=[vars(r.report) for r in propagator.last_solution.interactions],
+            interfaces=[vars(r) for r in solution.reports],
         )
         if method == "spectral":
             row["complex_E_saved_spectral_relative"] = relative(field.values, previous)

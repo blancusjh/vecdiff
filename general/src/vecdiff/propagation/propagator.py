@@ -231,6 +231,26 @@ def sampled_spectrum(light, region):
     return angular_spectrum(light, region, evanescent="discard")
 
 
+def check_placement(interfaces, grid, wavelength):
+    """Raise unless every surface shares the lattice's orientation and transverse origin."""
+    for interface in interfaces:
+        frame = interface.surface.frame
+        offset = (frame.origin - grid.frame.origin) @ grid.frame.basis[:, :2]
+        if (
+            not bd.allclose(frame.basis, grid.frame.basis, rtol=0, atol=1e-12)
+            or bd.linalg.norm(offset) > 1e-12 * wavelength
+        ):
+            raise ValueError(
+                "the surfaces must share the lattice's orientation and "
+                "transverse origin"
+            )
+
+
+def lattice_key(grid, wavelength):
+    """What legs prepared on a lattice depend on, besides geometry and carrier."""
+    return (wavelength, grid.u.tobytes(), grid.v.tobytes(), grid.frame.basis.tobytes())
+
+
 def check_incident(spectrum, region):
     if not isinstance(spectrum, Spectrum):
         raise TypeError(
@@ -317,7 +337,10 @@ class Propagator:
         family = carrier
         if family is None and isinstance(source, BeamSpectrum):
             family = source.carrier
-        if family is None:
+        refracting = any(
+            x.minus.material.n != x.plus.material.n for x in self.interfaces
+        )
+        if family is None and refracting:
             raise ValueError(
                 "the method carries light along its carrier: pass carrier= "
                 "(a fields.Carrier) with the field, or use "
@@ -417,28 +440,9 @@ class Propagator:
         grid = source.grid
         if not isinstance(grid, CartesianGrid):
             raise TypeError("the lattice realization needs light on a CartesianGrid")
-        wavelength = source.wavelength0
         # Placements are checked on every call, also when legs are reused.
-        for interface in self.interfaces:
-            frame = interface.surface.frame
-            if (
-                not bd.allclose(frame.basis, grid.frame.basis, rtol=0, atol=1e-12)
-                or bd.linalg.norm(
-                    (frame.origin - grid.frame.origin) @ grid.frame.basis[:, :2]
-                )
-                > 1e-12 * wavelength
-            ):
-                raise ValueError(
-                    "the surfaces must share the lattice's orientation and "
-                    "transverse origin"
-                )
-        return (
-            "lattice",
-            wavelength,
-            grid.u.tobytes(),
-            grid.v.tobytes(),
-            grid.frame.basis.tobytes(),
-        )
+        check_placement(self.interfaces, grid, source.wavelength0)
+        return ("lattice",) + lattice_key(grid, source.wavelength0)
 
     def _lattice_leg(self, index, legs, source, carrier):
         interface = self.interfaces[index]

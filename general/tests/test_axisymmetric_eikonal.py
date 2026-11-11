@@ -271,8 +271,8 @@ def test_propagator_chooses_and_guards_the_meridian_leg():
     )
     with pytest.raises(ValueError, match="CartesianGrid"):
         P.Propagator(system, realization="lattice")(beam)
-    with pytest.raises(TypeError, match="eikonal"):
-        P.PropagationPipeline(system, transport="wave").solve(beam)
+    with pytest.raises(TypeError, match="Propagator"):
+        o.alternatives.WavePropagator(system)(beam)
     with pytest.raises(ValueError, match="realization must be"):
         P.Propagator(system, realization=True)
     with pytest.raises(ValueError, match="one fan per surface"):
