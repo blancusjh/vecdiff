@@ -26,7 +26,12 @@ class Dielectric:
 
 @dataclass(frozen=True)
 class HomogeneousRegion:
-    """Material context. A system/interface supplies its spatial boundary."""
+    """A part of space filled with one material.
+
+    Its boundary is the system's: the surfaces of the path around it. Two
+    regions of the same material are distinct parts of space when their
+    names differ.
+    """
 
     name: str
     material: Dielectric
@@ -34,3 +39,8 @@ class HomogeneousRegion:
     def __post_init__(self):
         if not isinstance(self.material, Dielectric):
             raise TypeError("region material must be a Dielectric")
+
+
+# The common media; air is taken as index 1, as vacuum.
+vacuum = Dielectric(1.0, "vacuum")
+air = Dielectric(1.0, "air")

@@ -15,8 +15,8 @@ def problem(transmission="spectral"):
     values[..., 0] = 1
     source = o.fields.TransverseElectricField(grid, 1, values)
     interfaces = [
-        o.system.DielectricInterface(o.surfaces.Plane.z(0), air, glass),
-        o.system.DielectricInterface(o.surfaces.Plane.z(2), glass, air),
+        o.system.Refraction(o.surfaces.Plane.z(0), air, glass),
+        o.system.Refraction(o.surfaces.Plane.z(2), glass, air),
     ]
     return source, o.alternatives.WavePropagator(
         o.system.OpticalSystem(interfaces), transmission=transmission
@@ -66,10 +66,9 @@ def test_a_solution_serves_every_target_and_its_transports_are_reused(monkeypatc
     assert len(calls) == 4 and again.legs is solution.legs
 
 
-def test_target_equivalence_and_source_owned_by_system():
+def test_a_target_named_by_coordinate_surface_or_grid_is_one_target():
     source, original = problem()
-    system = o.system.OpticalSystem(original.interfaces, incident_field=source)
-    solution = o.alternatives.WavePropagator(system)()
+    solution = original(source)
     kw = dict(window=(-1, 1, -1, 1), shape=(7, 9))
     a = solution.electric(z=3, **kw)
     b = solution.electric(o.surfaces.Plane.z(3), **kw)
@@ -92,10 +91,8 @@ def test_coordinate_planes_and_auto_sampling(coordinate):
 
 def test_curved_and_rotated_targets_match_analytic_homogeneous_wave():
     source, old = problem()
-    region = old.interfaces[0].minus
-    solution = o.propagation.Propagator(o.system.OpticalSystem(incident_region=region))(
-        source
-    )
+    region = old.elements[0].before
+    solution = o.propagation.Propagator(o.system.OpticalSystem(medium=region))(source)
     tilted = o.surfaces.Plane(
         o.geometry.Frame([0, 0, 4], [[1, 0, 0], [0, 0.8, -0.6], [0, 0.6, 0.8]])
     )
@@ -134,12 +131,12 @@ def test_local_oblique_plane_wave_matches_exact_fresnel(angle_mode):
             axis=-1,
         ),
     )
-    spectrum = o.fields.angular_spectrum(source, propagate.interfaces[0].minus)
-    interface = propagate.interfaces[0]
+    spectrum = o.fields.angular_spectrum(source, propagate.elements[0].before)
+    interface = propagate.elements[0]
     transport = o.alternatives.SurfaceTransport(
         o.sampling.CartesianGrid(source.grid.u, source.grid.v),
         interface.surface,
-        interface.minus,
+        interface.before,
         1,
     )
     shifted = o.propagation.PlaneTransport().spectrum(spectrum, 1)
@@ -147,7 +144,7 @@ def test_local_oblique_plane_wave_matches_exact_fresnel(angle_mode):
     exact = o.alternatives.scatter_plane(
         spectrum,
         o.system.PlanarInterface(
-            interface.surface.frame, interface.minus, interface.plus
+            interface.surface.frame, interface.before, interface.after
         ),
     )
     expected = exact.evaluate(transport.grid, side="plus")

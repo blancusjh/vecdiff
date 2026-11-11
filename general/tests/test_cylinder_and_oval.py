@@ -111,7 +111,7 @@ def cylinder_error(radius, pupil, sampled=True):
         )
     surface = S.CylindricalCap(radius, Frame([0, 0, -radius]))
     propagator = P.Propagator(
-        (o.system.DielectricInterface(surface, AIR, GLASS),),
+        (o.system.Refraction(surface, AIR, GLASS),),
         fans=(fan,),
         lattice=None if sampled else plane,
     )
@@ -201,7 +201,7 @@ def test_oval_on_the_lattice_agrees_with_its_meridian():
     ovoid = S.CartesianOvoid.from_conjugates(
         1.0, 2.5 * radius, 1.5, 1.8 * radius, frame=Frame([0, 0, -radius])
     )
-    system = (o.system.DielectricInterface(ovoid, AIR, GLASS),)
+    system = (o.system.Refraction(ovoid, AIR, GLASS),)
     axis = (np.arange(240) - 120) / 3
     plane = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -radius]))
     sampled = beam.evaluate(plane, method="nufft").electric.values[..., :2]

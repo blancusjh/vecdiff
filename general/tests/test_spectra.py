@@ -56,7 +56,7 @@ def hankel():
         frame=Frame([0, 0, -2.0]),
     )
     leg = o.transport.MeridianTransport(
-        o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),
+        o.system.Refraction(S.SphericalCap(30.0), AIR, GLASS),
         incident.carrier,
         incident.frame,
         1.0,

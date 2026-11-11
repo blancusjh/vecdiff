@@ -17,6 +17,7 @@ from vecdiff.surfaces.surface import (
     GraphSurface,
     ImplicitSurface,
     Plane,
+    ReversedSurface,
 )
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "SphericalCap",
     "Sphere",
     "ImplicitSurface",
+    "ReversedSurface",
     "CylindricalCap",
     "Cylinder",
     "EvenAsphere",

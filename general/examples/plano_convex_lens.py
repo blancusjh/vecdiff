@@ -20,8 +20,8 @@ def lens():
     curved = vd.surfaces.SphericalCap(-25e-3, vd.geometry.Frame([0, 0, 3e-3]))
     return air, vd.system.OpticalSystem(
         (
-            vd.system.DielectricInterface(flat, air, glass),
-            vd.system.DielectricInterface(curved, glass, behind),
+            vd.system.Refraction(flat, air, glass),
+            vd.system.Refraction(curved, glass, behind),
         )
     )
 

@@ -108,7 +108,7 @@ def test_sphere_carries_the_hard_pupils_tail_on_the_meridian():
     for kind in (S.SphericalCap, S.Sphere):
         surface = kind(radius, Frame([0, 0, -radius]))
         propagator = P.Propagator(
-            (o.system.DielectricInterface(surface, air, glass),), fans=((72.0, 80.0),)
+            (o.system.Refraction(surface, air, glass),), fans=((72.0, 80.0),)
         )
         solution = propagator(beam)
         edges[kind] = solution.legs[0].edge

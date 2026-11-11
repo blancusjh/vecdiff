@@ -10,12 +10,24 @@ from vecdiff.propagation.propagator import (
     Solution,
     check_incident,
     check_placement,
-    incident_region,
     lattice_key,
     optical_system,
     sampled_spectrum,
 )
 from vecdiff.sampling import CartesianGrid
+from vecdiff.system import Refraction
+
+
+def refractions(system):
+    """The system, if its path is refractions of unbounded faces met along their normals."""
+    system = optical_system(system)
+    if not all(isinstance(e, Refraction) and e.edge is None for e in system.elements):
+        raise ValueError(
+            "wave transport carries refractions only: finite material edges, "
+            "stops and reflections are not supported by it"
+        )
+    return system
+
 
 TREATMENTS = {"spectral": SpectralFresnel, "local": LocalFresnel}
 
@@ -57,40 +69,36 @@ class WavePropagator:
         max_sine=0.85,
         transport_tolerance=1e-10,
     ):
-        self.system = optical_system(system)
-        self.interfaces = self.system.interfaces
-        self.region = incident_region(self.system)
+        self.system = refractions(system)
+        self.elements = self.system.elements
+        self.region = self.system.region
         self.transmission = treatment(transmission)
         if not 0 < max_sine < 1 or not 0 < transport_tolerance < 1:
             raise ValueError("max_sine and transport_tolerance must lie in (0, 1)")
         self.max_sine, self.transport_tolerance = max_sine, transport_tolerance
         self._key, self._legs = None, ()
 
-    def __call__(self, light=None):
+    def __call__(self, light):
         """The Solution for ``light``, a sampled field or a PlaneSpectrum."""
-        if light is None:
-            light = self.system.incident_field
-        if light is None:
-            raise ValueError("pass the light, or set the system's incident_field")
         source = check_incident(self._incident(light), self.region)
         legs = self._prepare(source)
         spectra, reports = [source], []
-        for interface, (incident, transmitted) in zip(self.interfaces, legs):
+        for element, (incident, transmitted) in zip(self.elements, legs):
             current = spectra[-1]
             distance = float(
                 (incident.plane.frame.origin - current.plane.origin)
                 @ current.plane.normal
             )
             current = PlaneTransport().spectrum(current, distance)
-            if interface.minus.material.n == interface.plus.material.n:
+            if element.incident.material.n == element.outgoing.material.n:
                 # Equal-index transport is an identity, without a spectral cut
                 # or finite-chart reconstruction of an already known solution.
-                spectra.append(current.relabeled(interface.plus))
+                spectra.append(current.relabeled(element.outgoing))
                 continue
-            response = self.transmission.transmit(current, interface, incident)
+            response = self.transmission.transmit(current, element, incident)
             spectra.append(transmitted.radiate(response.field))
             reports.append(response.report)
-        return Solution(tuple(spectra), self.interfaces, tuple(reports), legs)
+        return Solution(tuple(spectra), self.elements, tuple(reports), legs)
 
     def _incident(self, light):
         if isinstance(light, _Beam):
@@ -110,20 +118,20 @@ class WavePropagator:
         if not isinstance(grid, CartesianGrid):
             raise TypeError("wave transport requires a CartesianGrid PlaneSpectrum")
         # Placements are checked on every call, also when transports are reused.
-        check_placement(self.interfaces, grid, wavelength)
+        check_placement(self.elements, grid, wavelength)
         key = lattice_key(grid, wavelength)
         if key == self._key:
             return self._legs
         options = dict(max_sine=self.max_sine, tolerance=self.transport_tolerance)
         legs = []
-        for interface in self.interfaces:
-            plane = CartesianGrid(grid.u, grid.v, interface.surface.frame)
+        for element in self.elements:
+            plane = CartesianGrid(grid.u, grid.v, element.surface.frame)
             legs.append(
                 tuple(
                     SurfaceTransport(
-                        plane, interface.surface, region, wavelength, **options
+                        plane, element.surface, region, wavelength, **options
                     )
-                    for region in (interface.minus, interface.plus)
+                    for region in (element.incident, element.outgoing)
                 )
             )
         for left, right in zip(legs, legs[1:]):

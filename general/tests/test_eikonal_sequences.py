@@ -22,8 +22,8 @@ def shells(outer, inner, core=CORE):
     """Concentric caps about the origin, vertices at -R: air | glass | core."""
     caps = [S.SphericalCap(R, Frame([0, 0, -R])) for R in (outer, inner)]
     return (
-        o.system.DielectricInterface(caps[0], AIR, GLASS),
-        o.system.DielectricInterface(caps[1], GLASS, core),
+        o.system.Refraction(caps[0], AIR, GLASS),
+        o.system.Refraction(caps[1], GLASS, core),
     )
 
 
@@ -125,7 +125,7 @@ def test_index_matched_second_leg_returns_the_single_surface_field():
     """
     outer = 30.0
     first, _ = shells(outer, 24.0)
-    matched = o.system.DielectricInterface(
+    matched = o.system.Refraction(
         S.SphericalCap(24.0, Frame([0, 0, -24.0])), GLASS, GLASS2
     )
     source = beam(outer)

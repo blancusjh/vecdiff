@@ -30,10 +30,10 @@ def run():
     incident = o.fields.TransverseElectricField(grid, 1, values)
     system = o.system.OpticalSystem(
         [
-            o.system.DielectricInterface(
+            o.system.Refraction(
                 o.surfaces.SphericalCap(100, o.geometry.Frame([0, 0, -100])), air, glass
             ),
-            o.system.DielectricInterface(
+            o.system.Refraction(
                 o.surfaces.SphericalCap(-100, o.geometry.Frame([0, 0, 100])), glass, air
             ),
         ]

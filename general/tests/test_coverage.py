@@ -26,8 +26,8 @@ def curved_problem(transmission="spectral", index=1.15, basis=None):
     back = o.surfaces.Plane(o.geometry.Frame(0.8 * basis[:, 2], basis))
     system = o.system.OpticalSystem(
         (
-            o.system.DielectricInterface(front, air, glass),
-            o.system.DielectricInterface(back, glass, after),
+            o.system.Refraction(front, air, glass),
+            o.system.Refraction(back, glass, after),
         )
     )
     values = np.zeros(grid.shape + (2,), complex)
@@ -51,7 +51,7 @@ def test_coverage_fills_curved_band_without_repeating_transmission(
     monkeypatch.setattr(path.transmission, "transmit", counted)
     solution = path(source)
     kw = dict(y=0, window=(-1.5, 1.5, -0.3, 1.3), shape=(33, 25), side="plus")
-    reduced = solution.electric(**kw)
+    reduced = solution.electric(**kw, coverage="reduced")
     assert not reduced.valid.all()
     assert np.isnan(reduced.values[~reduced.valid]).all()
     assert len(calls) == 2
@@ -74,7 +74,7 @@ def test_coverage_fills_curved_band_without_repeating_transmission(
         np.exp(2j * np.pi * (points[..., 2][upstream] + 1)),
         atol=2e-12,
     )
-    again = solution.electric(**kw)
+    again = solution.electric(**kw, coverage="reduced")
     assert_array_equal(again.valid, reduced.valid)
     assert len(calls) == 2
 
@@ -107,11 +107,9 @@ def test_complete_curved_regions_match_independent_homogeneous_plane_wave(basis)
 @pytest.mark.parametrize("coverage", ["reduced", "complete"])
 def test_flat_interface_sided_limits_match_analytic_fresnel(coverage):
     source, path = curved_problem()
-    air, glass = path.interfaces[0].minus, path.interfaces[0].plus
+    air, glass = path.elements[0].before, path.elements[0].after
     solution = o.alternatives.WavePropagator(
-        o.system.OpticalSystem(
-            (o.system.DielectricInterface(o.surfaces.Plane(), air, glass),)
-        )
+        o.system.OpticalSystem((o.system.Refraction(o.surfaces.Plane(), air, glass),))
     )(source)
     with pytest.raises(ValueError, match="side"):
         solution.electric(z=0, shape=(3, 3), coverage=coverage)
@@ -122,10 +120,12 @@ def test_flat_interface_sided_limits_match_analytic_fresnel(coverage):
     assert_allclose(plus.Ex, 2 / 2.15, atol=1e-12)
 
 
-def test_a_target_inside_the_curved_band_is_all_masked():
+def test_reduced_coverage_masks_a_target_inside_the_curved_band():
     source, path = curved_problem()
     solution = path(source)
-    field = solution.field(z=0.1, window=(-0.1, 0.1, -0.1, 0.1), shape=(3, 3))
+    field = solution.field(
+        z=0.1, window=(-0.1, 0.1, -0.1, 0.1), shape=(3, 3), coverage="reduced"
+    )
     assert not field.electric.valid.any()
     assert np.isnan(field.magnetic).all()
 

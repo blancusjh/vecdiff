@@ -51,6 +51,10 @@ class CylindricalCap(GraphSurface):
 
         return out
 
+    def reversed(self):
+        """The half-cylinder seen from its other side: that of the opposite radius."""
+        return type(self)(-self.radius, self.frame.reversed())
+
 
 @dataclass(frozen=True)
 class Cylinder(CylindricalCap, ImplicitSurface):
@@ -73,7 +77,7 @@ class Cylinder(CylindricalCap, ImplicitSurface):
 
         return value, gradient, hessian
 
-    def crossing(self, points, directions):
+    def crossing(self, points, directions, *, leaving=False):
         q, s = bd.asarray(points, dtype=float), bd.asarray(directions, dtype=float)
         x, z = q[..., 0], q[..., 2] - float(self.radius)
         a = s[..., 0] ** 2 + s[..., 2] ** 2
@@ -81,7 +85,13 @@ class Cylinder(CylindricalCap, ImplicitSurface):
         c = x**2 + z**2 - float(self.radius) ** 2
         disc = b * b - a * c
         root = bd.sqrt(bd.where((disc >= 0) & (a > 0), disc, bd.nan))
-        # Into the plus side: the near root for R > 0, the far one for R < 0.
-        if self.radius > 0:
+        # Into the plus side: the near root for R > 0, the far one for R < 0;
+        # out of it, the other one.
+        if (self.radius > 0) != leaving:
             return divide(c, -b + root, (-b + root) != 0)
         return (-b + root) / a
+
+    def far_side(self):
+        """The same cylinder oriented the other way, charted from its far line."""
+        R = float(self.radius)
+        return Cylinder(-R, self.frame.translated(2 * R * self.frame.normal))

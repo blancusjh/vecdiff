@@ -16,7 +16,7 @@ import numpy as np
 from vecdiff.geometry import Frame
 from vecdiff.media import Dielectric, HomogeneousRegion
 from vecdiff.surfaces import EvenAsphere, Plane
-from vecdiff.system import DielectricInterface, OpticalSystem
+from vecdiff.system import OpticalSystem, Refraction
 
 
 def thorlabs_al1225(*, wavelength0=780e-9, scale=1.0):
@@ -31,9 +31,9 @@ def thorlabs_al1225(*, wavelength0=780e-9, scale=1.0):
     scale != 1 is a scaled model, not the manufactured part. Wavelength is
     in metres and selects lossless N-BK7's index via SCHOTT's Sellmeier law.
     Air is assigned n=1. Coatings, absorption and manufacturing errors are
-    not included. The prescription contains finite edges; the propagation
-    (propagation.Propagator) rejects them rather than silently removing
-    them. A continued-face approximation must be constructed explicitly.
+    not included. Both faces end at their edges (``Refraction.edge``): rays
+    that meet a face beyond it leave the path and are reported, and the
+    edges themselves scatter nothing.
     """
     if not np.isfinite(scale) or scale <= 0:
         raise ValueError("scale must be finite and positive")
@@ -67,9 +67,6 @@ def thorlabs_al1225(*, wavelength0=780e-9, scale=1.0):
     )
     exit_face = Plane(Frame([0, 0, 4 * mm]))
     return OpticalSystem(
-        (
-            DielectricInterface(entrance, air_before, glass),
-            DielectricInterface(exit_face, glass, air_after),
-        ),
-        apertures=(6.25 * mm, 6.25 * mm),
+        Refraction(entrance, air_before, glass, edge=6.25 * mm),
+        Refraction(exit_face, glass, air_after, edge=6.25 * mm),
     )

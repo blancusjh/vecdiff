@@ -39,7 +39,7 @@ def timed_field(model, points, **kwargs):
 def transmitted_traces(path, solution):
     """The transmitted E and H on each surface, as the wave transport formed them."""
     traces = []
-    for index, interface in enumerate(path.interfaces):
+    for index, interface in enumerate(path.elements):
         incident = solution.legs[index][0]
         spectrum = solution.spectra[index]
         distance = float(
@@ -303,8 +303,8 @@ def compare_closed_body(
         electric = source.evaluate(grid).electric.values[..., :2]
         incident = optics.fields.TransverseElectricField(grid, wavelength, electric)
         interfaces = [
-            optics.system.DielectricInterface(faces[0], source.region, interior),
-            optics.system.DielectricInterface(faces[1], interior, source.region),
+            optics.system.Refraction(faces[0], source.region, interior),
+            optics.system.Refraction(faces[1], interior, source.region),
         ]
         path = optics.alternatives.WavePropagator(
             optics.system.OpticalSystem(interfaces),

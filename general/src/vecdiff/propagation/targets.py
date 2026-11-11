@@ -1,9 +1,11 @@
 """Resolve observation requests to existing placed surfaces and physical grids.
 
-Automatic bounds cover the projected input chart and optical path, not a
-claimed energy enclosure or an automatically located focus. Explicit windows
-are appropriate for detector crops. Sampling covers the propagating complex
-field band, with a margin; it is not a physical accuracy estimate.
+Automatic bounds are the light's own footprint on the target where the
+solution knows the rays that reach it (``footprint``), padded by its
+diffraction; otherwise they cover the projected input chart and optical
+path. Explicit windows are appropriate for detector crops. Sampling covers
+the propagating complex field band, with a margin; it is not a physical
+accuracy estimate.
 """
 
 from vecdiff._backend import bd
@@ -13,7 +15,7 @@ from vecdiff.surfaces.surface import GraphSurface, Plane
 
 def target_grid(
     source,
-    interfaces,
+    elements,
     target=None,
     *,
     x=None,
@@ -22,6 +24,7 @@ def target_grid(
     window=None,
     shape=None,
     sampling="auto",
+    footprint=None,
 ):
     coordinates = {k: v for k, v in dict(x=x, y=y, z=z).items() if v is not None}
     if len(coordinates) + (target is not None) != 1:
@@ -48,15 +51,20 @@ def target_grid(
     else:
         width = max(len(plane.u) * plane.spacing[0], len(plane.v) * plane.spacing[1])
         xy = bd.stack(bd.meshgrid(plane.u, plane.v), axis=-1)
+    policy = "explicit window"
+    if window is None and footprint is not None:
+        window = footprint(target)
+        policy = "footprint of the rays that reach the target"
     if window is None:
+        policy = "projected input chart and path"
         # Project a finite source/path box onto the requested chart. Include
         # one input-chart width downstream for longitudinal observation planes.
         positions = [plane.points.reshape(-1, 3)]
-        for interface in interfaces:
+        for element in elements:
             chart = xy.reshape(-1, 2)
-            chart = chart[interface.surface.domain(chart)]
-            positions.append(interface.surface.points(chart).reshape(-1, 3))
-        end = interfaces[-1].surface.frame.origin if interfaces else plane.frame.origin
+            chart = chart[element.surface.domain(chart)]
+            positions.append(element.surface.points(chart).reshape(-1, 3))
+        end = elements[-1].surface.frame.origin if elements else plane.frame.origin
         positions.append(
             (
                 plane.points + end - plane.frame.origin + width * plane.frame.normal
@@ -79,7 +87,7 @@ def target_grid(
     automatic_shape = shape is None
     if shape is None:
         max_index = max(
-            [source.region.material.n] + [i.plus.material.n for i in interfaces]
+            [source.region.material.n] + [e.outgoing.material.n for e in elements]
         )
         step = 0.4 * source.wavelength0 / max_index
         # A curved chart stretches physical distance; bound using a pilot grid.
@@ -107,5 +115,5 @@ def target_grid(
         window=tuple(bounds),
         shape=grid.shape,
         spacing=(float(u[1] - u[0]), float(v[1] - v[0])),
-        bounds_policy="projected input chart and path unless explicitly supplied",
+        bounds_policy=policy,
     )

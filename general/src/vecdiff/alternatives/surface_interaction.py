@@ -224,9 +224,10 @@ class SpectralFresnel:
         if not isinstance(spectrum, PlaneSpectrum):
             raise TypeError("direction-resolved transmission requires a PlaneSpectrum")
         modes = spectrum.expansion
-        if modes.region != interface.minus or transport.region != interface.minus:
+        if modes.region != interface.before or transport.region != interface.before:
             raise ValueError(
-                "spectrum and incident transport must belong to interface.minus"
+                "spectrum and incident transport must belong to the refraction's "
+                "incident region"
             )
         if modes.wavelength0 != transport.wavelength0:
             raise ValueError("spectrum and transport wavelengths differ")
@@ -239,7 +240,7 @@ class SpectralFresnel:
             atol=1e-12 * modes.wavelength0,
         ):
             raise ValueError("spectrum must use the incident transport plane")
-        n1, n2 = interface.minus.material.n, interface.plus.material.n
+        n1, n2 = interface.before.material.n, interface.after.material.n
         basis = transport.plane.frame.basis
         k = modes.wavevectors @ basis
         occupied = bd.any(modes.amplitudes != 0, axis=-1)
@@ -412,7 +413,7 @@ class LocalFresnel:
     def transmit(self, spectrum, interface, transport):
         if (
             transport.surface is not interface.surface
-            or spectrum.expansion.region != interface.minus
+            or spectrum.expansion.region != interface.before
         ):
             raise ValueError(
                 "local transmission requires the incident interface transport"
@@ -476,7 +477,7 @@ class LocalFresnel:
                 "local transmission requires forward, non-grazing incidence on the surface; "
                 f"unsupported relative amplitude={bd.sqrt(weights[cosine <= 1e-10].sum() / total):.3g}"
             )
-        n1, n2 = interface.minus.material.n, interface.plus.material.n
+        n1, n2 = interface.before.material.n, interface.after.material.n
         s, pi, pt, dt, ts, tp = _fresnel_basis(
             direction, transport.grid.normals, n1, n2
         )
