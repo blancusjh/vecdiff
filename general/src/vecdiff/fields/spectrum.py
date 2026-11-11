@@ -85,12 +85,13 @@ class PlaneWaveExpansion:
         return bd.cross(self.wavevectors, self.amplitudes) / (k0 * Z0)
 
     def evaluate(
-        self, grid, *, chunk_size=256, method="direct", tolerance=1e-12, threads=None
+        self, grid, *, chunk_size=256, method="auto", tolerance=1e-12, threads=None
     ):
         """Evaluate SI E/H through the selected nonuniform Fourier summation method.
 
         method "nufft" runs FINUFFT on ``threads`` threads (None:
-        VECDIFF_NUFFT_THREADS, else all cores).
+        VECDIFF_NUFFT_THREADS, else all cores); "auto" takes it when it is
+        installed and cheaper than "direct", the exact sum (fourier.NUFFT).
         """
         from vecdiff.fourier.nufft import NUFFT
 

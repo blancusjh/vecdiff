@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.optimize import brentq
 
 from vecdiff._arrays import positive
 from vecdiff._backend import bd, to_numpy
@@ -278,6 +277,7 @@ class OvalDesign:
         length = self.image_z - self.object_z
         z0, zi = self.object_z / length, self.image_z / length
         n0, ni = self.n_object, self.n_image
+        from scipy.optimize import brentq  # lazy: slow to import
 
         def solve_one(r):
             if r == 0:

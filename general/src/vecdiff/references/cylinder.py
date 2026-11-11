@@ -667,7 +667,7 @@ class InfiniteCylinder:
             )
         return out
 
-    def evaluate(self, grid, *, side=None, term=None, chunk_size=8, method="direct"):
+    def evaluate(self, grid, *, side=None, term=None, chunk_size=8, method="auto"):
         """Total field, or one Debye term, inside or outside the cylinder.
 
         side and term as for MieSphere: term None is the total field (incident
@@ -676,8 +676,8 @@ class InfiniteCylinder:
         external reflection and diffraction outside, ("after", P) the rest.
         chunk_size axial nodes are summed at a time. Points that share their
         position across the axis share the cylindrical-wave sums, so planes
-        and lines containing the axis direction are cheap. method selects how the incident field is summed outside ("direct" or
-        "nufft", as for PlaneWaveExpansion.evaluate).
+        and lines containing the axis direction are cheap. method selects how the incident field is summed outside ("auto",
+        "direct" or "nufft", as for PlaneWaveExpansion.evaluate).
         """
         _check_term(term)
         if side not in (None, "interior", "exterior"):

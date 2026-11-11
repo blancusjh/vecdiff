@@ -372,7 +372,7 @@ class LayeredSphere(_SphericalExpansion):
             self.coefficients, self.basis, local, x, ZA, DA, ZB, DB, index
         )
 
-    def evaluate(self, grid, *, side=None, term=None, chunk_size=128, method="direct"):
+    def evaluate(self, grid, *, side=None, term=None, chunk_size=128, method="auto"):
         """Total field, or one Debye term, in each point's region or in ``side``.
 
         side None takes the region containing each point (a point on an
@@ -389,8 +389,8 @@ class LayeredSphere(_SphericalExpansion):
         Inside a layer a Debye term of a multipole that turns within it grows
         like the irregular function beyond its turning point and cancels only
         in the sum, as the exterior Debye parts do beyond the incident tail.
-        method selects how the incident field is summed outside ("direct" or
-        "nufft", as for PlaneWaveExpansion.evaluate).
+        method selects how the incident field is summed outside ("auto",
+        "direct" or "nufft", as for PlaneWaveExpansion.evaluate).
         """
         _check_term(term)
         if chunk_size < 1:

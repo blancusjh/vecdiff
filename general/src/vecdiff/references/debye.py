@@ -338,10 +338,23 @@ def sphere_single_interface(
     }
 
 
-def _riccati(kind, orders, x):
-    """z_l(x) and D_l = (x z_l)'/x for spherical j, h1 (outgoing) or h2."""
-    z, dz = _spherical_radial(kind, orders, x)
-    return z, dz + z / x
+def _riccati(kind, count, x):
+    """z_l(x) and D_l = (x z_l)'/x, l = 1..count, for spherical j, h1 (outgoing) or h2.
+
+    Real x > 0 of any shape; the tables have shape (count,) + x.shape. They
+    come from the recurrences of _bessel at O(1) a value, not O(l) as one
+    scipy.special call per (l, x): Miller's for the regular functions, the
+    upward one for the Hankel functions.
+    """
+    if kind == "j":
+        value, derivative, scale = (t[1:] for t in _bessel.regular(count, x))
+        with np.errstate(under="ignore"):
+            weight = np.exp(scale) / x
+        return value * weight, derivative * weight
+    value, derivative = (t[1:] / x for t in _bessel.outgoing_values(count, x))
+    if kind == "h2":
+        value, derivative = np.conj(value), np.conj(derivative)
+    return value, derivative
 
 
 @on_cpu

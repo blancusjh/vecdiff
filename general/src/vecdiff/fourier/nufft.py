@@ -52,10 +52,19 @@ def _direct_sum(g, x, q, sign, chunk_size):
         raise ValueError("chunk_size must be a positive integer")
 
     G = bd.zeros((len(q), g.shape[1]), dtype=complex)
+    real = x.dtype.kind == "f" and q.dtype.kind == "f"
 
     for start in range(0, len(q), int(chunk_size)):
         stop = start + int(chunk_size)
-        phase = phase_factor(x, q[start:stop], sign=sign)
+        if real:
+            # A real phase: a real product, and cos and sin in place of the
+            # complex exponential, which costs 1.4 times as much.
+            angle = q[start:stop] @ x.T
+            phase = bd.empty(angle.shape, complex)
+            phase.real[...] = bd.cos(angle)
+            phase.imag[...] = bd.sin(angle) if sign == 1 else -bd.sin(angle)
+        else:
+            phase = phase_factor(x, q[start:stop], sign=sign)
 
         G[start:stop] = phase @ g
 
@@ -72,7 +81,49 @@ def _threads(threads):
     return threads
 
 
-def _fast_sum(g, x, q, sign, tolerance, threads=None):
+def _plane(q, x, tolerance):
+    """(centre, axes) of a plane through every target, or None.
+
+    The targets q (n, 3) lie on the plane centre + a axes[:, 0] + b axes[:, 1]
+    when dropping their offsets d from it changes no phase x.q by more than
+    ``tolerance``: |x| |d| <= tolerance, an error within the transform's own.
+    The plane is the least-squares one through the targets, so a tilted plane
+    is found as well as an axis-aligned one.
+    """
+    if len(q) < 3:
+        return None
+    # Pairwise sums along each coordinate: a column sum drifts by n eps.
+    centre = np.ascontiguousarray(q.T).mean(axis=1)
+    offset = q - centre
+    _, vectors = np.linalg.eigh(offset.T @ offset)
+    # The sum of squares tilts the normal by ~ sqrt(n) eps; one least-squares
+    # step on the (small, accurate) depths removes the tilt.
+    planar = offset @ vectors[:, 1:]
+    tilt = np.linalg.lstsq(planar, offset @ vectors[:, 0], rcond=None)[0]
+    normal = vectors[:, 0] - vectors[:, 1:] @ tilt
+    normal /= np.linalg.norm(normal)
+    depth = np.max(np.abs(offset @ normal))
+    reach = np.sqrt(np.max(np.sum(x * x, axis=1)))
+    if reach * depth > tolerance:
+        return None
+    first = vectors[:, 1] - normal * (vectors[:, 1] @ normal)
+    first /= np.linalg.norm(first)
+    return centre, np.stack((first, np.cross(normal, first)), -1)
+
+
+def _host_inputs(g, x, q, tolerance):
+    """Host copies for FINUFFT, coplanar 3D targets folded into two dimensions."""
+    x, q, g = to_numpy(x).real, to_numpy(q).real, to_numpy(g)
+    plane = _plane(q, x, tolerance) if x.shape[1] == 3 else None
+    if plane is not None:
+        # Coplanar targets: the phase x.(centre + offset) splits into a
+        # per-source factor and an in-plane phase, a 2D type-3 transform.
+        centre, axes = plane
+        return g, x @ axes, (q - centre) @ axes, np.exp(1j * (x @ centre))
+    return g, x, q, None
+
+
+def _fast_sum(g, x, q, sign, tolerance, threads=None, host=None):
     if bd.any(x.imag) or bd.any(q.imag):
         raise ValueError("FINUFFT requires real coordinates; use method='direct'")
 
@@ -89,10 +140,12 @@ def _fast_sum(g, x, q, sign, tolerance, threads=None):
 
     # FINUFFT runs on the host for either backend; it outpaces the GPU's
     # type-3 transform in double precision on consumer cards.
+    g, x, q, fold = host or _host_inputs(g, x, q, tolerance)
+    if fold is not None:
+        g = g * (fold if sign == 1 else np.conj(fold))[:, None]
     dimension = x.shape[1]
-    x, q, g = to_numpy(x), to_numpy(q), to_numpy(g)
-    source_axes = [np.ascontiguousarray(x.real[:, axis]) for axis in range(dimension)]
-    target_axes = [np.ascontiguousarray(q.real[:, axis]) for axis in range(dimension)]
+    source_axes = [np.ascontiguousarray(x[:, axis]) for axis in range(dimension)]
+    target_axes = [np.ascontiguousarray(q[:, axis]) for axis in range(dimension)]
     transform = getattr(finufft, f"nufft{dimension}d3")
 
     G = transform(
@@ -105,6 +158,35 @@ def _fast_sum(g, x, q, sign, tolerance, threads=None):
     ).T
 
     return bd.asarray(G)
+
+
+# method="auto": the direct sum costs about 20 ns per (source, target) pair,
+# the type-3 transform about 0.7 us per unit of its space-bandwidth product
+# prod_d (half-width of sources x half-width of targets) and ~3 kB of memory
+# (measured, 10 cores). The direct sum is taken below 2^18 pairs, where the
+# transform's start-up dominates, wherever it is the cheaper estimate, and
+# beyond a space-bandwidth product of 2^21 (~7 GB of transform grid).
+_DIRECT_PAIRS = 2**18
+_PAIRS_PER_UNIT = 35
+_LARGEST_TRANSFORM = 2**21
+
+
+def _automatic(g, x, q, tolerance):
+    """None for the direct sum, else the host inputs of the transform."""
+    import importlib.util
+
+    if len(x) * len(q) <= _DIRECT_PAIRS or importlib.util.find_spec("finufft") is None:
+        return None
+    if x.dtype.kind != "f" or q.dtype.kind != "f":
+        return None
+    host = _host_inputs(g, x, q, tolerance)
+    size = math.prod(
+        max(1.0, float(np.ptp(host[1][:, d])) * float(np.ptp(host[2][:, d])) / 4)
+        for d in range(host[1].shape[1])
+    )
+    if size > _LARGEST_TRANSFORM or size * _PAIRS_PER_UNIT >= len(x) * len(q):
+        return None
+    return host
 
 
 def NUFFT(
@@ -129,6 +211,10 @@ def NUFFT(
     reverse-sign sum, not a matrix inverse. The direct method supports complex
     coordinates; FINUFFT accelerates real coordinates with a type-3 transform,
     on ``threads`` threads: None reads VECDIFF_NUFFT_THREADS, else all cores (0).
+    Three-dimensional targets on one plane (a field map) take a two-dimensional
+    transform, whose fine grid has no third axis to pad. method "auto" takes
+    the transform when FINUFFT is installed, the coordinates are real and its
+    estimated cost is below the direct sum's, else the direct sum.
     """
     if sign not in (-1, 1):
         raise ValueError("Fourier sign must be -1 or +1")
@@ -144,12 +230,17 @@ def NUFFT(
     occupied = bd.any(g != 0, axis=1)
     g, x = g[occupied], x[occupied]
 
-    if method == "direct":
+    # Real coordinates stay real: the direct phase is then a real product.
+    if not bd.any(x.imag) and not bd.any(q.imag):
+        x, q = bd.ascontiguousarray(x.real), bd.ascontiguousarray(q.real)
+
+    if method not in ("auto", "direct", "nufft"):
+        raise ValueError("method must be 'auto', 'direct' or 'nufft'")
+    host = _automatic(g, x, q, tolerance) if method == "auto" else None
+    if method == "direct" or (method == "auto" and host is None):
         G = _direct_sum(g, x, q, sign, chunk_size)
-    elif method == "nufft":
-        G = _fast_sum(g, x, q, sign, tolerance, threads)
     else:
-        raise ValueError("method must be 'direct' or 'nufft'")
+        G = _fast_sum(g, x, q, sign, tolerance, threads, host)
 
     return G.reshape(output_shape)
 

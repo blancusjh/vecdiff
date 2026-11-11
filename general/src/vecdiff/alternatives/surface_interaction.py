@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 
 import numpy as np
-from scipy.interpolate import BarycentricInterpolator
 
 from vecdiff._backend import bd, divide, to_numpy
 from vecdiff.alternatives._directions import (
@@ -220,6 +219,8 @@ class SpectralFresnel:
 
     def transmit(self, spectrum, interface, transport):
         """Return coherent transmitted E/H; no single resultant ray is inferred."""
+        from scipy.interpolate import BarycentricInterpolator  # lazy: slow to import
+
         if not isinstance(spectrum, PlaneSpectrum):
             raise TypeError("direction-resolved transmission requires a PlaneSpectrum")
         modes = spectrum.expansion

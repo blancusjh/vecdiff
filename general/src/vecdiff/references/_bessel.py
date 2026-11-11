@@ -112,3 +112,29 @@ def outgoing(count, x, spherical=True):
     wronskian = 1.0 if spherical else 2 / (np.pi * x)
     derivative = derivative.real + 1j * wronskian * np.exp(-2 * log.real)
     return log, derivative
+
+
+def outgoing_values(count, x):
+    """xi_n(x) and xi_n'(x), n = 0..count, by the upward recurrence of values.
+
+    Shape (count + 1,) + x.shape. Upward is the dominant direction, so each
+    value keeps a relative accuracy of about 1e-14 up to x ~ 1e4 (a few
+    times better than ``outgoing``, whose logarithm sums the roundoff of
+    every ratio); beyond n = x the values grow without rescaling and
+    overflow to infinity where xi_n exceeds the float range.
+    """
+    x = np.asarray(x, float)
+    if np.any(x <= 0) or not np.all(np.isfinite(x)):
+        raise ValueError("Bessel arguments must be finite and positive")
+    value = np.empty((count + 1,) + x.shape, complex)
+    value[0] = -1j * np.exp(1j * x)
+    if count:
+        value[1] = value[0] * (1 / x - 1j)
+    with np.errstate(over="ignore", invalid="ignore"):
+        for n in range(1, count):
+            value[n + 1] = ((2 * n + 1) / x) * value[n] - value[n - 1]
+        derivative = np.empty_like(value)
+        derivative[0] = np.exp(1j * x)
+        n = np.arange(1, count + 1).reshape((-1,) + (1,) * x.ndim)
+        derivative[1:] = value[:-1] - (n / x) * value[1:]
+    return value, derivative
