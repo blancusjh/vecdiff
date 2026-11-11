@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from vecdiff.geometry.frames import Frame
-from vecdiff.media.medium import Dielectric, HomogeneousRegion
+from vecdiff.media.medium import Dielectric, HomogeneousRegion, Medium
 from vecdiff.surfaces.asphere import EvenAsphere
 from vecdiff.surfaces.axisymmetric import SphericalCap
 from vecdiff.surfaces.surface import Plane
@@ -59,6 +59,21 @@ def element_record(element):
     }
 
 
+def material_record(region):
+    """A region and its material; an absorbing one's index as n' and kappa."""
+    material = region.material
+    record = {"name": region.name, "material": material.name}
+    if material.absorbing:
+        return record | {"n": material.n_real, "kappa": material.extinction}
+    return record | {"n": material.n}
+
+
+def load_material(item):
+    if "kappa" in item:
+        return Medium(complex(item["n"], item["kappa"]), item["material"])
+    return Dielectric(item["n"], item["material"])
+
+
 def save_system(system: OpticalSystem, path):
     """Serialize a path of plane, spherical-cap and even-asphere encounters and stops."""
     regions = []
@@ -69,10 +84,7 @@ def save_system(system: OpticalSystem, path):
     data = {
         "schema": SCHEMA,
         "length_unit": "m",
-        "regions": [
-            {"name": r.name, "material": r.material.name, "n": r.material.n}
-            for r in regions
-        ],
+        "regions": [material_record(r) for r in regions],
         "elements": [element_record(e) for e in system.elements],
     }
     Path(path).write_text(json.dumps(data, indent=2) + "\n")
@@ -103,9 +115,7 @@ def load_system(path) -> OpticalSystem:
         raise ValueError(f"expected {SCHEMA} with explicit metre units")
 
     regions = {
-        item["name"]: HomogeneousRegion(
-            item["name"], Dielectric(item["n"], item["material"])
-        )
+        item["name"]: HomogeneousRegion(item["name"], load_material(item))
         for item in data["regions"]
     }
     elements = []

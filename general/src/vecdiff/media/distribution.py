@@ -3,31 +3,31 @@
 from dataclasses import dataclass
 
 from vecdiff._backend import bd
-from vecdiff.media.medium import Dielectric
+from vecdiff.media.medium import Medium
 
 
 @dataclass(frozen=True)
 class MaterialRegion:
     name: str
     geometry: object
-    material: Dielectric
+    material: Medium
 
     def __post_init__(self):
         if not callable(getattr(self.geometry, "contains", None)):
             raise TypeError("material region geometry must provide spatial membership")
 
-        if not isinstance(self.material, Dielectric):
-            raise TypeError("a material region needs dielectric constitutive data")
+        if not isinstance(self.material, Medium):
+            raise TypeError("a material region needs a media.Medium")
 
 
 @dataclass(frozen=True)
 class MaterialDistribution:
-    background: Dielectric
+    background: Medium
     regions: tuple[MaterialRegion, ...] = ()
 
     def __post_init__(self):
-        if not isinstance(self.background, Dielectric):
-            raise TypeError("background must be a dielectric material")
+        if not isinstance(self.background, Medium):
+            raise TypeError("background must be a media.Medium")
 
         object.__setattr__(self, "regions", tuple(self.regions))
 
@@ -38,7 +38,13 @@ class MaterialDistribution:
         if points.shape[-1:] != (3,) or not bd.isfinite(points).all():
             raise ValueError("positions must be finite Cartesian coordinates")
 
-        indices = bd.full(points.shape[:-1], self.background.n)
+        materials = (self.background, *(r.material for r in self.regions))
+        complex_index = any(m.absorbing for m in materials)
+        indices = bd.full(
+            points.shape[:-1],
+            self.background.n,
+            dtype=complex if complex_index else float,
+        )
         occupied = bd.zeros(points.shape[:-1], dtype=bool)
 
         for region in self.regions:

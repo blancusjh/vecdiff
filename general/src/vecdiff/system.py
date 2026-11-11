@@ -7,8 +7,9 @@ lets through what passes the hole of an opaque screen. A surface may be
 met more than once: a ghost path, or an internal reflection, is another
 system built from the same surfaces.
 
-A medium (``media.Dielectric``) is what fills a part of space; a region
-(``media.HomogeneousRegion``) is a part of space, with its medium. The light
+A medium (``media.Medium``, a ``media.Dielectric`` when lossless) is what
+fills a part of space; a region (``media.HomogeneousRegion``) is a part of
+space, with its medium. The light
 between two encounters is one segment of the path, and it lies in one
 region; several segments can lie in the same region (in front of a mirror
 the incident and the reflected light, inside a plate the light reflected
@@ -28,7 +29,7 @@ from dataclasses import dataclass, replace
 
 from vecdiff._backend import bd
 from vecdiff.geometry.frames import Frame
-from vecdiff.media.medium import Dielectric, HomogeneousRegion
+from vecdiff.media.medium import HomogeneousRegion, Medium
 
 
 @dataclass(frozen=True)
@@ -66,11 +67,11 @@ def material_of(medium):
 
 
 def check_medium(value, what, optional=False):
-    if (value is None and optional) or isinstance(
-        value, (Dielectric, HomogeneousRegion)
-    ):
+    if (value is None and optional) or isinstance(value, (Medium, HomogeneousRegion)):
         return value
-    raise TypeError(f"{what} must be a media.Dielectric or a media.HomogeneousRegion")
+    raise TypeError(
+        f"{what} must be a media.Medium (or Dielectric) or a media.HomogeneousRegion"
+    )
 
 
 def check_surface(surface):
@@ -93,7 +94,7 @@ class Refraction:
 
     ``surface`` is a placed surface; ``before`` is the medium the light
     arrives through and ``after`` the medium it enters (each a
-    media.Dielectric, or the media.HomogeneousRegion it fills). The light
+    media.Medium, or the media.HomogeneousRegion it fills). The light
     may meet the surface along its normal or against it.
 
     ``edge`` is the radius of the face in the surface's chart, where the
@@ -105,8 +106,8 @@ class Refraction:
     """
 
     surface: object
-    before: Dielectric | HomogeneousRegion
-    after: Dielectric | HomogeneousRegion
+    before: Medium | HomogeneousRegion
+    after: Medium | HomogeneousRegion
     edge: float | None = None
 
     branch = "transmitted"
@@ -144,14 +145,15 @@ class Reflection:
 
     With ``behind``, the medium on the surface's other side, it is the
     Fresnel reflection of that boundary: a ghost, an internal reflection,
-    total internal reflection. Without it the surface is an ideal mirror,
-    on which tangential E vanishes. ``edge`` bounds the face as for a
-    Refraction.
+    total internal reflection, and the reflection of a metal or a lossy
+    glass (a ``behind`` of complex index). Without it the surface is an
+    ideal mirror, on which tangential E vanishes. ``edge`` bounds the face
+    as for a Refraction.
     """
 
     surface: object
-    medium: Dielectric | HomogeneousRegion
-    behind: Dielectric | HomogeneousRegion | None = None
+    medium: Medium | HomogeneousRegion
+    behind: Medium | HomogeneousRegion | None = None
     edge: float | None = None
 
     def __post_init__(self):
@@ -196,7 +198,7 @@ class Stop:
 
     radius: float
     frame: Frame
-    medium: Dielectric | HomogeneousRegion | None
+    medium: Medium | HomogeneousRegion | None
 
     branch = "transmitted"
 
