@@ -602,3 +602,157 @@ def test_reflected_leg_samples_and_bands_in_the_incident_medium():
             1.0,
             branch="back",
         )
+
+
+def sampled(leg, carried, count=150):
+    """Bright lit points of a carried field: their positions (n, 3) and values (n, 2)."""
+    out = carried.grid
+    field = host(carried.values)
+    strength = np.linalg.norm(field, axis=-1) * host(leg.lit).reshape(out.shape)
+    bright = np.argwhere(strength > 0.2 * strength.max())
+    chosen = bright[
+        np.random.default_rng(0).choice(len(bright), min(count, len(bright)), False)
+    ]
+    u, v = host(out.u)[chosen[:, 1]], host(out.v)[chosen[:, 0]]
+    points = host(out.frame.origin) + np.c_[u, v, 0 * u] @ host(out.frame.basis).T
+    return points, field[chosen[:, 0], chosen[:, 1]]
+
+
+def relative(got, exact):
+    return np.linalg.norm(got - exact[:, :2]) / np.linalg.norm(exact[:, :2])
+
+
+def external_reflection(radius):
+    """A Gaussian beam of waist R / 5 on a glass sphere, reflected back to a plane
+    R / 4 in front of it, against the sphere's Debye term 0 there."""
+    from vecdiff.references import MieSphere
+    from vecdiff.transport.meridian import BeamField
+
+    plane = Frame([0, 0, -radius / 4])
+    beam = F.PlaneBeam(
+        F.profiles.Gaussian(radius / 5),
+        F.polarization.x,
+        wavelength0=1.0,
+        region=AIR,
+        frame=plane,
+    )
+    count = int(2 * 0.62 * radius / 0.4) // 2 * 2
+    axis = (np.arange(count) - count // 2) * 0.4
+    grid = o.sampling.CartesianGrid(axis, axis, plane)
+    leg = o.transport.LatticeTransport(
+        grid,
+        o.system.DielectricInterface(S.SphericalCap(radius), AIR, GLASS),
+        beam.carrier,
+        1.0,
+        branch="reflected",
+    )
+    carried, report = leg.carry(BeamField(beam, grid))
+    points, got = sampled(leg, carried)
+    sphere = o.volumes.SphereVolume([0, 0, radius], radius)
+    exact = host(
+        MieSphere(beam, sphere, GLASS)
+        .evaluate(o.sampling.PointGrid(points), term=0, side="exterior")
+        .electric.values
+    )
+    return relative(got, exact), report, (beam, sphere, points, exact)
+
+
+def test_external_reflection_of_a_sphere_tends_to_debye_term_zero_as_it_grows():
+    """Term 0 is (R22 - 1) / 2 h1: the reflected wave R22 h1 / 2 and minus the
+    outgoing half of the incident field, which forms the shadow. A beam's
+    plane waves all travel forward, so that half lives behind the sphere: on
+    the plane in front it is the term 0 of an index-matched sphere, 1e-10 of
+    the reflection here. Measured: 25, 13, 6.1 % (R = 10, 20, 40 lambda; 3.2 %
+    at 80).
+    """
+    from vecdiff.references import MieSphere
+
+    errors = []
+    for radius in (10.0, 20.0, 40.0):
+        error, report, reference = external_reflection(radius)
+        assert report.caustics == 0 and report.unsupported_relative_amplitude < 1e-4
+        errors.append(error)
+        if radius == 10.0:
+            beam, sphere, points, exact = reference
+            matched = o.media.HomogeneousRegion("matched", o.media.Dielectric(1.0))
+            shadow = host(
+                MieSphere(beam, sphere, matched)
+                .evaluate(o.sampling.PointGrid(points), term=0, side="exterior")
+                .electric.values
+            )
+            assert np.linalg.norm(shadow) < 1e-8 * np.linalg.norm(exact)
+    assert errors[1] < 0.6 * errors[0] and errors[2] < 0.6 * errors[1]
+    assert errors[2] < 0.08
+
+
+def internal_reflection(radius):
+    """Refracted into a glass sphere toward its aplanatic point B = R / 1.5, then
+    reflected once from inside: the two legs against Debye term 2 inside.
+
+    The beam converges on A = 1.5 R; inside it diverges from B to the back,
+    whose reflection diverges from 2 R: no caustic on the reflected leg, whose
+    plane lies 0.05 R in front of the back vertex.
+    """
+    from vecdiff.references import MieSphere
+    from vecdiff.transport import RefractedRays
+    from vecdiff.transport.meridian import BeamField
+
+    sine = 0.25
+    beam = F.FocusedBeam(
+        lambda x, y: np.clip(1 - (x**2 + y**2) / sine**2, 0, None) ** 3,
+        F.polarization.x,
+        focal_length=1.0,
+        max_sine=sine,
+        wavelength0=1.0,
+        region=AIR,
+        frame=Frame([0, 0, 1.5 * radius]),
+        apodization="none",
+    )
+    half = np.tan(np.arcsin(sine)) * 2.6 * radius + 3
+    count = int(2 * half / 0.4) // 2 * 2
+    axis = (np.arange(count) - count // 2) * 0.4
+    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.1 * radius]))
+    front = o.transport.LatticeTransport(
+        grid,
+        o.system.DielectricInterface(
+            S.SphericalCap(radius, Frame([0, 0, -radius])), AIR, GLASS
+        ),
+        beam.carrier,
+        1.0,
+    )
+    inside, first = front.transmit(BeamField(beam, grid))
+    count = int(2 * 0.35 * radius / 0.3) // 2 * 2
+    axis = (np.arange(count) - count // 2) * 0.3
+    back = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, 0.95 * radius]))
+    leg = o.transport.LatticeTransport(
+        back,
+        o.system.DielectricInterface(
+            S.SphericalCap(-radius, Frame([0, 0, radius])), GLASS, AIR
+        ),
+        RefractedRays(front.map, (grid.u, grid.v)),
+        1.0,
+        branch="reflected",
+    )
+    carried, report = leg.carry(inside)
+    points, got = sampled(leg, carried)
+    exact = host(
+        MieSphere(beam, o.volumes.SphereVolume([0, 0, 0], radius), GLASS)
+        .evaluate(o.sampling.PointGrid(points), term=2, side="interior")
+        .electric.values
+    )
+    return relative(got, exact), report
+
+
+def test_internal_reflection_in_a_sphere_tends_to_debye_term_two_as_it_grows():
+    """Refraction in by the transmitted leg, one reflection by the reflected leg.
+
+    Measured: 36, 19, 9.7 % (R = 10, 20, 40 lambda; 4.8 % at 80). The share
+    of the field on the back plane that no refracted ray reaches, the focus's
+    diffraction, falls alike (5.2, 2.8, 1.1 %).
+    """
+    errors, reports = zip(*(internal_reflection(r) for r in (10.0, 20.0, 40.0)))
+    assert all(r.caustics == 0 and r.folded_relative_amplitude == 0 for r in reports)
+    shares = [r.unsupported_relative_amplitude for r in reports]
+    assert shares[1] < 0.7 * shares[0] and shares[2] < 0.7 * shares[1]
+    assert errors[1] < 0.6 * errors[0] and errors[2] < 0.6 * errors[1]
+    assert errors[2] < 0.12
