@@ -6,7 +6,7 @@ from vecdiff.fields.spectrum import PlaneWaveExpansion
 from vecdiff.geometry import Frame
 from vecdiff.media import Dielectric, HomogeneousRegion
 from vecdiff.surfaces import Plane, SphericalCap
-from vecdiff.system import DielectricInterface, OpticalSystem
+from vecdiff.system import OpticalSystem, Refraction
 from vecdiff.volumes import VolumeBetweenSurfaces
 
 
@@ -41,8 +41,8 @@ def lens_case(
     volume = VolumeBetweenSurfaces(front, back, radius)
     system = OpticalSystem(
         (
-            DielectricInterface(front, source.region, interior),
-            DielectricInterface(back, interior, source.region),
+            Refraction(front, source.region, interior),
+            Refraction(back, interior, source.region),
         ),
         (radius, radius),
     )

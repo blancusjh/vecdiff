@@ -71,3 +71,12 @@ class EvenAsphere(GraphSurface):
             )
 
         return _radial_hessian(xy, slope, curvature)
+
+    def reversed(self):
+        """The asphere seen from its other side: every coefficient negated."""
+        return EvenAsphere(
+            -self.curvature,
+            self.conic,
+            tuple(-a for a in self.coefficients),
+            self.frame.reversed(),
+        )

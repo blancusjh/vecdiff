@@ -1,4 +1,4 @@
-"""Readable JSON prescriptions with explicit SI units and material regions."""
+"""Readable JSON prescriptions of a path, with explicit SI units and regions."""
 
 import json
 from pathlib import Path
@@ -8,102 +8,131 @@ from vecdiff.media.medium import Dielectric, HomogeneousRegion
 from vecdiff.surfaces.asphere import EvenAsphere
 from vecdiff.surfaces.axisymmetric import SphericalCap
 from vecdiff.surfaces.surface import Plane
-from vecdiff.system import DielectricInterface, OpticalSystem
+from vecdiff.system import OpticalSystem, Reflection, Refraction, Stop
+
+SCHEMA = "vecdiff-path/1"
+
+
+def shape_record(surface):
+    if isinstance(surface, Plane):
+        return {"type": "plane"}
+    if type(surface) is SphericalCap:
+        return {"type": "sphere", "radius_m": surface.radius}
+    if isinstance(surface, EvenAsphere):
+        return {
+            "type": "even_asphere",
+            "curvature_per_m": surface.curvature,
+            "conic": surface.conic,
+            "coefficients": list(surface.coefficients),
+        }
+    raise TypeError(
+        "this surface has no supported JSON prescription; callable freeforms "
+        "and closed surfaces are not serialized"
+    )
+
+
+def placement(frame):
+    return {"origin_m": frame.origin.tolist(), "basis": frame.basis.tolist()}
+
+
+def element_record(element):
+    if isinstance(element, Stop):
+        return {"kind": "stop", "radius_m": element.radius, **placement(element.frame)}
+    record = {
+        "shape": shape_record(element.surface),
+        **placement(element.surface.frame),
+        "edge_m": element.edge,
+    }
+    if isinstance(element, Refraction):
+        return {
+            "kind": "refraction",
+            "before": element.before.name,
+            "after": element.after.name,
+            **record,
+        }
+    behind = None if element.behind is None else element.behind.name
+    return {
+        "kind": "reflection",
+        "medium": element.medium.name,
+        "behind": behind,
+        **record,
+    }
 
 
 def save_system(system: OpticalSystem, path):
-    """Serialize supported placed plane, spherical and even-asphere encounters."""
-    regions = (system.interfaces[0].minus,) + tuple(
-        interface.plus for interface in system.interfaces
-    )
-    records = []
-
-    for interface, aperture, stop in zip(
-        system.interfaces, system.apertures, system.stops
-    ):
-        surface = interface.surface
-
-        if isinstance(surface, Plane):
-            shape = {"type": "plane"}
-        elif isinstance(surface, SphericalCap):
-            shape = {"type": "sphere", "radius_m": surface.radius}
-        elif isinstance(surface, EvenAsphere):
-            shape = {
-                "type": "even_asphere",
-                "curvature_per_m": surface.curvature,
-                "conic": surface.conic,
-                "coefficients": list(surface.coefficients),
-            }
-        else:
-            raise TypeError(
-                "this surface has no supported JSON prescription; callable freeforms are not serialized"
-            )
-
-        records.append(
-            {
-                "shape": shape,
-                "origin_m": surface.frame.origin.tolist(),
-                "basis": surface.frame.basis.tolist(),
-                "aperture_m": aperture,
-                "stop_m": stop,
-            }
-        )
-
+    """Serialize a path of plane, spherical-cap and even-asphere encounters and stops."""
+    regions = []
+    for element in system.elements:
+        for region in (element.incident, element.outgoing, element.far):
+            if region is not None and region not in regions:
+                regions.append(region)
     data = {
-        "schema": "logos-optics/1",
+        "schema": SCHEMA,
         "length_unit": "m",
         "regions": [
-            {
-                "name": region.name,
-                "material": region.material.name,
-                "n": region.material.n,
-            }
-            for region in regions
+            {"name": r.name, "material": r.material.name, "n": r.material.n}
+            for r in regions
         ],
-        "interfaces": records,
+        "elements": [element_record(e) for e in system.elements],
     }
     Path(path).write_text(json.dumps(data, indent=2) + "\n")
 
 
+def load_surface(record):
+    frame = Frame(record["origin_m"], record["basis"])
+    shape = record["shape"]
+    if shape["type"] == "plane":
+        return Plane(frame)
+    if shape["type"] == "sphere":
+        return SphericalCap(shape["radius_m"], frame)
+    if shape["type"] == "even_asphere":
+        return EvenAsphere(
+            shape["curvature_per_m"],
+            shape["conic"],
+            tuple(shape["coefficients"]),
+            frame,
+        )
+    raise ValueError(f"unsupported prescribed surface: {shape['type']}")
+
+
 def load_system(path) -> OpticalSystem:
-    """Load a prescription without guessing units, surface types or ray direction."""
+    """Load a prescription without guessing units, surface types or regions."""
     data = json.loads(Path(path).read_text())
 
-    if data.get("schema") != "logos-optics/1" or data.get("length_unit") != "m":
-        raise ValueError("expected logos-optics/1 with explicit metre units")
+    if data.get("schema") != SCHEMA or data.get("length_unit") != "m":
+        raise ValueError(f"expected {SCHEMA} with explicit metre units")
 
-    regions = tuple(
-        HomogeneousRegion(item["name"], Dielectric(item["n"], item["material"]))
+    regions = {
+        item["name"]: HomogeneousRegion(
+            item["name"], Dielectric(item["n"], item["material"])
+        )
         for item in data["regions"]
-    )
-
-    if len(regions) != len(data["interfaces"]) + 1:
-        raise ValueError("prescription needs one more region than interface")
-
-    interfaces, apertures, stops = [], [], []
-
-    for index, record in enumerate(data["interfaces"]):
-        frame = Frame(record["origin_m"], record["basis"])
-        shape = record["shape"]
-
-        if shape["type"] == "plane":
-            surface = Plane(frame)
-        elif shape["type"] == "sphere":
-            surface = SphericalCap(shape["radius_m"], frame)
-        elif shape["type"] == "even_asphere":
-            surface = EvenAsphere(
-                shape["curvature_per_m"],
-                shape["conic"],
-                tuple(shape["coefficients"]),
-                frame,
+    }
+    elements = []
+    for record in data["elements"]:
+        kind = record["kind"]
+        if kind == "stop":
+            frame = Frame(record["origin_m"], record["basis"])
+            elements.append(Stop(record["radius_m"], frame))
+        elif kind == "refraction":
+            elements.append(
+                Refraction(
+                    load_surface(record),
+                    regions[record["before"]],
+                    regions[record["after"]],
+                    edge=record["edge_m"],
+                )
+            )
+        elif kind == "reflection":
+            behind = record["behind"]
+            elements.append(
+                Reflection(
+                    load_surface(record),
+                    regions[record["medium"]],
+                    None if behind is None else regions[behind],
+                    edge=record["edge_m"],
+                )
             )
         else:
-            raise ValueError(f"unsupported prescribed surface: {shape['type']}")
-
-        interfaces.append(
-            DielectricInterface(surface, regions[index], regions[index + 1])
-        )
-        apertures.append(record["aperture_m"])
-        stops.append(record.get("stop_m"))
-
-    return OpticalSystem(tuple(interfaces), tuple(apertures), tuple(stops))
+            raise ValueError(f"unsupported path element: {kind}")
+    return OpticalSystem(*elements)

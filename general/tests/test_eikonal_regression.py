@@ -55,9 +55,7 @@ def first_entry_error(radius, pupil):
     sampled = beam.evaluate(plane, method="nufft").electric.values[..., :2]
     incident = o.fields.TransverseElectricField(plane, 1.0, sampled)
     sphere = o.surfaces.SphericalCap(radius, o.geometry.Frame([0, 0, -radius]))
-    propagator = o.propagation.Propagator(
-        (o.system.DielectricInterface(sphere, AIR, GLASS),)
-    )
+    propagator = o.propagation.Propagator((o.system.Refraction(sphere, AIR, GLASS),))
     solution = propagator(
         o.fields.angular_spectrum(incident, AIR, evanescent="discard"),
         carrier=beam.carrier,
@@ -195,7 +193,7 @@ def test_axisymmetric_leg_meets_the_manuscript_spheres_at_a_thousand_wavelengths
     offset = 0.0 if plane == "vertex" else rim_offset(radius, geometry)
     propagator = o.propagation.Propagator(
         (
-            o.system.DielectricInterface(
+            o.system.Refraction(
                 o.surfaces.SphericalCap(radius, o.geometry.Frame([0, 0, -radius])),
                 AIR,
                 GLASS,
@@ -320,8 +318,8 @@ def test_two_surfaces_meet_the_layered_sphere_at_a_thousand_wavelengths(
         offsets = ((q1[1] + 1) * radius, (q2[1] + inner) * radius)
     propagator = o.propagation.Propagator(
         (
-            o.system.DielectricInterface(caps[0], AIR, shell),
-            o.system.DielectricInterface(caps[1], shell, core),
+            o.system.Refraction(caps[0], AIR, shell),
+            o.system.Refraction(caps[1], shell, core),
         ),
         planes=offsets,
         fans=fans,
@@ -355,7 +353,7 @@ def test_closed_sphere_meets_the_archived_non_aplanatic_sphere():
     rho, points, references = mie_focal_line(radius, "nonaplanatic", "hard")
     propagator = o.propagation.Propagator(
         (
-            o.system.DielectricInterface(
+            o.system.Refraction(
                 o.surfaces.Sphere(radius, o.geometry.Frame([0, 0, -radius])), AIR, GLASS
             ),
         ),
@@ -403,8 +401,8 @@ def test_closed_spheres_meet_the_archived_hard_pupil_shells(geometry, planes, ex
         fans = ((72.0, 80.0), (72.0, 80.0))
     propagator = o.propagation.Propagator(
         (
-            o.system.DielectricInterface(spheres[0], AIR, shell),
-            o.system.DielectricInterface(spheres[1], shell, core),
+            o.system.Refraction(spheres[0], AIR, shell),
+            o.system.Refraction(spheres[1], shell, core),
         ),
         planes=offsets,
         fans=fans,
@@ -468,7 +466,7 @@ def test_cylinder_meets_the_handoff(radius, count, sampled, expected):
     plane = o.sampling.CartesianGrid(axis, axis, o.geometry.Frame([0, 0, -radius]))
     surface = o.surfaces.CylindricalCap(radius, o.geometry.Frame([0, 0, -radius]))
     propagator = o.propagation.Propagator(
-        (o.system.DielectricInterface(surface, AIR, GLASS),),
+        (o.system.Refraction(surface, AIR, GLASS),),
         fans=(archive_fan(umax, 1.7, 1.9),),
         lattice=None if sampled else plane,
     )
@@ -527,7 +525,7 @@ def test_oval_lattice_and_meridian_agree_as_the_archives_codes_do(
     ovoid = o.surfaces.CartesianOvoid.from_conjugates(
         1.0, 2.5 * radius, 1.5, 1.8 * radius, frame=o.geometry.Frame([0, 0, -radius])
     )
-    system = (o.system.DielectricInterface(ovoid, AIR, GLASS),)
+    system = (o.system.Refraction(ovoid, AIR, GLASS),)
     # The archive's radial taper for the axisymmetric code: from the 72 to the
     # 80 degree ray, or its 3 R scan limit.
     table = np.linspace(0, 3 * radius, 30001)

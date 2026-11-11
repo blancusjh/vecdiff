@@ -23,7 +23,7 @@ def al1225_size_study(ratios=(3, 10, 30, 100), *, coverage="complete"):
     """
     lens = optics.catalog.thorlabs_al1225()
     source, glass = illumination(
-        wavelength0=780e-9, index=lens.interfaces[0].plus.material.n
+        wavelength0=780e-9, index=lens.elements[0].after.material.n
     )
     spacing = 0.9 / (2 * glass.material.n * 0.95)
     results = []
@@ -31,12 +31,12 @@ def al1225_size_study(ratios=(3, 10, 30, 100), *, coverage="complete"):
         if not np.isfinite(ratio) or ratio <= 0:
             raise ValueError("R/lambda must be finite and positive")
         system = optics.catalog.thorlabs_al1225(
-            scale=ratio * source.wavelength0 / lens.apertures[0]
+            scale=ratio * source.wavelength0 / lens.elements[0].edge
         )
         body = optics.volumes.VolumeBetweenSurfaces(
-            system.interfaces[0].surface,
-            system.interfaces[1].surface,
-            system.apertures[0],
+            system.elements[0].surface,
+            system.elements[1].surface,
+            system.elements[0].edge,
         )
         width = max(12, 4 * ratio)
         count = next_fast_len(max(128, int(np.ceil(width / spacing))), real=True)
@@ -105,9 +105,9 @@ def load_al1225_study(path):
                 scale=result["radius_over_wavelength"] * wavelength / 0.00625,
             )
             result["body"] = optics.volumes.VolumeBetweenSurfaces(
-                system.interfaces[0].surface,
-                system.interfaces[1].surface,
-                system.apertures[0],
+                system.elements[0].surface,
+                system.elements[1].surface,
+                system.elements[0].edge,
             )
             x, z = np.meshgrid(result["x"], result["z"])
             fx, fy = np.meshgrid(result["focal_axis"], result["focal_axis"])

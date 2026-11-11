@@ -32,7 +32,7 @@ from vecdiff.fields.hankel_spectrum import (
 )
 from vecdiff.geometry.frames import Frame
 from vecdiff.sampling import PointGrid
-from vecdiff.transport.dyadic import BRANCHES, carried, ray_weights
+from vecdiff.transport.dyadic import carried, encounter_indices, ray_weights
 from vecdiff.transport.rays import InterfaceMap, RefractedRays
 from vecdiff.transport.report import TransportReport
 
@@ -61,6 +61,25 @@ def surfaces_of_revolution():
     )
 
     return (Plane, SphericalCap, EvenAsphere, AxisymmetricSurface, CartesianOval)
+
+
+def of_revolution(surface):
+    """Whether a surface, or the surface it is the reverse of, is one of revolution."""
+    from vecdiff.surfaces import ReversedSurface
+
+    if isinstance(surface, ReversedSurface):
+        surface = surface.base
+    return isinstance(surface, surfaces_of_revolution())
+
+
+def turned_over(harmonics):
+    """The harmonics of a field seen from the other side of its plane.
+
+    In the reversed frame (u, -v, -n) the azimuth is -phi, the azimuthal unit
+    vector -e_phi and the normal -n: order m becomes -m, with E_rho kept and
+    E_phi, E_z negated.
+    """
+    return {-m: (rho, -phi, -z) for m, (rho, phi, z) in harmonics.items()}
 
 
 def ring_harmonics(spectrum, plane, radii, measure, *, method="auto"):
@@ -112,13 +131,16 @@ class MeridianTransport:
     edge to ``extent``, the radius where the incident field ends. The output plane
     is sampled by Gauss-Legendre panels on [0, Phi(edge)], and each node's
     preimage is found by Newton steps with the analytic D Phi. ``branch`` is
-    that of LatticeTransport: a reflected leg's HankelSpectrum lies on the same
-    plane, in the incident medium, travelling back.
+    that of the encounter, as for LatticeTransport: a reflected leg's
+    HankelSpectrum lies on the same plane, in the incident medium,
+    travelling back. After a reflection the axis is turned over (its frame
+    reversed, u, -v, -n) so that it follows the light; the incident field's
+    harmonics are turned over with it (``turned_over``).
     """
 
     def __init__(
         self,
-        interface,
+        encounter,
         carrier,
         axis,
         wavelength0,
@@ -128,14 +150,12 @@ class MeridianTransport:
         reach=None,
         scale=None,
         extent=None,
-        branch="transmitted",
     ):
-        if branch not in BRANCHES:
-            raise ValueError(f"branch must be one of {BRANCHES}")
-        surface = interface.surface
+        branch, n_incident, n_far = encounter_indices(encounter)
+        surface = encounter.surface
         wavelength0 = float(wavelength0)
 
-        if not isinstance(surface, surfaces_of_revolution()):
+        if not of_revolution(surface):
             raise ValueError(
                 f"{type(surface).__name__} is not a surface of revolution; "
                 "axisymmetric transport takes Plane, SphericalCap, EvenAsphere, "
@@ -147,16 +167,17 @@ class MeridianTransport:
         # A surface of revolution turned about its axis is itself: every
         # surface takes the axis frame's axes, so all meridians coincide.
         surface = replace(surface, frame=Frame(surface.frame.origin, axis.basis))
-        self.interface, self.carrier, self.wavelength0 = interface, carrier, wavelength0
+        self.encounter, self.carrier, self.wavelength0 = encounter, carrier, wavelength0
         self.window, self.branch = window, branch
+        self.aperture = encounter.aperture
         reflected = branch != "transmitted"
-        self.outgoing = interface.minus if reflected else interface.plus
+        self.outgoing = encounter.outgoing
         self.direction = -1 if reflected else 1
         self.map = InterfaceMap(
             surface,
             carrier,
-            interface.minus.material.n,
-            interface.plus.material.n,
+            n_incident,
+            n_far,
             offset,
             branch="reflected" if reflected else "transmitted",
         )
@@ -182,9 +203,40 @@ class MeridianTransport:
         )
         self.preimage, self.residual = self._invert(self.radius)
         self.rays = self._meridian(self.preimage)
-        heights = to_numpy(self.rays.surface_height) - self.map.offset
-        self.boundary = float(max(0.0, heights.max(initial=0.0)))
+        heights = to_numpy(self.rays.surface_height)
+        # The heights the surface spans where it carries light, in its frame.
+        self.band = (float(heights.min()), float(heights.max()))
+        self.boundary = float(max(0.0, heights.max() - self.map.offset))
         self._transfer = self._dyadic()
+
+    def footprint(self, count=4096, azimuths=16):
+        """Points on the output plane and directions (global) of carried rays,
+        the meridian's turned to ``azimuths`` azimuths about the axis."""
+        rays = self.rays
+        keep = np.arange(
+            0, len(rays.output), max(1, len(rays.output) * azimuths // count)
+        )
+        output = to_numpy(rays.output)[keep, 0]
+        direction = to_numpy(rays.transmitted)[keep]
+        frame = self.map.surface.frame
+        basis, origin = to_numpy(frame.basis), to_numpy(frame.origin)
+        points, directions = [], []
+        for phi in 2 * np.pi * np.arange(azimuths) / azimuths:
+            c, s = np.cos(phi), np.sin(phi)
+            points.append(
+                origin
+                + np.c_[c * output, s * output, np.full(len(output), self.map.offset)]
+                @ basis.T
+            )
+            turned = np.c_[
+                c * direction[:, 0] - s * direction[:, 1],
+                s * direction[:, 0] + c * direction[:, 1],
+                direction[:, 2],
+            ]
+            directions.append(turned @ basis.T)
+        return bd.asarray(np.concatenate(points)), bd.asarray(
+            np.concatenate(directions)
+        )
 
     def _meridian(self, radii):
         """RayMap at input radii along the surface frame's u axis."""
@@ -232,21 +284,35 @@ class MeridianTransport:
                 "the carrier is not symmetric about the incident field's axis"
             )
 
+    def _orientation(self):
+        """+1 if this plane's v axis is that of the family's first plane, else -1."""
+        first = self.map
+        while first.family is not None:
+            first = first.family.previous
+        v = to_numpy(first.surface.frame.v) @ to_numpy(self.map.surface.frame.v)
+        return 1.0 if v > 0 else -1.0
+
     def _supported(self, radii):
         """Rays the surface supports and the window still weights."""
         rays = self._meridian(radii)
         # The meridian carries the rays that met no caustic on this leg: its
         # map is inverted as an increasing function of the radius.
         start = to_numpy(rays.start_jacobian)
+        # A label circle maps to a circle of this plane: radially outward, and
+        # turning the same way, or the other way where this plane's axes are
+        # those of the first plane reversed.
         valid = (
             to_numpy(rays.valid)
             & (to_numpy(rays.caustics) == 0)
-            & (start[:, 0, 0] * start[:, 1, 1] - start[:, 0, 1] * start[:, 1, 0] > 0)
+            & (start[:, 0, 0] > 0)
+            & (self._orientation() * start[:, 1, 1] > 0)
         )
         supported = valid.copy()
 
         if valid.any():
-            weight = to_numpy(ray_weights(self.window, rays.subset(bd.asarray(valid))))
+            weight = to_numpy(
+                ray_weights(self.window, rays.subset(bd.asarray(valid)), self.aperture)
+            )
             supported[valid] = weight > 0
 
         return supported
@@ -265,6 +331,13 @@ class MeridianTransport:
                         "the carrier focuses inside this leg; the meridian leg "
                         "carries no rays through a focus: pass lattice= to carry "
                         "them on a lattice, or move the reference plane past the focus"
+                    )
+                if bool(axial.valid[0]) and float(axial.start_jacobian[0, 0, 0]) < 0:
+                    raise ValueError(
+                        "the light focuses between the previous leg and this one: "
+                        "its rays reach this plane across the axis, which the "
+                        "meridian does not carry; pass lattice= to carry them on "
+                        "a lattice"
                     )
                 raise ValueError("this surface does not carry the carrier's axial ray")
             if not supported.all():
@@ -340,7 +413,9 @@ class MeridianTransport:
         s[:, 1] = 1.0
         k0 = 2 * bd.pi / self.wavelength0
         weight = (
-            ray_weights(self.window, rays) * rays.flux * bd.exp(1j * k0 * rays.path)
+            ray_weights(self.window, rays, self.aperture)
+            * rays.flux
+            * bd.exp(1j * k0 * rays.path)
         )
         columns = [
             carried(
@@ -364,9 +439,9 @@ class MeridianTransport:
         """
         from vecdiff.fields.spectrum import PlaneSpectrum
 
-        if incident.region != self.interface.minus:
+        if incident.region != self.encounter.incident:
             raise ValueError(
-                "incident field must live in the interface's incident medium"
+                "incident field must live in the encounter's incident region"
             )
 
         rays = self.rays
@@ -381,7 +456,14 @@ class MeridianTransport:
         )
 
         if isinstance(incident, (BeamSpectrum, HankelSpectrum)):
-            harmonics, power = incident.harmonics(self.plane, radii)
+            # Harmonics about the incident field's own axes, then about this
+            # leg's, which follow the light and may be those turned over.
+            own = incident.beam.frame if hasattr(incident, "beam") else incident.frame
+            harmonics, power = incident.harmonics(
+                Frame(self.plane.origin, own.basis), radii
+            )
+            if float(own.normal @ self.plane.normal) < 0:
+                harmonics = turned_over(harmonics)
         elif isinstance(incident, PlaneSpectrum):
             harmonics, share = ring_harmonics(
                 incident, self.plane, radii, measure, method=method

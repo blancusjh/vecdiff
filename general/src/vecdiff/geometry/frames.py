@@ -54,3 +54,11 @@ class Frame:
             raise ValueError("displacement must have shape (3,)")
 
         return Frame(self.origin + displacement, self.basis)
+
+    def reversed(self):
+        """The same frame seen from the other side: axes u, -v, -normal on the same origin.
+
+        Local coordinates (x, y, z) become (x, -y, -z); the frame stays
+        right-handed.
+        """
+        return Frame(self.origin, self.basis * bd.asarray([1.0, -1.0, -1.0]))

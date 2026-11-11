@@ -22,7 +22,7 @@ def main():
     )
     system = optics.system.OpticalSystem(
         [
-            optics.system.DielectricInterface(
+            optics.system.Refraction(
                 optics.surfaces.SphericalCap(40 * wavelength), air, glass
             )
         ]

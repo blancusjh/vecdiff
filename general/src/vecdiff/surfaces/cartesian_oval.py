@@ -471,8 +471,10 @@ class CartesianOvoid(CartesianOval, ImplicitSurface):
     def implicit(self, points):
         return self.design.implicit(points)
 
-    def crossing(self, points, directions):
+    def crossing(self, points, directions, *, leaving=False):
         p, s = bd.asarray(points, dtype=float), bd.asarray(directions, dtype=float)
+        if leaving:
+            return self._leaving(p, s)
         c = self.design.vertex_curvature
         if abs(c) > 1e-300:
             centre = bd.asarray([0.0, 0.0, 1 / c])
@@ -494,3 +496,25 @@ class CartesianOvoid(CartesianOval, ImplicitSurface):
         value, gradient, _ = self.implicit(p + leg[..., None] * s)
         good = (bd.abs(value) <= 1e-9 * scale) & (bd.sum(s * gradient, axis=-1) > 0)
         return bd.where(good, leg, bd.nan)
+
+    def _leaving(self, p, s, steps=256):
+        """Crossing out of the ovoid: F changes sign from + to - beyond the entry.
+
+        F is not smooth at a real conjugate inside the ovoid, so the crossing
+        is bracketed by a march over the ovoid's length and then bisected.
+        """
+        entry = self.crossing(p, s)
+        finite = [abs(z) for z in (self.object_z, self.image_z) if bd.isfinite(z)]
+        length = 4 * max(finite + [abs(1 / self.design.vertex_curvature)])
+        legs = entry[None] + length * (bd.arange(1, steps + 1) / steps)[:, None]
+        value = self.implicit(p[None] + legs[..., None] * s[None])[0]
+        change = (value[:-1] > 0) & (value[1:] <= 0)
+        first = bd.argmax(change, axis=0)
+        found = change.any(axis=0) & bd.isfinite(entry)
+        column = bd.arange(len(entry))
+        lo, hi = legs[first, column], legs[first + 1, column]
+        for _ in range(60):
+            middle = 0.5 * (lo + hi)
+            inside = self.implicit(p + middle[..., None] * s)[0] > 0
+            lo, hi = bd.where(inside, middle, lo), bd.where(inside, hi, middle)
+        return bd.where(found, 0.5 * (lo + hi), bd.nan)

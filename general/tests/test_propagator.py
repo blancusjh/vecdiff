@@ -28,8 +28,8 @@ def converging(radius=10.0):
 def system(radius=10.0):
     cap = S.SphericalCap(radius, Frame([0, 0, -radius]))
     return (
-        o.system.DielectricInterface(cap, AIR, GLASS),
-        o.system.DielectricInterface(S.Plane(Frame([0, 0, 2.0])), GLASS, GLASS2),
+        o.system.Refraction(cap, AIR, GLASS),
+        o.system.Refraction(S.Plane(Frame([0, 0, 2.0])), GLASS, GLASS2),
     )
 
 
@@ -95,7 +95,7 @@ def test_propagator_takes_only_the_options_of_the_method():
             P.Propagator(system(), **{retired: None})
     with pytest.raises(ValueError, match="realization must be"):
         P.Propagator(system(), realization="wave")
-    with pytest.raises(ValueError, match="one reference-plane offset per surface"):
+    with pytest.raises(ValueError, match="one reference-plane offset per element"):
         P.Propagator(system(), planes=(0.0,))
     with pytest.raises(TypeError, match="light must be"):
         P.Propagator(system())(converging().plane_waves(5.0))

@@ -21,6 +21,16 @@ GLASS = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
 rng = np.random.default_rng(11)
 
 
+def element(branch, surface, first, second):
+    """The encounter that carries ``branch``: a refraction, a Fresnel reflection
+    or an ideal mirror."""
+    if branch == "transmitted":
+        return o.system.Refraction(surface, first, second)
+    if branch == "reflected":
+        return o.system.Reflection(surface, first, behind=second)
+    return o.system.Reflection(surface, first)
+
+
 def reflected_map(surface, carrier, offset, n=1.0):
     return o.transport.InterfaceMap(
         surface, carrier, n, 1.5, offset, branch="reflected"
@@ -229,11 +239,13 @@ def plane_wave_on_a_plane(n_i, n_t, mode, polarization, offset, branch, step=0.3
     incident = F.angular_spectrum(
         F.TransverseElectricField(grid, 1.0, values), first, evanescent="discard"
     )
-    interface = o.system.DielectricInterface(S.Plane(), first, second)
+    interface = o.system.Refraction(S.Plane(), first, second)
     carrier = F.Carrier.collimated([kx, ky, kz])
     e = np.r_[amplitude, -(kx * amplitude[0] + ky * amplitude[1]) / kz]
     e_r, k_r, e_t, k_t = boundary_value([kx, ky, kz], e, n_i, n_t, branch == "mirror")
-    leg = o.transport.LatticeTransport(grid, interface, carrier, 1.0, branch=branch)
+    leg = o.transport.LatticeTransport(
+        grid, element(branch, S.Plane(), first, second), carrier, 1.0
+    )
     carried, report = leg.carry(incident, method="direct")
     out = carried.grid
     u, v = np.meshgrid(host(out.u), host(out.v))
@@ -393,10 +405,9 @@ def cylindrical_beam(
     )
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.Plane(), first, second),
+        element(branch, S.Plane(), first, second),
         line_carrier(x_f, z_f),
         1.0,
-        branch=branch,
         seed_stride=2,
     )
     carried, report = leg.carry(incident, method="direct")
@@ -477,10 +488,9 @@ def test_reflected_point_focus_on_the_way_back_inverts_the_field():
         )
         leg = o.transport.LatticeTransport(
             grid,
-            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            element("mirror", S.Plane(), AIR, GLASS),
             F.Carrier.converging([0, 0, focus]),
             1.0,
-            branch="mirror",
         )
         carried, report = leg.carry(incident)
         assert report.caustics == 2 and report.folded_relative_amplitude == 0
@@ -523,10 +533,9 @@ def test_reflected_leg_reports_the_rays_that_do_not_come_back():
     grid, incident = gaussian_on(axis, 8.0, -1.0)
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.SphericalCap(radius), AIR, GLASS),
+        element("reflected", S.SphericalCap(radius), AIR, GLASS),
         F.Carrier.collimated([0, 0, 1]),
         1.0,
-        branch="reflected",
     )
     _, report = leg.carry(incident)
     x, y = np.meshgrid(axis, axis)
@@ -545,10 +554,9 @@ def test_reflected_leg_refuses_a_fold_beyond_the_marginal_focus():
     grid, incident = gaussian_on(axis, 15.0, -29.0)
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.SphericalCap(-60.0), AIR, GLASS),
+        element("mirror", S.SphericalCap(-60.0), AIR, GLASS),
         F.Carrier.collimated([0, 0, 1]),
         1.0,
-        branch="mirror",
     )
     with pytest.raises(ValueError, match=r"indices \[0, 2\]\): the ray map folds"):
         leg.carry(incident)
@@ -575,10 +583,9 @@ def test_reflected_leg_samples_and_bands_in_the_incident_medium():
         )
         leg = o.transport.LatticeTransport(
             grid,
-            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            element("mirror", S.Plane(), AIR, GLASS),
             F.Carrier.collimated([kx, 0, np.sqrt((2 * np.pi) ** 2 - kx**2)]),
             1.0,
-            branch="mirror",
         )
         return leg.reflect(incident, method="direct")
 
@@ -590,18 +597,10 @@ def test_reflected_leg_samples_and_bands_in_the_incident_medium():
     with pytest.raises(ValueError, match="use transmit"):
         o.transport.LatticeTransport(
             grid,
-            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
+            o.system.Refraction(S.Plane(), AIR, GLASS),
             F.Carrier.collimated([0, 0, 1]),
             1.0,
         ).reflect(None)
-    with pytest.raises(ValueError, match="branch"):
-        o.transport.LatticeTransport(
-            grid,
-            o.system.DielectricInterface(S.Plane(), AIR, GLASS),
-            F.Carrier.collimated([0, 0, 1]),
-            1.0,
-            branch="back",
-        )
 
 
 def sampled(leg, carried, count=150):
@@ -640,10 +639,9 @@ def external_reflection(radius):
     grid = o.sampling.CartesianGrid(axis, axis, plane)
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.SphericalCap(radius), AIR, GLASS),
+        element("reflected", S.SphericalCap(radius), AIR, GLASS),
         beam.carrier,
         1.0,
-        branch="reflected",
     )
     carried, report = leg.carry(F.BeamSpectrum(beam, grid))
     points, got = sampled(leg, carried)
@@ -712,9 +710,7 @@ def internal_reflection(radius):
     grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.1 * radius]))
     front = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(
-            S.SphericalCap(radius, Frame([0, 0, -radius])), AIR, GLASS
-        ),
+        o.system.Refraction(S.SphericalCap(radius, Frame([0, 0, -radius])), AIR, GLASS),
         beam.carrier,
         1.0,
     )
@@ -724,12 +720,11 @@ def internal_reflection(radius):
     back = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, 0.95 * radius]))
     leg = o.transport.LatticeTransport(
         back,
-        o.system.DielectricInterface(
-            S.SphericalCap(-radius, Frame([0, 0, radius])), GLASS, AIR
+        o.system.Reflection(
+            S.SphericalCap(-radius, Frame([0, 0, radius])), GLASS, behind=AIR
         ),
         RefractedRays(front.map, (grid.u, grid.v)),
         1.0,
-        branch="reflected",
     )
     carried, report = leg.carry(inside)
     points, got = sampled(leg, carried)
@@ -767,7 +762,7 @@ def meridian_reflection(radius):
         region=AIR,
         frame=plane,
     )
-    interface = o.system.DielectricInterface(S.SphericalCap(radius), AIR, GLASS)
+    interface = o.system.Reflection(S.SphericalCap(radius), AIR, behind=GLASS)
     # The fan ends before the rays leave the sphere parallel to the plane.
     window = (30.0, 40.0)
     leg = MeridianTransport(
@@ -777,7 +772,6 @@ def meridian_reflection(radius):
         1.0,
         offset=-radius / 4,
         window=window,
-        branch="reflected",
         scale=radius / 2,
     )
     chart = o.sampling.PolarGrid(
@@ -834,7 +828,7 @@ def test_lattice_and_meridian_reflections_are_one_field_travelling_back():
     axis = (np.arange(count) - count // 2) * 0.3
     grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -radius / 4]))
     leg = o.transport.LatticeTransport(
-        grid, interface, beam.carrier, 1.0, window=window, branch="reflected"
+        grid, interface, beam.carrier, 1.0, window=window
     )
     spectrum, report = leg.reflect(F.BeamSpectrum(beam, grid))
     assert spectrum.direction == -1 and spectrum.region == AIR

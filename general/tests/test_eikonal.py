@@ -186,7 +186,7 @@ def test_carried_plane_wave_is_exact_fresnel_transmission(vertex, offset):
     incident = plane_wave(grid, kx, ky, [1.0, 0.5j], AIR)
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(surface, AIR, GLASS),
+        o.system.Refraction(surface, AIR, GLASS),
         F.Carrier.collimated(direction),
         1.0,
     )
@@ -217,7 +217,7 @@ def test_index_matched_leg_is_the_identity_on_a_curved_surface():
     )
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.SphericalCap(40.0), AIR, AIR2),
+        o.system.Refraction(S.SphericalCap(40.0), AIR, AIR2),
         F.Carrier.converging([0, 0, 80.0]),
         1.0,
     )
@@ -250,7 +250,7 @@ def test_carried_plane_wave_matches_spectral_fresnel_at_a_plane():
     direction = np.array([kx, ky, np.sqrt((2 * np.pi) ** 2 - kx**2 - ky**2)])
     grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
     incident = plane_wave(grid, kx, ky, [0.7, -0.4j], AIR)
-    system = (o.system.DielectricInterface(S.Plane(), AIR, GLASS),)
+    system = (o.system.Refraction(S.Plane(), AIR, GLASS),)
     target = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, 2.0]))
     carrier = F.Carrier.collimated(direction)
     spectral = o.alternatives.WavePropagator(system)(incident).electric(target)
@@ -263,7 +263,7 @@ def test_carried_plane_wave_matches_spectral_fresnel_at_a_plane():
 
 
 def test_propagator_checks_its_options_and_says_where_wave_transport_went():
-    system = (o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),)
+    system = (o.system.Refraction(S.SphericalCap(30.0), AIR, GLASS),)
     with pytest.raises(ValueError, match="one reference-plane offset"):
         P.Propagator(system, planes=(0, 1))
     for treatment in ("spectral", "local"):
@@ -285,7 +285,7 @@ def test_output_lattice_holds_the_refracted_image_and_windows_weight_the_rays():
     axis = (np.arange(n) - n // 2) * 0.5
     surface = S.SphericalCap(radius, Frame([0, 0, -radius]))
     grid = o.sampling.CartesianGrid(axis, axis, surface.frame)
-    interface = o.system.DielectricInterface(surface, AIR, GLASS)
+    interface = o.system.Refraction(surface, AIR, GLASS)
     carrier = F.Carrier.converging([0, 0, 1.5 * radius])
     leg = o.transport.LatticeTransport(grid, interface, carrier, 1.0)
     out = leg.output_plane
@@ -321,7 +321,7 @@ def test_streamed_leg_does_not_depend_on_its_blocks():
     axis = (np.arange(n) - n // 2) * 0.5
     surface = S.SphericalCap(radius, Frame([0, 0, -radius]))
     grid = o.sampling.CartesianGrid(axis, axis, surface.frame)
-    interface = o.system.DielectricInterface(surface, AIR, GLASS)
+    interface = o.system.Refraction(surface, AIR, GLASS)
     carrier = F.Carrier.converging([0, 0, 1.5 * radius])
     x, y = np.meshgrid(axis, axis)
     values = np.stack([np.exp(-(x**2 + y**2) / 8**2), 0.3j * np.exp(-(x**2) / 50)], -1)
@@ -420,7 +420,7 @@ def test_lattice_spectrum_holds_the_modes_of_the_plane_spectrum(method):
 
 
 def test_propagator_carries_a_beam_on_a_lattice_only_when_asked():
-    system = (o.system.DielectricInterface(S.SphericalCap(30.0), AIR, GLASS),)
+    system = (o.system.Refraction(S.SphericalCap(30.0), AIR, GLASS),)
     axis = (np.arange(16) - 8) * 0.5
     grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, -1.0]))
     beam = F.FocusedBeam(
@@ -461,7 +461,7 @@ def test_leg_refuses_an_output_lattice_too_coarse_for_the_refracted_field():
         frame=Frame([0, 0, 1.5 * radius]),
         apodization="none",
     )
-    interface = o.system.DielectricInterface(
+    interface = o.system.Refraction(
         S.SphericalCap(radius, Frame([0, 0, -radius])), AIR, GLASS
     )
 
@@ -492,7 +492,7 @@ def test_leg_refuses_to_lose_propagating_waves_next_to_the_light_circle():
     y = (np.arange(8) - 4) * step
     grid = o.sampling.CartesianGrid(x, y, Frame())
     frequencies = 2 * np.pi * np.fft.fftfreq(count, step)
-    interface = o.system.DielectricInterface(S.Plane(), GLASS, AIR)
+    interface = o.system.Refraction(S.Plane(), GLASS, AIR)
 
     def transmitted(mode):
         kx = frequencies[mode]

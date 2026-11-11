@@ -35,6 +35,16 @@ class GraphSurface(ABC):
             f"{type(self).__name__} declares no Hessian; eikonal transport needs one"
         )
 
+    def reversed(self):
+        """The same surface seen from its other side.
+
+        Its frame is this frame reversed (axes u, -v, -normal), its graph
+        -h(x, -y) and its normal the opposite one: what was its plus side
+        is the reversed surface's minus side. Light that meets a surface
+        travelling against its normal meets its reverse along the normal.
+        """
+        return ReversedSurface.of(self)
+
     def points(self, xy):
         xy = bd.asarray(xy, dtype=float)
 
@@ -88,9 +98,92 @@ class ImplicitSurface(ABC):
         """
 
     @abstractmethod
-    def crossing(self, points, directions):
-        """Signed leg from each point to where its ray first crosses F = 0
-        from the minus side into the plus side; NaN where it never does."""
+    def crossing(self, points, directions, *, leaving=False):
+        """Signed leg from each point to where its line crosses F = 0 from the
+        minus side into the plus side (``leaving``: from the plus side into the
+        minus side); NaN where it never does."""
+
+    def far_side(self):
+        """The same closed surface with its orientation reversed, charted from
+        the vertex opposite its own.
+
+        Light inside it, travelling along the normal, leaves through its far
+        side: that crossing is the minus-to-plus crossing of the far side.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} declares no far side; light cannot be "
+            "carried from inside it"
+        )
+
+
+_TURN = (1.0, -1.0, -1.0)  # local (x, y, z) of a frame -> of its reverse
+
+
+@dataclass(frozen=True)
+class ReversedSurface(GraphSurface):
+    """A graph surface seen from its other side (GraphSurface.reversed).
+
+    ``base`` is the surface; ``frame`` is its frame reversed, in which the
+    graph is -h(x, -y) and the domain that of (x, -y). A frame rotated
+    about the normal is accepted for a surface of revolution, whose
+    graph does not depend on the azimuth.
+    """
+
+    base: GraphSurface
+    frame: Frame = None
+
+    def __post_init__(self):
+        if self.frame is None:
+            object.__setattr__(self, "frame", self.base.frame.reversed())
+
+    @staticmethod
+    def of(surface):
+        """The reverse of ``surface``, implicit as well where it is."""
+        if isinstance(surface, ImplicitSurface):
+            return ReversedClosedSurface(surface)
+        return ReversedSurface(surface)
+
+    def reversed(self):
+        return self.base
+
+    @staticmethod
+    def _mirror(xy):
+        xy = bd.asarray(xy, dtype=float)
+        return xy * bd.asarray([1.0, -1.0])
+
+    def domain(self, xy):
+        return self.base.domain(self._mirror(xy))
+
+    def height(self, xy):
+        return -self.base.height(self._mirror(xy))
+
+    def gradient(self, xy):
+        return self.base.gradient(self._mirror(xy)) * bd.asarray([-1.0, 1.0])
+
+    def hessian(self, xy):
+        signs = bd.asarray([[-1.0, 1.0], [1.0, -1.0]])
+        return self.base.hessian(self._mirror(xy)) * signs
+
+
+@dataclass(frozen=True)
+class ReversedClosedSurface(ReversedSurface, ImplicitSurface):
+    """A closed surface seen from its other side: F'(x, y, z) = -F(x, -y, -z).
+
+    Its minus-to-plus crossing is the base's plus-to-minus one.
+    """
+
+    def implicit(self, points):
+        turn = bd.asarray(_TURN)
+        value, gradient, hessian = self.base.implicit(bd.asarray(points) * turn)
+        return -value, -gradient * turn, -hessian * turn[:, None] * turn[None, :]
+
+    def crossing(self, points, directions, *, leaving=False):
+        turn = bd.asarray(_TURN)
+        return self.base.crossing(
+            bd.asarray(points) * turn,
+            bd.asarray(directions) * turn,
+            leaving=not leaving,
+        )
 
 
 @dataclass(frozen=True)
@@ -105,6 +198,9 @@ class Plane(GraphSurface):
 
     def hessian(self, xy):
         return bd.zeros(bd.asarray(xy).shape + (2,))
+
+    def reversed(self):
+        return Plane(self.frame.reversed())
 
     @classmethod
     def z(cls, value):

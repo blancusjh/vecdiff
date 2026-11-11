@@ -29,10 +29,10 @@ def run(count=280):
     )
     path = o.alternatives.WavePropagator(
         [
-            o.system.DielectricInterface(
+            o.system.Refraction(
                 o.surfaces.SphericalCap(100, o.geometry.Frame([0, 0, -100])), air, glass
             ),
-            o.system.DielectricInterface(
+            o.system.Refraction(
                 o.surfaces.SphericalCap(-100, o.geometry.Frame([0, 0, 100])), glass, air
             ),
         ]

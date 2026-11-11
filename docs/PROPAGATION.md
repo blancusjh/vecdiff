@@ -87,20 +87,76 @@ transmitted directions are retained by the local symbol under TIR. The
 back-facing continuation is part of the forward approximation; shadowing and
 returning branches are not solved.
 
+## The optical system: a path of encounters
+
+`system.OpticalSystem(*elements)` is the ordered path the light follows. Its
+elements are what the light meets, in order:
+
+```python
+air, glass = vd.media.air, vd.media.Dielectric(1.5, "glass")
+lens = vd.system.OpticalSystem(
+    vd.system.Stop(4e-3, z=-0.5e-3),                        # an opaque screen with a hole
+    vd.system.Refraction(vd.surfaces.Plane.z(0), air, glass),
+    vd.system.Refraction(curved, glass, air, edge=6e-3),    # its face ends at 6 mm
+)
+mirror = vd.system.OpticalSystem(vd.system.Reflection(paraboloid, air))  # ideal mirror
+ghost = vd.system.OpticalSystem(                            # the same two surfaces
+    vd.system.Refraction(front, air, glass),
+    vd.system.Reflection(back, glass, behind=air),          # Fresnel reflection
+    vd.system.Reflection(front, glass, behind=air),
+    vd.system.Refraction(back, glass, air),
+)
+```
+
+- **`Refraction(surface, before, after, edge=None)`** carries the light across
+  a surface into the medium beyond; **`Reflection(surface, medium, behind=None)`**
+  turns it back into its own medium: with `behind` the Fresnel reflection of
+  that boundary (ghosts, internal and total internal reflection), without it
+  an ideal mirror. **`Stop(radius, frame | z=)`** is an opaque screen across the
+  path, placed in space by its frame, with a circular hole on its origin.
+- **Media and regions.** A medium (`media.Dielectric`, `media.air`,
+  `media.vacuum`) is what fills space; a region (`media.HomogeneousRegion`) is a
+  part of space with its medium. The light between two encounters is a
+  *segment* of the path and lies in one region; several segments can share one
+  (in front of a mirror, inside a plate). The system derives the regions: at a
+  Reflection or a Stop the light stays where it is, at a Refraction it crosses
+  to the surface's other side, into the region already met there when the
+  surface was met before. `system.regions` holds the region of each segment,
+  `system.elements` the elements with their media resolved to regions; a
+  region may be named in place of a medium wherever its identity matters.
+  Adjacent elements must agree on the medium between them.
+- **A stop and an edge.** A stop absorbs what meets its screen outside the
+  hole; it is carried as an encounter of its own, so the field beyond it is the
+  cut field, which diffracts from the cut, and the next leg carries the light
+  its edge diffracts. A face's `edge` is where the material ends: rays meeting
+  the surface beyond it miss the face and leave this path (reported as
+  unsupported), so the path's field ends there too; the light passing beside
+  the face is another path, and the edge itself scatters nothing.
+- **Orientation follows the light.** A surface may face either way and be met
+  more than once. The propagator traces the light's axis ray through the path
+  (`propagation.path`) and meets every surface along its normal: against its
+  normal it meets the surface's reverse (`GraphSurface.reversed()`, frame
+  u, −v, −n, graph −h(x, −y); `SphericalCap(R)` reversed is `SphericalCap(−R)`),
+  and from inside a closed surface its far side (`ImplicitSurface.far_side()`;
+  for a `Sphere`, `Sphere(−R)` charted from the far vertex). Each leg's axis is
+  the light's axis turned over as often as the light was reflected.
+  `Solution.elements` holds the elements as they were met.
+- **Prescriptions.** `io.save_system` / `io.load_system` write and read a path
+  (refractions, reflections, stops) as JSON with explicit metres.
+
 ## The propagator and its solution
 
 `propagation.Propagator(system)` is the method ([eikonal transport](#eikonal-transport)).
 Called with the light it returns a `Solution`; the system owns geometry and
-media (optionally the incident field), the call owns the light, and the
-Solution answers every observation.
+media, the call owns the light, and the Solution answers every observation.
 
 ```python
 import vecdiff as vd
 
 propagator = vd.propagation.Propagator(system)  # planes=, fans=, realization=, lattice=
 solution = propagator(beam)                     # or (sampled_field, carrier=c)
-print(solution)                                 # one line per refracting surface
-focus = solution.field(z=f, window=(-a, a, -a, a))     # E and H together
+print(solution)                                 # one line per carried encounter
+focus = solution.field(z=f)                     # E and H, where the rays arrive
 meridian = solution.electric(y=0, window=(-a, a, z0, z1), side="plus")
 S = vd.observables.poynting(focus)
 I = focus.irradiance()                          # S . n on the target plane, W/m²
@@ -110,21 +166,24 @@ I = focus.irradiance()                          # S . n on the target plane, W/m
   carrier. A sampled field (`ElectricField`, `TransverseElectricField`) or a
   `fields.Spectrum` takes `carrier=` (a `fields.Carrier`) at the call; without
   one the propagator raises and names `alternatives.WavePropagator`, the
-  transport of fields without a carrier. A carrier is needed only when a
-  surface refracts. The first interface supplies the incident region; for an
-  empty system give `OpticalSystem(incident_region=air)`. A system may hold
-  `incident_field`, so `propagator()` takes it.
-- **Options.** `planes` and `fans` (one per surface, [below](#reference-planes-and-fans)),
+  transport of fields without a carrier. A carrier is needed only when an
+  element carries something. Light given in its medium is the light arriving
+  in the path's first region; for a system that names no medium give
+  `OpticalSystem(..., medium=air)`.
+- **Options.** `planes` and `fans` (one per element, [below](#reference-planes-and-fans)),
   `realization` ("auto", "meridian", "lattice", [below](#rotationally-symmetric-systems-one-meridian))
   and `lattice` (a `CartesianGrid` a beam is carried on). Nothing else is
   accepted; an unknown keyword raises.
-- **Solution.** `spectra` holds one `fields.Spectrum` per region, the
-  incident light first; `spectrum` is the last. `reports` holds one
-  `transport.TransportReport` per refracting surface ([reports](#reports)), and
-  `legs` the prepared legs. `field(target, ...)` returns an
-  `ElectromagneticField`, `electric(target, ...)` E alone (no magnetic modes
-  are formed), and `coverage(target, ...)` the target's grid, the region of
-  each point, the computed points and the sampling used.
+- **Solution.** `spectra` holds one `fields.Spectrum` per segment of the path,
+  the incident light first; `spectrum` is the last, the light leaving the
+  system. `reports` holds one `transport.TransportReport` per carried encounter
+  ([reports](#reports)), and `legs` the prepared legs. `field(target, ...)`
+  returns an `ElectromagneticField`: at each point the sum of the spectra of
+  the segments that reach it (in front of a mirror the incident and reflected
+  light; zero where the path brings no light). `electric(target, ...)` gives E
+  alone (no magnetic modes are formed), and `coverage(target, ...)` the
+  target's grid, the segments of each point, the computed points and the
+  sampling used.
 - **Caching.** A call carries the light across every surface. Its legs depend
   on the geometry, the carrier and the incident lattice or beam, not on the
   field: the propagator keeps them, and a call with the same ones reuses them.
@@ -133,13 +192,16 @@ I = focus.irradiance()                          # S . n on the target plane, W/m
 Targets are `z=f`, `y=a`, `x=b` (global coordinate planes, with charts (y,z),
 (x,z) and (x,y)), any placed `GraphSurface` (sampled with `.sample(u=..., v=...)`
 or automatically), or a sampled `PointGrid`, `CartesianGrid` or `SurfaceGrid`.
-E and H stay global Cartesian components. Each point takes the spectrum of
-its region between the surfaces; boundary samples need `side="minus"` or
-`side="plus"`, one-sided reconstructed fields, not the raw Fresnel trace.
+E and H stay global Cartesian components. A point lies in a segment when it is
+on the side of the encounter before it that the light leaves into and on the
+side of the encounter after it that the light arrives from, sided on the
+actual surfaces (a closed surface by its implicit form); boundary samples
+need `side="minus"` (the side the light arrives from there) or `side="plus"`,
+one-sided reconstructed fields, not the raw Fresnel trace.
 Uncomputed samples are NaN in E and H and marked by `.valid`; they cannot be
-used as incident FFT data. This is the forward propagating-band model:
-neither reflected paths nor evanescent near fields are supplied by
-evaluating nearer a surface.
+used as incident FFT data. Only the light of the path is
+there: a reflection not in the path is another system, and evanescent near
+fields are not supplied by evaluating nearer a surface.
 
 Every Spectrum has `region`, `wavelength0`, `grid` (its chart) and `plane`
 (that chart's Frame), `direction` (+1 forward along the normal, -1 back),
@@ -153,10 +215,13 @@ options: `method` ("auto", "nufft", "direct"), `tolerance`, `chunk_size` and
 
 ### Optional spatial coverage
 
-`field(..., coverage="reduced")` is the default. It excludes the height bands occupied by
-curved interfaces over the sampled source chart, retaining regions on either
-side of their enclosing planes. `coverage="complete"` evaluates all target
-points using the forward spectrum of their graph-defined material region.
+`field(..., coverage="complete")` is the default: every point takes the
+spectra of its segments, also in the band of heights a curved surface spans
+where its spectrum is the continuation of the carried field beyond its plane
+(the method's field there, to its order; a focus inside a ball lens lies in
+that band). `coverage="reduced"` excludes those bands, measured along each
+encounter's normal over the rays it carries (over the incident chart for
+`alternatives.WavePropagator`), for the segments on either side of it.
 There is no interpolation across the excluded bands. Equal-index bookkeeping
 interfaces do not create gaps. Planar interfaces have zero-width height bands;
 both modes agree there, with the chosen one-sided boundary convention.
@@ -170,17 +235,23 @@ height bands this is an extension of its retained propagating modes; it does
 not restore evanescent fields, guarantee agreement with Fresnel surface traces,
 or certify near-interface Maxwell accuracy. Direct near-surface reconstruction
 and independent curved-interface accuracy remain separate validation work.
-Finite rims and stops are still rejected in both modes. In a continued-face
+In a continued-face
 lens model, points outside the nominal rim follow the continued graphs; they
 are not silently relabeled as the exterior of a finite lens.
 
 ### Automatic target sampling
 
 `z=f`, `y=a`, `x=b`, and unsampled placed surfaces are sampled automatically.
-The default window is the projection of the finite input chart and optical path,
-including one input-chart width beyond the last surface for longitudinal views.
-It is a documented geometrical window, not an energy enclosure or focus search.
-Use `window=(umin, umax, vmin, vmax)` for detector crops, especially off-axis foci.
+The default window is the light's footprint on the target: the rays of the
+segments that reach it (where their light is at least a hundredth of its
+brightest intensity) are carried straight to its plane, and their extent is
+padded by four diffraction widths λ0/(n NA) of their cone (at least 25 λ0/n),
+sampled in those segments' medium. A focal plane thus needs no window. Where
+only the incident light reaches the target, the window is the projection of
+the finite input chart and optical path, including one input-chart width
+beyond the last surface for longitudinal views. Neither is an energy
+enclosure or a focus search. Use `window=(umin, umax, vmin, vmax)` for
+detector crops.
 The target coordinate is never changed to maximize intensity.
 
 For planes, spacing is at most 0.4 lambda/n_max, resolving the retained
@@ -237,7 +308,7 @@ does not include returning branches or a finite-body rim solver. See the
 
 ## Eikonal transport
 
-`propagation.Propagator(system)` carries fields with the eikonal–angular-spectrum method of the manuscript *Vectorial field transport through general curved interfaces*: vecdiff is meant for macroscopic systems. Between surfaces the field travels as an exact angular spectrum. Across each surface it is carried along its **carrier**, the ray family it declares. The method computes the **first entry**: the wave transmitted through every surface without reflection. [Notebook 08](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it on three geometries against their exact references.
+`propagation.Propagator(system)` carries fields with the eikonal–angular-spectrum method of the manuscript *Vectorial field transport through general curved interfaces*: vecdiff is meant for macroscopic systems. Between surfaces the field travels as an exact angular spectrum. Across each encounter it is carried along its **carrier**, the ray family it declares. The method computes the light of the given path: transmitted where it refracts, reflected where it reflects; other paths (other ghosts) are other systems. [Notebook 08](../general/notebooks/08_eikonal_angular_spectrum_transport.ipynb) shows it on three geometries against their exact references.
 
 ### The method in brief
 
@@ -268,11 +339,11 @@ A point P of a reference plane in front of a surface follows its carrier ray to 
 
 ### Reference planes and fans
 
-- **`planes=(offset, ...)`**, one per surface, places each plane along the axis from its surface vertex (default: the vertex planes).
+- **`planes=(offset, ...)`**, one per element, places each plane along the propagation from its surface vertex (default: the vertex planes; a stop's on its screen).
   - A plane at the depth where the marginal ray meets the surface shortens the legs.
   - That lowers a hard pupil's error: for the aplanatic sphere at 1000 λ0, 0.1418 % (vertex plane) against 0.01524 % (rim plane).
-- **`fans=(fan, ...)`**, one per surface, weights the carried rays:
-  - None carries every supported ray;
+- **`fans=(fan, ...)`**, one per element, weights the carried rays:
+  - None carries every supported ray, within a stop's hole or a face's edge;
   - `(start, end)` rolls them off between those incidence angles, in degrees;
   - a callable receives the `RayMap` (its `label` is the ray's point on the first plane, so a fan can roll off along the input radius).
 - **Fans and hard pupils.** A hard pupil's result depends on the fan, so report it with results. A hard cut at the fan's edge diffracts: 0.14182 % on the vertex plane and 0.01729 % on the rim plane, against 0.14177 % and 0.01524 % tapered. A taper that closes before the surface stops supporting the carrier removes that edge.
@@ -362,7 +433,7 @@ How the meridian is sampled:
 
 ### Reflection legs
 
-A leg can carry the reflected wave instead of the transmitted one: `LatticeTransport(..., branch="reflected")` or `branch="mirror"`, and the same for `MeridianTransport`. The propagator does not compose them yet.
+A leg carries the element it is given: `LatticeTransport(plane, Reflection(surface, medium, behind=b), ...)` carries the Fresnel reflection, `Reflection(surface, medium)` the ideal mirror, and the same for `MeridianTransport`; the propagator composes them in any path.
 - **Map.** s_r = s − 2 c_i n, back to the same geometric plane in the incident medium, with ΔS = n_i (ℓ_i + ℓ_r) and signed legs. `InterfaceMap(..., branch="reflected")` gives it, with ds_r = ds − 2 (dc_i n + c_i dn) from the same Appendix A quantities.
 - **Flux.** g = √(s_iz / (|s_rz| J)) e^{−iπκ/2}. The power R I c_i dσ leaves the surface at c_r = c_i and I |s_z| dA is constant along each segment, so |r|² is the dyadic's and the area ratio g's. J is measured in the plane's own axes on both sides: a plane mirror at normal incidence has J = +1. The mirror reverses the tube's handedness about its direction and the sign of s_z together, so J still changes sign once per collapsed direction, and κ is counted on both segments as for refraction.
 - **Dyadic.** r_s E_s s + r_p E_p p_r + r_p E_∥ s_r with p_r = s × s_r, r_s = (n_i c_i − n_t c_t)/(n_i c_i + n_t c_t), r_p = (n_t c_i − n_i c_t)/(n_t c_i + n_i c_t): tangential E and H are continuous with the transmitted wave. Beyond the critical angle c_t = i|c_t| and |r| = 1. `"mirror"` is the ideal mirror, r_s = −1, r_p = 1. Real indices only.
@@ -375,9 +446,26 @@ A leg can carry the reflected wave instead of the transmitted one: `LatticeTrans
 | Same, meridian leg | 29 % | 14 % | 7.2 % | 3.6 % |
 | Sphere, refraction and one internal reflection (term 2) | 36 % | 19 % | 9.7 % | 4.8 % |
 
+Through the propagator (`general/tests/test_paths.py`), against exact solutions, with errors falling as the system grows:
+
+| Case | sizes | measured |
+|---|---|---|
+| Stop vs the equivalent hard pupil, flat face, meridian / lattice | a = 10, 20, 40 λ | 0.27, 0.049, 0.019 % / 2.1, 1.2, 0.66 % |
+| Same, lens surface | a = 10, 20, 40 λ | 0.30, 0.16, 0.10 % / 0.64, 0.23, 0.065 % |
+| Plane mirror, collimated beam (both) | | 1e-11 |
+| Plane mirror, converging beam | foci 20, 40, 80 λ | 1.7, 0.88, 0.44 % |
+| Fold mirror at 45°, lattice | waists 4, 8, 16 λ | 4.6, 2.5, 1.3 % |
+| Plate on a back mirror (retro), both | 1, 2, 4 | 0.22, 0.11, 0.052 % |
+| Plate ghost t12 r21 r21 t21, both | 1, 2, 4 | 1.1, 0.54, 0.27 % |
+| Closed `Sphere`, Debye term 0, both | R = 10–80 λ | 29, 14, 7.2, 3.6 % |
+| Closed `Sphere` in, far side, out: exterior term 2, lattice | R = 10–80 λ | 12.5, 4.8, 2.1, 0.90 % |
+| Cassegrain, power deficit at focus (ideal mirrors) | scales 1, 2, 4 | 4.1, 1.1, 0.27 % |
+
+On the meridian a reflection on the axis turns the axis over (frame u, −v, −n) and the harmonics with it: order m becomes −m, E_φ and E_z change sign. Light that focuses between two legs (inside a ball, before its far side) reaches the next plane across the axis, which the meridian does not carry: it is refused with that reason, and the lattice carries it.
+
 ### Reports
 
-`solution.reports` holds one `transport.TransportReport` per refracting surface, and `print(solution)` gives one line for each:
+`solution.reports` holds one `transport.TransportReport` per carried encounter (refraction, reflection, stop), and `print(solution)` gives one line for each:
 - `unsupported_relative_amplitude`: the incident amplitude on rays the surface does not support (misses, rear or grazing incidence, total reflection, or outside the fan);
 - `dark_samples`: output samples no ray reaches;
 - `newton_residual`: the inverse map's residual;

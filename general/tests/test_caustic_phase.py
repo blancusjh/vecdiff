@@ -84,7 +84,7 @@ def line_focus(plane, focus, sine=0.3):
     )
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.Plane(), AIR, DENSE),
+        o.system.Refraction(S.Plane(), AIR, DENSE),
         line_carrier(focus),
         1.0,
     )
@@ -196,7 +196,7 @@ def test_point_focus_inside_the_leg_inverts_the_field():
     )
     carrier = F.Carrier.converging([0, 0, -focus])
     leg = o.transport.LatticeTransport(
-        grid, o.system.DielectricInterface(S.Plane(), AIR, DENSE), carrier, 1.0
+        grid, o.system.Refraction(S.Plane(), AIR, DENSE), carrier, 1.0
     )
     carried, report = leg.carry(incident, method="direct")
 
@@ -245,7 +245,7 @@ def test_leg_that_folds_under_the_field_is_refused():
     glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
     leg = o.transport.LatticeTransport(
         grid,
-        o.system.DielectricInterface(S.Plane(), AIR, glass),
+        o.system.Refraction(S.Plane(), AIR, glass),
         F.Carrier.converging([0, 0, -30.0]),
         1.0,
     )
@@ -257,7 +257,7 @@ def test_leg_that_folds_under_the_field_is_refused():
 def test_meridian_leg_says_when_the_carrier_focuses_inside_it():
     from vecdiff.transport.meridian import MeridianTransport
 
-    interface = o.system.DielectricInterface(S.Plane(), AIR, DENSE)
+    interface = o.system.Refraction(S.Plane(), AIR, DENSE)
 
     with pytest.raises(ValueError, match="focuses inside this leg"):
         MeridianTransport(

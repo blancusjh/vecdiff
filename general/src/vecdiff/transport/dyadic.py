@@ -60,18 +60,44 @@ def carried(incident, rays, s, n_incident, n_transmitted, branch="transmitted"):
     )
 
 
-def ray_weights(window, rays):
-    """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off."""
+def encounter_indices(encounter):
+    """(branch, n of the incident region, n beyond the surface) of an encounter.
+
+    An ideal mirror has nothing beyond: its index is the incident one, unused.
+    """
+    branch = encounter.branch
+    if branch not in BRANCHES:
+        raise ValueError(f"branch must be one of {BRANCHES}")
+    incident = encounter.incident
+    if incident is None:
+        raise ValueError("the encounter's incident medium is not known")
+    n_incident = incident.material.n
+    far = encounter.far
+    return branch, n_incident, n_incident if far is None else far.material.n
+
+
+def ray_weights(window, rays, aperture=None):
+    """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off,
+    times the encounter's aperture.
+
+    ``aperture`` is the radius, in the surface's chart, of the hole of a stop
+    or the edge of a face: rays that meet the surface beyond it weigh nothing.
+    """
     cosine = rays.cos_incident
     if window is None:
-        return bd.ones_like(cosine)
-    if callable(window):
-        return bd.asarray(window(rays), dtype=float)
-    start, end = (np.radians(angle) for angle in window)
-    fraction = bd.clip(
-        (bd.arccos(bd.clip(cosine, -1, 1)) - start) / (end - start), 0, 1
-    )
-    return 0.5 * (1 + bd.cos(bd.pi * fraction))
+        weight = bd.ones_like(cosine)
+    elif callable(window):
+        weight = bd.asarray(window(rays), dtype=float)
+    else:
+        start, end = (np.radians(angle) for angle in window)
+        fraction = bd.clip(
+            (bd.arccos(bd.clip(cosine, -1, 1)) - start) / (end - start), 0, 1
+        )
+        weight = 0.5 * (1 + bd.cos(bd.pi * fraction))
+    if aperture is None:
+        return weight
+    radius = bd.linalg.norm(rays.surface_point[..., :2], axis=-1)
+    return bd.where(radius < aperture, weight, 0.0)
 
 
 def check_window(window):

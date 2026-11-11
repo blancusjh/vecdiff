@@ -11,7 +11,7 @@ share no runtime optical kernel; external validation compares explicit arrays.
 | Discretization | `sampling/` | Physical points, FFT lattices and quadrature measures |
 | Matter | `media/` | Constitutive data and spatial assignment |
 | Fields | `fields/` | Electric samples, E/H traces, beams and their carriers; `Spectrum`, the plane-wave field of a region, in four kinds (plane, lattice, Hankel, beam) |
-| Optical prescription | `system.py` | Oriented surface/media adjacency and sequences |
+| Optical prescription | `system.py` | The ordered path: refractions, reflections, stops; regions derived from it |
 | Numerical transforms | `fourier/` | FFT, Hankel, angular harmonics and NUFFT |
 | Transport across a surface | `transport/` | The ray map, its Jacobian and caustic index (`rays.py`); the continued Fresnel dyadic (`dyadic.py`); the leg on a lattice (`lattice.py`) and on a meridian (`meridian.py`); its report |
 | Homogeneous propagation | `propagation/homogeneous.py` | ASM and paraxial Fresnel evolution |
@@ -41,9 +41,12 @@ Constructing an angular spectrum completes explicitly transverse plane data
 using the specified material and branch. It is a field-representation operation;
 propagating that spectrum is a separate homogeneous-medium operation.
 
-`OpticalSystem` describes geometry and matter, and can optionally hold the incident field. Targets belong to propagation calls, not the system. Its optional aperture/stop data
-can describe a reference geometry even when a particular solver cannot handle
-it. The propagators reject finite edges and stops explicitly.
+`OpticalSystem` is the ordered path of the light's encounters (`Refraction`,
+`Reflection`, `Stop`) and the regions of space it crosses, which it derives
+from the path. The light and the targets belong to propagation calls, not the
+system. `propagation.Propagator` carries any such path, meeting each surface
+along the propagation (`propagation.path`); `alternatives.WavePropagator`
+carries refractions of unbounded faces only and refuses the rest.
 
 The general package no longer includes the layer-stack/admittance solver,
 feedback solver, experimental phase-space method, ideal-imaging model or

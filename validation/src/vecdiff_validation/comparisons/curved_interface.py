@@ -45,10 +45,10 @@ def scatter_surface(incident, interface, grid, *, illuminated_only=False):
     if isinstance(incident, PlaneSpectrum):
         incident = incident.expansion
 
-    if incident.region == interface.minus:
-        normal_sign, destination, incident_side = 1, interface.plus, "minus"
-    elif incident.region == interface.plus:
-        normal_sign, destination, incident_side = -1, interface.minus, "plus"
+    if incident.region == interface.before:
+        normal_sign, destination, incident_side = 1, interface.after, "minus"
+    elif incident.region == interface.after:
+        normal_sign, destination, incident_side = -1, interface.before, "plus"
     else:
         raise ValueError("incident region is not adjacent to this interface")
 

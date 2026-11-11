@@ -70,7 +70,7 @@ def test_wave_transport_through_a_plane_matches_exact_modal_transmission(
     c, s = np.cos(angle), np.sin(angle)
     basis = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
     plane, air, glass, source = setup(basis, wavelength)
-    interface = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
+    interface = o.system.Refraction(o.surfaces.Plane(plane.frame), air, glass)
     propagator = o.alternatives.WavePropagator(
         [interface], transmission=o.alternatives.SpectralFresnel(nodes=18, cutoff=0)
     )
@@ -92,9 +92,9 @@ def test_transparent_curved_interface_does_not_filter_or_reconstruct():
     plane, air, glass, source = setup()
     other = o.media.HomogeneousRegion("other_air", o.media.Dielectric(1))
     surface = o.surfaces.SphericalCap(30, plane.frame)
-    result = o.alternatives.WavePropagator(
-        [o.system.DielectricInterface(surface, air, other)]
-    )(source)
+    result = o.alternatives.WavePropagator([o.system.Refraction(surface, air, other)])(
+        source
+    )
     assert_allclose(
         result.spectrum.expansion.amplitudes,
         source.expansion.amplitudes,
@@ -106,7 +106,7 @@ def test_transparent_curved_interface_does_not_filter_or_reconstruct():
 
 def test_zero_field_and_single_normal_mode_have_well_defined_angular_plans():
     plane, air, glass, _ = setup()
-    boundary = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
+    boundary = o.system.Refraction(o.surfaces.Plane(plane.frame), air, glass)
     propagator = o.alternatives.WavePropagator([boundary])
     for value in [0.0, 1.0]:
         a = np.zeros(plane.shape + (2,), complex)
@@ -122,14 +122,15 @@ def test_zero_field_and_single_normal_mode_have_well_defined_angular_plans():
 
 def test_explicit_scope_and_material_validation():
     plane, air, glass, source = setup()
-    interface = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), air, glass)
-    for method in (o.propagation.Propagator, o.alternatives.WavePropagator):
-        with pytest.raises(ValueError, match="edges and stops"):
-            method(o.system.OpticalSystem([interface], stops=[2]))
-    wrong = o.system.DielectricInterface(o.surfaces.Plane(plane.frame), glass, air)
+    interface = o.system.Refraction(o.surfaces.Plane(plane.frame), air, glass)
+    with pytest.raises(ValueError, match="edges, stops and reflections"):
+        o.alternatives.WavePropagator(
+            o.system.OpticalSystem(o.system.Stop(2.0), interface)
+        )
+    wrong = o.system.Refraction(o.surfaces.Plane(plane.frame), glass, air)
     with pytest.raises(ValueError, match="incident region"):
         o.alternatives.WavePropagator([wrong])(source)
-    tilted = o.system.DielectricInterface(
+    tilted = o.system.Refraction(
         o.surfaces.Plane(o.geometry.Frame([0, 0, 0])), air, glass
     )
     with pytest.raises(ValueError, match="transverse origin"):

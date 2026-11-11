@@ -103,7 +103,7 @@ def test_direction_resolved_curved_trace_matches_direct_modal_fresnel():
             (-0.2 / 3 * np.sin(xy[..., 0] / 3), bd.full(xy.shape[:-1], 0.03)), axis=-1
         ),
     )
-    boundary = o.system.DielectricInterface(surface, air, glass)
+    boundary = o.system.Refraction(surface, air, glass)
     q = o.alternatives.SurfaceTransport(plane, surface, air, 1)
     x, y = plane.points[..., 0], plane.points[..., 1]
     values = np.stack(
@@ -148,7 +148,7 @@ def test_direction_resolved_unity_on_curved_surface_matches_modal_sum():
     air = o.media.HomogeneousRegion("air", o.media.Dielectric(1))
     glass = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
     surface = o.surfaces.EvenAsphere(0.02, conic=-1)
-    boundary = o.system.DielectricInterface(surface, air, glass)
+    boundary = o.system.Refraction(surface, air, glass)
     q = o.alternatives.SurfaceTransport(plane, surface, air, 1)
     x, y = plane.points[..., 0], plane.points[..., 1]
     values = np.stack(

@@ -59,6 +59,19 @@ class AxisymmetricSurface(GraphSurface):
 
         return _radial_hessian(xy, self.slope(radius), curvature)
 
+    def reversed(self):
+        sag, slope, curvature = (
+            self.sag_function,
+            self.slope_function,
+            self.curvature_function,
+        )
+        return AxisymmetricSurface(
+            lambda r: -sag(r),
+            lambda r: -slope(r),
+            self.frame.reversed(),
+            None if curvature is None else (lambda r: -curvature(r)),
+        )
+
 
 @dataclass(frozen=True)
 class SphericalCap(GraphSurface):
@@ -98,6 +111,10 @@ class SphericalCap(GraphSurface):
 
         return bd.sign(self.radius) * (bd.eye(2) / root + outer / root**3)
 
+    def reversed(self):
+        """The cap seen from its other side: the cap of the opposite radius."""
+        return type(self)(-self.radius, self.frame.reversed())
+
 
 @dataclass(frozen=True)
 class Sphere(SphericalCap, ImplicitSurface):
@@ -122,7 +139,7 @@ class Sphere(SphericalCap, ImplicitSurface):
 
         return value, -offset / R, hessian
 
-    def crossing(self, points, directions):
+    def crossing(self, points, directions, *, leaving=False):
         offset = bd.asarray(points, dtype=float) - self._centre()
         s = bd.asarray(directions, dtype=float)
         b = bd.sum(s * offset, axis=-1)
@@ -130,8 +147,14 @@ class Sphere(SphericalCap, ImplicitSurface):
         disc = b * b - c
         root = bd.sqrt(bd.where(disc >= 0, disc, bd.nan))
         # The crossing into the plus side has s . grad F = -s . offset / R > 0:
-        # the near root for a convex sphere, the far one for a concave one.
-        if self.radius > 0:
+        # the near root for a convex sphere, the far one for a concave one;
+        # the crossing out of it is the other root.
+        if (self.radius > 0) != leaving:
             # Stable form of -b - root.
             return divide(c, -b + root, (-b + root) != 0)
         return -b + root
+
+    def far_side(self):
+        """The same sphere oriented the other way, charted from its far vertex."""
+        R = float(self.radius)
+        return Sphere(-R, self.frame.translated(2 * R * self.frame.normal))

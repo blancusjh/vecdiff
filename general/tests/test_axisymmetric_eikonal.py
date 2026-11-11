@@ -40,7 +40,7 @@ def converging(radius, pupil="smooth", polarization=CIRCULAR, umax=0.4):
 
 def sphere(radius, inside=GLASS):
     cap = S.SphericalCap(radius, Frame([0, 0, -radius]))
-    return (o.system.DielectricInterface(cap, AIR, inside),)
+    return (o.system.Refraction(cap, AIR, inside),)
 
 
 def chart(beam, radius):
@@ -264,7 +264,7 @@ def test_propagator_chooses_and_guards_the_meridian_leg():
     assert again.electric(focal_points(radius, 0.5, 3)).valid.all()
     # An index-matched plane behind the sphere is bookkeeping: the same field.
     glass = o.media.HomogeneousRegion("glass, second region", o.media.Dielectric(1.5))
-    behind = o.system.DielectricInterface(S.Plane(Frame([0, 0, 2.0])), GLASS, glass)
+    behind = o.system.Refraction(S.Plane(Frame([0, 0, 2.0])), GLASS, glass)
     longer = P.Propagator(system + (behind,))(beam)
     assert_allclose(
         host(longer.electric(target).values), host(field.values), atol=1e-14
@@ -275,17 +275,17 @@ def test_propagator_chooses_and_guards_the_meridian_leg():
         o.alternatives.WavePropagator(system)(beam)
     with pytest.raises(ValueError, match="realization must be"):
         P.Propagator(system, realization=True)
-    with pytest.raises(ValueError, match="one fan per surface"):
+    with pytest.raises(ValueError, match="one fan per element"):
         P.Propagator(system, fans=((0, 50), None))
     with pytest.raises(ValueError, match="incidence"):
         P.Propagator(system, fans=((50, 20),))
     cap = system[0].surface
     freeform = S.FreeformSurface(cap.height, cap.gradient, cap.frame, cap.hessian)
     with pytest.raises(ValueError, match="surface of revolution"):
-        P.Propagator((o.system.DielectricInterface(freeform, AIR, GLASS),))(beam)
+        P.Propagator((o.system.Refraction(freeform, AIR, GLASS),))(beam)
     shifted = S.SphericalCap(radius, Frame([0.5, 0, -radius]))
     with pytest.raises(ValueError, match="centred"):
-        P.Propagator((o.system.DielectricInterface(shifted, AIR, GLASS),))(beam)
+        P.Propagator((o.system.Refraction(shifted, AIR, GLASS),))(beam)
     with pytest.raises(ValueError, match="carrier is not symmetric"):
         propagator(beam, carrier=F.Carrier.converging([1.0, 0, 15.0]))
     # A window closes the fan before the cap's equator.
@@ -366,7 +366,7 @@ def test_collimated_beam_crosses_a_flat_face_as_its_plane_waves_do(waist, bound)
         region=AIR,
         frame=Frame(start),
     )
-    propagator = P.Propagator((o.system.DielectricInterface(S.Plane(), AIR, GLASS),))
+    propagator = P.Propagator((o.system.Refraction(S.Plane(), AIR, GLASS),))
     rho = np.linspace(0, 1.5 * waist, 31)
     where = np.c_[rho, 0.3 * rho, np.full(rho.size, 12.0)]
     solution = propagator(beam)

@@ -29,7 +29,12 @@ from vecdiff.fields.lattice_spectrum import (
 )
 from vecdiff.fields.spectrum import PlaneSpectrum
 from vecdiff.sampling import CartesianGrid
-from vecdiff.transport.dyadic import BRANCHES, check_window, fresnel, ray_weights
+from vecdiff.transport.dyadic import (
+    check_window,
+    encounter_indices,
+    fresnel,
+    ray_weights,
+)
 from vecdiff.transport.rays import InterfaceMap
 from vecdiff.transport.report import TransportReport
 
@@ -65,19 +70,22 @@ class LatticeTransport:
     is read exactly at the preimages, and its leg returns a LatticeSpectrum,
     which holds lattices a PlaneSpectrum cannot.
 
-    ``branch`` is the wave carried: "transmitted" into the interface's plus
-    region, "reflected" by the boundary's Fresnel coefficients back into
-    its minus region (ghosts, internal reflections, total internal
-    reflection), or "mirror", an ideal mirror (tangential E vanishes; the
-    plus region is not used). A reflected leg's output lattice lies on the
-    same plane, and its spectrum travels back, toward -z of the surface
-    frame. Every report and refusal applies in the outgoing medium.
+    ``encounter`` is the element of the path the leg carries the light
+    across (system.Refraction, Reflection or Stop), its surface met along
+    the normal; it says the wave carried (``branch``): "transmitted" into
+    the region beyond, "reflected" by the boundary's Fresnel coefficients
+    back into the incident region (ghosts, internal reflections, total
+    internal reflection), or "mirror", an ideal mirror (tangential E
+    vanishes). A reflected leg's output lattice lies on the same plane, and
+    its spectrum travels back, toward -z of the surface frame. A stop's or
+    a face edge's aperture cuts the carried rays as a window does. Every
+    report and refusal applies in the outgoing medium.
     """
 
     def __init__(
         self,
         plane,
-        interface,
+        encounter,
         carrier,
         wavelength0,
         *,
@@ -85,12 +93,11 @@ class LatticeTransport:
         max_growth=4,
         seed_stride=None,
         block_size=None,
-        branch="transmitted",
     ):
         if not isinstance(plane, CartesianGrid):
             raise TypeError("eikonal transport needs a CartesianGrid reference plane")
 
-        surface = interface.surface
+        surface = encounter.surface
         frame = surface.frame
 
         if not bd.allclose(plane.frame.basis, frame.basis, atol=1e-12, rtol=0):
@@ -111,22 +118,20 @@ class LatticeTransport:
         ):
             raise ValueError("block_size must be a positive integer")
 
-        if branch not in BRANCHES:
-            raise ValueError(f"branch must be one of {BRANCHES}")
-        self.branch = branch
-        reflected = branch != "transmitted"
+        self.branch, n_incident, n_far = encounter_indices(encounter)
+        reflected = self.branch != "transmitted"
         # The region and the normal direction the outgoing wave travels in.
-        self.outgoing = interface.minus if reflected else interface.plus
+        self.outgoing = encounter.outgoing
         self.direction = -1 if reflected else 1
-        self.window = check_window(window)
-        self.plane, self.interface, self.carrier = plane, interface, carrier
+        self.window, self.aperture = check_window(window), encounter.aperture
+        self.plane, self.encounter, self.carrier = plane, encounter, carrier
         self.wavelength0 = float(wavelength0)
         self.block_size = int(block_size)
         self.map = InterfaceMap(
             surface,
             carrier,
-            interface.minus.material.n,
-            interface.plus.material.n,
+            n_incident,
+            n_far,
             float(shift[2]),
             branch="reflected" if reflected else "transmitted",
         )
@@ -144,8 +149,8 @@ class LatticeTransport:
             incoming = self.map.forward(lattice_points(axes[0], axes[1], rows))
             # Rays the window zeroes carry nothing and do not widen the lattice.
             carried = bd.flatnonzero(incoming.valid)
-            if self.window is not None and len(carried):
-                weight = ray_weights(self.window, incoming.subset(incoming.valid))
+            if (self.window, self.aperture) != (None, None) and len(carried):
+                weight = self._window(incoming.subset(incoming.valid))
                 carried = carried[weight > 0]
             # A ray the fan cuts is unsupported, like one the surface refuses.
             fanned = bd.zeros(len(incoming.valid), dtype=bool)
@@ -203,7 +208,7 @@ class LatticeTransport:
         size = math.prod(out.shape)
         lit = np.zeros(size, bool)
         preimage = np.zeros((size, 2))
-        self.residual, top = 0.0, None
+        self.residual, band = 0.0, None
 
         def invert(rows):
             rho, found, residual = self.map.invert(
@@ -224,7 +229,8 @@ class LatticeTransport:
             worst = height = None
             if bool(found.any()):
                 worst = float(bd.max(residual[found]))
-                height = float(bd.max(rays.surface_height[inside]))
+                heights = rays.surface_height[inside]
+                height = (float(bd.min(heights)), float(bd.max(heights)))
             return rows, to_numpy(found), to_numpy(rho), worst, height
 
         blocks = row_blocks(len(out.v), len(out.u), self.block_size)
@@ -233,15 +239,41 @@ class LatticeTransport:
             lit[flat], preimage[flat] = found, rho
             if worst is not None:
                 self.residual = max(self.residual, worst)
-                top = height if top is None else max(top, height)
+                band = (
+                    height
+                    if band is None
+                    else (
+                        min(band[0], height[0]),
+                        max(band[1], height[1]),
+                    )
+                )
 
         self.lit, self.preimage = lit, preimage
+        # The heights the surface spans where it carries light, in its frame.
+        self.band = band
+        top = None if band is None else band[1]
         self.boundary = 0.0 if top is None else max(0.0, top - self.map.offset)
 
     @property
     def rays(self):
         """RayMap of the carried rays, at the lit output points in order."""
         return self.map.forward(bd.asarray(self.preimage[self.lit]))
+
+    def footprint(self, count=4096):
+        """Points on the output plane and directions (global) of up to ``count``
+        carried rays, spread over the lit lattice."""
+        lit = np.flatnonzero(self.lit)
+        lit = lit[:: max(1, int(np.ceil(len(lit) / count)))]
+        rays = self.map.forward(bd.asarray(self.preimage[lit]))
+        rays = rays.subset(rays.valid)
+        frame = self.map.surface.frame
+        local = bd.concatenate(
+            (rays.output, bd.full((len(rays.output), 1), self.map.offset)), axis=-1
+        )
+        return (
+            frame.origin + local @ frame.basis.T,
+            rays.transmitted @ frame.basis.T,
+        )
 
     def _covered(self, starts, valid):
         """Input-lattice points that a carried ray of the family starts near.
@@ -348,9 +380,9 @@ class LatticeTransport:
         amplitude that way is refused. So is a leg whose output lattice
         cannot sample more than _SAMPLING_TOLERANCE of what it carries.
         """
-        if spectrum.region != self.interface.minus:
+        if spectrum.region != self.encounter.incident:
             raise ValueError(
-                "incident spectrum must live in the interface's incident medium"
+                "incident spectrum must live in the encounter's incident region"
             )
         if method == "auto":
             import importlib.util
@@ -427,13 +459,10 @@ class LatticeTransport:
 
     def _lost(self, spectrum, method, **kwargs):
         """Relative amplitude of the incident field on unsupported lattice points."""
-        if isinstance(spectrum, PlaneSpectrum):
-            lattice = spectrum.propagate(
-                float(
-                    (self.plane.frame.origin - spectrum.grid.frame.origin)
-                    @ spectrum.grid.frame.normal
-                )
-            ).electric.values.reshape(-1, 3)
+        distance = self._along(spectrum)
+        if distance is not None:
+            # The spectrum's own lattice, moved onto this plane by FFT.
+            lattice = spectrum.propagate(distance).electric.values.reshape(-1, 3)
             power = to_numpy(bd.sum(bd.abs(lattice) ** 2, axis=-1))
             lost, total = power[~self.support].sum(), power.sum()
         else:
@@ -452,6 +481,29 @@ class LatticeTransport:
                 total += power.sum()
 
         return float(np.sqrt(lost / max(float(total), 1e-300)))
+
+    def _along(self, spectrum):
+        """The distance a PlaneSpectrum's lattice moves along its normal onto this
+        plane's lattice, point for point; None if it is not that lattice.
+
+        After a reflection the next plane is the lattice seen from behind:
+        its rows run the other way, and it is read point by point instead.
+        """
+        if not isinstance(spectrum, PlaneSpectrum):
+            return None
+        grid, plane = spectrum.grid, self.plane
+        if not (
+            isinstance(grid, CartesianGrid)
+            and grid.shape == plane.shape
+            and bd.array_equal(grid.u, plane.u)
+            and bd.array_equal(grid.v, plane.v)
+            and bd.allclose(grid.frame.basis, plane.frame.basis, rtol=0, atol=1e-12)
+        ):
+            return None
+        delta = plane.frame.origin - grid.frame.origin
+        if bd.linalg.norm(delta @ grid.frame.basis[:, :2]) > 1e-9 * self.wavelength0:
+            return None
+        return float(delta @ grid.frame.normal)
 
     def carry(self, spectrum, *, method="auto", **kwargs):
         """Carried plane components on the output lattice and the TransportReport.
@@ -491,8 +543,8 @@ class LatticeTransport:
         )
 
     def _window(self, rays):
-        """Ray weights: one, the window's callable, or a raised-cosine incidence roll-off."""
-        return ray_weights(self.window, rays)
+        """Ray weights: the window's, within the encounter's aperture."""
+        return ray_weights(self.window, rays, self.aperture)
 
     def reflect(self, spectrum, *, method="auto", **kwargs):
         """(Spectrum travelling back in the incident medium on the plane, TransportReport).
