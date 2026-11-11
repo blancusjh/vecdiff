@@ -5,7 +5,6 @@ from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.sparse.linalg import lsmr
 from scipy.special import gammaln
 
 from vecdiff._backend import bd, fft2, host_operator, ifft2, jv, to_numpy
@@ -352,6 +351,8 @@ class SurfaceTransport:
             vector = transformed[self.active].ravel()
             iterations, condition, solver = 0, 1.0, "fft"
         else:
+            from scipy.sparse.linalg import lsmr  # lazy: slow to import
+
             result = lsmr(
                 self._inverse_operator(),
                 to_numpy(target_e.ravel()),
