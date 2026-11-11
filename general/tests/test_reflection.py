@@ -160,3 +160,165 @@ def test_reflected_branch_needs_rays_that_head_back_to_the_plane():
         np.zeros((1, 2))
     )
     assert not host(rays.valid).any() and host(rays.flux)[0] == 0
+
+
+def boundary_value(k, e, n_i, n_t, mirror=False):
+    """Reflected and transmitted plane waves of e exp(i k . r) on the plane z = 0.
+
+    Each unknown wave is two amplitudes on a basis transverse to its own
+    wavevector (bilinearly, for the decaying wave beyond the critical angle,
+    Im k_z > 0); tangential E and Z0 H = k x E / k0 are continuous, or
+    tangential E vanishes on a perfect conductor. Returns (E_r, k_r, E_t, k_t).
+    """
+    k = np.asarray(k, complex)
+    k0 = np.sqrt(k @ k).real / n_i
+    k_r = k * np.array([1, 1, -1])
+    k_t = np.array([k[0], k[1], np.sqrt((n_t * k0) ** 2 - k[0] ** 2 - k[1] ** 2)])
+
+    def basis(q):
+        a = np.cross([0, 0, 1.0], q)
+        if np.linalg.norm(a) < 1e-12 * np.linalg.norm(q):
+            a = np.array([1.0, 0, 0])
+        return a, np.cross(q, a)
+
+    def h(q, v):
+        return np.cross(q, v) / k0
+
+    waves = [(k_r, v) for v in basis(k_r)] + [(k_t, v) for v in basis(k_t)]
+    if mirror:
+        a, b = (v for _, v in waves[:2])
+        x = np.linalg.solve(np.stack([a[:2], b[:2]], -1), -e[:2])
+        return x[0] * a + x[1] * b, k_r, None, None
+    matrix = np.array(
+        [
+            np.r_[sign * v[:2], sign * h(q, v)[:2]]
+            for (q, v), sign in zip(waves, [1, 1, -1, -1])
+        ]
+    ).T
+    x = np.linalg.solve(matrix, -np.r_[e[:2], h(k, e)[:2]])
+    return (
+        x[0] * waves[0][1] + x[1] * waves[1][1],
+        k_r,
+        x[2] * waves[2][1] + x[3] * waves[3][1],
+        k_t,
+    )
+
+
+def plane_wave_on_a_plane(n_i, n_t, mode, polarization, offset, branch, step=0.3):
+    """The carried reflection and transmission of one lattice plane wave, and the exact ones.
+
+    ``polarization`` is (TE, TM) on the plane's transverse axes of the wave.
+    """
+    from vecdiff.media.medium import Z0
+
+    first = o.media.HomogeneousRegion("first", o.media.Dielectric(n_i))
+    second = o.media.HomogeneousRegion("second", o.media.Dielectric(n_t))
+    n = 64
+    axis = (np.arange(n) - n // 2) * step
+    frequency = 2 * np.pi * np.fft.fftfreq(n, step)
+    kx, ky = frequency[mode[0]], frequency[mode[1]]
+    k = 2 * np.pi * n_i
+    kz = np.sqrt(k**2 - kx**2 - ky**2)
+    kappa = np.hypot(kx, ky)
+    te = np.array([-ky, kx]) / kappa if kappa else np.array([0, 1.0])
+    tm = np.array([kx, ky]) / kappa if kappa else np.array([1.0, 0])
+    amplitude = polarization[0] * te + polarization[1] * tm
+    grid = o.sampling.CartesianGrid(axis, axis, Frame([0, 0, offset]))
+    x, y = np.meshgrid(axis, axis)
+    values = amplitude * np.exp(1j * (kx * x + ky * y))[..., None]
+    incident = F.angular_spectrum(
+        F.TransverseElectricField(grid, 1.0, values), first, evanescent="discard"
+    )
+    interface = o.system.DielectricInterface(S.Plane(), first, second)
+    carrier = F.Carrier.collimated([kx, ky, kz])
+    e = np.r_[amplitude, -(kx * amplitude[0] + ky * amplitude[1]) / kz]
+    e_r, k_r, e_t, k_t = boundary_value([kx, ky, kz], e, n_i, n_t, branch == "mirror")
+    leg = o.transport.LatticeTransport(grid, interface, carrier, 1.0, branch=branch)
+    carried, report = leg.carry(incident, method="direct")
+    out = carried.grid
+    u, v = np.meshgrid(host(out.u), host(out.v))
+    # The incident wave meets z = 0 a distance -offset beyond the plane and
+    # its reflection comes back as far.
+    wave = np.exp(1j * (kx * u + ky * v - 2 * kz * offset))[..., None]
+    lit = host(leg.lit).reshape(out.shape)
+    result = {
+        "lit": lit.mean(),
+        "carried": abs(host(carried.values) - e_r[:2] * wave)[lit].max(),
+        "report": report,
+    }
+    if offset != 0:
+        return result
+    # Every output point is lit: the re-expansion is the reflected plane wave.
+    back, _ = leg.reflect(incident, method="direct")
+    field = back.propagate(0.0)
+    E, H = host(field.electric.values), host(field.magnetic)
+    h_r = np.cross(k_r, e_r) / (2 * np.pi * Z0)
+    occupied = np.any(host(back.expansion.amplitudes) != 0, axis=-1)
+    flux = (
+        0.5
+        * np.real(np.cross(e, np.conj(np.cross([kx, ky, kz], e))))[2]
+        / (2 * np.pi * Z0)
+    )
+    result.update(
+        E=abs(E - e_r * wave).max() / abs(e_r).max(),
+        H=abs(H - h_r * wave).max() / abs(h_r).max(),
+        backward=(host(back.expansion.wavevectors.real)[occupied, 2] < 0).all(),
+        R=-0.5 * np.real(np.cross(E, np.conj(H)))[..., 2].mean() / flux,
+    )
+    if e_t is not None and abs(k_t[2].imag) == 0:
+        forward = o.transport.LatticeTransport(grid, interface, carrier, 1.0)
+        ahead, _ = forward.transmit(incident, method="direct")
+        field = ahead.propagate(0.0)
+        E, H = host(field.electric.values), host(field.magnetic)
+        result.update(
+            E_t=abs(E - e_t * wave).max() / abs(e_t).max(),
+            T=0.5 * np.real(np.cross(E, np.conj(H)))[..., 2].mean() / flux,
+        )
+    return result
+
+
+PLANE_WAVES = {
+    "air to glass, normal": (1.0, 1.5, (0, 0), (1, 0)),
+    "air to glass, s": (1.0, 1.5, (5, 3), (1, 0)),
+    "air to glass, p": (1.0, 1.5, (5, 3), (0, 1)),
+    "air to glass, elliptical, 41 deg": (1.0, 1.5, (12, -4), (1, 0.5j)),
+    "air to glass, elliptical, 76 deg": (1.0, 1.5, (18, 6), (0.6, -0.8j)),
+    "glass to air, below critical": (1.5, 1.0, (8, 3), (0.3, 1j)),
+    "glass to air, total reflection": (1.5, 1.0, (22, 5), (0.3, 1j)),
+    "glass to air, total reflection, p": (1.5, 1.0, (25, -2), (0, 1)),
+}
+
+
+@pytest.mark.parametrize("name", list(PLANE_WAVES))
+def test_reflected_plane_wave_is_the_exact_reflection_of_the_boundary(name):
+    """E and H of the reflected wave satisfy the boundary conditions with the
+    transmitted one, and the carried powers add up: R + T = 1."""
+    n_i, n_t, mode, polarization = PLANE_WAVES[name]
+    result = plane_wave_on_a_plane(n_i, n_t, mode, polarization, 0.0, "reflected")
+    assert result["lit"] == 1 and result["backward"]
+    assert result["carried"] < 3e-13
+    # Phases k . r reach 80 rad on the lattice: roundoff of 1e-13 after the FFTs.
+    assert result["E"] < 1e-12 and result["H"] < 1e-12
+    if "total" in name:
+        assert abs(result["R"] - 1) < 1e-12 and "T" not in result
+    else:
+        assert result["E_t"] < 1e-12
+        assert abs(result["R"] + result["T"] - 1) < 1e-12
+        assert 0.03 < result["R"] < 0.6
+
+
+@pytest.mark.parametrize("offset", [-3.0, 2.5])
+def test_reflected_plane_wave_is_exact_from_planes_before_and_behind_the_boundary(
+    offset,
+):
+    for n_i, n_t, mode in ((1.0, 1.5, (12, -4)), (1.5, 1.0, (22, 5))):
+        result = plane_wave_on_a_plane(n_i, n_t, mode, (1, 0.5j), offset, "reflected")
+        assert result["lit"] > 0.4 and result["carried"] < 3e-13
+
+
+def test_ideal_mirror_cancels_the_tangential_field_and_reflects_all_power():
+    result = plane_wave_on_a_plane(1.0, 1.5, (7, 2), (1, 0.4 + 0.2j), 0.0, "mirror")
+    assert result["carried"] < 3e-13 and result["E"] < 1e-12 and result["H"] < 1e-12
+    assert abs(result["R"] - 1) < 1e-13
+    behind = plane_wave_on_a_plane(1.0, 1.5, (0, 0), (1, 0.2j), -2.0, "mirror")
+    assert behind["lit"] == 1 and behind["carried"] < 1e-14
