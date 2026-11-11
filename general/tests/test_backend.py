@@ -23,7 +23,12 @@ def cuda_available():
         return False
 
 
-gpu = pytest.mark.skipif(not cuda_available(), reason="needs CuPy and a CUDA device")
+def gpu(test):
+    """A test that runs on a CUDA device: marked ``gpu``, skipped without one."""
+    skip = pytest.mark.skipif(
+        not cuda_available(), reason="needs CuPy and a CUDA device"
+    )
+    return pytest.mark.gpu(skip(test))
 
 
 @pytest.fixture

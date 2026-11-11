@@ -17,9 +17,12 @@ import vecdiff as o
 from scipy.integrate import simpson
 from vecdiff.references import MieSphere
 
-pytestmark = pytest.mark.skipif(
-    os.environ.get("VECDIFF_SLOW") != "1", reason="slow regression: VECDIFF_SLOW=1"
-)
+pytestmark = [
+    pytest.mark.slow,
+    pytest.mark.skipif(
+        os.environ.get("VECDIFF_SLOW") != "1", reason="slow regression: VECDIFF_SLOW=1"
+    ),
+]
 host = o.backend.to_numpy
 AIR = o.media.HomogeneousRegion("air", o.media.Dielectric(1.0))
 GLASS = o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5))
