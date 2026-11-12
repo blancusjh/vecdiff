@@ -338,6 +338,7 @@ class InterfaceMap:
     def _newton(self, p, s, leg, scale):
         leg = bd.array(leg, dtype=float)
         active = bd.isfinite(leg)
+        last = bd.zeros(len(leg), dtype=bool)
 
         for _ in range(60):
             if not bool(active.any()):
@@ -356,9 +357,17 @@ class InterfaceMap:
             )
             index = bd.flatnonzero(active)
             leg[index[~bd.isfinite(step)]] = bd.nan
+            # A step that stays at roundoff without falling under the bound
+            # (the height of a tabulated surface is only that smooth) has
+            # found the crossing: the ray is kept, not lost.
+            stalled = bd.abs(step) <= 4096 * _EPS * (
+                bd.abs(leg[active]) + scale[active]
+            )
+            last = bd.zeros(len(leg), dtype=bool)
+            last[index[stalled & ~done]] = True
             active[index[done]] = False
 
-        leg[active] = bd.nan
+        leg[active & ~last] = bd.nan
 
         return leg
 
