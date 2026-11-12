@@ -5,6 +5,7 @@ from vecdiff.alternatives.surface_interaction import LocalFresnel, SpectralFresn
 from vecdiff.alternatives.surface_transfer import SurfaceTransport
 from vecdiff.fields import ElectricField, PlaneSpectrum, TransverseElectricField
 from vecdiff.fields.beams import _Beam
+from vecdiff.media.absorption import ALTERNATIVE, require_transparent
 from vecdiff.propagation.homogeneous import PlaneTransport
 from vecdiff.propagation.propagator import (
     Solution,
@@ -70,6 +71,9 @@ class WavePropagator:
         transport_tolerance=1e-10,
     ):
         self.system = refractions(system)
+        for element in self.system.elements:
+            for region in (element.incident, element.outgoing):
+                require_transparent(region, "the wave propagator", ALTERNATIVE)
         self.elements = self.system.elements
         self.region = self.system.region
         self.transmission = treatment(transmission)

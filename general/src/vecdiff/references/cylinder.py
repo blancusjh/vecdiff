@@ -40,7 +40,8 @@ import numpy as np
 from vecdiff._backend import cpu_reference, leggauss
 from vecdiff.fields import ElectricField, ElectromagneticField, FocusedBeam
 from vecdiff.fields.spectrum import PlaneWaveExpansion
-from vecdiff.media.medium import Z0, HomogeneousRegion
+from vecdiff.media.absorption import REFERENCE, region_of, require_transparent
+from vecdiff.media.medium import Z0
 from vecdiff.references import _bessel
 from vecdiff.references.layered_sphere import _check_term
 from vecdiff.sampling import PointGrid
@@ -278,8 +279,7 @@ class InfiniteCylinder:
     ):
         if not isinstance(volume, CylinderVolume):
             raise TypeError("InfiniteCylinder requires a CylinderVolume")
-        if not isinstance(interior, HomogeneousRegion):
-            raise TypeError("interior must be a HomogeneousRegion")
+        interior = region_of(interior, "the cylinder's interior")
         if isinstance(incident, PlaneWaveExpansion):
             if np.any(incident.wavevectors[np.any(incident.amplitudes != 0, -1)].imag):
                 raise ValueError("InfiniteCylinder illumination must be propagating")
@@ -287,6 +287,8 @@ class InfiniteCylinder:
             raise TypeError(
                 "InfiniteCylinder requires a PlaneWaveExpansion or a beam from fields"
             )
+        for region in (incident.region, interior):
+            require_transparent(region, "InfiniteCylinder", REFERENCE)
         self.incident, self.volume, self.interior = incident, volume, interior
         self.exterior = incident.region
         self.wavelength0 = incident.wavelength0

@@ -253,6 +253,14 @@ class DielectricFEM:
             mesh, TetrahedralMesh
         ):
             raise TypeError("FEM requires PlaneWaveExpansion and TetrahedralMesh")
+        from vecdiff.media.absorption import require_transparent
+
+        for region in (incident.region, interior):
+            require_transparent(
+                region,
+                "DielectricFEM",
+                "its kernels and quadratures are written for real wavenumbers",
+            )
         if not np.isfinite(pml_strength) or pml_strength <= 0:
             raise ValueError("pml_strength must be positive")
         self.incident, self.mesh, self.interior = incident, mesh, interior

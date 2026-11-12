@@ -25,8 +25,11 @@ class BeamSpectrum(Spectrum):
     """
 
     def __init__(self, beam, chart, region=None):
+        from vecdiff.media.absorption import BEAM, require_transparent
+
         self.beam, self.grid = beam, chart
         self.region = region or beam.region
+        require_transparent(self.region, "a beam (fields.BeamSpectrum)", BEAM)
         self.wavelength0 = beam.wavelength0
         self.axis = beam.frame
         # One carrier object, so prepared legs are reused across calls.

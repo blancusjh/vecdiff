@@ -84,6 +84,9 @@ class HankelSpectrum(Spectrum):
     def __init__(
         self, frame, region, wavelength0, radius, weights, harmonics, direction=1
     ):
+        from vecdiff.media.absorption import SPECTRUM, require_transparent
+
+        require_transparent(region, "a Hankel spectrum", SPECTRUM)
         self.direction = direction
         self.frame, self.region, self.wavelength0 = frame, region, float(wavelength0)
         self.radius, self.weights, self.carried = radius, weights, harmonics

@@ -24,6 +24,7 @@ from scipy.special import gammaln
 from vecdiff._backend import cpu_reference
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneWaveExpansion
+from vecdiff.media.absorption import REFERENCE, region_of, require_transparent
 from vecdiff.media.medium import Z0
 from vecdiff.references.debye import (
     _riccati,
@@ -286,6 +287,9 @@ class MieSphere(_SphericalExpansion):
         if not isinstance(volume, SphereVolume):
             raise TypeError("MieSphere requires a SphereVolume")
         self._check_incident(incident, "MieSphere")
+        interior = region_of(interior, "the sphere's interior")
+        require_transparent(interior, "MieSphere", REFERENCE)
+        require_transparent(incident.region, "MieSphere", REFERENCE)
         self.incident, self.volume, self.interior = incident, volume, interior
         self.exterior = incident.region
         self.wavelength0 = incident.wavelength0

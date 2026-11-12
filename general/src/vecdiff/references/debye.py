@@ -33,6 +33,7 @@ from scipy.special import (
 )
 
 from vecdiff._backend import on_cpu
+from vecdiff.media.absorption import REFERENCE, require_real
 from vecdiff.media.medium import Z0
 from vecdiff.references import _bessel
 
@@ -62,6 +63,8 @@ def cylinder_single_interface(
     interior=False,
 ):
     """Incident, reflected and transmitted (E, H) at points (..., 3)."""
+    for n in (n_incident, n_transmitted):
+        require_real(n, "cylinder_single_interface", REFERENCE)
     if polarization not in ("TE", "TM"):
         raise ValueError("polarization must be TE or TM")
     points = np.asarray(points, float)
@@ -248,6 +251,8 @@ def sphere_single_interface(
     The series is summed order by order, so memory grows only with the number
     of points. The incident term is the analytic plane wave it represents.
     """
+    for n in (n_incident, n_transmitted):
+        require_real(n, "sphere_single_interface", REFERENCE)
     points = np.asarray(points, float)
     shape = points.shape[:-1]
     centre = np.array([0.0, 0.0, -radius if interior else radius])
@@ -383,6 +388,8 @@ def sphere_debye_coefficients(size, n_sphere, n_exterior, orders):
 
     and the Lorenz-Mie coefficient from the regular interior Cauchy data.
     """
+    for n in (n_sphere, n_exterior):
+        require_real(n, "sphere_debye_coefficients", REFERENCE)
     orders = np.asarray(orders)
     pair = np.array([size, size * n_sphere / n_exterior])
     count = int(orders.max())

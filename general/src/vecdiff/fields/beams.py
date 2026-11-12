@@ -49,6 +49,9 @@ class _Beam:
                 "media.HomogeneousRegion it fills"
             )
 
+        from vecdiff.media.absorption import BEAM, require_transparent
+
+        require_transparent(region, "a beam (fields.PlaneBeam, FocusedBeam)", BEAM)
         self.profile, self.polarization, self.frame = profile, polarization, frame
         edges = getattr(profile, "edges", ()) if edges is None else edges
         self.edges = tuple(sorted(positive(edge, "profile edge") for edge in edges))

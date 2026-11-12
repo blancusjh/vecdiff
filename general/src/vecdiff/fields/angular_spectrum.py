@@ -76,12 +76,12 @@ def angular_spectrum(
         raise ValueError("evanescent must be 'retain' or 'discard'")
 
     if evanescent == "discard" and region.material.absorbing:
-        from vecdiff.media.absorption import AbsorbingMediumError, describe
+        from vecdiff.media.absorption import NOTE, AbsorbingMediumError, describe
 
         raise AbsorbingMediumError(
             f"in an absorbing medium, {describe(region)}, every plane wave decays "
             "(Im k_z > 0) and there is no propagating disk to keep: use "
-            "evanescent='retain'"
+            f"evanescent='retain' (see {NOTE})"
         )
 
     if not bd.isfinite(coefficient_rtol) or not 0 <= coefficient_rtol < 1:

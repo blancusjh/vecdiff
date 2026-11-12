@@ -142,6 +142,57 @@ class Spectrum(ABC):
         """The same field, attributed to another region of the same material."""
 
 
+def _decay_fold(g, k, points):
+    """(g, Re k) with the decay of complex wavevectors folded into g, or None.
+
+    exp(i k . r) = exp(i Re k . r) exp(-Im k . r). When every Im k lies
+    along one unit vector nu (a_j nu: the waves of a plane spectrum, decaying
+    along its normal) and every point has the same nu . r = c (points on a
+    parallel plane), the decay is the per-mode factor exp(-a_j c) and the sum
+    has real wavevectors. None otherwise, or where that factor is not finite.
+    """
+    imaginary = k.imag
+    size = bd.linalg.norm(imaginary, axis=1)
+    largest = int(bd.argmax(size))
+    nu = imaginary[largest] / size[largest]
+    along = imaginary @ nu
+    off = bd.linalg.norm(imaginary - along[:, None] * nu[None, :], axis=1)
+    if bd.any(off > 1e-14 * size[largest]):
+        return None
+    height = points.reshape(-1, 3) @ nu
+    c = float(height[0])
+    scale = max(float(bd.max(bd.abs(points))), 1e-300)
+    if bd.any(bd.abs(height - c) > 1e-15 * scale):
+        return None
+    factor = bd.exp(-along * c)
+    if not bool(bd.all(bd.isfinite(factor))):
+        return None
+    return g * factor[:, None], bd.ascontiguousarray(k.real)
+
+
+def _modal_sum(g, k, points, method="auto", **options):
+    """sum_j g[j] exp(i k[j] . r) at ``points`` (..., 3), by fourier.NUFFT.
+
+    Complex wavevectors (decaying waves of an absorbing region, or retained
+    evanescent modes) take the transform when their decay folds into the
+    amplitudes (_decay_fold), and otherwise the exact direct sum, where
+    method "nufft" (also "auto" resolved by ``summation``) is asked.
+    """
+    from vecdiff.fourier.nufft import NUFFT
+
+    if method == "nufft" and bd.any(k.imag):
+        # Only the occupied modes count: NUFFT drops the others itself.
+        occupied = bd.any(g != 0, axis=-1)
+        if bd.any(k[occupied].imag):
+            g, k = g[occupied], k[occupied]
+            folded = _decay_fold(g, k, points)
+            if folded is None:
+                method = "direct"
+            else:
+                g, k = folded
+    return NUFFT(g, k, points, sign=1, method=method, **options)
+
+
 @dataclass(frozen=True, eq=False)
 class PlaneWaveExpansion:
     """Discrete modal amplitudes, including any quadrature weights.
@@ -233,17 +284,16 @@ class PlaneWaveExpansion:
         method "nufft" runs FINUFFT on ``threads`` threads (None:
         VECDIFF_NUFFT_THREADS, else all cores); "auto" takes it when it is
         installed and cheaper than "direct", the exact sum (fourier.NUFFT).
+        Decaying waves (complex k) take it on a plane parallel to their
+        spectrum's, and the direct sum elsewhere (_modal_sum).
         """
-        from vecdiff.fourier.nufft import NUFFT
-
         coefficients = bd.concatenate(
             (bd.asarray(self.amplitudes), bd.asarray(self.magnetic_amplitudes)), axis=-1
         )
-        values = NUFFT(
+        values = _modal_sum(
             coefficients,
             self.wavevectors,
             bd.asarray(grid.points) - bd.asarray(self.origin),
-            sign=1,
             method=method,
             tolerance=tolerance,
             chunk_size=chunk_size,
@@ -255,14 +305,8 @@ class PlaneWaveExpansion:
 
     def electric(self, grid, **kwargs):
         """Evaluate E without constructing or evaluating magnetic amplitudes."""
-        from vecdiff.fourier.nufft import NUFFT
-
-        values = NUFFT(
-            self.amplitudes,
-            self.wavevectors,
-            grid.points - self.origin,
-            sign=1,
-            **kwargs,
+        values = _modal_sum(
+            self.amplitudes, self.wavevectors, grid.points - self.origin, **kwargs
         )
         return ElectricField(grid, self.wavelength0, values)
 

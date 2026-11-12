@@ -32,6 +32,11 @@ ALTERNATIVE = (
     "the wave-transport alternatives carry plane waves of real wavevector "
     "across real-index boundaries only"
 )
+SPECTRUM = (
+    "it holds the propagating plane waves of a transparent region, sampled in "
+    "their real polar angle; a transport leg's output, which is transparent "
+    "where a leg is supported"
+)
 OBSERVABLE = (
     "the energy and momentum densities of absorbing (and so dispersive) "
     "matter are not determined by its index at one frequency"
@@ -41,6 +46,16 @@ OBSERVABLE = (
 class AbsorbingMediumError(ValueError):
     """An absorbing medium given to a computation that is exact only in a
     transparent one."""
+
+
+def region_of(medium, what):
+    """The region a medium names: a region is itself, a Medium alone the
+    region named after it; anything else is refused naming ``what``."""
+    if isinstance(medium, HomogeneousRegion):
+        return medium
+    if isinstance(medium, Medium):
+        return HomogeneousRegion(medium.name, medium)
+    raise TypeError(f"{what} must be a media.Medium or a media.HomogeneousRegion")
 
 
 def material(medium):
@@ -53,6 +68,18 @@ def describe(medium):
     if isinstance(medium, HomogeneousRegion) and medium.name != m.name:
         return f"region {medium.name!r} ({m.name}, n = {m.n:g})"
     return f"{m.name} (n = {m.n:g})"
+
+
+def require_real(n, what, why):
+    """The index ``n`` unchanged, unless it is complex with Im n != 0: then
+    AbsorbingMediumError naming ``what``, and ``why``."""
+    value = complex(n)
+    if value.imag != 0:
+        raise AbsorbingMediumError(
+            f"{what} is not supported for an absorbing medium (n = {value:g}): "
+            f"{why} (see {NOTE})"
+        )
+    return n
 
 
 def require_transparent(medium, what, why):

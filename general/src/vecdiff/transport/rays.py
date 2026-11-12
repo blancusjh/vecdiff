@@ -168,10 +168,10 @@ def ray_index(value, what):
     """The real index of a medium the rays travel through."""
     n = complex_index(value)
     if isinstance(n, complex):
-        from vecdiff.media.absorption import TRANSPORT, AbsorbingMediumError
+        from vecdiff.media.absorption import NOTE, TRANSPORT, AbsorbingMediumError
 
         raise AbsorbingMediumError(
-            f"the ray map's {what} absorbs (n = {n:g}): {TRANSPORT}"
+            f"the ray map's {what} absorbs (n = {n:g}): {TRANSPORT} (see {NOTE})"
         )
     return n
 

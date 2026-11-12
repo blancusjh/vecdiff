@@ -11,6 +11,7 @@ from vecdiff._backend import bd, fft2, host_operator, ifft2, jv, to_numpy
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
 from vecdiff.fourier.cartesian import FFT2, frequency_grid
+from vecdiff.media.absorption import ALTERNATIVE, require_transparent
 from vecdiff.media.medium import Z0
 from vecdiff.sampling import CartesianGrid, SurfaceGrid
 
@@ -49,6 +50,7 @@ class SurfaceTransport:
     ):
         if not isinstance(plane, CartesianGrid):
             raise TypeError("Q requires a CartesianGrid tangent plane")
+        require_transparent(region, "a surface transport", ALTERNATIVE)
         if not (0 < max_sine < 1 and 0 < tolerance < 1):
             raise ValueError("max_sine and tolerance must lie in (0, 1)")
         if not bd.allclose(plane.frame.basis, surface.frame.basis, atol=1e-12, rtol=0):

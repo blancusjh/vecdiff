@@ -44,6 +44,7 @@ import numpy as np
 
 from vecdiff._backend import cpu_reference
 from vecdiff.fields import ElectricField, ElectromagneticField
+from vecdiff.media.absorption import REFERENCE, region_of, require_transparent
 from vecdiff.media.medium import Z0, HomogeneousRegion
 from vecdiff.references import _bessel
 from vecdiff.references.mie import (
@@ -107,7 +108,8 @@ class LayeredSphere(_SphericalExpansion):
     """
 
     def __init__(self, incident, volumes, interiors, *, order=None):
-        volumes, interiors = tuple(volumes), tuple(interiors)
+        volumes = tuple(volumes)
+        interiors = tuple(region_of(r, "each interior") for r in interiors)
         if not volumes or len(volumes) != len(interiors):
             raise ValueError("give one interior region for every volume")
         if not all(isinstance(v, SphereVolume) for v in volumes):
@@ -121,6 +123,8 @@ class LayeredSphere(_SphericalExpansion):
         if any(inner >= r for r, inner in zip(radii, radii[1:])):
             raise ValueError("radii must decrease inward")
         self._check_incident(incident, "LayeredSphere")
+        for region in (incident.region, *interiors):
+            require_transparent(region, "LayeredSphere", REFERENCE)
         self.incident, self.volumes, self.interiors = incident, volumes, interiors
         self.volume, self.exterior = volumes[0], incident.region
         self.regions = (self.exterior,) + interiors

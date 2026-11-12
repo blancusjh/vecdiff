@@ -109,6 +109,14 @@ class DielectricBEM:
 
         if not isinstance(incident, PlaneWaveExpansion):
             raise TypeError("BEM illumination must be an analytic PlaneWaveExpansion")
+        from vecdiff.media.absorption import require_transparent
+
+        for region in (incident.region, interior):
+            require_transparent(
+                region,
+                "DielectricBEM",
+                "its kernels and quadratures are written for real wavenumbers",
+            )
         if not isinstance(mesh, SurfaceMesh):
             raise TypeError("BEM requires a closed SurfaceMesh")
         if formulation not in FORMULATIONS:
