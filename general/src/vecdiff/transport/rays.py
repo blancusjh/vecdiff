@@ -177,6 +177,24 @@ class RayMap:
         return RayMap(*(getattr(self, f.name)[mask] for f in fields(self)))
 
 
+def complex_index(value):
+    """An index as a float when it is real, else as a complex."""
+    n = complex(value)
+    return n.real if n.imag == 0 else n
+
+
+def ray_index(value, what):
+    """The real index of a medium the rays travel through."""
+    n = complex_index(value)
+    if isinstance(n, complex):
+        from vecdiff.media.absorption import NOTE, TRANSPORT, AbsorbingMediumError
+
+        raise AbsorbingMediumError(
+            f"the ray map's {what} absorbs (n = {n:g}): {TRANSPORT} (see {NOTE})"
+        )
+    return n
+
+
 class InterfaceMap:
     """Phi, Delta S and g for one surface, carrier and pair of indices.
 
@@ -188,7 +206,9 @@ class InterfaceMap:
     ``branch`` "reflected" follows the reflected rays back to the plane in
     the incident medium instead of the refracted ones into the next: the
     RayMap's ``transmitted`` and ``cos_transmitted`` then hold s_r and
-    c_r = c_i, its rays head back (s_rz < 0), and n_transmitted is not used.
+    c_r = c_i, its rays head back (s_rz < 0), and n_transmitted is not used
+    by the map: it may be complex (an absorbing medium behind the surface),
+    whereas the rays' own media are transparent (real indices).
     """
 
     def __init__(
@@ -210,7 +230,12 @@ class InterfaceMap:
             raise TypeError("eikonal transport needs a fields.Carrier")
 
         self.surface, self.carrier = surface, carrier
-        self.n_incident, self.n_transmitted = float(n_incident), float(n_transmitted)
+        self.n_incident = ray_index(n_incident, "the incident medium")
+        self.n_transmitted = (
+            complex_index(n_transmitted)
+            if branch == "reflected"
+            else ray_index(n_transmitted, "the transmitted medium")
+        )
         self.offset = float(offset)
         self.branch = branch
         self.basis = surface.frame.basis
@@ -374,7 +399,6 @@ class InterfaceMap:
     def _trace(self, p, s, dp, ds):
         """Rays from points p with directions s; dp, ds their (3, 2) label derivatives."""
         n_i, n_t = self.n_incident, self.n_transmitted
-        eta = n_i / n_t
         if isinstance(self.surface, ImplicitSurface):
             # The whole surface F = 0, beyond its graph chart.
             leg_i = self.surface.crossing(p, s)
@@ -400,6 +424,7 @@ class InterfaceMap:
             s_t = s - 2 * c_i[:, None] * normal
             heading = s_t[:, 2] < -1e-12
         else:
+            eta = n_i / n_t
             tangent = eta * (s - c_i[:, None] * normal)
             radicand = 1 - bd.sum(tangent**2, axis=-1)
             c_t = bd.sqrt(bd.where(radicand > 0, radicand, bd.nan))

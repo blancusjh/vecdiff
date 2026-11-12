@@ -176,6 +176,9 @@ class LatticeSpectrum(Spectrum):
         band_removed_rms=0.0,
         direction=1,
     ):
+        from vecdiff.media.absorption import SPECTRUM, require_transparent
+
+        require_transparent(region, "a lattice spectrum", SPECTRUM)
         if direction not in (-1, 1):
             raise ValueError("direction must be +1 or -1")
         self.direction = direction

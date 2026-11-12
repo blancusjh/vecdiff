@@ -13,7 +13,7 @@ from vecdiff._arrays import frozen_array, positive
 from vecdiff._backend import bd
 from vecdiff._printing import grid_summary, guarded, number
 from vecdiff.fields import ElectricField, ElectromagneticField
-from vecdiff.media.medium import Z0
+from vecdiff.media.medium import Z0, refractive_index
 
 
 def _norm(values, weights):
@@ -82,11 +82,12 @@ class ElectricFieldJet:
     def bulk_residuals(self, index, weights):
         """Relative L2 divergence, Helmholtz and full curl-curl residuals.
 
-        Norms are divided by k||E|| or k²||E||. This tests the smooth local
+        ``index`` may be complex (an absorbing medium). Norms are divided by
+        |k| ||E|| or |k|² ||E||. This tests the smooth local
         continuation, not radiation conditions or global boundary-value stability.
         Faraday's law is an identity when H is derived by ``field``.
         """
-        k = 2 * bd.pi * positive(index, "index") / self.electric.wavelength0
+        k = 2 * bd.pi * refractive_index(index) / self.electric.wavelength0
         weights = _weights(weights, self.electric.grid.shape)
         scale = _norm(self.electric.values, weights)
         if scale == 0:
@@ -96,9 +97,9 @@ class ElectricFieldJet:
         grad_div = bd.einsum("...ijj->...i", self.hessian)
         helmholtz = laplacian + k**2 * self.electric.values
         return {
-            "divergence_E": _norm(divergence, weights) / (k * scale),
-            "helmholtz_E": _norm(helmholtz, weights) / (k**2 * scale),
-            "curl_curl_E": _norm(grad_div - helmholtz, weights) / (k**2 * scale),
+            "divergence_E": _norm(divergence, weights) / (abs(k) * scale),
+            "helmholtz_E": _norm(helmholtz, weights) / (abs(k) ** 2 * scale),
+            "curl_curl_E": _norm(grad_div - helmholtz, weights) / (abs(k) ** 2 * scale),
         }
 
 

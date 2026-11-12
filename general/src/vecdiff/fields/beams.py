@@ -33,7 +33,7 @@ from vecdiff.fields.polarization import Jones
 from vecdiff.fields.profiles import Uniform
 from vecdiff.fields.spectrum import PlaneWaveExpansion
 from vecdiff.geometry.frames import Frame
-from vecdiff.media.medium import Dielectric, HomogeneousRegion
+from vecdiff.media.medium import HomogeneousRegion, Medium
 
 # Relative size below which a density's azimuthal harmonic counts as absent.
 _ROUNDOFF = 64 * np.finfo(float).eps
@@ -52,15 +52,18 @@ class _Beam:
         if not isinstance(frame, Frame):
             raise TypeError("frame must be a Frame")
 
-        if isinstance(region, Dielectric):
+        if isinstance(region, Medium):
             # A medium alone: the region named after it.
             region = HomogeneousRegion(region.name, region)
         if not isinstance(region, HomogeneousRegion):
             raise TypeError(
-                "a beam lives in one medium: a media.Dielectric, or the "
+                "a beam lives in one medium: a media.Medium, or the "
                 "media.HomogeneousRegion it fills"
             )
 
+        from vecdiff.media.absorption import BEAM, require_transparent
+
+        require_transparent(region, "a beam (fields.PlaneBeam, FocusedBeam)", BEAM)
         self.profile, self.polarization, self.frame = profile, polarization, frame
         edges = getattr(profile, "edges", ()) if edges is None else edges
         self.edges = tuple(sorted(positive(edge, "profile edge") for edge in edges))

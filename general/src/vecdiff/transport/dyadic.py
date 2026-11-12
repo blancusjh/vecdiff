@@ -16,7 +16,11 @@ def fresnel(rays, n_incident, n_transmitted, branch="transmitted"):
     mirror, r_s = -1 and r_p = 1. They multiply E_s along the TE axis s and
     E_p along p = s x s, with p_r = s x s_r for the reflected wave, so that
     tangential E and H = k x E / (k0 Z0) are continuous across the boundary
-    (tangential E vanishes on the mirror). Real indices only.
+    (tangential E vanishes on the mirror). An absorbing medium beyond the
+    surface (complex n_transmitted) reflects by the same coefficients with
+    n_t c_t = sqrt(n_t^2 - n_i^2 sin^2 theta_i) on the branch Im >= 0 (the
+    transmitted wave decays away from the boundary); its |r| < 1. The
+    transmitted branch needs real indices: its rays enter the medium.
     """
     c_i = rays.cos_incident
     if branch == "transmitted":
@@ -28,6 +32,8 @@ def fresnel(rays, n_incident, n_transmitted, branch="transmitted"):
         return -bd.ones_like(c_i), bd.ones_like(c_i)
     if branch != "reflected":
         raise ValueError(f"branch must be one of {BRANCHES}")
+    if isinstance(n_transmitted, complex):
+        return absorbing_reflection(c_i, n_incident, n_transmitted)
     eta = n_incident / n_transmitted
     c_t = bd.sqrt((1 - eta**2 * (1 - c_i**2)).astype(complex))
     r_s = (n_incident * c_i - n_transmitted * c_t) / (
@@ -36,6 +42,22 @@ def fresnel(rays, n_incident, n_transmitted, branch="transmitted"):
     r_p = (n_transmitted * c_i - n_incident * c_t) / (
         n_transmitted * c_i + n_incident * c_t
     )
+    return r_s, r_p
+
+
+def absorbing_reflection(c_i, n_i, n_t):
+    """r_s, r_p of the boundary between a transparent medium n_i and an
+    absorbing one n_t (complex), for incidence cosines c_i.
+
+    w = n_t c_t = sqrt(n_t^2 - n_i^2 (1 - c_i^2)) is the principal root:
+    Im n_t^2 = 2 n' kappa > 0 puts the radicand in the upper half plane, so
+    Re w > 0 and Im w > 0, the transmitted wave exp(i k0 w z) decaying into
+    the medium. r_p = (n_t c_i - n_i c_t) / (n_t c_i + n_i c_t) is taken
+    times n_t / n_t, without c_t itself.
+    """
+    w = bd.sqrt(n_t**2 - n_i**2 * (1 - c_i**2).astype(complex))
+    r_s = (n_i * c_i - w) / (n_i * c_i + w)
+    r_p = (n_t**2 * c_i - n_i * w) / (n_t**2 * c_i + n_i * w)
     return r_s, r_p
 
 
@@ -71,8 +93,13 @@ def encounter_indices(encounter):
     incident = encounter.incident
     if incident is None:
         raise ValueError("the encounter's incident medium is not known")
+    from vecdiff.media.absorption import TRANSPORT, require_transparent
+
+    require_transparent(incident, "carrying light along rays", TRANSPORT)
     n_incident = incident.material.n
     far = encounter.far
+    if branch == "transmitted":
+        require_transparent(far, "carrying light along rays", TRANSPORT)
     return branch, n_incident, n_incident if far is None else far.material.n
 
 

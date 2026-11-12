@@ -30,6 +30,7 @@ from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.fields.spectrum import PlaneSpectrum, PlaneWaveExpansion
 from vecdiff.fourier.nufft import phase_factor
 from vecdiff.media import Z0
+from vecdiff.media.absorption import ALTERNATIVE, require_transparent
 from vecdiff.sampling.grids import Grid
 from vecdiff.system import PlanarInterface
 
@@ -104,6 +105,8 @@ def scatter_plane(incident, interface):
     ):
         raise TypeError("expected a plane spectrum and PlanarInterface")
 
+    for region in (interface.minus, interface.plus):
+        require_transparent(region, "scatter_plane", ALTERNATIVE)
     if incident.region == interface.minus:
         normal, destination, side = interface.frame.normal, interface.plus, "minus"
     elif incident.region == interface.plus:

@@ -137,6 +137,14 @@ class AxisymmetricMFS:
             or len(incident.amplitudes) != 1
         ):
             raise TypeError("boundary reference requires one analytic plane wave")
+        from vecdiff.media.absorption import require_transparent
+
+        for region in (incident.region, interior):
+            require_transparent(
+                region,
+                "AxisymmetricMFS",
+                "its kernels and quadratures are written for real wavenumbers",
+            )
         k = incident.wavevectors[0]
         if (
             np.any(k.imag)

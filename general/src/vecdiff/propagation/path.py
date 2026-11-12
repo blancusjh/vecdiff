@@ -99,6 +99,10 @@ def onward(element, direction, normal):
     if element.branch != "transmitted":
         return direction - 2 * cosine * normal
     eta = element.incident.material.n / element.far.material.n
+    if isinstance(eta, complex):
+        # Between absorbing media only an index-matched boundary is carried
+        # (the identity); its ratio is one.
+        eta = eta.real
     tangent = eta * (direction - cosine * normal)
     radicand = 1 - float(tangent @ tangent)
     if radicand <= 0:

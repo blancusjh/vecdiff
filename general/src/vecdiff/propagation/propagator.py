@@ -28,6 +28,7 @@ from vecdiff.fields.angular_spectrum import angular_spectrum
 from vecdiff.fields.beam_spectrum import footprint
 from vecdiff.fields.beams import _Beam
 from vecdiff.geometry.frames import Frame
+from vecdiff.media.absorption import TRANSPORT, require_transparent
 from vecdiff.propagation import _summary
 from vecdiff.propagation.coverage import CoverageEvaluator, validate_coverage
 from vecdiff.propagation.homogeneous import PlaneTransport
@@ -259,14 +260,14 @@ class Solution:
             spread = np.linalg.norm(
                 directions - np.outer(directions @ mean, mean), axis=-1
             )
-            n = self.spectra[index].region.material.n
+            n = abs(self.spectra[index].region.material.n)
             step = self.spectra[0].wavelength0 / n
             pad = max(pad, 25 * step, 4 * step / max(float(spread.max()), 1e-6))
         uv = np.concatenate(uv)
         lo, hi = uv.min(axis=0), uv.max(axis=0)
         width = float(np.max(hi - lo))
         pad = min(pad, max(0.25 * width, 25 * step))
-        index = max(self.spectra[k].region.material.n for k in reached)
+        index = max(abs(self.spectra[k].region.material.n) for k in reached)
         return (lo[0] - pad, hi[0] + pad, lo[1] - pad, hi[1] + pad), index
 
     @guarded
@@ -347,13 +348,28 @@ def identity(element):
 
 
 def sampled_spectrum(light, region):
-    """A sampled incident field as the PlaneSpectrum of its propagating waves."""
+    """A sampled incident field as the PlaneSpectrum of its propagating waves,
+    or, in an absorbing region where every wave decays, of all of them."""
     if region is None:
         raise ValueError(
             "a sampled incident field needs the medium it is in: give the "
             "system an element that names it, or medium="
         )
-    return angular_spectrum(light, region, evanescent="discard")
+    evanescent = "retain" if region.material.absorbing else "discard"
+    return angular_spectrum(light, region, evanescent=evanescent)
+
+
+def check_absorption(elements):
+    """Raise AbsorbingMediumError where a leg would carry light along rays
+    through an absorbing medium: every encounter but an identity and a
+    reflection from an absorbing medium behind."""
+    for index, element in enumerate(elements, 1):
+        if element.incident is None or identity(element):
+            continue
+        what = f"carrying light across element {index} ({type(element).__name__})"
+        require_transparent(element.incident, what, TRANSPORT)
+        if element.branch == "transmitted":
+            require_transparent(element.far, what, TRANSPORT)
 
 
 def lattice_key(grid, wavelength):
@@ -452,6 +468,7 @@ class Propagator:
         self, system=(), *, planes=None, fans=None, realization="auto", lattice=None
     ):
         self.system = optical_system(system)
+        check_absorption(self.system.elements)
         count = len(self.system.elements)
         self.planes = (
             (0.0,) * count if planes is None else tuple(float(x) for x in planes)
@@ -513,6 +530,7 @@ class Propagator:
             # No element names the medium: the light's own.
             system = OpticalSystem(*system.elements, medium=source.region)
             source = check_incident(source, system.region)
+            check_absorption(system.elements)
         family = carrier
         if family is None and isinstance(source, BeamSpectrum):
             family = source.carrier

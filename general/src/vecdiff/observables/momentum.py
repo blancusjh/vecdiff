@@ -25,6 +25,7 @@ quadrature enclosing the body and lying in the homogeneous medium.
 """
 
 from vecdiff._backend import bd, to_numpy
+from vecdiff.media.absorption import OBSERVABLE, require_transparent
 from vecdiff.media.medium import C0, MU0, Z0
 
 _PARTS = {"dual": (0.5, 0.5), "electric": (1.0, 0.0), "magnetic": (0.0, 1.0)}
@@ -58,6 +59,7 @@ def _magnetic_gradient(jet):
 
 def spin_density(field, material, *, part="dual"):
     """Spin angular momentum density S of an ElectromagneticField."""
+    require_transparent(material, "the spin density", OBSERVABLE)
     electric, magnetic = _part(part)
     e, h = field.electric.values, field.magnetic
     spin = electric * material.epsilon * bd.imag(bd.cross(e.conj(), e))
@@ -68,6 +70,7 @@ def spin_density(field, material, *, part="dual"):
 
 def helicity_density(field, material):
     """Helicity density h of an ElectromagneticField; sigma w / omega for a plane wave."""
+    require_transparent(material, "the helicity density", OBSERVABLE)
     e, h = field.electric.values, field.magnetic
     overlap = bd.imag(bd.sum(e.conj() * h, axis=-1))
 
@@ -76,6 +79,7 @@ def helicity_density(field, material):
 
 def canonical_momentum(jet, material, *, part="dual"):
     """Canonical (orbital) momentum density p_o from an ElectricFieldJet."""
+    require_transparent(material, "the canonical momentum", OBSERVABLE)
     electric, magnetic = _part(part)
     field = jet.field
     e, h = field.electric.values, field.magnetic
@@ -93,6 +97,7 @@ def canonical_momentum(jet, material, *, part="dual"):
 
 def spin_momentum(jet, material, *, part="dual"):
     """Spin (Belinfante) momentum density curl S / 2 from an ElectricFieldJet."""
+    require_transparent(material, "the spin momentum density", OBSERVABLE)
     electric, magnetic = _part(part)
     field = jet.field
     e, h = field.electric.values, field.magnetic
@@ -127,6 +132,7 @@ def orbital_angular_momentum(jet, material, origin=(0.0, 0.0, 0.0), *, part="dua
 
 def _traction(field, material):
     """T . n on the field's oriented surface quadrature, in N/m²."""
+    require_transparent(material, "the Maxwell stress (force, torque)", OBSERVABLE)
     if not hasattr(field.grid, "weights") or not hasattr(field.grid, "normals"):
         raise ValueError(
             "stress integrals require a closed oriented surface quadrature"

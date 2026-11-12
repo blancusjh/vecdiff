@@ -46,6 +46,14 @@ def propagate_spectrum(
             expansion.wavevectors[occupied], displacement[None, :]
         )[0]
     else:
+        from vecdiff.media.absorption import require_transparent
+
+        require_transparent(
+            expansion.region,
+            "the paraxial (Fresnel) model",
+            "its phase k - k_perp^2 / (2 k) is written for the propagating waves "
+            "of a real wavenumber; model='asm' is exact there",
+        )
         wavevectors = expansion.wavevectors[occupied]
 
         if bd.any(bd.abs(wavevectors.imag) > 0):

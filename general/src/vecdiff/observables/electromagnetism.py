@@ -45,6 +45,9 @@ def power(field: ElectromagneticField):
 
 def energy_density(field: ElectromagneticField, material):
     """Time-averaged J/m³ for the initial nondispersive, lossless material model."""
+    from vecdiff.media.absorption import OBSERVABLE, require_transparent
+
+    require_transparent(material, "the energy density", OBSERVABLE)
 
     return (
         material.epsilon * field.electric.norm2()
