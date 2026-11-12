@@ -370,7 +370,7 @@ def test_every_str_prints_without_arrays_or_addresses(zoo):
         ("mie", ["radius=1", "n 1.5 in 1", "x=6.28319", "order=30"]),
         ("layered", ["radii=(1, 0.5)", "n (1.5, 2) in 1"]),
         ("infinite_cylinder", ["axis=(0, 1, 0)", "x=6.28319"]),
-        ("system lens", ["Stop", "Refraction(SphericalCap)", "'air' -> 'air 2'"]),
+        ("system lens", ["Stop", "Refraction(SphericalCap)", "'air' -> 'air')"]),
         ("system empty", ["OpticalSystem(no elements; in 'air')"]),
     ],
 )
@@ -416,11 +416,12 @@ def test_the_lens_prints_one_row_per_element_with_its_prescription():
     assert len(rows) == 3
     stop, flat, curved = (row.split() for row in rows)
     assert stop[:3] == ["1", "Stop", "screen"] and "0.004" in stop
+    assert "plane" not in rows[0]  # a stop's screen has no curvature
     assert flat[1:4] == ["Refraction", "S1", "Plane"] and "0.003" in flat
     assert "air -> BK7-like" in rows[1] and "1 -> 1.5" in rows[1]
     assert "-0.025" in curved and "1.5 -> 1" in rows[2]
     assert all(len(line) <= 110 for line in text.splitlines())
-    assert "units of the light's wavelength0" in text
+    assert "unit of wavelength0" in text
     assert "[2] BK7-like" in text
 
 
@@ -443,6 +444,9 @@ def test_a_ghost_marks_the_surfaces_it_meets_again():
     assert [row["repeated"] for row in data] == [False, False, True, True]
     assert data[2]["first_met"] == 1
     assert "element 3 meets S1 again" in str(system)
+    assert "glass, behind air " in str(system)  # the material, not 'air 2'
+    assert "Regions of the segments: [0] air, [1] glass" in str(system)
+    assert "Regions of the segments" not in str(cassegrain())
     assert [row["thickness"] for row in data[:3]] == [100.0, -100.0, 100.0]
 
 
@@ -500,7 +504,7 @@ def test_the_html_table_holds_the_same_cells():
     assert header[:4] == ["#", "element", "surface", "type"]
     assert len(rows) == 4 and all(len(r) == len(header) for r in rows)
     assert [r[2] for r in rows] == ["S1", "S2", "S1*", "S2*"]
-    assert rows[1][header.index("medium")] == "glass, behind air 2"
+    assert rows[1][header.index("medium")] == "glass, behind air"
     assert html.count("<table>") == html.count("</table>") == 1
     assert "| S1* |" in system._repr_markdown_()
 

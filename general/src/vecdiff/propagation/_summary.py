@@ -11,6 +11,7 @@ from vecdiff._printing import (
     count,
     html_table,
     markdown_table,
+    material_name,
     number,
     on_plane,
     shorten,
@@ -59,15 +60,16 @@ def _element(element):
 
     label = kind(element)
     if label == "Stop":
-        return label, f"r {number(element.radius)}", element.incident.name
+        return label, f"r {number(element.radius)}", material_name(element.incident)
     surface = shape(element.surface)["type"]
+    here, there = material_name(element.incident), material_name(element.outgoing)
     if label == "Refraction":
-        regions = f"{element.incident.name} -> {element.outgoing.name}"
+        media = f"{here} -> {there}"
     elif label == "Reflection":
-        regions = f"{element.incident.name}, behind {element.far.name}"
+        media = f"{here}, behind {material_name(element.far)}"
     else:
-        regions = element.incident.name
-    return label, surface, regions
+        media = here
+    return label, surface, media
 
 
 def _leg(leg):
@@ -95,7 +97,7 @@ def table(solution):
     """Headers, alignments and rows of the reports."""
     from vecdiff.transport.report import TransportReport
 
-    headers = ["#", "element", "surface", "regions", "leg"]
+    headers = ["#", "element", "surface", "media", "leg"]
     headers += [name for name, _, _ in SHARES]
     headers += ["dark", "caustics", "residual", "orders"]
     aligns = "rllll" + "n" * len(SHARES) + "rrnl"
@@ -129,17 +131,23 @@ def notes(solution):
 
     last = solution.spectrum
     lines = [
-        f"Leaves as {type(last).__name__} in {last.region.name!r}, "
+        f"Leaves as {type(last).__name__} in {material_name(last.region)!r}, "
         f"{on_plane(last.plane)}, {_travel(last)}.",
         "Segments: "
         + ", ".join(
-            f"[{i}] {type(s).__name__} in {s.region.name!r}"
+            f"[{i}] {type(s).__name__} in {material_name(s.region)!r}"
             for i, s in enumerate(solution.spectra)
         ),
-        "Shares are relative amplitudes in percent; '!' marks one within a decade "
-        "of the 1 % at which a lattice leg refuses. residual: the Newton residual "
-        "of the inverted map; dark: output samples no ray reaches; caustics: the "
-        "caustic index of the carried rays.",
+    ]
+    regions = [s.region for s in solution.spectra]
+    if any(r.name != material_name(r) for r in regions):
+        lines.append(
+            "Regions of the segments: "
+            + ", ".join(f"[{i}] {r.name}" for i, r in enumerate(regions))
+        )
+    lines += [
+        "Shares: % of carried amplitude, '!' within a decade of the 1 % refusal; "
+        "residual: Newton residual of the map.",
     ]
     others = [r for r in solution.reports if not isinstance(r, TransportReport)]
     lines += [f"report: {r!r}" for r in others]
@@ -157,7 +165,7 @@ def text(solution):
     headers, aligns, rows = table(solution)
     parts = [heading(solution), text_table(headers, rows, aligns)]
     parts += [
-        textwrap.fill(line, 100, subsequent_indent="  ") for line in notes(solution)
+        textwrap.fill(line, 110, subsequent_indent="  ") for line in notes(solution)
     ]
     return "\n".join(parts)
 
@@ -179,6 +187,6 @@ def summary(solution):
     last = solution.spectrum
     return shorten(
         f"Solution({count(len(solution.elements), 'element')}, {len(solution.reports)} "
-        f"carried; leaves as {type(last).__name__} in {last.region.name!r}, "
+        f"carried; leaves as {type(last).__name__} in {material_name(last.region)!r}, "
         f"{on_plane(last.plane)})"
     )

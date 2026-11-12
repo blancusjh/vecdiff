@@ -320,6 +320,23 @@ def fan(window):
     return f"rolled off from {number(start)} to {number(end)} deg"
 
 
+# The name a Dielectric has when it is not given one.
+UNNAMED = "dielectric"
+
+
+def material_name(medium):
+    """The name of a medium's material: 'air' for the region 'air 2'.
+
+    A material left unnamed goes by the name of the region it fills.
+    """
+    if medium is None:
+        return None
+    material = getattr(medium, "material", medium)
+    if material.name == UNNAMED and material is not medium:
+        return medium.name
+    return material.name
+
+
 def region_text(region):
     """A region by name, with its material's name and index."""
     material = region.material

@@ -16,6 +16,7 @@ from vecdiff._backend import to_numpy
 from vecdiff._printing import (
     html_table,
     markdown_table,
+    material_name,
     number,
     shorten,
     text_table,
@@ -24,8 +25,8 @@ from vecdiff._printing import (
 
 # Transverse offsets and tilts below this, relative to the system's size, are roundoff.
 COAXIAL = 1e-12
-# Notes under the text table wrap at this width.
-WIDTH = 100
+# Notes under the text table wrap at this width, the widest coaxial table.
+WIDTH = 110
 
 
 def unwrapped(surface):
@@ -163,7 +164,7 @@ def rows(system):
         frame = frame_of(element)
         origin, normal = _vector(frame.origin), _vector(frame.normal)
         entry = (
-            dict(type="screen", radius=None, form="plane", conic=None)
+            dict(type="screen", radius=None, form=None, conic=None)
             | dict(coefficients=(), notes=[], reversed=False)
             if kind(element) == "Stop"
             else shape(element.surface)
@@ -185,9 +186,10 @@ def rows(system):
                 form=entry["form"],
                 conic=entry["conic"],
                 coefficients=tuple(sign * a for a in entry["coefficients"]),
-                before=_region(before),
-                after=_region(after),
-                behind=_region(behind),
+                before=material_name(before),
+                after=material_name(after),
+                behind=material_name(behind),
+                regions=(_region(before), _region(after), _region(behind)),
                 n_before=_index(before),
                 n_after=_index(after),
                 n_behind=_index(behind),
@@ -288,7 +290,9 @@ def _surface_cell(row):
 
 
 def _radius_cell(row):
-    return row["form"] if row["radius"] is None else number(row["radius"])
+    if row["radius"] is None:
+        return row["form"] or ""
+    return number(row["radius"])
 
 
 def _conic_cell(row):
@@ -335,26 +339,25 @@ def heading(system):
 def _describe(region):
     if region is None:
         return "no medium"
-    return f"{region.name} (n {number(region.material.n)})"
+    return f"{material_name(region)} (n {number(region.material.n)})"
 
 
 def notes(system, table):
     """What the table's rows cannot hold, one line each."""
     lines = []
     if table:
-        coaxial = is_coaxial(system)
-        sign = (
-            "R > 0: centre of curvature on the +z side of the vertex; thickness: "
-            "signed axial distance to the next vertex"
-            if coaxial
-            else "R signed along each surface's own normal; to next: distance "
-            "between consecutive vertices"
-        )
         lines.append(
-            f"Lengths in the units of the light's wavelength0. {sign}. "
-            "aperture r: a stop's hole or a face's edge."
+            "R > 0: centre of curvature toward +z; thickness: axial distance to "
+            "the next vertex; unit of wavelength0."
+            if is_coaxial(system)
+            else "R signed along each surface normal; to next: distance between "
+            "vertices; unit of wavelength0."
         )
-    lines.append("Regions of the segments: " + _segments(system))
+    if any(
+        region is not None and region.name != material_name(region)
+        for region in system.regions
+    ):
+        lines.append("Regions of the segments: " + _segments(system))
     kinds = {row["element"] for row in table}
     if "Mirror" in kinds:
         lines.append("Mirror: an ideal mirror, on which tangential E vanishes.")
@@ -436,7 +439,7 @@ def summary(system):
     """One line: the elements' kinds and surfaces, the media at both ends."""
     if not system.elements:
         region = system.regions[0]
-        where = "" if region is None else f"; in {region.name!r}"
+        where = "" if region is None else f"; in {material_name(region)!r}"
         return f"OpticalSystem(no elements{where})"
     names = []
     for row in rows(system):
@@ -445,7 +448,7 @@ def summary(system):
         else:
             names.append(f"{row['element']}({row['type']})")
     ends = " -> ".join(
-        "none" if r is None else repr(r.name)
+        "none" if r is None else repr(material_name(r))
         for r in (system.regions[0], system.regions[-1])
     )
     return shorten(f"OpticalSystem({', '.join(names)}; {ends})")
@@ -455,14 +458,17 @@ def encounter(element):
     """An element in a few words: 'Refraction at SphericalCap, air -> glass'."""
     label = kind(element)
     if label == "Stop":
-        where = "" if element.medium is None else f", in {element.medium.name}"
+        where = (
+            "" if element.medium is None else f", in {material_name(element.medium)}"
+        )
         return f"Stop of radius {number(element.radius)}{where}"
     surface = shape(element.surface)["type"]
     before, after, behind = _media(element)
+    before, after, behind = map(material_name, (before, after, behind))
     if label == "Refraction":
-        media = f"{before.name} -> {after.name}"
+        media = f"{before} -> {after}"
     elif label == "Reflection":
-        media = f"in {before.name}, behind {behind.name}"
+        media = f"in {before}, behind {behind}"
     else:
-        media = f"in {before.name}"
+        media = f"in {before}"
     return f"{label} at {surface}, {media}"
