@@ -21,7 +21,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from vecdiff._arrays import frozen_array
-from vecdiff._backend import bd
+from vecdiff._backend import bd, to_numpy
+from vecdiff._printing import block, grid_summary, guarded, shape
 from vecdiff.fields import ElectricField, ElectromagneticField, PlaneSpectrum
 from vecdiff.sampling import CartesianGrid, PointGrid
 from vecdiff.surfaces.surface import ImplicitSurface
@@ -35,7 +36,7 @@ def validate_coverage(mode):
     return mode
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class CoverageReport:
     """The target's points: computed, their segments, and those in a surface's band.
 
@@ -62,6 +63,29 @@ class CoverageReport:
             object.__setattr__(
                 self, "segments", frozen_array(self.segments, dtype=bool)
             )
+
+    @guarded
+    def __repr__(self):
+        """Its mode, shape and target grid in a few words; no mask is read."""
+        grid = "" if self.grid is None else f", on {grid_summary(self.grid)}"
+        return f"CoverageReport(mode={self.mode!r}, {shape(self.computed.shape)}{grid})"
+
+    @guarded
+    def __str__(self):
+        """How many points are computed, reached by each segment and extended."""
+        computed = to_numpy(self.computed)
+        lines = [
+            ("grid", None if self.grid is None else repr(self.grid)),
+            ("computed", f"{int(computed.sum())} of {computed.size} points"),
+            ("extended", f"{int(to_numpy(self.extended).sum())} points in a band"),
+        ]
+        if self.segments is not None:
+            reach = to_numpy(self.segments).reshape(len(self.segments), -1).sum(-1)
+            lines.append(
+                ("segments", ", ".join(f"[{i}] {int(n)}" for i, n in enumerate(reach)))
+            )
+        lines.append(("representation", self.representation))
+        return block(f"CoverageReport ({self.mode} coverage)", lines)
 
 
 def signed_side(surface, points):

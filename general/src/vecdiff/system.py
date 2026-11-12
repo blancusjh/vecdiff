@@ -26,7 +26,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from vecdiff import _prescription
 from vecdiff._backend import bd
+from vecdiff._printing import call, guarded, is_z_plane, number, on_plane, vector
 from vecdiff.geometry.frames import Frame
 from vecdiff.media.medium import Dielectric, HomogeneousRegion
 
@@ -50,6 +52,16 @@ class PlanarInterface:
             raise ValueError(
                 "name the two spatial regions distinctly, even for equal materials"
             )
+
+    @guarded
+    def __repr__(self):
+        """Its plane and the regions on its minus and plus sides."""
+        return call(
+            "PlanarInterface",
+            on_plane(self.frame),
+            minus=named(self.minus),
+            plus=named(self.plus),
+        )
 
 
 def region_of(medium):
@@ -117,6 +129,12 @@ class Refraction:
         check_medium(self.after, "after")
         object.__setattr__(self, "edge", check_edge(self.edge))
 
+    @guarded
+    def __repr__(self):
+        """Its surface, the media it joins and its edge."""
+        media = f"{named(self.before)} -> {named(self.after)}"
+        return call("Refraction", repr(self.surface), media, edge=_edge(self.edge))
+
     @property
     def incident(self):
         """The region the light arrives through."""
@@ -163,6 +181,15 @@ class Reflection:
     @property
     def branch(self):
         return "mirror" if self.behind is None else "reflected"
+
+    @guarded
+    def __repr__(self):
+        """Its surface, the medium of the light and the one behind (or a mirror)."""
+        if self.behind is None:
+            media = f"mirror in {named(self.medium)}"
+        else:
+            media = f"in {named(self.medium)}, behind {named(self.behind)}"
+        return call("Reflection", repr(self.surface), media, edge=_edge(self.edge))
 
     @property
     def incident(self):
@@ -213,6 +240,18 @@ class Stop:
         object.__setattr__(self, "radius", float(radius))
         object.__setattr__(self, "frame", frame)
         object.__setattr__(self, "medium", medium)
+
+    @guarded
+    def __repr__(self):
+        """The radius of its hole, where its screen lies and the medium there."""
+        frame = self.frame
+        where = (
+            dict(z=number(frame.origin[2]))
+            if is_z_plane(frame)
+            else dict(origin=vector(frame.origin), normal=vector(frame.normal))
+        )
+        medium = None if self.medium is None else named(self.medium)
+        return call("Stop", radius=number(self.radius), **where, medium=medium)
 
     @property
     def surface(self):
@@ -291,6 +330,17 @@ def agrees(region, medium):
     return region.material == medium
 
 
+def named(medium):
+    """A medium or region by name and index: 'glass' (n=1.5)."""
+    if medium is None:
+        return "nothing"
+    return f"{medium.name!r} (n={number(material_of(medium).n)})"
+
+
+def _edge(edge):
+    return None if edge is None else number(edge)
+
+
 def describe(medium):
     if medium is None:
         return "nothing (an ideal mirror)"
@@ -347,6 +397,42 @@ class OpticalSystem:
     def region(self):
         """The region the light arrives in."""
         return self.regions[0]
+
+    def table(self):
+        """The prescription as plain data: one dict per element, in path order.
+
+        Each holds ``index``, ``element`` (Refraction, Reflection, Mirror or
+        Stop), ``surface`` (S1, S2, ... ; None for a stop), ``repeated`` and
+        ``first_met`` (a surface met before, and by which element), ``type``,
+        ``vertex`` and ``normal`` (global), ``tilt`` (degrees from +z),
+        ``radius`` (None where the surface has none; ``form`` then says what
+        it is: plane, freeform, sag(r)), ``conic``, ``coefficients`` (A4,
+        A6, ...), ``before``/``after``/``behind`` (region names) with their
+        indices ``n_before``/``n_after``/``n_behind``, ``aperture`` (a
+        stop's hole or a face's edge) and ``thickness`` (to the next vertex).
+        In a coaxial system radii and coefficients are signed along +z and
+        thickness is axial; otherwise radii are signed along each surface's
+        normal and thickness is the distance between vertices.
+        """
+        return _prescription.rows(self)
+
+    @guarded
+    def __repr__(self):
+        """One line: the elements' kinds and surfaces, the media at both ends."""
+        return _prescription.summary(self)
+
+    @guarded
+    def __str__(self):
+        """The prescription table, the regions of the segments and notes."""
+        return _prescription.text(self)
+
+    @guarded
+    def _repr_html_(self):
+        return _prescription.html(self)
+
+    @guarded
+    def _repr_markdown_(self):
+        return _prescription.markdown(self)
 
 
 def resolve(elements, medium):

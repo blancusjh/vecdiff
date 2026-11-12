@@ -5,6 +5,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from vecdiff._backend import bd
+from vecdiff._printing import (
+    block,
+    described,
+    guarded,
+    name_of,
+    placement,
+    vector,
+)
 from vecdiff.geometry.frames import Frame
 
 
@@ -12,6 +20,29 @@ class GraphSurface(ABC):
     """Local height z=h(x,y), embedded by a right-handed physical frame."""
 
     frame: Frame
+    _origin = "vertex"
+
+    def _parameters(self):
+        """(name, value) pairs of the numbers that define the shape, as printed."""
+        return []
+
+    def _details(self):
+        """The shape's parameters in full, for the multi-line print."""
+        return self._parameters()
+
+    @guarded
+    def __repr__(self):
+        """Its kind, its defining parameters and where it is placed."""
+        pairs = self._parameters() + placement(self.frame, self._origin)
+        return described(type(self).__name__, pairs)
+
+    @guarded
+    def __str__(self):
+        """Its parameters and frame axes, one per line."""
+        frame = self.frame
+        axes = [(self._origin, vector(frame.origin))]
+        axes += [(name, vector(getattr(frame, name))) for name in ("u", "v", "normal")]
+        return block(type(self).__name__, self._details() + axes)
 
     @abstractmethod
     def height(self, xy):
@@ -119,7 +150,7 @@ class ImplicitSurface(ABC):
 _TURN = (1.0, -1.0, -1.0)  # local (x, y, z) of a frame -> of its reverse
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class ReversedSurface(GraphSurface):
     """A graph surface seen from its other side (GraphSurface.reversed).
 
@@ -146,6 +177,14 @@ class ReversedSurface(GraphSurface):
     def reversed(self):
         return self.base
 
+    def _parameters(self):
+        return [("base", repr(self.base))]
+
+    @guarded
+    def __repr__(self):
+        """The surface it reverses."""
+        return described(type(self).__name__, self._parameters())
+
     @staticmethod
     def _mirror(xy):
         xy = bd.asarray(xy, dtype=float)
@@ -165,7 +204,7 @@ class ReversedSurface(GraphSurface):
         return self.base.hessian(self._mirror(xy)) * signs
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class ReversedClosedSurface(ReversedSurface, ImplicitSurface):
     """A closed surface seen from its other side: F'(x, y, z) = -F(x, -y, -z).
 
@@ -186,9 +225,10 @@ class ReversedClosedSurface(ReversedSurface, ImplicitSurface):
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Plane(GraphSurface):
     frame: Frame = field(default_factory=Frame)
+    _origin = "origin"
 
     def height(self, xy):
         return bd.zeros(bd.asarray(xy).shape[:-1])
@@ -218,7 +258,7 @@ class Plane(GraphSurface):
         return cls(Frame([value, 0, 0], [[0, 0, 1], [1, 0, 0], [0, 1, 0]]))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class FreeformSurface(GraphSurface):
     """z = height_function(xy); gradient and optional Hessian functions alongside."""
 
@@ -226,6 +266,10 @@ class FreeformSurface(GraphSurface):
     gradient_function: Callable
     frame: Frame = field(default_factory=Frame)
     hessian_function: Callable | None = None
+
+    def _parameters(self):
+        hessian = None if self.hessian_function is None else "given"
+        return [("height", name_of(self.height_function)), ("hessian", hessian)]
 
     def height(self, xy):
         return bd.broadcast_to(

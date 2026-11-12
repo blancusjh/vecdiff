@@ -6,6 +6,7 @@ import numpy as np
 
 from vecdiff._arrays import frozen_array
 from vecdiff._backend import bd
+from vecdiff._printing import block, described, guarded, placement, vector
 
 
 @dataclass(frozen=True, eq=False)
@@ -34,6 +35,18 @@ class Frame:
 
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "basis", basis)
+
+    @guarded
+    def __repr__(self):
+        """Its origin and normal, and its u axis where that is not the global x."""
+        return described("Frame", placement(self, "origin", normal=True))
+
+    @guarded
+    def __str__(self):
+        """Its origin and its three axes, one per line."""
+        axes = [("origin", vector(self.origin))]
+        axes += [(name, vector(getattr(self, name))) for name in ("u", "v", "normal")]
+        return block("Frame", axes)
 
     @property
     def u(self):

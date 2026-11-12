@@ -43,6 +43,15 @@ centre. For one layer the terms are those of MieSphere.
 import numpy as np
 
 from vecdiff._backend import cpu_reference
+from vecdiff._printing import (
+    block,
+    guarded,
+    number,
+    region_text,
+    sequence,
+    shorten,
+    vector,
+)
 from vecdiff.fields import ElectricField, ElectromagneticField
 from vecdiff.media.medium import Z0, HomogeneousRegion
 from vecdiff.references import _bessel
@@ -105,6 +114,42 @@ class LayeredSphere(_SphericalExpansion):
     Increase order to verify convergence; the automatic order is a starting
     estimate, not an accuracy certificate.
     """
+
+    @guarded
+    def __repr__(self):
+        """Its radii and indices, outermost first, size parameter, order, incident."""
+        indices = sequence([r.material.n for r in self.interiors])
+        return shorten(
+            f"LayeredSphere(radii={sequence(self.radii)}, n {indices} in "
+            f"{number(self.exterior.material.n)}, x={number(self._size())}, "
+            f"order={self.order}, incident={self.incident!r})"
+        )
+
+    def _size(self):
+        return self.k0 * self.exterior.material.n * self.radii[0]
+
+    @guarded
+    def __str__(self):
+        """Each layer's radius and region, the size parameter, order and incident."""
+        layers = [
+            (f"layer {i}", f"r <= {number(r)}: {region_text(region)}")
+            for i, (r, region) in enumerate(zip(self.radii, self.interiors), 1)
+        ]
+        return block(
+            "LayeredSphere: exact concentric-layer reference",
+            [
+                ("center", vector(self.volume.center)),
+                ("exterior", region_text(self.exterior)),
+                *layers,
+                (
+                    "size parameter",
+                    f"x = k0 n_exterior radius = {number(self._size())}",
+                ),
+                ("order", f"{self.order} multipoles"),
+                ("wavelength0", number(self.wavelength0)),
+                ("incident", repr(self.incident)),
+            ],
+        )
 
     def __init__(self, incident, volumes, interiors, *, order=None):
         volumes, interiors = tuple(volumes), tuple(interiors)

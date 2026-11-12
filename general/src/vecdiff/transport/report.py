@@ -2,8 +2,10 @@
 
 from dataclasses import dataclass
 
+from vecdiff._printing import guarded, number
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, repr=False)
 class TransportReport:
     """What the eikonal leg could not carry, and how well its map was inverted.
 
@@ -28,6 +30,19 @@ class TransportReport:
     folded_relative_amplitude: float = 0.0
     undersampled_relative_amplitude: float = 0.0
     band_removed_relative_amplitude: float = 0.0
+
+    @guarded
+    def __repr__(self):
+        """Its shares and counts, compactly, in one line."""
+        orders = f", orders={self.azimuthal_orders}" if self.azimuthal_orders else ""
+        return (
+            f"TransportReport(unsupported={number(self.unsupported_relative_amplitude, 3)}, "
+            f"folded={number(self.folded_relative_amplitude, 3)}, "
+            f"undersampled={number(self.undersampled_relative_amplitude, 3)}, "
+            f"band_removed={number(self.band_removed_relative_amplitude, 3)}, "
+            f"dark={self.dark_samples}, caustics={self.caustics}, "
+            f"residual={number(self.newton_residual, 3)}{orders})"
+        )
 
     def __str__(self):
         """What was not carried, in one line: relative amplitudes and counts."""

@@ -198,6 +198,17 @@ class LatticeSpectrum(Spectrum):
     def wavenumber(self):
         return 2 * np.pi * self.region.material.n / self.wavelength0
 
+    def _size(self):
+        ny, nx = self.grid.shape
+        return f"{ny} x {nx} lattice modes"
+
+    def _details(self):
+        return [
+            ("roundoff removed", f"rms {self.roundoff_removed_rms:.1e}"),
+            ("evanescent removed", f"rms {self.evanescent_removed_rms:.1e}"),
+            ("band removed", f"rms {self.band_removed_rms:.1e}"),
+        ]
+
     def relabeled(self, region):
         return LatticeSpectrum(
             self.grid,

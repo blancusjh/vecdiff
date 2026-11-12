@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from vecdiff._arrays import positive
+from vecdiff._printing import guarded, number
 
 # SI constants. mu0 uses the conventional value to the precision needed here.
 C0 = 299792458.0
@@ -23,6 +24,11 @@ class Dielectric:
     def epsilon(self):
         return EPSILON0 * self.n**2
 
+    @guarded
+    def __repr__(self):
+        """Its name and refractive index: Dielectric('BK7-like', n=1.5)."""
+        return f"Dielectric({self.name!r}, n={number(self.n)})"
+
 
 @dataclass(frozen=True)
 class HomogeneousRegion:
@@ -39,6 +45,11 @@ class HomogeneousRegion:
     def __post_init__(self):
         if not isinstance(self.material, Dielectric):
             raise TypeError("region material must be a Dielectric")
+
+    @guarded
+    def __repr__(self):
+        """Its name and the material filling it."""
+        return f"HomogeneousRegion({self.name!r}, {self.material!r})"
 
 
 # The common media; air is taken as index 1, as vacuum.

@@ -6,6 +6,7 @@ import numpy as np
 
 from vecdiff._arrays import positive
 from vecdiff._backend import bd, to_numpy
+from vecdiff._printing import number
 from vecdiff.geometry.frames import Frame
 from vecdiff.surfaces.surface import GraphSurface, ImplicitSurface
 
@@ -313,7 +314,7 @@ class OvalDesign:
         return bd.asarray(heights[inverse].reshape(radius.shape))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class CartesianOval(GraphSurface):
     """Placed Cartesian oval; refractive indices are immutable shape-design inputs."""
 
@@ -326,6 +327,17 @@ class CartesianOval(GraphSurface):
     def __post_init__(self):
         # Validate the design at construction, before sampling the surface.
         self.design
+
+    def _parameters(self):
+        return [
+            (name, number(getattr(self, name)))
+            for name in ("object_z", "image_z", "n_object", "n_image")
+        ]
+
+    def _details(self):
+        c = self.design.vertex_curvature
+        radius = number(1 / c) if c else "plane (inf)"
+        return self._parameters() + [("vertex radius", radius)]
 
     @classmethod
     def from_conjugates(cls, no, z0, ni, zi, *, frame=None):
@@ -458,7 +470,7 @@ class CartesianOval(GraphSurface):
         return -hessian / axial[..., None, None]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class CartesianOvoid(CartesianOval, ImplicitSurface):
     """The closed Cartesian ovoid whose vertex branch is the CartesianOval.
 

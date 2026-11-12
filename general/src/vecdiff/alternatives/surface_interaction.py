@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from vecdiff._backend import bd, divide, to_numpy
+from vecdiff._printing import call, guarded, number, shorten
 from vecdiff.alternatives._directions import (
     direction_from_wavevector,
     reflected_direction,
@@ -33,13 +34,25 @@ from vecdiff.sampling.grids import Grid
 from vecdiff.system import PlanarInterface
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class InterfaceSolution:
     interface: PlanarInterface
     incident: PlaneWaveExpansion
     reflected: PlaneWaveExpansion
     transmitted: PlaneWaveExpansion
     incident_side: str
+
+    @guarded
+    def __repr__(self):
+        """Its interface, the side lit and the number of modes of each wave."""
+        counts = ", ".join(
+            f"{name} {len(getattr(self, name).wavevectors)}"
+            for name in ("incident", "reflected", "transmitted")
+        )
+        return shorten(
+            f"InterfaceSolution({self.interface!r}, lit from {self.incident_side}, "
+            f"modes: {counts})"
+        )
 
     def evaluate(self, grid: Grid, *, side):
         """Total E/H in one half-space. The side is required for boundary traces."""
@@ -182,6 +195,19 @@ class SpectralFresnel:
     same; this does not replace vector transport with a scalar Helmholtz solver.
     """
 
+    @guarded
+    def __repr__(self):
+        """Its coefficients, angular nodes and limits, and cutoff."""
+        return call(
+            "SpectralFresnel",
+            coefficients=repr(self.coefficients),
+            nodes=self.nodes,
+            outer_nodes=self.outer_nodes,
+            central_width=number(self.central_width),
+            angular_limit=number(self.angular_limit),
+            cutoff=number(self.cutoff),
+        )
+
     def __init__(
         self,
         *,
@@ -209,6 +235,7 @@ class SpectralFresnel:
             raise ValueError("modal cutoff must lie in [0, 1)")
         self.nodes, self.outer_nodes = nodes, outer_nodes
         self.coefficients = coefficients
+
         self.central_width, self.angular_limit, self.cutoff = (
             central_width,
             angular_limit,
@@ -409,6 +436,18 @@ class LocalFresnel:
         if not 0 <= modal_cutoff < 1 or not 0 < angular_limit < 1:
             raise ValueError("invalid local incident angular band or modal cutoff")
         self.modal_cutoff, self.angular_limit = modal_cutoff, angular_limit
+
+    @guarded
+    def __repr__(self):
+        """Its coefficients, validity tolerance, cutoffs and angular limit."""
+        return call(
+            "LocalFresnel",
+            coefficients=repr(self.coefficients),
+            validity_tolerance=number(self.validity_tolerance),
+            cutoff=number(self.cutoff),
+            modal_cutoff=number(self.modal_cutoff),
+            angular_limit=number(self.angular_limit),
+        )
 
     def transmit(self, spectrum, interface, transport):
         if (

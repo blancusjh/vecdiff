@@ -50,7 +50,7 @@ class _ArrayModule:
         return getattr(_state["module"], name)
 
     def __repr__(self):
-        return f"<array module {_state['module'].__name__}>"
+        return f"bd(array module {_state['module'].__name__}, {_state['name']} backend)"
 
     def asarray(self, value, dtype=None):
         if _state["name"] == "CPU":

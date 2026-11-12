@@ -7,7 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from vecdiff._arrays import frozen_array, positive
-from vecdiff._backend import bd, is_device_array
+from vecdiff._backend import bd, is_device_array, to_numpy
+from vecdiff._printing import block, grid_summary, guarded, number
 from vecdiff.sampling.grids import CartesianGrid, Grid, PolarGrid
 
 
@@ -89,6 +90,23 @@ class ElectricField:
         """
         return bd.sum(bd.abs(self.values) ** 2, axis=-1)
 
+    @guarded
+    def __repr__(self):
+        """Its grid in a few words and its wavelength; no sample is read."""
+        return (
+            f"ElectricField(on {grid_summary(self.grid)}, "
+            f"wavelength0={number(self.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its grid, wavelength, computed samples and peak |E|."""
+        return block(
+            "ElectricField (V/m, exp(-i omega t))",
+            [("grid", repr(self.grid)), ("wavelength0", number(self.wavelength0))]
+            + _samples(self.values, self.valid, "E", "V/m"),
+        )
+
 
 @dataclass(frozen=True, eq=False)
 class TransverseElectricField:
@@ -117,6 +135,40 @@ class TransverseElectricField:
         object.__setattr__(
             self, "wavelength0", positive(self.wavelength0, "vacuum wavelength")
         )
+
+    @guarded
+    def __repr__(self):
+        return (
+            f"TransverseElectricField((E_u, E_v) on {grid_summary(self.grid)}, "
+            f"wavelength0={number(self.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its grid, wavelength and the peak of its two components."""
+        return block(
+            "TransverseElectricField: E along the plane's u and v axes (V/m)",
+            [("grid", repr(self.grid)), ("wavelength0", number(self.wavelength0))]
+            + _samples(self.values, None, "(E_u, E_v)", "V/m"),
+        )
+
+
+def _samples(values, valid, name, unit):
+    """How many samples are computed and the peak magnitude among them."""
+    magnitude = to_numpy(bd.sqrt(bd.sum(bd.abs(values) ** 2, axis=-1)))
+    computed = magnitude == magnitude if valid is None else to_numpy(valid)
+    count, total = int(computed.sum()), computed.size
+    lines = [("computed", f"{count} of {total} samples")]
+    if count:
+        peak = np.where(computed, magnitude, -np.inf)
+        index = np.unravel_index(int(np.argmax(peak)), peak.shape)
+        lines.append(
+            (
+                f"peak |{name}|",
+                f"{number(peak[index])} {unit} at sample {tuple(int(i) for i in index)}",
+            )
+        )
+    return lines
 
 
 @dataclass(frozen=True, eq=False)
@@ -171,6 +223,34 @@ class ElectromagneticField:
     def valid(self):
         """The computed samples."""
         return self.electric.valid
+
+    def _deferred(self):
+        """Whether H is still to be formed, on its first read."""
+        return "_form_magnetic" in self.__dict__
+
+    @guarded
+    def __repr__(self):
+        """Its grid in a few words and its wavelength; H is never formed to print."""
+        h = "H formed on first read" if self._deferred() else "H"
+        return (
+            f"ElectromagneticField(E and {h} on {grid_summary(self.grid)}, "
+            f"wavelength0={number(self.electric.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its grid, wavelength, computed samples, peak |E| and peak |H|."""
+        electric = self.electric
+        lines = [
+            ("grid", repr(electric.grid)),
+            ("wavelength0", number(electric.wavelength0)),
+        ]
+        lines += _samples(electric.values, electric.valid, "E", "V/m")
+        if self._deferred():
+            lines.append(("H", "not formed yet (formed when first read)"))
+        else:
+            lines += _samples(self.magnetic, electric.valid, "H", "A/m")[1:]
+        return block("ElectromagneticField (E in V/m, H in A/m)", lines)
 
     def poynting(self):
         """Time-averaged energy-flow density in W/m²."""

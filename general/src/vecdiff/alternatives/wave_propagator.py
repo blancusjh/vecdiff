@@ -1,6 +1,7 @@
 """Wave transport through an optical system: another method, kept for checks."""
 
 from vecdiff._backend import bd
+from vecdiff._printing import guarded, number, shorten
 from vecdiff.alternatives.surface_interaction import LocalFresnel, SpectralFresnel
 from vecdiff.alternatives.surface_transfer import SurfaceTransport
 from vecdiff.fields import ElectricField, PlaneSpectrum, TransverseElectricField
@@ -77,6 +78,19 @@ class WavePropagator:
             raise ValueError("max_sine and transport_tolerance must lie in (0, 1)")
         self.max_sine, self.transport_tolerance = max_sine, transport_tolerance
         self._key, self._legs = None, ()
+
+    @guarded
+    def __repr__(self):
+        """Its system in one line, its Fresnel treatment and band."""
+        return shorten(
+            f"WavePropagator({self.system!r}, transmission={self.transmission!r}, "
+            f"max_sine={number(self.max_sine)}, "
+            f"transport_tolerance={number(self.transport_tolerance)})"
+        )
+
+    @guarded
+    def __str__(self):
+        return f"{self.system}\n{self!r}"
 
     def __call__(self, light):
         """The Solution for ``light``, a sampled field or a PlaneSpectrum."""

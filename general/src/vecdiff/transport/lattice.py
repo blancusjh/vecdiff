@@ -14,6 +14,17 @@ from dataclasses import replace
 import numpy as np
 
 from vecdiff._backend import bd, to_numpy
+from vecdiff._prescription import encounter
+from vecdiff._printing import (
+    block,
+    fan,
+    guarded,
+    number,
+    sequence,
+    shape,
+    shorten,
+    travel,
+)
 from vecdiff.fields import TransverseElectricField
 from vecdiff.fields.angular_spectrum import angular_spectrum
 from vecdiff.fields.lattice_spectrum import (
@@ -253,6 +264,35 @@ class LatticeTransport:
         self.band = band
         top = None if band is None else band[1]
         self.boundary = 0.0 if top is None else max(0.0, top - self.map.offset)
+
+    @guarded
+    def __repr__(self):
+        """Its encounter, the input and output lattices and the wavelength."""
+        return shorten(
+            f"LatticeTransport({encounter(self.encounter)}, "
+            f"{shape(self.plane.shape)} -> {shape(self.output_plane.shape)} lattice, "
+            f"wavelength0={number(self.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """What it carries across, on which lattices, with which fan and aperture."""
+        lines = [
+            ("encounter", encounter(self.encounter)),
+            ("branch", self.branch),
+            (
+                "outgoing",
+                f"{self.outgoing.name!r}, travelling {travel(self.direction)}",
+            ),
+            ("input lattice", repr(self.plane)),
+            ("output lattice", repr(self.output_plane)),
+            ("wavelength0", number(self.wavelength0)),
+            ("fan", fan(self.window)),
+            ("aperture", "none" if self.aperture is None else number(self.aperture)),
+            ("Newton residual", number(self.residual, 3)),
+            ("surface band", None if self.band is None else sequence(self.band)),
+        ]
+        return block("LatticeTransport: an eikonal leg on a lattice", lines)
 
     @property
     def rays(self):
