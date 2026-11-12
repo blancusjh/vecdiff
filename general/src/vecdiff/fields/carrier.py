@@ -1,6 +1,6 @@
 """Reference ray families: the declared carrier of a high-frequency field.
 
-A carrier is a geometric path function psi(r) in metres with |grad psi| = 1.
+A carrier is a geometric path function psi(r), a length, with |grad psi| = 1.
 Its gradient is the unit ray direction s(r) and its Hessian is the direction
 Jacobian ds_i/dr_j. In a homogeneous region of index n the reference eikonal
 (optical path) is n psi, so one carrier serves every region it crosses. It is

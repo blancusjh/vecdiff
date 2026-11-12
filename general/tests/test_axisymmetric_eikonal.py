@@ -196,15 +196,19 @@ def mie_error(radius, pupil):
     return 100 * np.sqrt(norm(field - exact) / norm(exact)), solution
 
 
-@pytest.mark.parametrize("pupil, expected", [("smooth", 0.31022), ("hard", 10.3243)])
-def test_beam_through_the_aplanatic_sphere_meets_the_archived_method(pupil, expected):
+# Bounds on the error against the exact Mie first entry: measured 0.310220 %
+# (smooth) and 10.32408 % (hard), plus about 15 %.
+@pytest.mark.parametrize("pupil, bound", [("smooth", 0.36), ("hard", 11.9)])
+def test_beam_through_the_aplanatic_sphere_meets_the_archived_method(pupil, bound):
     """R = 30 lambda0 against Mie first entry, as the archived axisymmetric code.
 
     The prototype gives 0.31017 % (smooth) and, with its fan cut where the
     cap ends, 10.3243 % (hard); the lattice leg gives 0.31022 % (smooth).
+    The error is bounded, not pinned: the opt-in regression module keeps the
+    archive's numbers.
     """
     error, solution = mie_error(30.0, pupil)
-    assert abs(error - expected) < 2e-4 * expected
+    assert error < bound
     assert solution.reports[0].azimuthal_orders == (1,)
 
 

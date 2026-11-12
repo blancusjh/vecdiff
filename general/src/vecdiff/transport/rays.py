@@ -121,7 +121,7 @@ class RayMap:
     A ray is labelled by its point on the first reference plane of its
     family; for a carrier that is the point P on this map's own input plane.
     ``start`` is P (where the incident field is read), ``output`` Phi(P),
-    ``path`` Delta S in metres, ``flux`` the factor g, complex: its phase is
+    ``path`` Delta S (a length), ``flux`` the factor g, complex: its phase is
     exp(-i pi caustics / 2). ``caustics`` is the signed count kappa of
     transverse directions in which the ray tube collapsed between the planes:
     crossings on a real segment add, crossings on a virtual one (a segment
@@ -181,7 +181,7 @@ class InterfaceMap:
     """Phi, Delta S and g for one surface, carrier and pair of indices.
 
     ``offset`` places the reference plane along the surface normal from the
-    vertex, in metres (0 is the vertex plane; positive lies in the direction
+    vertex (0 is the vertex plane; positive lies in the direction
     of propagation). ``carrier`` is a fields.Carrier, whose rays are labelled
     by their surface-local points on this plane (..., 2), or a RefractedRays
     family from the previous surface, labelled on its first plane.
@@ -509,7 +509,7 @@ class InterfaceMap:
         return _SeedTable(to_numpy(table.output)[keep], to_numpy(samples)[keep])
 
     def invert(self, targets, table, limit):
-        """inverse() of ``targets`` from a seed table, converged to ``limit`` in metres.
+        """inverse() of ``targets`` from a seed table, converged to ``limit`` (a length).
 
         Each target is inverted on its own, so blocks of targets give the
         preimages of the whole lattice.

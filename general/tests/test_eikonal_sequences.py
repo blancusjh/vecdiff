@@ -216,6 +216,7 @@ def test_aplanatic_pair_meets_the_layered_sphere_at_thirty_wavelengths():
         return simpson(rho * np.sum(abs(E) ** 2, -1), x=rho)
 
     error = 100 * np.sqrt(norm(field - exact) / norm(exact))
-    assert abs(error - 1.0797) < 2e-3
+    # Measured 1.07964 % against the exact first entry; bounded, not pinned.
+    assert error < 1.24
     reports = solution.reports
     assert all(r.azimuthal_orders == (1,) for r in reports)

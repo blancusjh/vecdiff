@@ -320,7 +320,7 @@ class PlaneBeam(_Beam):
             support = positive(support, "profile support")
         elif not self.is_plane_wave:
             raise ValueError(
-                "this profile declares no support; pass support= (metres), "
+                "this profile declares no support; pass support= (a radius), "
                 "or use an unbounded Uniform profile with Cartesian polarization"
             )
 

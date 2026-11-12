@@ -315,8 +315,9 @@ def describe(index, element):
 
 def diffracted(last, element, wavelength0):
     """How far beyond a stop's edge the next leg carries labels: the width
-    the edge's diffraction spreads to on its plane, 16 wavelengths and four
-    Fresnel widths sqrt(lambda d / n) over the distance d between the planes."""
+    the edge's diffraction spreads to on its plane, 6 wavelengths in the
+    medium and three Fresnel widths sqrt(lambda d / n) over the distance d
+    between the planes."""
     if not isinstance(last.encounter, Stop):
         return 0.0
     frame = element.surface.frame

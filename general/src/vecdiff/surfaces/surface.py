@@ -46,7 +46,7 @@ class GraphSurface(ABC):
 
     @abstractmethod
     def height(self, xy):
-        """Local height in metres at (..., 2) local Cartesian coordinates."""
+        """Local height at (..., 2) local Cartesian coordinates."""
 
     @abstractmethod
     def gradient(self, xy):
