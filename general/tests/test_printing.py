@@ -306,6 +306,7 @@ def public_classes():
                 and not inspect.isabstract(value)
                 and not name.startswith("_")
                 and value is not o.sampling.Grid
+                and not issubclass(value, Exception)
             ):
                 found.add(value)
     return found

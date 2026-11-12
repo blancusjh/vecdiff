@@ -1,34 +1,113 @@
 # vecdiff
 
-vecdiff computes the vector electromagnetic field of light through an
-optical system by eikonal–angular-spectrum transport. Across each surface
-the light meets, the field is carried along the rays of its carrier (the ray
-family the light declares) from a reference plane in front of the surface to
-the same plane on the side it leaves into, with the Fresnel dyadic of that
-surface and the flux factor of the ray tube; between surfaces it is an exact
-superposition of plane waves. The transfer is the leading-order solution of
-Maxwell's equations in the size of the system relative to the wavelength:
-nothing is added by hand, it is exact for a plane wave on a plane interface,
-and on curved surfaces its error falls as 1/(R/λ).
+**Vector diffraction through optical systems.** vecdiff computes the full
+electromagnetic field, **E** and **H** with their polarization, of light that
+passes through a system of lenses, mirrors and stops, at any point before,
+inside or after it.
 
-The library is meant for **macroscopic** systems, tens to thousands of
-wavelengths across: lenses, mirrors, stops, ghosts. It does not model
-absorbing or dispersive media within a calculation (real indices only),
-coatings, partial coherence, evanescent near fields of a surface, or rim
-scattering of a finite body, and it computes fields, not analysis outputs
-such as PSF, MTF, Strehl ratio, Zernike or OPD maps, or a focus search.
+The method is eikonal–angular-spectrum transport. Across each surface the
+field is carried along the rays of the light's own ray family, from a
+reference plane in front of the surface to the same plane on the side it
+leaves into, with the Fresnel dyadic of the surface, the flux factor of the
+ray tube and its caustic phase; between surfaces it is an exact superposition
+of plane waves. The transfer is the leading-order solution of Maxwell's
+equations in the size of the system relative to the wavelength: nothing is
+added by hand, it is exact for a plane wave on a plane interface, and on
+curved surfaces its error falls as 1/(R/λ). It is meant for **macroscopic**
+systems, tens to tens of thousands of wavelengths across, where full-wave
+solvers cannot go.
+
+## A composed system and the polarization of its focus
+
+A stop and two plano-convex lenses (glass n = 1.5, R = 25 mm, 3 mm thick,
+2 mm apart; focal length about 27 mm, 6 mm aperture, 11 000 wavelengths
+across) focus a collimated 532 nm beam. The system is written as what the
+light meets, in order:
+
+<!-- fragment -->
+```python
+import vecdiff as vd
+
+air, glass = vd.media.air, vd.media.Dielectric(1.5, "glass")
+elements = [vd.system.Stop(3e-3, z=-0.5e-3)]
+for z in (0.0, 5e-3):  # two lenses, curved face first
+    curved = vd.surfaces.SphericalCap(25e-3, vd.geometry.Frame([0, 0, z]))
+    elements += [
+        vd.system.Refraction(curved, air, glass),
+        vd.system.Refraction(vd.surfaces.Plane.z(z + 3e-3), glass, air),
+    ]
+condenser = vd.system.OpticalSystem(*elements)
+print(condenser)
+
+beam = vd.fields.PlaneBeam(
+    vd.fields.profiles.Gaussian(3e-3),
+    vd.fields.polarization.radial,  # or x, azimuthal, cartesian(1, 1j), ...
+    wavelength0=532e-9,
+    region=air,
+    frame=vd.geometry.Frame([0, 0, -1e-3]),
+)
+solution = vd.propagation.Propagator(condenser)(beam)  # 8 s on a laptop CPU
+focal = solution.field(z=29.895e-3, window=(-12e-6, 12e-6, -12e-6, 12e-6), shape=(161, 161))
+meridional = solution.field(y=0.0, window=(-4.2e-3, 4.2e-3, -0.9e-3, 33e-3), shape=(420, 221))
+```
+
+```text
+OpticalSystem: 5 elements, coaxial along z; light arrives in air (n 1) and leaves in air (n 1)
+#  element     surface  type                z  radius  medium        n         aperture r  thickness
+-  ----------  -------  ------------  -------  ------  ------------  --------  ----------  ---------
+1  Stop                 screen        -0.0005          air           1              0.003     0.0005
+2  Refraction  S1       SphericalCap   0        0.025  air -> glass  1 -> 1.5                 0.003
+3  Refraction  S2       Plane          0.003    plane  glass -> air  1.5 -> 1                 0.002
+4  Refraction  S3       SphericalCap   0.005    0.025  air -> glass  1 -> 1.5                 0.003
+5  Refraction  S4       Plane          0.008    plane  glass -> air  1.5 -> 1
+R > 0: centre of curvature toward +z; thickness: axial distance to the next vertex; unit of wavelength0.
+```
+
+One solution gives the field everywhere: in front of the system, inside the
+glass, and through the focus, where the spherical aberration of the two
+lenses shows as the caustic in front of the brightest point.
 
 <p align="center">
-  <img src="docs/assets/focal_polarization_linear.gif" alt="Focal-plane polarization over one optical cycle, linear-x input" width="420">
-  <img src="docs/assets/focal_polarization_circular.gif" alt="Focal-plane polarization over one optical cycle, circular input" width="420">
+  <img src="docs/assets/condenser_system.png" alt="Electric intensity through the stop, the two lenses and the focus, and a magnified view through focus" width="860">
 </p>
 
+The same system carries any input polarization. On the plane of best focus,
+the transverse field (top; glyphs are the polarization ellipses, over the
+transverse intensity on a logarithmic scale) and the longitudinal field
+|E<sub>z</sub>|² (bottom, relative to the transverse peak):
+
 <p align="center">
-  <em>Instantaneous focal field <code>Re[E e<sup>-i&omega;t</sup>]</code> of the Cartesian-oval
-  lens of notebook 03 over two optical cycles: arrows show the transverse field over its
-  time-averaged intensity (scale I<sup>0.3</sup>, so the secondary maxima stay visible).
-  Linear-x input (left) oscillates; circular input (right) rotates.</em>
+  <img src="docs/assets/condenser_focal_polarization.png" alt="Focal-plane polarization maps and longitudinal intensity for linear, circular, radial and azimuthal input" width="980">
 </p>
+
+| Input | Focus | Longitudinal field |
+|---|---|---|
+| linear x | a bright spot polarized along x; \|E<sub>y</sub>\| is 5·10⁻⁴ of \|E<sub>x</sub>\| | two lobes along x, 1.3·10⁻³ of the peak intensity |
+| circular | a bright spot, circular everywhere | a ring with a zero on the axis (a vortex of charge 1) |
+| radial | a doughnut with a polarization singularity on the axis | a spot **on** the axis, 2.0·10⁻² of the transverse peak |
+| azimuthal | a doughnut, field tangent to circles | exactly zero, as symmetry requires |
+
+Both figures are written by
+[`two_lens_polarization.py`](general/examples/two_lens_polarization.py); the
+numbers are those it prints.
+
+## What it can do
+
+| | |
+|---|---|
+| **Systems** | An ordered path of `Refraction`, `Reflection` and `Stop`: lenses, ideal and metallic mirrors, Fresnel reflections, ghost paths that meet a surface again. Spheres, conics and even aspheres, Cartesian ovals, cylinders, freeform graphs. `print(system)` gives the prescription table. |
+| **Light** | Collimated and focused beams from a scalar profile (uniform, Gaussian, annular, zoned) and a polarization (linear, circular, elliptical, radial, azimuthal, or any Jones pair); sampled fields on a plane. |
+| **Fields** | E and H in V/m and A/m on planes, meridional sections, surfaces or arbitrary points, in any segment of the system. |
+| **Observables** | Poynting vector, irradiance, power, energy density, Stokes parameters, spin and helicity, canonical and spin momentum, orbital angular momentum, radiation force and torque. |
+| **Honesty of a result** | Every solution reports, per surface, the share of the light it did not carry and why (outside the aperture, folded rays, undersampling), counts the caustics crossed, and refuses to return a field when folded, undersampled or band-limited light passes 1 %. |
+| **Checks** | Exact solutions to compare with (Mie sphere, layered sphere, infinite cylinder, with their Debye terms), a second, independent method (wave transport), and a separate package of full-wave solvers (BEM, FEM, MFS). 700 tests. |
+| **Matter** | Real indices throughout; a complex index (metals, lossy glass) for reflection and for propagation inside a homogeneous region ([note](docs/ABSORBING_MEDIA.md)). |
+
+It does not yet carry light along rays *through* an absorbing medium, and it
+does not model dispersion within one calculation, coatings, partial
+coherence, the evanescent near field of a surface or the rim scattering of a
+finite body. It computes fields; analysis outputs (PSF, MTF, Strehl ratio,
+Zernike or OPD maps, focus search) are not part of it yet.
 
 ## Quick start
 
@@ -76,10 +155,14 @@ print(f"power through the square: {vd.observables.power(focus):.3e} W")
 It runs in about 8 s and 1.6 GB on a laptop CPU and prints (measured now):
 
 ```text
-Solution through 3 element(s), 3 carried; leaving as HankelSpectrum in air 2
-  stop 1 (radius 0.004, in air): unsupported 1.8e-02, folded 0.0e+00, ...
-  surface 2 (Plane, air -> glass): unsupported 7.2e-04, folded 0.0e+00, ...
-  surface 3 (SphericalCap, glass -> air 2): unsupported 8.3e-04, folded 0.0e+00, ...
+Solution: light through 3 elements, 3 carried
+#  element     surface       media         leg       unsupported %  folded %  undersampled %  band removed %  dark  caustics  residual  orders
+-  ----------  ------------  ------------  --------  -------------  --------  --------------  --------------  ----  --------  --------  -------
+1  Stop        r 0.004       air           meridian          1.8           0               0               0     0         0   0        (-1, 1)
+2  Refraction  Plane         air -> glass  meridian          0.072         0               0               0     0         0   0        (-1, 1)
+3  Refraction  SphericalCap  glass -> air  meridian          0.083         0               0               0     0         0   4.3e-19  (-1, 1)
+Leaves as HankelSpectrum in 'air', plane z=0.003, forward (+normal).
+...
 E (V/m): [-18.64+337.96j   0.    +0.j     0.    +0.j  ]
 H (A/m): [ 0.    -0.j     -0.0495+0.8971j  0.    +0.j    ]
 S (W/m²): [  0.      0.    152.053]
@@ -87,8 +170,7 @@ power through the square: 7.525e-09 W
 ```
 
 - **The report.** The stop holds back 1.8 % of the incident amplitude, the
-  Gaussian's tail beyond 4 mm (exp(−(4/2)²) = 0.018). `air 2` is the air
-  behind the lens, a region distinct from the air in front.
+  Gaussian's tail beyond 4 mm (exp(−(4/2)²) = 0.018).
 - **The focus.** Paraxially it lies f = R/(n − 1) = 50 mm behind the curved
   vertex, at z = 53 mm; spherical aberration of the flat-first lens brings the
   axial maximum to 52.7 mm (the axis scan in
@@ -138,7 +220,7 @@ re-exports nothing.
 
 | Namespace | What it is |
 |---|---|
-| `geometry`, `media`, `surfaces`, `volumes` | Space and matter: frames; materials (`Dielectric`, `air`, `vacuum`) and the regions they fill; surfaces (caps, aspheres, ovals, freeforms, closed bodies); volumes for the references |
+| `geometry`, `media`, `surfaces`, `volumes` | Space and matter: frames; materials (`Dielectric`, the absorbing `Medium`, `air`, `vacuum`) and the regions they fill; surfaces (caps, aspheres, ovals, freeforms, closed bodies); volumes for the references |
 | `system` | The optical system: the ordered path of `Refraction`, `Reflection` and `Stop` the light meets |
 | `fields` | Light: beams (`PlaneBeam`, `FocusedBeam`) from a profile and a polarization, sampled fields, the carrier, and `Spectrum`, the plane-wave field of a region |
 | `transport` | The method across one surface: the ray map and its caustic index, the dyadics, the leg on a lattice or on a meridian, its report |
@@ -162,14 +244,17 @@ package loads neither plotting nor the reference solvers.
   checked, and the measured records.
 - [Fourier transforms and grids](docs/FOURIER_AND_GRIDS.md): Cartesian, polar and
   nonuniform transforms with physical coordinates.
+- [Absorbing media](docs/ABSORBING_MEDIA.md): what a complex index changes, what is exact, and what is not yet carried.
 - [Notebooks](docs/NOTEBOOKS.md): eight executed optical studies.
 - [Changes](docs/CHANGES.md): what changed for a reader of the earlier API.
 
 Runnable scripts in [`general/examples/`](general/examples/), each under
-20 s on a laptop; each prints a few numbers with what to expect and why:
+a minute on a laptop; each prints a few numbers with what to expect and why:
 
 | Script | Shows |
 |---|---|
+| [`two_lens_polarization.py`](general/examples/two_lens_polarization.py) | A two-lens system with linear, circular, radial and azimuthal input: the figures at the top of this page |
+| [`printing.py`](general/examples/printing.py) | What `print` shows for systems, beams, fields and solutions |
 | [`plano_convex_lens.py`](general/examples/plano_convex_lens.py) | The quick start with an axis scan for the focus and automatic focal-plane sampling |
 | [`paraboloidal_mirror.py`](general/examples/paraboloidal_mirror.py) | An ideal mirror: the light comes back, its axis turned over |
 | [`plate_ghost.py`](general/examples/plate_ghost.py) | A ghost path built from the same two surfaces as the direct light |
@@ -222,6 +307,16 @@ CPU: in double precision it outpaces cuFINUFFT on consumer cards.
 ## Results
 
 Figures from the executed [notebooks](docs/NOTEBOOKS.md).
+
+<p align="center">
+  <img src="docs/assets/focal_polarization_linear.gif" alt="Focal-plane polarization over one optical cycle, linear-x input" width="420">
+  <img src="docs/assets/focal_polarization_circular.gif" alt="Focal-plane polarization over one optical cycle, circular input" width="420">
+</p>
+
+**The field in time (notebook 03).** Instantaneous focal field Re[E e<sup>-i&omega;t</sup>] of a
+Cartesian-oval lens over two optical cycles: arrows show the transverse field over its
+time-averaged intensity (scale I<sup>0.3</sup>). Linear-x input (left) oscillates; circular
+input (right) rotates.
 
 <p align="center">
   <img src="docs/assets/sphere_focal_components.png" alt="Ex, Ey, Ez focal intensities: Debye, full Mie, local and spectral propagation" width="860">

@@ -107,8 +107,17 @@ class Medium:
         """The permittivity epsilon0 n^2 (complex when the medium absorbs)."""
         return EPSILON0 * self.n**2
 
+    @guarded
+    def __repr__(self):
+        """Its name and refractive index: Dielectric('BK7-like', n=1.5)."""
+        if self.absorbing:
+            index = f"{number(self.n.real)}+{number(self.n.imag)}i"
+        else:
+            index = number(self.n)
+        return f"{type(self).__name__}({self.name!r}, n={index})"
 
-@dataclass(frozen=True, eq=False)
+
+@dataclass(frozen=True, eq=False, repr=False)
 class Dielectric(Medium):
     """Lossless nondispersive matter: a medium of real refractive index ``n``.
 
@@ -125,11 +134,6 @@ class Dielectric(Medium):
                 f"a Dielectric is lossless, of real index; n = {self.n:g} absorbs: "
                 "an absorbing medium (a metal, a lossy glass) is a media.Medium"
             )
-
-    @guarded
-    def __repr__(self):
-        """Its name and refractive index: Dielectric('BK7-like', n=1.5)."""
-        return f"Dielectric({self.name!r}, n={number(self.n)})"
 
 
 @dataclass(frozen=True)
