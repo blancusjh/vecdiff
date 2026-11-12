@@ -7,8 +7,8 @@ about 27 mm. A collimated Gaussian beam (3 mm waist, cut by the 3 mm stop,
 polarization, and E is read on the plane of best focus.
 
 Run as a script it prints the system, the report and the focal numbers
-(about 40 s). With a directory as argument it also writes the two figures of
-the README there; the map of the field through the whole system takes a few
+(about 40 s). With a directory as argument it also writes two figures
+there; the map of the field through the whole system takes a few
 minutes more.
 """
 

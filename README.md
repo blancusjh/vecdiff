@@ -1,95 +1,172 @@
 # vecdiff
 
-**Vector diffraction through optical systems.** vecdiff computes the full
-electromagnetic field, **E** and **H** with their polarization, of light that
-passes through a system of lenses, mirrors and stops, at any point before,
-inside or after it.
+**Vector diffraction through real optical systems.** vecdiff computes the
+electromagnetic field, **E** and **H** with their polarization, of light
+refracted, reflected and focused by lenses, mirrors and stops thousands of
+wavelengths across: the regime where full-wave solvers cannot go and scalar
+diffraction is not enough.
+
+<p align="center">
+  <img src="docs/assets/vector_meridional.png" alt="Electric intensity through a high-NA lens from the stop to the focus, and the polarization of the field in the meridional plane near focus for linear and radial input" width="900">
+</p>
+
+<p align="center"><em>
+A stigmatic glass lens at NA 0.7, 4.45 mm across (8400 wavelengths), computed
+in 4 s on a laptop. Top: |E|² from the stop, through the glass, to the focus.
+Bottom: the electric field in the plane of propagation around the focus. With
+linear input the field off the axis turns in the x–z plane (ellipses: a spin
+transverse to the direction of propagation); with radial input the focus is
+polarized along the axis.
+</em></p>
 
 The method is eikonal–angular-spectrum transport. Across each surface the
-field is carried along the rays of the light's own ray family, from a
-reference plane in front of the surface to the same plane on the side it
-leaves into, with the Fresnel dyadic of the surface, the flux factor of the
-ray tube and its caustic phase; between surfaces it is an exact superposition
-of plane waves. The transfer is the leading-order solution of Maxwell's
-equations in the size of the system relative to the wavelength: nothing is
-added by hand, it is exact for a plane wave on a plane interface, and on
-curved surfaces its error falls as 1/(R/λ). It is meant for **macroscopic**
-systems, tens to tens of thousands of wavelengths across, where full-wave
-solvers cannot go.
+field is carried along the rays of the light's own ray family, with the
+Fresnel dyadic of the surface, the flux factor of the ray tube and its
+caustic phase; between surfaces it is an exact superposition of plane waves.
+It is the leading-order solution of Maxwell's equations in the size of the
+system relative to the wavelength: nothing is added by hand, it is exact for
+a plane wave on a plane interface, and its error falls as 1/size.
 
-## A composed system and the polarization of its focus
+## What only the vector theory shows
 
-A stop and two plano-convex lenses (glass n = 1.5, R = 25 mm, 3 mm thick,
-2 mm apart; focal length about 27 mm, 6 mm aperture, 11 000 wavelengths
-across) focus a collimated 532 nm beam. The system is written as what the
-light meets, in order:
+All the figures of this section come from one script,
+[`vector_focusing.py`](general/examples/vector_focusing.py), and start from one
+lens, stigmatic but not aplanatic: an
+ellipsoidal entry face that sends a collimated beam to a point inside the
+glass (n = 1.5), and an exit sphere centred on that point. The marginal ray
+meets the glass at 86° of incidence. Section 3 adds an aplanatic lens.
+
+### 1. Refraction acts on the polarization
+
+<p align="center">
+  <img src="docs/assets/vector_refraction.png" alt="Components of the converging beam one millimetre before focus, and its meridians" width="980">
+</p>
+
+The converging beam 1 mm before the focus, for linear x input. The surface
+transmits p and s light differently (t<sub>p</sub> ≠ t<sub>s</sub>), and
+bends the p component toward the axis, which creates E<sub>z</sub>. For a
+collimated beam and one refraction the two effects compensate exactly,
+t<sub>p</sub>/t<sub>s</sub> = 1/cos(θ<sub>i</sub> − θ<sub>t</sub>), so the
+transverse field stays linear and round: the computed |E<sub>x</sub>| is the
+same along x and along y, and E<sub>y</sub> is 3·10⁻⁶ of it in intensity.
+None of this is imposed; it comes out of the Fresnel dyadic ray by ray. The
+spike on the axis and the ripple at the rim are the diffraction of the stop.
+
+### 2. The focus depends on the polarization
+
+<p align="center">
+  <img src="docs/assets/vector_focal_polarization.png" alt="Focal-plane polarization maps and longitudinal intensity for linear, circular, radial and azimuthal input" width="980">
+</p>
+
+The focal plane of the same lens for four inputs. Top: polarization ellipses
+over the transverse intensity. Bottom: the longitudinal intensity
+|E<sub>z</sub>|², on the same scale.
+
+| Input | Transverse field | Longitudinal field |
+|---|---|---|
+| linear x | a spot polarized along x | two lobes along x, 5 % of the peak |
+| circular | a spot, circular everywhere | a ring with a vortex on the axis, 3 % |
+| radial | a ring with a polarization singularity | a spot **on the axis**, 74 % of the peak: the focus is longitudinal |
+| azimuthal | a ring, field tangent to circles | exactly zero: a dark, purely transverse focus |
+
+### 3. Even an aplanatic lens is not the ideal lens
+
+<p align="center">
+  <img src="docs/assets/vector_real_vs_ideal.png" alt="Focal components of a stigmatic lens, of an aplanatic lens and of the ideal lens with the same pupil and aperture" width="980">
+</p>
+
+The textbook vector focus (Richards and Wolf) assumes an ideal lens: every
+ray reaches the focus, at the angle of the sine condition, with no loss. A
+real lens can meet the first two conditions exactly. The second row is such a
+lens: two aspheric faces computed by the method of Wassermann and Wolf
+(1949), the design principle of the single-lens objectives of optical discs.
+Traced ray by ray it is stigmatic to 6·10⁻¹⁴ m and obeys the sine condition
+to 5·10⁻¹². Same glass, same NA 0.7, linear x input:
+
+| | stigmatic lens (ellipsoid) | aplanatic lens (two aspheres) | ideal lens |
+|---|---|---|---|
+| cross-polarized \|E<sub>y</sub>\|² / peak | 1·10⁻⁹ (none) | 2.7·10⁻⁴ | 1.0·10⁻³ |
+| longitudinal \|E<sub>z</sub>\|² / peak | 5.3 % | 7.8 % | 7.1 % |
+| \|E<sub>x</sub>\| at the focus, ideal lens = 1 | 0.82 | 0.95 | 1 |
+| first side lobe / peak | 2·10⁻³ | 1·10⁻² | 1 to 2·10⁻² |
+
+- **The aplanatic lens has the geometry of the ideal lens, and still a
+  different focus.** What remains is the transmission of its two faces,
+  which no ray design removes: at the rim they pass 99.8 % of the p light
+  and 73 % of the s light. The pupil is therefore brighter along x than
+  along y, the cross-polarized lobes are 3.7 times weaker than the ideal
+  lens predicts, and the longitudinal field is relatively stronger. This
+  polarization aberration belongs to the surfaces, not to the ray geometry.
+- **A lens that is only stigmatic differs more.** The ellipsoid maps the
+  pupil to angles differently from the sine condition, which apodizes the
+  beam: a wider spot, lower side lobes, and no cross-polarized light at all.
+
+### 4. Why to believe it
+
+<p align="center">
+  <img src="docs/assets/vector_mie_validation.png" alt="Field of an aplanatic sphere against the exact Mie solution, and the error against the sphere radius" width="820">
+</p>
+
+- **Against the exact solution.** A glass sphere focuses without aberration
+  a beam aimed at its aplanatic point (Young and Weierstrass), and it has an
+  exact solution (Mie). The carried field lies on the exact one, and the
+  error falls as 1/size:
+
+  | sphere radius (wavelengths) | 100 | 300 | 1000 | 3000 |
+  |---|---|---|---|---|
+  | relative L2 error on the focal disk | 8.6·10⁻⁴ | 2.8·10⁻⁴ | 8.5·10⁻⁵ | 2.8·10⁻⁵ |
+
+- **Against ray optics.** A Debye sum over traced rays with their Fresnel
+  coefficients, written independently of the library, gives for the
+  aplanatic lens |E<sub>x</sub>|, |E<sub>y</sub>|, |E<sub>z</sub>| maxima of
+  7652.3, 125.4 and 2132.3 V/m; the library gives 7652.8, 125.2 and
+  2132.6 V/m. For the ellipsoid, 6734.3 against 6735.0 V/m.
+- **Against itself.** Every solution reports, per surface, the share of the
+  light it did not carry and why, and refuses to return a field when folded,
+  undersampled or band-limited light passes 1 %.
+
+## The lens above, in code
 
 <!-- fragment -->
 ```python
+import numpy as np
 import vecdiff as vd
 
 air, glass = vd.media.air, vd.media.Dielectric(1.5, "glass")
-elements = [vd.system.Stop(3e-3, z=-0.5e-3)]
-for z in (0.0, 5e-3):  # two lenses, curved face first
-    curved = vd.surfaces.SphericalCap(25e-3, vd.geometry.Frame([0, 0, z]))
-    elements += [
-        vd.system.Refraction(curved, air, glass),
-        vd.system.Refraction(vd.surfaces.Plane.z(z + 3e-3), glass, air),
-    ]
-condenser = vd.system.OpticalSystem(*elements)
-print(condenser)
+entry = vd.surfaces.CartesianOval.from_conjugates(1.0, -np.inf, 1.5, 5e-3)
+exit_face = vd.surfaces.SphericalCap(2.4e-3, vd.geometry.Frame([0, 0, 2.6e-3]))
+lens = vd.system.OpticalSystem(
+    vd.system.Stop(2.227e-3, z=-0.2e-3),
+    vd.system.Refraction(entry, air, glass),
+    vd.system.Refraction(exit_face, glass, air),
+)
+print(lens)
 
 beam = vd.fields.PlaneBeam(
-    vd.fields.profiles.Gaussian(3e-3),
+    vd.fields.profiles.Gaussian(4.45e-3),
     vd.fields.polarization.radial,  # or x, azimuthal, cartesian(1, 1j), ...
     wavelength0=532e-9,
     region=air,
-    frame=vd.geometry.Frame([0, 0, -1e-3]),
+    frame=vd.geometry.Frame([0, 0, -0.4e-3]),
 )
-solution = vd.propagation.Propagator(condenser)(beam)  # 8 s on a laptop CPU
-focal = solution.field(z=29.895e-3, window=(-12e-6, 12e-6, -12e-6, 12e-6), shape=(161, 161))
-meridional = solution.field(y=0.0, window=(-4.2e-3, 4.2e-3, -0.9e-3, 33e-3), shape=(420, 221))
+solution = vd.propagation.Propagator(lens)(beam)  # 4 s
+print(solution)  # per surface: what was not carried, and why
+
+w = 1.6e-6
+focal = solution.field(z=5e-3, window=(-w, w, -w, w), shape=(161, 161))
+meridional = solution.field(y=0.0, window=(-w, w, 5e-3 - w, 5e-3 + w), shape=(161, 161))
+S = vd.observables.poynting(focal)  # E and H are both there
 ```
 
 ```text
-OpticalSystem: 5 elements, coaxial along z; light arrives in air (n 1) and leaves in air (n 1)
-#  element     surface  type                z  radius  medium        n         aperture r  thickness
--  ----------  -------  ------------  -------  ------  ------------  --------  ----------  ---------
-1  Stop                 screen        -0.0005          air           1              0.003     0.0005
-2  Refraction  S1       SphericalCap   0        0.025  air -> glass  1 -> 1.5                 0.003
-3  Refraction  S2       Plane          0.003    plane  glass -> air  1.5 -> 1                 0.002
-4  Refraction  S3       SphericalCap   0.005    0.025  air -> glass  1 -> 1.5                 0.003
-5  Refraction  S4       Plane          0.008    plane  glass -> air  1.5 -> 1
+OpticalSystem: 3 elements, coaxial along z; light arrives in air (n 1) and leaves in air (n 1)
+#  element     surface  type                 z      radius  medium        n         aperture r  thickness
+-  ----------  -------  -------------  -------  ----------  ------------  --------  ----------  ---------
+1  Stop                 screen         -0.0002              air           1         0.00222687     0.0002
+2  Refraction  S1       CartesianOval   0       0.00166667  air -> glass  1 -> 1.5                 0.0026
+3  Refraction  S2       SphericalCap    0.0026  0.0024      glass -> air  1.5 -> 1
 R > 0: centre of curvature toward +z; thickness: axial distance to the next vertex; unit of wavelength0.
 ```
-
-One solution gives the field everywhere: in front of the system, inside the
-glass, and through the focus, where the spherical aberration of the two
-lenses shows as the caustic in front of the brightest point.
-
-<p align="center">
-  <img src="docs/assets/condenser_system.png" alt="Electric intensity through the stop, the two lenses and the focus, and a magnified view through focus" width="860">
-</p>
-
-The same system carries any input polarization. On the plane of best focus,
-the transverse field (top; glyphs are the polarization ellipses, over the
-transverse intensity on a logarithmic scale) and the longitudinal field
-|E<sub>z</sub>|² (bottom, relative to the transverse peak):
-
-<p align="center">
-  <img src="docs/assets/condenser_focal_polarization.png" alt="Focal-plane polarization maps and longitudinal intensity for linear, circular, radial and azimuthal input" width="980">
-</p>
-
-| Input | Focus | Longitudinal field |
-|---|---|---|
-| linear x | a bright spot polarized along x; \|E<sub>y</sub>\| is 5·10⁻⁴ of \|E<sub>x</sub>\| | two lobes along x, 1.3·10⁻³ of the peak intensity |
-| circular | a bright spot, circular everywhere | a ring with a zero on the axis (a vortex of charge 1) |
-| radial | a doughnut with a polarization singularity on the axis | a spot **on** the axis, 2.0·10⁻² of the transverse peak |
-| azimuthal | a doughnut, field tangent to circles | exactly zero, as symmetry requires |
-
-Both figures are written by
-[`two_lens_polarization.py`](general/examples/two_lens_polarization.py); the
-numbers are those it prints.
 
 ## What it can do
 
@@ -253,7 +330,8 @@ a minute on a laptop; each prints a few numbers with what to expect and why:
 
 | Script | Shows |
 |---|---|
-| [`two_lens_polarization.py`](general/examples/two_lens_polarization.py) | A two-lens system with linear, circular, radial and azimuthal input: the figures at the top of this page |
+| [`vector_focusing.py`](general/examples/vector_focusing.py) | A stigmatic and an aplanatic lens at NA 0.7 with four input polarizations, against the ideal lens, ray optics and Mie: the figures of this page |
+| [`two_lens_polarization.py`](general/examples/two_lens_polarization.py) | A stop and two spherical lenses: the field through the whole system and its aberrated focus |
 | [`printing.py`](general/examples/printing.py) | What `print` shows for systems, beams, fields and solutions |
 | [`plano_convex_lens.py`](general/examples/plano_convex_lens.py) | The quick start with an axis scan for the focus and automatic focal-plane sampling |
 | [`paraboloidal_mirror.py`](general/examples/paraboloidal_mirror.py) | An ideal mirror: the light comes back, its axis turned over |
@@ -304,67 +382,7 @@ order-1 Hankel transform 37× and the curved-surface transfer `SurfaceTransport`
 angular-spectrum propagation holds about 3 GB at 2048². FINUFFT stays on the
 CPU: in double precision it outpaces cuFINUFFT on consumer cards.
 
-## Results
-
-Figures from the executed [notebooks](docs/NOTEBOOKS.md).
-
-<p align="center">
-  <img src="docs/assets/focal_polarization_linear.gif" alt="Focal-plane polarization over one optical cycle, linear-x input" width="420">
-  <img src="docs/assets/focal_polarization_circular.gif" alt="Focal-plane polarization over one optical cycle, circular input" width="420">
-</p>
-
-**The field in time (notebook 03).** Instantaneous focal field Re[E e<sup>-i&omega;t</sup>] of a
-Cartesian-oval lens over two optical cycles: arrows show the transverse field over its
-time-averaged intensity (scale I<sup>0.3</sup>). Linear-x input (left) oscillates; circular
-input (right) rotates.
-
-<p align="center">
-  <img src="docs/assets/sphere_focal_components.png" alt="Ex, Ey, Ez focal intensities: Debye, full Mie, local and spectral propagation" width="860">
-</p>
-
-**Macroscopic sphere, R/λ = 100 (notebook 07).** Focal |E<sub>x</sub>|², |E<sub>y</sub>|², |E<sub>z</sub>|²
-from local and spectral Fresnel wave transport (`alternatives`) through the same glass sphere (n = 1.5, illumination
-radius 35λ), beside the first transmitted Debye term (p = 1) and the full Mie field, which includes
-additional scattering (scale I<sup>0.3</sup>, so the rings are visible).
-
-<p align="center">
-  <img src="docs/assets/lens_focal_polarization.png" alt="Focal-plane polarization, spherical and stigmatic exit faces" width="860">
-</p>
-
-**Lens focusing (notebook 03).** A plane–convex glass lens (n = 1.5, exit radius 120λ, λ = 532 nm)
-through wave transport (`alternatives.WavePropagator`) with spectral Fresnel transmission. Focal-plane transverse intensity and
-polarization: the spherical exit face (left) blurs the focus by spherical aberration; the Cartesian-oval
-exit face (right) gives a sharp Airy pattern with dark rings.
-
-<p align="center">
-  <img src="docs/assets/lens_meridional_fields.png" alt="Meridional total and longitudinal electric intensity through focus" width="860">
-</p>
-
-**Through focus (notebook 03).** Total and longitudinal (|E<sub>z</sub>|²) electric intensity in the
-meridional plane for both exit faces (scale I<sup>0.3</sup>); the dashed line marks the nominal image plane.
-
-<p align="center">
-  <img src="docs/assets/diopter_fresnel_compensation.png" alt="Uncompensated and compensated stigmatic diopter focal planes" width="860">
-</p>
-
-**Fresnel compensation in a stigmatic diopter (notebook 04).** Ray-tube/Debye focus at NA ≈ 0.84 with
-and without compensating the Fresnel transmission. The compensated first minimum (gold dashes) lies on
-the Airy first-zero circle (black); the uncompensated one (cyan) is wider.
-
-<p align="center">
-  <img src="docs/assets/aperture_diffraction.png" alt="Diffraction by a slit, two slits and a circular hole at three distances" width="760">
-</p>
-
-**Diffraction by apertures (notebook 02).** Vector angular-spectrum propagation behind a single slit,
-a double slit and a circular hole at three distances, on a common I<sup>0.3</sup> intensity scale, with
-the transverse polarization.
-
-<p align="center">
-  <img src="docs/assets/al1225_scaled_models.png" alt="Thorlabs AL1225 scaled models: meridional and focal intensity" width="700">
-</p>
-
-**Thorlabs AL1225 (notebook 06).** Spectral wave-transport fields of the catalog asphere, geometrically
-scaled to R/λ = 3, 10, 30 and 100: meridional and focal-plane |E|².
+More studies, with their figures, are in the executed [notebooks](docs/NOTEBOOKS.md).
 
 ## License
 
