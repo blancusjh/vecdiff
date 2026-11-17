@@ -1,0 +1,110 @@
+{
+ "sqrt3 | brewster": {
+  "n": 1.7320508075688772,
+  "na": 0.8660254037844385,
+  "peak_dz_um": 50.41666666666671,
+  "needle_length_um": 19.583333333333346,
+  "fwhm_total_wavelengths": 0.6434387913048047,
+  "fwhm_ez_wavelengths": 0.41393550071497653,
+  "longitudinal_share_in_fwhm": 0.6596565837687123,
+  "te_over_tm": 0.5623168316521457,
+  "tm_transmitted": 1.0001922941708241,
+  "elapsed_s": 1.1259599840000192
+ },
+ "sqrt3 | no diattenuation": {
+  "n": 1.7320508075688772,
+  "na": 0.8660254037844385,
+  "peak_dz_um": 50.41666666666671,
+  "needle_length_um": 19.583333333333346,
+  "fwhm_total_wavelengths": 0.8340106350580123,
+  "fwhm_ez_wavelengths": 0.4139355007149763,
+  "longitudinal_share_in_fwhm": 0.4067935392255764,
+  "te_over_tm": 0.9996799482752464,
+  "tm_transmitted": 1.0001922941708241,
+  "elapsed_s": 1.172962489999918
+ },
+ "sqrt3 | radial input": {
+  "n": 1.7320508075688772,
+  "na": 0.8660254037844385,
+  "peak_dz_um": 50.41666666666671,
+  "needle_length_um": 19.583333333333346,
+  "fwhm_total_wavelengths": 0.46190175597368427,
+  "fwhm_ez_wavelengths": 0.4139355007149763,
+  "longitudinal_share_in_fwhm": 0.9311066173871385,
+  "te_over_tm": 0.0,
+  "tm_transmitted": 1.0001922941708243,
+  "elapsed_s": 1.0598206449999452
+ },
+ "n2 | brewster": {
+  "n": 2.0,
+  "na": 0.96,
+  "peak_dz_um": 39.201822916666664,
+  "needle_length_um": 15.540364583333336,
+  "fwhm_total_wavelengths": 0.44875663159710194,
+  "fwhm_ez_wavelengths": 0.3734181592488348,
+  "longitudinal_share_in_fwhm": 0.8794272182876096,
+  "te_over_tm": 0.40895546055900206,
+  "tm_transmitted": 1.0011142140621778,
+  "elapsed_s": 1.1235627900000509
+ },
+ "n2 | no diattenuation": {
+  "n": 2.0,
+  "na": 0.96,
+  "peak_dz_um": 39.201822916666664,
+  "needle_length_um": 15.540364583333336,
+  "fwhm_total_wavelengths": 0.6050977747607106,
+  "fwhm_ez_wavelengths": 0.3734181592488347,
+  "longitudinal_share_in_fwhm": 0.617047069173161,
+  "te_over_tm": 0.9984342694404937,
+  "tm_transmitted": 1.0011142140621805,
+  "elapsed_s": 1.1031383930001084
+ },
+ "n2 | radial input": {
+  "n": 2.0,
+  "na": 0.96,
+  "peak_dz_um": 39.201822916666664,
+  "needle_length_um": 15.540364583333336,
+  "fwhm_total_wavelengths": 0.3832557571459405,
+  "fwhm_ez_wavelengths": 0.3734181592488349,
+  "longitudinal_share_in_fwhm": 0.9847660023553891,
+  "te_over_tm": 0.0,
+  "tm_transmitted": 1.0011142140621787,
+  "elapsed_s": 1.243666648000044
+ },
+ "n2+shells | brewster": {
+  "n": 2.0,
+  "na": 0.96,
+  "peak_dz_um": 27.37109375,
+  "needle_length_um": 17.345052083333332,
+  "fwhm_total_wavelengths": 0.3847841527553658,
+  "fwhm_ez_wavelengths": 0.3734380800658048,
+  "longitudinal_share_in_fwhm": 0.9825648014440892,
+  "te_over_tm": 0.011510715223128016,
+  "tm_transmitted": 1.0011054336319236,
+  "elapsed_s": 5.892007153000122
+ },
+ "n2+shells | no diattenuation": {
+  "n": 2.0,
+  "na": 0.96,
+  "peak_dz_um": 27.37109375,
+  "needle_length_um": 17.345052083333332,
+  "fwhm_total_wavelengths": 0.604898627824249,
+  "fwhm_ez_wavelengths": 0.37343808426960173,
+  "longitudinal_share_in_fwhm": 0.6219002794696714,
+  "te_over_tm": 0.9981909514079348,
+  "tm_transmitted": 1.0011038740885034,
+  "elapsed_s": 5.936427387000094
+ },
+ "n2+shells | radial input": {
+  "n": 2.0,
+  "na": 0.96,
+  "peak_dz_um": 27.37109375,
+  "needle_length_um": 17.345052083333332,
+  "fwhm_total_wavelengths": 0.38327917172182,
+  "fwhm_ez_wavelengths": 0.37343809588199284,
+  "longitudinal_share_in_fwhm": 0.9847636510339416,
+  "te_over_tm": 0.0,
+  "tm_transmitted": 1.0011047151274042,
+  "elapsed_s": 5.58608964400014
+ }
+}
