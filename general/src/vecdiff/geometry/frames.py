@@ -1,0 +1,77 @@
+"""Euclidean placement, independent of wavelength and material."""
+
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from vecdiff._arrays import frozen_array
+from vecdiff._backend import bd
+from vecdiff._printing import block, described, guarded, placement, vector
+
+
+@dataclass(frozen=True, eq=False)
+class Frame:
+    """Right-handed orthonormal frame; basis columns are u, v, normal.
+
+    Coordinates and translations are lengths, in the unit of the wavelength used with them. Vector components elsewhere
+    in the public API are global Cartesian components unless stated otherwise.
+    """
+
+    origin: np.ndarray = field(default_factory=lambda: bd.zeros(3))
+    basis: np.ndarray = field(default_factory=lambda: bd.eye(3))
+
+    def __post_init__(self):
+        origin = frozen_array(self.origin)
+        basis = frozen_array(self.basis)
+
+        if origin.shape != (3,) or basis.shape != (3, 3):
+            raise ValueError("expected origin (3,) and basis (3, 3)")
+
+        if not bd.allclose(basis.T @ basis, bd.eye(3), atol=1e-12, rtol=0):
+            raise ValueError("frame basis must be orthonormal")
+
+        if bd.linalg.det(basis) < 0:
+            raise ValueError("frame basis must be right-handed")
+
+        object.__setattr__(self, "origin", origin)
+        object.__setattr__(self, "basis", basis)
+
+    @guarded
+    def __repr__(self):
+        """Its origin and normal, and its u axis where that is not the global x."""
+        return described("Frame", placement(self, "origin", normal=True))
+
+    @guarded
+    def __str__(self):
+        """Its origin and its three axes, one per line."""
+        axes = [("origin", vector(self.origin))]
+        axes += [(name, vector(getattr(self, name))) for name in ("u", "v", "normal")]
+        return block("Frame", axes)
+
+    @property
+    def u(self):
+        return self.basis[:, 0]
+
+    @property
+    def v(self):
+        return self.basis[:, 1]
+
+    @property
+    def normal(self):
+        return self.basis[:, 2]
+
+    def translated(self, displacement):
+        displacement = frozen_array(displacement)
+
+        if displacement.shape != (3,):
+            raise ValueError("displacement must have shape (3,)")
+
+        return Frame(self.origin + displacement, self.basis)
+
+    def reversed(self):
+        """The same frame seen from the other side: axes u, -v, -normal on the same origin.
+
+        Local coordinates (x, y, z) become (x, -y, -z); the frame stays
+        right-handed.
+        """
+        return Frame(self.origin, self.basis * bd.asarray([1.0, -1.0, -1.0]))

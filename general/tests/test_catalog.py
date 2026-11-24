@@ -2,30 +2,34 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as optics
+import vecdiff as optics
 from numpy.testing import assert_allclose
+
+host = optics.backend.to_numpy
 
 
 def test_al1225_dimensions_dispersion_and_paraxial_focus():
     system = optics.catalog.thorlabs_al1225()
-    front, back = system.interfaces
-    assert_allclose(system.apertures, (0.00625, 0.00625))
+    front, back = system.elements
+    assert_allclose([e.edge for e in system.elements], (0.00625, 0.00625))
     assert_allclose(back.surface.frame.origin, [0, 0, 0.004])
-    n = front.plus.material.n
+    n = front.after.material.n
     assert_allclose(n, 1.5111833144579327, rtol=1e-13)
     # Independent paraxial thick-lens formula: aspheric entrance / plane exit.
     efl = 1 / ((n - 1) * front.surface.curvature)
     assert_allclose(efl, 0.025, rtol=5e-5)
     assert_allclose(efl - 0.004 / n, 0.0224, atol=0.00005)
     assert front.surface.height(np.array([0.00625, 0])) < 0.004
-    # Preserve the finite prescription; it must not silently become open faces.
+    # The finite faces stay finite: wave transport, which has no edges, refuses
+    # them; the method bounds each encounter at its edge.
     with pytest.raises(ValueError, match="finite material edges"):
-        optics.propagation.PropagationPipeline(system)
+        optics.alternatives.WavePropagator(system)
+    optics.propagation.Propagator(system)
 
 
 def test_al1225_sag_sign_units_gradient_and_scaling():
     lens = optics.catalog.thorlabs_al1225()
-    surface = lens.interfaces[0].surface
+    surface = lens.elements[0].surface
     xy_mm = np.array([[0, 0], [2, 3], [5.625, 0], [6.25, 0]])
     r = np.linalg.norm(xy_mm, axis=-1)
     # Independent evaluation in the source table's millimetres, through A16.
@@ -44,15 +48,17 @@ def test_al1225_sag_sign_units_gradient_and_scaling():
     for direction in np.eye(2):
         h = direction * 1e-8
         finite_difference = (surface.height(xy + h) - surface.height(xy - h)) / 2e-8
-        assert_allclose(surface.gradient(xy) @ direction, finite_difference, atol=1e-10)
+        assert_allclose(
+            host(surface.gradient(xy)) @ direction, finite_difference, atol=1e-10
+        )
     scaled = optics.catalog.thorlabs_al1225(scale=0.001)
     assert_allclose(
-        scaled.interfaces[0].surface.height(xy * 0.001), surface.height(xy) * 0.001
+        scaled.elements[0].surface.height(xy * 0.001), surface.height(xy) * 0.001
     )
     assert_allclose(
-        scaled.interfaces[0].surface.gradient(xy * 0.001), surface.gradient(xy)
+        scaled.elements[0].surface.gradient(xy * 0.001), surface.gradient(xy)
     )
-    assert_allclose(scaled.interfaces[1].surface.frame.origin, [0, 0, 4e-6])
+    assert_allclose(scaled.elements[1].surface.frame.origin, [0, 0, 4e-6])
 
 
 @pytest.mark.parametrize(

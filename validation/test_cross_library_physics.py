@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import vecdiff_general as general
+import vecdiff as general
 import vecdiff_stigmatic as stigmatic
 from numpy.testing import assert_allclose
 
@@ -171,7 +171,9 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
             electric[..., 2] = -displacement[..., 0] / displacement[..., 2]
             return electric * (0.010 / distance)[..., None]
 
-        source = general.fields.EikonalField(
+        from vecdiff_validation.eikonal_field import EikonalField
+
+        source = EikonalField(
             optical_path, path_gradient, envelope, WAVELENGTH, incident_region
         )
         quadrature = general.sampling.sample_surface(
@@ -179,9 +181,9 @@ def test_general_physical_surface_radiation_preserves_legacy_stigmatic_case():
         )
         # This fixture records a prescribed-current comparison, not the primary
         # operational ASM model. Construct its local Fresnel trace explicitly.
-        from vecdiff_general.comparisons import SurfaceRadiation
-        from vecdiff_general.propagation._directions import transmitted_direction
-        from vecdiff_general.propagation._fresnel import transmit
+        from vecdiff.alternatives._directions import transmitted_direction
+        from vecdiff.alternatives._fresnel import transmit
+        from vecdiff_validation.comparisons import SurfaceRadiation
 
         incident_direction = source.directions(quadrature.points)
         outgoing = transmitted_direction(incident_direction, quadrature.normals, 1, 1.5)

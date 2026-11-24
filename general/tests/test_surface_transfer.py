@@ -2,8 +2,10 @@
 
 import numpy as np
 import pytest
-import vecdiff_general as o
+import vecdiff as o
 from numpy.testing import assert_allclose
+
+bd, host = o.backend.bd, o.backend.to_numpy
 
 
 def setup(count=24, length=24.0, n=1.0):
@@ -14,8 +16,8 @@ def setup(count=24, length=24.0, n=1.0):
 
 def mode(region, grid, ix=1, iy=0):
     kx, ky = (
-        2 * np.pi * ix / (len(grid.u) * grid.spacing[0]),
-        2 * np.pi * iy / (len(grid.v) * grid.spacing[1]),
+        2 * np.pi * ix / (len(grid.u) * float(grid.spacing[0])),
+        2 * np.pi * iy / (len(grid.v) * float(grid.spacing[1])),
     )
     k = 2 * np.pi * region.material.n
     wavevector = np.array([kx, ky, np.sqrt(k * k - kx * kx - ky * ky)])
@@ -33,11 +35,11 @@ def spectrum(source, grid):
 def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
     monkeypatch, cache_compact
 ):
-    from vecdiff_general.propagation import surface_transfer as transfer
+    from vecdiff.alternatives import surface_transfer as transfer
 
     region, grid = setup()
     surface = o.surfaces.SphericalCap(30)
-    dense = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    dense = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     budget = dense.rank * dense.size * 16 if cache_compact else 0
     monkeypatch.setattr(transfer, "_PRECOMPUTE_BYTES", budget)
     monkeypatch.setattr(transfer, "_COMPACT_FACTOR_BYTES", budget)
@@ -49,7 +51,7 @@ def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
         return original_jv(order, argument)
 
     monkeypatch.setattr(transfer, "jv", counted_jv)
-    streamed = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    streamed = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     assert streamed._terms is None
     assert (streamed._compact_factors is not None) == cache_compact
     assert not factor_orders  # Unused incident-Q plans do not compute factors.
@@ -60,8 +62,8 @@ def test_streamed_curved_Q_preserves_complex_fields_and_adjoint(
     assert_allclose(field.magnetic, exact.magnetic, atol=2e-12)
     assert len(factor_orders) == streamed.rank * (1 if cache_compact else 2)
     rng = np.random.default_rng(51)
-    values = rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(
-        size=grid.shape + (3,)
+    values = bd.asarray(
+        rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
     )
     assert_allclose(streamed._adjoint(values), dense._adjoint(values), atol=2e-13)
     ids = np.flatnonzero(dense.active)
@@ -85,13 +87,13 @@ def test_Q_matches_direct_modal_sum_and_inverse_on_curved_chart():
         lambda xy: np.stack(
             (
                 -np.pi / 24 * np.sin(2 * np.pi * xy[..., 0] / 24),
-                np.zeros(xy.shape[:-1]),
+                bd.zeros(xy.shape[:-1]),
             ),
             -1,
         ),
     )
     source = mode(region, grid, 3, 2)
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     trace = Q.forward(spectrum(source, grid))
     assert_allclose(
         trace.electric.values, source.evaluate(Q.grid).electric.values, atol=2e-10
@@ -114,14 +116,14 @@ def test_negative_height_is_not_the_curved_inverse():
 
     def grad(xy):
         return np.stack(
-            (-np.pi / 6 * np.sin(2 * np.pi * xy[..., 0] / 24), np.zeros(xy.shape[:-1])),
+            (-np.pi / 6 * np.sin(2 * np.pi * xy[..., 0] / 24), bd.zeros(xy.shape[:-1])),
             -1,
         )
 
-    Q = o.propagation.SurfaceTransport(
+    Q = o.alternatives.SurfaceTransport(
         grid, o.surfaces.FreeformSurface(h, grad), region, 1.0
     )
-    minus = o.propagation.SurfaceTransport(
+    minus = o.alternatives.SurfaceTransport(
         grid,
         o.surfaces.FreeformSurface(lambda xy: -h(xy), lambda xy: -grad(xy)),
         region,
@@ -131,7 +133,7 @@ def test_negative_height_is_not_the_curved_inverse():
     s = spectrum(source, grid)
     coefficients = s.expansion.amplitudes.reshape(grid.shape + (3,)) * Q.size
     curved = Q._synthesize(coefficients)
-    from vecdiff_general.fourier.cartesian import FFT2
+    from vecdiff.fourier.cartesian import FFT2
 
     wrong = minus._synthesize(FFT2(curved))
     expected = source.evaluate(grid).electric.values
@@ -144,9 +146,9 @@ def test_negative_height_is_not_the_curved_inverse():
 def test_constant_height_Q_is_planar_ASM(height):
     region, grid = setup()
     surface = o.surfaces.FreeformSurface(
-        lambda xy: np.full(xy.shape[:-1], height), lambda xy: np.zeros_like(xy)
+        lambda xy: bd.full(xy.shape[:-1], height), lambda xy: bd.zeros_like(xy)
     )
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     source = mode(region, grid, 3, 2)
     initial = spectrum(source, grid)
     trace = Q.forward(initial)
@@ -166,7 +168,7 @@ def test_constant_height_Q_is_planar_ASM(height):
 
 def test_inverse_nonconvergence_is_reported_as_failure():
     region, grid = setup()
-    Q = o.propagation.SurfaceTransport(grid, o.surfaces.SphericalCap(30), region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, o.surfaces.SphericalCap(30), region, 1.0)
     source = mode(region, grid, 4, 2)
     with pytest.raises(ValueError, match="did not converge"):
         Q.inverse(Q.forward(spectrum(source, grid)), max_iterations=1)
@@ -178,7 +180,7 @@ def test_Q_rejects_a_backward_spectrum():
         grid, 1.0, np.broadcast_to([1, 0], grid.shape + (2,))
     )
     backwards = o.fields.angular_spectrum(field, region, direction=-1)
-    Q = o.propagation.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
     with pytest.raises(ValueError, match="forward propagating"):
         Q.forward(backwards)
 
@@ -198,9 +200,11 @@ def test_physical_trace_metric_and_complex_adjoint_on_steep_chart():
             -1,
         ),
     )
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1.0)
     rng = np.random.default_rng(420)
-    E = rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
+    E = bd.asarray(
+        rng.normal(size=grid.shape + (3,)) + 1j * rng.normal(size=grid.shape + (3,))
+    )
     projected = E - Q.grid.normals * np.sum(E * Q.grid.normals, -1)[..., None]
     weighted = Q._trace_weight(Q._tangent(E))
     assert_allclose(
@@ -216,7 +220,7 @@ def test_physical_trace_metric_and_complex_adjoint_on_steep_chart():
 
 def test_inverse_reports_incompatible_magnetic_trace_without_fitting_it():
     region, grid = setup()
-    Q = o.propagation.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
+    Q = o.alternatives.SurfaceTransport(grid, o.surfaces.Plane(), region, 1.0)
     trace = Q.forward(spectrum(mode(region, grid), grid))
     inconsistent = o.fields.ElectromagneticField(trace.electric, 2 * trace.magnetic)
     _, report = Q.inverse(inconsistent)
@@ -233,7 +237,7 @@ def test_joint_inverse_adjoint_and_compatible_multimode_field(curved):
             lambda xy: np.stack(
                 (
                     -0.7 * 2 * np.pi / 16 * np.sin(2 * np.pi * xy[..., 0] / 16),
-                    np.zeros(xy.shape[:-1]),
+                    bd.zeros(xy.shape[:-1]),
                 ),
                 -1,
             ),
@@ -241,7 +245,7 @@ def test_joint_inverse_adjoint_and_compatible_multimode_field(curved):
         if curved
         else o.surfaces.Plane()
     )
-    Q = o.propagation.SurfaceTransport(grid, surface, region, 1)
+    Q = o.alternatives.SurfaceTransport(grid, surface, region, 1)
     A = Q._inverse_operator()
     rng = np.random.default_rng(442)
     x = rng.normal(size=A.shape[1]) + 1j * rng.normal(size=A.shape[1])

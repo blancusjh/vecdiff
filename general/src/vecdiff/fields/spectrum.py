@@ -1,0 +1,532 @@
+"""Plane-wave representations of the field of one homogeneous region.
+
+``Spectrum`` is what every one of them is: the field of a region, held as
+plane waves referred to a plane. ``PlaneSpectrum`` holds them on an FFT
+lattice; ``fields.LatticeSpectrum``, ``fields.HankelSpectrum`` and
+``fields.BeamSpectrum`` are the other forms the propagation produces.
+``PlaneWaveExpansion`` is a set of modes with a phase origin and no plane.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import math
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, replace
+
+import numpy as np
+
+from vecdiff._arrays import frozen_array, positive
+from vecdiff._backend import bd, is_device_array
+from vecdiff._printing import (
+    axes,
+    block,
+    count,
+    guarded,
+    number,
+    on_plane,
+    shape,
+    shorten,
+    vector,
+)
+from vecdiff.fields.electromagnetic_field import (
+    ElectricField,
+    ElectromagneticField,
+)
+from vecdiff.fourier.cartesian import frequency_grid
+from vecdiff.media.medium import Z0, HomogeneousRegion
+from vecdiff.sampling.grids import PlaneGrid
+
+
+def summation(method="auto", tolerance=None, chunk_size=None, threads=None):
+    """Options of a plane-wave sum, with "auto" resolved and defaults filled.
+
+    method "nufft" runs FINUFFT type-3 transforms to ``tolerance``; "direct"
+    forms the exponentials in blocks of ``chunk_size`` modes; "auto" is
+    "nufft" when FINUFFT is installed. ``threads`` are FINUFFT's (None:
+    VECDIFF_NUFFT_THREADS, else all cores).
+    """
+    if method == "auto":
+        method = "nufft" if importlib.util.find_spec("finufft") else "direct"
+    if method not in ("nufft", "direct"):
+        raise ValueError("method must be 'auto', 'nufft' or 'direct'")
+    if threads is not None and (isinstance(threads, bool) or int(threads) < 0):
+        raise ValueError("threads must be None or a nonnegative integer")
+    return dict(
+        method=method,
+        tolerance=1e-12 if tolerance is None else float(tolerance),
+        chunk_size=256 if chunk_size is None else chunk_size,
+        threads=threads,
+    )
+
+
+def _check_transverse(wavevectors, amplitudes):
+    """Reject modes whose k . a exceeds 1e-10 |k| |a|, arrays (..., 3)."""
+
+    # |k| |a| by hypot: the sum of squares underflows for |a| < 1e-154,
+    # where a valid but faint mode would otherwise be rejected.
+    def norm(vectors):
+        size = bd.abs(vectors[..., 0])
+        for axis in (1, 2):
+            size = bd.hypot(size, bd.abs(vectors[..., axis]))
+        return size
+
+    # One component at a time: no (modes, 3) temporary.
+    k, a = wavevectors, amplitudes
+    transverse_error = bd.abs(
+        k[..., 0] * a[..., 0] + k[..., 1] * a[..., 1] + k[..., 2] * a[..., 2]
+    )
+    transverse_scale = norm(k) * norm(a)
+
+    if bd.any(transverse_error > 1e-10 * transverse_scale):
+        raise ValueError("electric modal amplitudes are not transverse")
+
+
+def _occupied(expansion):
+    """Mask of the modes with a nonzero amplitude, formed once per expansion."""
+    occupied = expansion.__dict__.get("_occupied_modes")
+    if occupied is None:
+        occupied = bd.any(expansion.amplitudes != 0, axis=-1)
+        object.__setattr__(expansion, "_occupied_modes", occupied)
+    return occupied
+
+
+class Spectrum(ABC):
+    """The field of one homogeneous region, held as plane waves referred to a plane.
+
+    The field fills ``region`` and solves its Maxwell equations; the plane is
+    where the representation was formed, ``grid`` its chart there (an FFT
+    lattice, a lattice of carried samples or a polar quadrature), and
+    ``plane`` that chart's Frame. E and H are given on any grid of points.
+    Every Spectrum sums with the same options: ``method`` ("auto", "nufft"
+    or "direct"), ``tolerance`` and ``chunk_size`` (None: the precision and
+    block size the representation's sums default to) and ``threads``
+    (FINUFFT threads; None: VECDIFF_NUFFT_THREADS, else all cores).
+
+    ``direction`` is the way its plane waves travel along the plane's
+    normal: +1 forward, -1 back (a reflection). Its attributes ``region`` (a
+    HomogeneousRegion), ``wavelength0`` (the vacuum wavelength) and ``grid``
+    are set by each kind.
+    """
+
+    direction = 1
+
+    @property
+    def plane(self):
+        """The Frame of the plane the spectrum is referred to."""
+        return self.grid.frame
+
+    def _size(self):
+        """How many plane waves, orders or nodes it holds, in a few words."""
+        return f"chart {shape(self.grid.shape)}"
+
+    def _details(self):
+        """Further (name, value) lines of the multi-line print."""
+        return []
+
+    def _travel(self):
+        """The way its waves travel along the plane's normal, in words."""
+        return "forward (+normal)" if self.direction == 1 else "backward (-normal)"
+
+    @guarded
+    def __repr__(self):
+        """Its size, plane, region, direction and wavelength, read without summing."""
+        return shorten(
+            f"{type(self).__name__}({self._size()}, {on_plane(self.plane)}, "
+            f"in {self.region.name!r}, {self._travel()}, "
+            f"wavelength0={number(self.wavelength0)})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its region, plane, direction of travel, chart and size."""
+        material = self.region.material
+        lines = [
+            (
+                "region",
+                f"{self.region.name!r} ({material.name}, n={number(material.n)})",
+            ),
+            ("wavelength0", number(self.wavelength0)),
+            ("travels", self._travel()),
+            ("holds", self._size()),
+            ("chart", repr(self.grid)),
+            *self._details(),
+        ]
+        lines += [(f"plane {name}", value) for name, value in axes(self.plane)]
+        return block(
+            f"{type(self).__name__}: the field of one region as plane waves", lines
+        )
+
+    @abstractmethod
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        """E and H (an ElectromagneticField, SI units) at the points of ``grid``."""
+
+    def electric(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        """E (an ElectricField) at the points of ``grid``."""
+        return self.evaluate(
+            grid,
+            method=method,
+            tolerance=tolerance,
+            chunk_size=chunk_size,
+            threads=threads,
+        ).electric
+
+    def propagate(self, distance, *, magnetic=True):
+        """The field on the chart moved ``distance`` along the plane's normal.
+
+        The distance is signed along the normal whichever way the waves
+        travel: a backward spectrum is propagated toward its source by a
+        positive one. An ElectromagneticField, or the ElectricField alone when ``magnetic``
+        is False.
+        """
+        distance = float(distance)
+        if not math.isfinite(distance):
+            raise ValueError("distance must be finite")
+        grid = self.grid.translated(distance * self.plane.normal)
+        return self.evaluate(grid) if magnetic else self.electric(grid)
+
+    @abstractmethod
+    def relabeled(self, region):
+        """The same field, attributed to another region of the same material."""
+
+
+def _decay_fold(g, k, points):
+    """(g, Re k) with the decay of complex wavevectors folded into g, or None.
+
+    exp(i k . r) = exp(i Re k . r) exp(-Im k . r). When every Im k lies
+    along one unit vector nu (a_j nu: the waves of a plane spectrum, decaying
+    along its normal) and every point has the same nu . r = c (points on a
+    parallel plane), the decay is the per-mode factor exp(-a_j c) and the sum
+    has real wavevectors. None otherwise, or where that factor is not finite.
+    """
+    imaginary = k.imag
+    size = bd.linalg.norm(imaginary, axis=1)
+    largest = int(bd.argmax(size))
+    nu = imaginary[largest] / size[largest]
+    along = imaginary @ nu
+    off = bd.linalg.norm(imaginary - along[:, None] * nu[None, :], axis=1)
+    if bd.any(off > 1e-14 * size[largest]):
+        return None
+    height = points.reshape(-1, 3) @ nu
+    c = float(height[0])
+    scale = max(float(bd.max(bd.abs(points))), 1e-300)
+    if bd.any(bd.abs(height - c) > 1e-15 * scale):
+        return None
+    factor = bd.exp(-along * c)
+    if not bool(bd.all(bd.isfinite(factor))):
+        return None
+    return g * factor[:, None], bd.ascontiguousarray(k.real)
+
+
+def _modal_sum(g, k, points, method="auto", **options):
+    """sum_j g[j] exp(i k[j] . r) at ``points`` (..., 3), by fourier.NUFFT.
+
+    Complex wavevectors (decaying waves of an absorbing region, or retained
+    evanescent modes) take the transform when their decay folds into the
+    amplitudes (_decay_fold), and otherwise the exact direct sum, where
+    method "nufft" (also "auto" resolved by ``summation``) is asked.
+    """
+    from vecdiff.fourier.nufft import NUFFT
+
+    if method == "nufft" and bd.any(k.imag):
+        # Only the occupied modes count: NUFFT drops the others itself.
+        occupied = bd.any(g != 0, axis=-1)
+        if bd.any(k[occupied].imag):
+            g, k = g[occupied], k[occupied]
+            folded = _decay_fold(g, k, points)
+            if folded is None:
+                method = "direct"
+            else:
+                g, k = folded
+    return NUFFT(g, k, points, sign=1, method=method, **options)
+
+
+@dataclass(frozen=True, eq=False, repr=False)
+class PlaneWaveExpansion:
+    """Discrete modal amplitudes, including any quadrature weights.
+
+    E(r) = sum amplitudes[j] exp(i k[j] dot (r-origin)). The region owns
+    the material context. Complex k obeys a bilinear dispersion relation,
+    k . k = (n k0)², with a complex n in an absorbing region; amplitudes are
+    transverse bilinearly (k . a = 0) and H = k x E / (k0 Z0).
+    """
+
+    wavevectors: np.ndarray
+    amplitudes: np.ndarray
+    origin: np.ndarray
+    wavelength0: float
+    region: HomogeneousRegion
+
+    def __post_init__(self):
+        wavelength = positive(self.wavelength0, "vacuum wavelength")
+
+        if not isinstance(self.region, HomogeneousRegion):
+            raise TypeError("spectrum requires a HomogeneousRegion")
+
+        k = frozen_array(self.wavevectors, dtype=complex)
+        amplitudes = frozen_array(self.amplitudes, dtype=complex)
+        origin = frozen_array(self.origin)
+
+        if k.ndim != 2 or k.shape[-1] != 3 or amplitudes.shape != k.shape:
+            raise ValueError("wavevectors and amplitudes must have shape (modes, 3)")
+
+        if origin.shape != (3,):
+            raise ValueError("phase origin must have shape (3,)")
+
+        wavenumber = 2 * bd.pi * self.region.material.n / wavelength
+        dispersion = bd.sum(k * k, axis=-1) - wavenumber**2
+        scale = bd.maximum(bd.sum(bd.abs(k) ** 2, axis=-1), abs(wavenumber) ** 2)
+
+        if bd.any(bd.abs(dispersion) > 1e-10 * scale):
+            raise ValueError("wavevectors violate the region's dispersion relation")
+
+        _check_transverse(k, amplitudes)
+
+        for name, value in (
+            ("wavevectors", k),
+            ("amplitudes", amplitudes),
+            ("origin", origin),
+        ):
+            object.__setattr__(self, name, value)
+
+        object.__setattr__(self, "wavelength0", wavelength)
+
+    @classmethod
+    def _trusted(
+        cls, wavevectors, amplitudes, origin, wavelength0, region, *, occupied=None
+    ):
+        """An expansion the library built from validated pieces, taken as given.
+
+        The caller guarantees what __post_init__ checks: finite (modes, 3)
+        complex arrays it owns, the region's dispersion, transverse
+        amplitudes, a float wavelength and a HomogeneousRegion. The arrays
+        are made read-only, not copied. ``occupied``, if known, is the mask
+        of nonzero amplitudes (see _occupied).
+        """
+        expansion = object.__new__(cls)
+        if occupied is not None:
+            object.__setattr__(expansion, "_occupied_modes", occupied)
+        for name, value in (
+            ("wavevectors", wavevectors),
+            ("amplitudes", amplitudes),
+            ("origin", origin),
+        ):
+            if not is_device_array(value):
+                value.setflags(write=False)
+            object.__setattr__(expansion, name, value)
+        object.__setattr__(expansion, "wavelength0", wavelength0)
+        object.__setattr__(expansion, "region", region)
+        return expansion
+
+    @guarded
+    def __repr__(self):
+        """Its number of modes, phase origin, wavelength and region."""
+        return shorten(
+            f"PlaneWaveExpansion({count(len(self.wavevectors), 'mode')}, "
+            f"origin={vector(self.origin)}, wavelength0={number(self.wavelength0)}, "
+            f"in {self.region.name!r})"
+        )
+
+    @guarded
+    def __str__(self):
+        """Its modes, how many propagate and are occupied, and its region."""
+        k = self.wavevectors
+        propagating = int(bd.sum(bd.all(bd.abs(k.imag) == 0, axis=-1)))
+        occupied = int(bd.sum(_occupied(self)))
+        material = self.region.material
+        return block(
+            "PlaneWaveExpansion: E(r) = sum a_j exp(i k_j . (r - origin))",
+            [
+                ("modes", f"{len(k)} ({propagating} propagating, {occupied} nonzero)"),
+                ("origin", vector(self.origin)),
+                ("wavelength0", number(self.wavelength0)),
+                (
+                    "region",
+                    f"{self.region.name!r} ({material.name}, n={number(material.n)})",
+                ),
+            ],
+        )
+
+    @property
+    def magnetic_amplitudes(self):
+        k0 = 2 * bd.pi / self.wavelength0
+
+        return bd.cross(self.wavevectors, self.amplitudes) / (k0 * Z0)
+
+    def evaluate(
+        self, grid, *, chunk_size=256, method="auto", tolerance=1e-12, threads=None
+    ):
+        """Evaluate SI E/H through the selected nonuniform Fourier summation method.
+
+        method "nufft" runs FINUFFT on ``threads`` threads (None:
+        VECDIFF_NUFFT_THREADS, else all cores); "auto" takes it when it is
+        installed and cheaper than "direct", the exact sum (fourier.NUFFT).
+        Decaying waves (complex k) take it on a plane parallel to their
+        spectrum's, and the direct sum elsewhere (_modal_sum).
+        """
+        coefficients = bd.concatenate(
+            (bd.asarray(self.amplitudes), bd.asarray(self.magnetic_amplitudes)), axis=-1
+        )
+        values = _modal_sum(
+            coefficients,
+            self.wavevectors,
+            bd.asarray(grid.points) - bd.asarray(self.origin),
+            method=method,
+            tolerance=tolerance,
+            chunk_size=chunk_size,
+            threads=threads,
+        )
+        electric = ElectricField(grid, self.wavelength0, values[..., :3])
+
+        return ElectromagneticField(electric, values[..., 3:])
+
+    def electric(self, grid, **kwargs):
+        """Evaluate E without constructing or evaluating magnetic amplitudes."""
+        values = _modal_sum(
+            self.amplitudes, self.wavevectors, grid.points - self.origin, **kwargs
+        )
+        return ElectricField(grid, self.wavelength0, values)
+
+
+@dataclass(frozen=True, eq=False, repr=False)
+class PlaneSpectrum(Spectrum):
+    """FFT lattice plus its homogeneous modal solution.
+
+    Created by angular_spectrum(). The FFT origin is the central physical grid
+    point at index (ny // 2, nx // 2). Transverse wavevectors must follow the
+    centered FFT lattice in (v, u) array order. Arbitrary modes belong in
+    PlaneWaveExpansion; they cannot be reinterpreted as FFT coefficients.
+    """
+
+    grid: PlaneGrid
+    expansion: PlaneWaveExpansion
+    roundoff_removed_rms: float = 0.0
+    evanescent_removed_rms: float = 0.0
+
+    def __post_init__(self):
+        if not isinstance(self.grid, PlaneGrid) or not isinstance(
+            self.expansion, PlaneWaveExpansion
+        ):
+            raise TypeError("PlaneSpectrum requires PlaneGrid and PlaneWaveExpansion")
+
+        if len(self.expansion.amplitudes) != math.prod(self.grid.shape):
+            raise ValueError("FFT spectrum must contain one mode per grid cell")
+
+        # IFFT2 references the central physical point, not an arbitrary origin.
+        center = self.grid.center
+
+        if not bd.array_equal(self.expansion.origin, center):
+            raise ValueError(
+                "FFT phase origin must equal the central physical grid point"
+            )
+
+        # Check every bin, including empty bins, before permitting FFT synthesis.
+        fx, fy = frequency_grid(self.grid.coordinates)
+        expected = 2 * bd.pi * bd.stack((fx, fy), axis=-1).reshape(-1, 2)
+        wavevectors = self.expansion.wavevectors
+        transverse = wavevectors @ self.grid.frame.basis[:, :2]
+
+        # Respect the frame's accepted orthogonality error as well as roundoff.
+        basis = self.grid.frame.basis
+        frame_error = bd.linalg.norm(basis.T @ basis - bd.eye(3), ord=2)
+        scale = bd.linalg.norm(wavevectors, axis=-1)
+        tolerance = (64 * np.finfo(float).eps + frame_error) * scale[:, None]
+
+        if bd.any(bd.abs(transverse - expected) > tolerance):
+            raise ValueError(
+                "transverse wavevectors must match the centered FFT lattice and ordering"
+            )
+
+    @classmethod
+    def _trusted(cls, grid, expansion, roundoff_removed_rms, evanescent_removed_rms):
+        """A spectrum the library built on its own lattice, taken as given.
+
+        The caller guarantees what __post_init__ checks: one mode per cell,
+        the phase origin at grid.center and the centered FFT lattice of the
+        grid in (v, u) order.
+        """
+        spectrum = object.__new__(cls)
+        for name, value in (
+            ("grid", grid),
+            ("expansion", expansion),
+            ("roundoff_removed_rms", roundoff_removed_rms),
+            ("evanescent_removed_rms", evanescent_removed_rms),
+        ):
+            object.__setattr__(spectrum, name, value)
+        return spectrum
+
+    @property
+    def region(self):
+        return self.expansion.region
+
+    def _size(self):
+        return f"{shape(self.grid.shape)} FFT modes"
+
+    def _travel(self):
+        try:
+            return super()._travel()
+        except ValueError:
+            return "both ways"
+
+    def _details(self):
+        return [
+            ("roundoff removed", f"rms {number(self.roundoff_removed_rms)}"),
+            ("evanescent removed", f"rms {number(self.evanescent_removed_rms)}"),
+        ]
+
+    @guarded
+    def __repr__(self):
+        """As every Spectrum's, without the direction, which reads every mode."""
+        return shorten(
+            f"PlaneSpectrum({self._size()}, {on_plane(self.plane)}, "
+            f"in {self.region.name!r}, wavelength0={number(self.wavelength0)})"
+        )
+
+    @property
+    def wavelength0(self):
+        return self.expansion.wavelength0
+
+    @property
+    def direction(self):
+        """+1 if every mode travels along the lattice's normal, -1 if every one back."""
+        normal = (self.expansion.wavevectors.real @ self.grid.frame.normal)[
+            _occupied(self.expansion)
+        ]
+        if bd.all(normal >= 0):
+            return 1
+        if bd.all(normal < 0):
+            return -1
+        raise ValueError("the spectrum holds waves travelling both ways")
+
+    def evaluate(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        options = summation(method, tolerance, chunk_size, threads)
+        return self.expansion.evaluate(grid, **options)
+
+    def electric(
+        self, grid, *, method="auto", tolerance=None, chunk_size=None, threads=None
+    ):
+        options = summation(method, tolerance, chunk_size, threads)
+        return self.expansion.electric(grid, **options)
+
+    def propagate(self, distance, *, magnetic=True, model="asm"):
+        """The field on the lattice moved ``distance`` along its normal, by FFT.
+
+        model "asm" is exact; "fresnel" takes the paraxial phase.
+        """
+        from vecdiff.propagation.homogeneous import propagate_spectrum
+
+        return propagate_spectrum(self, distance, model=model, magnetic=magnetic)
+
+    def relabeled(self, region):
+        return PlaneSpectrum(
+            self.grid,
+            replace(self.expansion, region=region),
+            self.roundoff_removed_rms,
+            self.evanescent_removed_rms,
+        )

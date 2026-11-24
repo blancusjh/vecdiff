@@ -1,0 +1,17 @@
+[build-system]
+requires = ["meson-python>=0.18", "ninja>=1.11", "numpy>=2.0"]
+build-backend = "mesonpy"
+
+[project]
+name = "vecdiff-validation"
+version = "0.1.0"
+description = "Independent full-wave solvers and comparisons that validate vecdiff"
+requires-python = ">=3.10"
+dependencies = ["vecdiff", "numpy>=1.26", "scipy>=1.14"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "matplotlib>=3.8"]
+mesh = ["gmsh>=4.13"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

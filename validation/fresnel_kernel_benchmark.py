@@ -4,9 +4,9 @@ import json
 from time import perf_counter
 
 import numpy as np
-import vecdiff_general as o
+import vecdiff as o
 from scipy.fft import ifft2
-from vecdiff_general.propagation.surface_transfer import BandSynthesis
+from vecdiff.alternatives.surface_transfer import BandSynthesis
 
 
 def batched(plan, coefficients, workers, batch):
@@ -35,7 +35,7 @@ def run():
     count = 280
     axis = (np.arange(count) - count // 2) * 130 / count
     plane = o.sampling.CartesianGrid(axis, axis)
-    q = o.propagation.SurfaceTransport(
+    q = o.alternatives.SurfaceTransport(
         plane,
         o.surfaces.SphericalCap(-100, plane.frame),
         o.media.HomogeneousRegion("glass", o.media.Dielectric(1.5)),

@@ -1,18 +1,29 @@
-# General vector propagation
+# vecdiff
 
-This is the independently installable `vecdiff_general` distribution. It has no runtime dependency on the other vecdiff package.
+This is the independently installable `vecdiff` distribution: vector optics
+by eikonal–angular-spectrum transport. It is pure Python; its runtime
+dependencies are NumPy and SciPy, and it has no runtime dependency on the
+other packages of the repository.
 
 ```sh
-python -m pip install '.[test,notebooks,nufft,reference-mesh]'
+python -m pip install '.[test,notebooks,nufft]'
 python -m pytest -q
 ```
 
-Run these commands from this package directory. Building requires C and Fortran
-compilers; Meson-Python builds the native reference kernels. Matplotlib,
-notebooks, FINUFFT and Gmsh mesh generation are optional extras; the base runtime
-dependencies are NumPy and SciPy. See [validation](../docs/VALIDATION.md#full-wave-references)
-for the native reference solvers.
+Run these commands from this package directory. Matplotlib, the notebook
+tools and FINUFFT are optional extras (`notebooks`, `nufft`). The independent
+full-wave solvers that validate it are a separate package in `../validation`;
+see [validation](../docs/VALIDATION.md#full-wave-references).
 
-The source follows `geometry/`, `surfaces/`, `sampling/`, `media/`, `fields/`, `interfaces/`, `fourier/`, `propagation/`, `observables/`, and `visualization/`. Consult the [architecture](../docs/ARCHITECTURE.md) for responsibilities and units, [propagation](../docs/PROPAGATION.md) for the operational method, and [validation](../docs/VALIDATION.md) for supported physical claims.
+The source follows the library's ontology: `geometry/`, `media/`,
+`surfaces/` (space and matter), `system.py` (the optical system), `fields/`
+(light), `transport/` and `propagation/` (the method), `observables/`
+(measurement), `references/` (exact solutions to check against),
+`alternatives/` (other methods), with `fourier/`, `sampling/`, `backend.py`,
+`visualization/`, `io/` and `catalog.py` beside them. Start with the
+[README](../README.md) quick start, then the [method](../docs/PROPAGATION.md);
+the [architecture](../docs/ARCHITECTURE.md) gives responsibilities and units,
+and [validation](../docs/VALIDATION.md) the supported physical claims.
 
-The physical notebooks are in [`notebooks/`](notebooks/); see the [notebook guide](../docs/NOTEBOOKS.md).
+Runnable scripts are in [`examples/`](examples/) and executed notebooks in
+[`notebooks/`](notebooks/); see the [notebook guide](../docs/NOTEBOOKS.md).

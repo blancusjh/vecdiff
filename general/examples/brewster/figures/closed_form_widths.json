@@ -1,0 +1,6 @@
+{
+ "closed-form FWHM, ideal TM, NA 0.96": 0.383362968691467,
+ "closed-form FWHM, TE = TM, NA 0.96": 0.6069260566940969,
+ "closed-form FWHM, TE/TM = 0.64^10, NA 0.96": 0.38487868169268985,
+ "closed-form FWHM, ideal TM, NA 0.866": 0.46205059536601867
+}
