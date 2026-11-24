@@ -324,6 +324,7 @@ package loads neither plotting nor the reference solvers.
 - [Absorbing media](docs/ABSORBING_MEDIA.md): what a complex index changes, what is exact, and what is not yet carried.
 - [Notebooks](docs/NOTEBOOKS.md): eight executed optical studies.
 - [Changes](docs/CHANGES.md): what changed for a reader of the earlier API.
+- [Roadmap](ROADMAP.md): planned validation, performance and modeling work.
 
 Runnable scripts in [`general/examples/`](general/examples/), each under
 a minute on a laptop; each prints a few numbers with what to expect and why:
