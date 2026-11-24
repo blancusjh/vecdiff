@@ -5,8 +5,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 import vecdiff as general
-import vecdiff_stigmatic as stigmatic
 from numpy.testing import assert_allclose
+
+try:  # the stigmatic library lives in its own repository
+    import vecdiff_stigmatic as stigmatic
+except ImportError:
+    stigmatic = None
+
+needs_stigmatic = pytest.mark.skipif(
+    stigmatic is None, reason="vecdiff_stigmatic is not installed"
+)
 
 WAVELENGTH = 532e-9
 
@@ -59,7 +67,9 @@ def maxwell_errors(evaluate, points, index, step):
     )
 
 
-@pytest.mark.parametrize("engine", ["general", "stigmatic"])
+@pytest.mark.parametrize(
+    "engine", ["general", pytest.param("stigmatic", marks=needs_stigmatic)]
+)
 def test_real_space_maxwell_equations_converge(engine):
     if engine == "stigmatic":
         solution = focused_solution()
@@ -94,6 +104,7 @@ def test_real_space_maxwell_equations_converge(engine):
     assert np.linalg.norm(fine) < 0.3 * np.linalg.norm(coarse)
 
 
+@needs_stigmatic
 def test_independent_angular_synthesis_matches_all_complex_fields():
     focus = focused_solution()
     context = general.media.HomogeneousRegion("image", general.media.Dielectric(1.5))
@@ -110,6 +121,7 @@ def test_independent_angular_synthesis_matches_all_complex_fields():
     # This checks independent evaluation of the same modes, not surface physics.
 
 
+@needs_stigmatic
 def test_legacy_geometry_transfer_and_green_asymptotic_reference():
     fixture = Path(__file__).parent / "reference_data/legacy_stigmatic.npz"
     with np.load(fixture) as data:

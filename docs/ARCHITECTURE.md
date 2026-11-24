@@ -27,9 +27,10 @@ Public objects are reached through the namespace of what they are:
 `propagation.Propagator`. The package top level holds only these
 namespaces and re-exports nothing. `visualization` and `references`
 are imported explicitly, so importing the package loads neither plotting nor
-reference solvers. `vecdiff` and the sibling `vecdiff_stigmatic` package are
-independent distributions; they share no runtime optical kernel, and
-external validation compares explicit arrays.
+reference solvers. `vecdiff_stigmatic`, the earlier library for stigmatic
+optics, is an independent distribution in its own repository; it shares no
+runtime optical kernel with `vecdiff`, and external validation compares
+explicit arrays.
 
 ## Units
 
@@ -85,5 +86,5 @@ independent prescribed-current Green/Weyl evaluation.
 
 The general package no longer includes the layer-stack/admittance solver,
 feedback solver, experimental phase-space method, ideal-imaging model or
-specialized rim coupling; they remain in the Git history. The dedicated
-stigmatic package retains its own documented models.
+specialized rim coupling; they remain in the Git history. The stigmatic
+package, in its own repository, retains its own documented models.
