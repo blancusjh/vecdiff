@@ -278,12 +278,15 @@ style.
 The independent full-wave solvers that validate the library (BEM, FEM, MFS,
 meshing) are a separate package, `vecdiff_validation` in `validation/`. It
 builds a Fortran extension and needs a C and a Fortran compiler (tested with
-gfortran); the library never imports it. To run the whole test suite:
+gfortran); the library never imports it. The earlier stigmatic library,
+`vecdiff_stigmatic`, lives in its own repository; three cross-library checks
+in `validation/` run when it is installed and are skipped otherwise. To run
+the whole test suite:
 
 ```sh
 .venv/bin/python -m pip install meson-python ninja 'numpy>=2'
 .venv/bin/python -m pip install --no-build-isolation './validation[test,mesh]'
-.venv/bin/python -m pip install -e './stigmatic[test,notebooks,nufft]' ruff
+.venv/bin/python -m pip install ruff
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .

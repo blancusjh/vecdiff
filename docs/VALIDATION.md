@@ -11,7 +11,7 @@ From the repository root:
 
 ```sh
 .venv/bin/python -m pytest general/tests validation/tests -q
-.venv/bin/python -m pytest -q              # also stigmatic/tests and validation/
+.venv/bin/python -m pytest -q              # also the rest of validation/
 VECDIFF_SLOW=1 .venv/bin/python -m pytest general/tests/test_eikonal_regression.py -q
 VECDIFF_BACKEND=CUDA .venv/bin/python -m pytest general/tests -q
 .venv/bin/ruff check .
@@ -262,6 +262,8 @@ spatially resolved error bound.
 
 Cross-library tests keep the stigmatic implementation independent and check
 complex vector synthesis, Maxwell equations and the saved Green-integral case.
+Those that call `vecdiff_stigmatic`, which lives in its own repository, are
+skipped when it is not installed.
 
 ## Stored records
 
